@@ -210,6 +210,11 @@ def update_savepath_fid(tasklist):
 def save_task(task):
     # 在这里实现具体的任务处理逻辑
 
+    # 资源失效记录
+    if task.get("shareurl_ban"):
+        print(f"《{task['taskname']}》：{task['shareurl_ban']}")
+        return
+
     # 链接转换所需参数
     pwd_id, pdir_fid = get_id_from_url(task["shareurl"])
     # print("match: ", pwd_id, pdir_fid)
@@ -218,6 +223,7 @@ def save_task(task):
     is_sharing, stoken = get_stoken(pwd_id)
     if not is_sharing:
         add_notify(f"《{task['taskname']}》：{stoken}")
+        task["shareurl_ban"] = stoken
         return
     # print("stoken: ", stoken)
 
