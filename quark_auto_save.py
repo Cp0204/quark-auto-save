@@ -265,7 +265,8 @@ def save_task(task):
     fid_token_list = [item["share_fid_token"] for item in need_save_list]
     file_name = [item["file_name"] for item in need_save_list]
     if fid_list:
-        add_notify(f"《{task['taskname']}》添加追更：{file_name.sort()}")
+        file_name.sort()
+        add_notify(f"《{task['taskname']}》添加追更：{file_name}")
         task = save_file(fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken)
     else:
         print("运行结果：没有新的转存任务")
