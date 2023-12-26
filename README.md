@@ -33,6 +33,10 @@
     "QYWX_AM": "",
     "其他推送渠道//此项可删": "配置方法同青龙"
   },
+  "emby": {
+    "url": "http://yourdomain.com:8096",
+    "apikey": "" // 在后台 高级-API秘钥 中生成
+  },
   "tasklist": [
     {
       "taskname": "鸣xx年",
@@ -41,6 +45,7 @@
       "pattern": "^广告内容(\\d+).(mp4|mkv)",
       "replace": "\\1.\\2",
       "enddate": "2024-01-30",
+      "emby_id": "", //可选
       // 以下字段无需手动配置
       "savepath_fid": "0833xxxx712d7", // 程序运行获得的保存目录id
       "shareurl_ban": "分享地址已失效" // 记录分享是否失效，更新链接后删去，如有此字段将跳过任务
