@@ -13,17 +13,18 @@ import json
 import requests
 from datetime import datetime
 
-cookie = ""
+config_data = []
 notifys = []
 
 
 # 发送通知消息
-def send_ql_notify(title, body, push_config):
+def send_ql_notify(title, body):
+    global config_data
     try:
         # 导入青龙通知文件
         import notify
 
-        notify.push_config = push_config
+        notify.push_config = config_data["push_config"]
         notify.wecom_app(title, body)
     except Exception as e:
         if e:
@@ -39,9 +40,9 @@ def add_notify(text):
 
 
 def common_headers():
-    global cookie
+    global config_data
     return {
-        "cookie": cookie,
+        "cookie": config_data["cookie"],
         "content-type": "application/json",
     }
 
@@ -295,14 +296,15 @@ def rename_task(task):
 def download_file(url, save_path):
     response = requests.get(url)
     if response.status_code == 200:
-        with open(save_path, 'wb') as file:
+        with open(save_path, "wb") as file:
             file.write(response.content)
         return True
     else:
         return False
 
+
 def main():
-    global cookie
+    global config_data
 
     # 读取配置
     DEBUG = 0
@@ -317,14 +319,12 @@ def main():
     else:
         with open(config_path, "r", encoding="utf-8") as file:
             config_data = json.load(file)
-    # 读取通知配置
-    push_config = config_data.get("push_config", "")
+    # 推送测试
     # add_notify("消息测试")
-    # send_ql_notify("【夸克自动追更】", "\n".join(notifys), push_config)
+    # send_ql_notify("【夸克自动追更】", "\n".join(notifys))
     # return
     # 获取cookie
-    cookie = config_data.get("cookie", "")
-    if not cookie:
+    if not config_data.get("cookie"):
         print("❌ cookie未配置")
         return
     # 验证账号
@@ -335,7 +335,7 @@ def main():
         print(f"✅ 验证账号：{account_info['nickname']}")
         # 任务列表
         tasklist = config_data.get("tasklist", [])
-        # 获取全部fid
+        # 获取全部保存目录fid
         update_savepath_fid(tasklist)
         # 执行任务
         for task in tasklist:
@@ -357,7 +357,7 @@ def main():
     if notifys:
         notify_body = "\n".join(notifys)
         print(f"\n\n推送通知：\n{notify_body}\n\n")
-        send_ql_notify("【夸克自动追更】", notify_body, push_config)
+        send_ql_notify("【夸克自动追更】", notify_body)
     # 更新配置
     with open(config_path, "w", encoding="utf-8") as file:
         json.dump(config_data, file, ensure_ascii=False, indent=2)
