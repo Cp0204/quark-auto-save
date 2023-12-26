@@ -275,12 +275,15 @@ def save_task(task):
         file_name.sort()
         add_notify(f"《{task['taskname']}》添加追更：{file_name}")
         task = save_file(fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken)
+        return True
     else:
         print("运行结果：没有新的转存任务")
+        return False
 
 
 def rename_task(task):
     dir_file_list = ls_dir(task["savepath_fid"])
+    is_rename = False
     for dir_file in dir_file_list:
         if re.search(task["pattern"], dir_file["file_name"]):
             save_name = (
@@ -291,6 +294,24 @@ def rename_task(task):
             if save_name != dir_file["file_name"]:
                 rename(dir_file["fid"], save_name)
                 print("重命名：", dir_file["file_name"], "→", save_name)
+                is_rename = True
+    return is_rename
+
+
+def emby_refresh(emby_id):
+    global config_data
+    emby_url = config_data.get("emby").get("url")
+    emby_apikey = config_data.get("emby").get("apikey")
+    if emby_url and emby_apikey and emby_id:
+        url = f"{emby_url}/emby/Items/{emby_id}/Refresh"
+        querystring = {"api_key": emby_apikey}
+        response = requests.request("POST", url, headers=None, params=querystring)
+        if response.text == "":
+            print(f"✅🎞 刷新Emby媒体库：成功")
+            return True
+        else:
+            print(f"❌🎞 刷新Emby媒体库：{response.text}")
+            return False
 
 
 def download_file(url, save_path):
@@ -330,9 +351,9 @@ def main():
     # 验证账号
     account_info = get_info()
     if not account_info:
-        add_notify("❌ 验证账号：登录失败，cookie无效")
+        add_notify("❌👤 验证账号：登录失败，cookie无效")
     else:
-        print(f"✅ 验证账号：{account_info['nickname']}")
+        print(f"✅👤 验证账号：{account_info['nickname']}")
         # 任务列表
         tasklist = config_data.get("tasklist", [])
         # 获取全部保存目录fid
@@ -350,8 +371,10 @@ def main():
                 print(f"正则替换: {task['replace']}")
                 print(f"任务截止: {task['enddate']}")
                 print()
-                save_task(task)
-                rename_task(task)
+                is_new = save_task(task)
+                is_rename = rename_task(task)
+                if (is_new or is_rename) and task.get("emby_id"):
+                    emby_refresh(task["emby_id"])
                 print(f"============================")
     # 获取cookie
     if notifys:
