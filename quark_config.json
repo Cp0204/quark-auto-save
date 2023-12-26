@@ -1,0 +1,17 @@
+{
+  "cookie": "夸克网盘网页cookie",
+  "push_config": {
+    "QYWX_AM": "",
+    "其他推送渠道//此项可删": "配置方法同青龙"
+  },
+  "tasklist": [
+    {
+      "taskname": "鸣xx年",
+      "shareurl": "https://pan.quark.cn/s/39xxxx35#/list/share/17xxxx72-鸣xx年",
+      "savepath": "/video/tv/鸣xx年/S01",
+      "pattern": "^广告内容(\\d+).(mp4|mkv)",
+      "replace": "\\1.\\2",
+      "enddate": "2024-01-30"
+    }
+  ]
+}
