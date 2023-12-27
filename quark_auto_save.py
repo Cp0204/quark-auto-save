@@ -304,7 +304,14 @@ def emby_refresh(emby_id):
     emby_apikey = config_data.get("emby").get("apikey")
     if emby_url and emby_apikey and emby_id:
         url = f"{emby_url}/emby/Items/{emby_id}/Refresh"
-        querystring = {"api_key": emby_apikey}
+        querystring = {
+            "Recursive": "true",
+            "MetadataRefreshMode": "FullRefresh",
+            "ImageRefreshMode": "FullRefresh",
+            "ReplaceAllMetadata": "false",
+            "ReplaceAllImages": "false",
+            "api_key": emby_apikey,
+        }
         response = requests.request("POST", url, headers=None, params=querystring)
         if response.text == "":
             print(f"✅🎞 刷新Emby媒体库：成功")
