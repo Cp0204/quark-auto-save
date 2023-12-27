@@ -72,7 +72,7 @@
 1. 拉库命令：
 
     ```
-    ql repo https://github.com/Cp0204/quark_auto_save.git "quark" "" "notify"
+    ql repo https://github.com/Cp0204/quark_auto_save.git "quark" "" "sendNotify"
     ```
 
 2. 手动运行一次，将自动从本仓库下载配置模版。

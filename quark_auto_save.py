@@ -21,11 +21,11 @@ notifys = []
 def send_ql_notify(title, body):
     global config_data
     try:
-        # 导入青龙通知文件
-        import notify
+        # 导入通知模块
+        import sendNotify
 
-        notify.push_config = config_data["push_config"]
-        notify.wecom_app(title, body)
+        sendNotify.push_config = config_data["push_config"]  # 如注释这行则使用青龙默认通知渠道
+        sendNotify.send(title, body)
     except Exception as e:
         if e:
             print("发送通知消息失败！")
