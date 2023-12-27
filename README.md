@@ -24,7 +24,7 @@
 
 ### 程序配置
 
-首次运行将自动从本仓库下载 `quark_config.json` 配置模版：
+首次运行程序将从本仓库下载 `quark_config.json` 配置模版：
 
 ```json
 {
@@ -44,11 +44,11 @@
       "savepath": "/video/tv/鸣xx年/S01",
       "pattern": "^广告内容(\\d+).(mp4|mkv)",
       "replace": "\\1.\\2",
-      "enddate": "2024-01-30",
-      "emby_id": "", //可选
+      "enddate": "2024-01-30", //可选
+      "emby_id": "",           //可选
       // 以下字段无需手动配置
       "savepath_fid": "0833xxxx712d7", // 程序运行获得的保存目录id
-      "shareurl_ban": "分享地址已失效" // 记录分享是否失效，更新链接后删去，如有此字段将跳过任务
+      "shareurl_ban": "分享地址已失效" // 记录分享是否失效；更新链接后请手动删去，如有此字段将跳过任务
     }
   ]
 }
@@ -75,7 +75,7 @@
     ql repo https://github.com/Cp0204/quark_auto_save.git "quark" "" "sendNotify"
     ```
 
-2. 手动运行一次，将自动从本仓库下载配置模版。
+2. 首次运行程序将从本仓库下载配置模版。
 
 3. 脚本管理中，手动编辑 `quark_config.json` 配置文件。
 

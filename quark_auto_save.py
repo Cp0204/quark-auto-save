@@ -209,9 +209,7 @@ def update_savepath_fid(tasklist):
 
 
 def save_task(task):
-    # 在这里实现具体的任务处理逻辑
-
-    # 资源失效记录
+    # 判断资源失效记录
     if task.get("shareurl_ban"):
         print(f"《{task['taskname']}》：{task['shareurl_ban']}")
         return
@@ -367,9 +365,11 @@ def main():
         update_savepath_fid(tasklist)
         # 执行任务
         for task in tasklist:
-            current_date = datetime.now().date()
-            end_date = datetime.strptime(task["enddate"], "%Y-%m-%d").date()
-            if current_date < end_date:
+            # 判断任务期限
+            if not task.get("enddate") or (
+                datetime.now().date()
+                <= datetime.strptime(task["enddate"], "%Y-%m-%d").date()
+            ):
                 print(f"============================")
                 print(f"当前任务: {task['taskname']}")
                 print(f"分享链接: {task['shareurl']}")
