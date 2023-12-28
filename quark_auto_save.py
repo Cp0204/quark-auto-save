@@ -10,6 +10,7 @@ new Env('夸克自动追更');
 import os
 import re
 import json
+import random
 import requests
 from datetime import datetime
 
@@ -88,24 +89,36 @@ def get_stoken(pwd_id):
 
 
 def get_detail(pwd_id, stoken, pdir_fid):
-    url = "https://pan.quark.cn/1/clouddrive/share/sharepage/detail"
-    querystring = {
-        "pr": "ucpro",
-        "fr": "pc",
-        "pwd_id": pwd_id,
-        "stoken": stoken,
-        "pdir_fid": pdir_fid,
-        "force": "0",
-        "_page": "1",
-        "_size": "50",
-        "_fetch_banner": "0",
-        "_fetch_share": "0",
-        "_fetch_total": "1",
-        "_sort": "file_type:asc,updated_at:desc",
-    }
-    headers = common_headers()
-    response = requests.request("GET", url, headers=headers, params=querystring).json()
-    return response["data"]["list"]
+    file_list = []
+    page = 1
+    while True:
+        url = "https://pan.quark.cn/1/clouddrive/share/sharepage/detail"
+        querystring = {
+            "pr": "ucpro",
+            "fr": "pc",
+            "pwd_id": pwd_id,
+            "stoken": stoken,
+            "pdir_fid": pdir_fid,
+            "force": "0",
+            "_page": page,
+            "_size": "50",
+            "_fetch_banner": "0",
+            "_fetch_share": "0",
+            "_fetch_total": "1",
+            "_sort": "file_type:asc,updated_at:desc",
+        }
+        headers = common_headers()
+        response = requests.request(
+            "GET", url, headers=headers, params=querystring
+        ).json()
+        if response["data"]["list"]:
+            file_list += response["data"]["list"]
+            page += 1
+        else:
+            break
+        if len(file_list) >= response["metadata"]["_total"]:
+            break
+    return file_list
 
 
 def get_fids(file_paths):
@@ -121,21 +134,33 @@ def get_fids(file_paths):
 
 
 def ls_dir(pdir_fid):
-    url = "https://drive.quark.cn/1/clouddrive/file/sort"
-    querystring = {
-        "pr": "ucpro",
-        "fr": "pc",
-        "uc_param_str": "",
-        "pdir_fid": pdir_fid,
-        "_page": "1",
-        "_size": "50",
-        "_fetch_total": "1",
-        "_fetch_sub_dirs": "0",
-        "_sort": "file_type:asc,updated_at:desc",
-    }
-    headers = common_headers()
-    response = requests.request("GET", url, headers=headers, params=querystring).json()
-    return response["data"]["list"]
+    file_list = []
+    page = 1
+    while True:
+        url = "https://drive.quark.cn/1/clouddrive/file/sort"
+        querystring = {
+            "pr": "ucpro",
+            "fr": "pc",
+            "uc_param_str": "",
+            "pdir_fid": pdir_fid,
+            "_page": page,
+            "_size": "50",
+            "_fetch_total": "1",
+            "_fetch_sub_dirs": "0",
+            "_sort": "file_type:asc,updated_at:desc",
+        }
+        headers = common_headers()
+        response = requests.request(
+            "GET", url, headers=headers, params=querystring
+        ).json()
+        if response["data"]["list"]:
+            file_list += response["data"]["list"]
+            page += 1
+        else:
+            break
+        if len(file_list) >= response["metadata"]["_total"]:
+            break
+    return file_list
 
 
 def save_file(fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken):
@@ -144,8 +169,8 @@ def save_file(fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken):
         "pr": "ucpro",
         "fr": "pc",
         "uc_param_str": "",
-        "__dt": "34126",
-        "__t": "1703395934208",
+        "__dt": int(random.uniform(1, 5) * 60 * 1000),
+        "__t": datetime.now().timestamp(),
     }
     payload = {
         "fid_list": fid_list,
