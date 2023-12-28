@@ -24,8 +24,9 @@ def send_ql_notify(title, body):
     try:
         # 导入通知模块
         import sendNotify
-
-        sendNotify.push_config = config_data["push_config"]  # 如注释这行则使用青龙默认通知渠道
+        # 如未配置 push_config 则使用青龙环境通知设置
+        if config_data["push_config"]:
+            sendNotify.push_config = config_data["push_config"]
         sendNotify.send(title, body)
     except Exception as e:
         if e:
