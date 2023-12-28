@@ -289,14 +289,15 @@ def save_task(task):
                 for dir_file in dir_file_list
             )
             if not file_exists:
+                share_file["save_name"] = save_name
                 need_save_list.append(share_file)
 
     fid_list = [item["fid"] for item in need_save_list]
     fid_token_list = [item["share_fid_token"] for item in need_save_list]
-    file_name = [item["file_name"] for item in need_save_list]
+    save_name_list = [item["save_name"] for item in need_save_list]
     if fid_list:
-        file_name.sort()
-        add_notify(f"《{task['taskname']}》添加追更：{file_name}")
+        save_name_list.sort()
+        add_notify(f"《{task['taskname']}》添加追更：{save_name_list}")
         task = save_file(fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken)
         return True
     else:
