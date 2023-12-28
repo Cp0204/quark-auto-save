@@ -44,8 +44,9 @@
       "savepath": "/video/tv/鸣xx年/S01",
       "pattern": "^广告内容(\\d+).(mp4|mkv)",
       "replace": "\\1.\\2",
-      "enddate": "2024-01-30", //可选
-      "emby_id": "",           //可选
+      "enddate": "2024-01-30",  //可选
+      "emby_id": "",            //可选
+      "ignore_extension": true, //可选
       // 以下字段无需手动配置
       "savepath_fid": "0833xxxx712d7", // 程序运行获得的保存目录id
       "shareurl_ban": "分享地址已失效" // 记录分享是否失效；更新链接后请手动删去，如有此字段将跳过任务

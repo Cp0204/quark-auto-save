@@ -280,12 +280,16 @@ def save_task(task):
                 if task["replace"]
                 else share_file["file_name"]
             )
-            # 判断目标目录文件是否存在
-            file_exists = any(
-                (
-                    dir_file["file_name"] == save_name
-                    or dir_file["file_name"] == share_file["file_name"]
+            # 判断目标目录文件是否存在，可选忽略后缀
+            if task.get("ignore_extension"):
+                compare_func = lambda a, b1, b2: (
+                    os.path.splitext(a)[0] == os.path.splitext(b1)[0]
+                    or os.path.splitext(a)[0] == os.path.splitext(b2)[0]
                 )
+            else:
+                compare_func = lambda a, b1, b2: (a == b1 or a == b2)
+            file_exists = any(
+                compare_func(dir_file["file_name"], share_file["file_name"], save_name)
                 for dir_file in dir_file_list
             )
             if not file_exists:
