@@ -407,7 +407,12 @@ def main():
                 print(f"目标目录: {task['savepath']}")
                 print(f"正则匹配: {task['pattern']}")
                 print(f"正则替换: {task['replace']}")
-                print(f"任务截止: {task['enddate']}")
+                if task.get("enddate"):
+                    print(f"任务截止: {task['enddate']}")
+                if task.get("emby_id"):
+                    print(f"刷媒体库: {task['emby_id']}")
+                if task.get("ignore_extension"):
+                    print(f"忽略后缀: {task['ignore_extension']}")
                 print()
                 is_new = save_task(task)
                 is_rename = rename_task(task)
