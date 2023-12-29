@@ -302,7 +302,7 @@ def save_task(task):
     save_name_list = [item["save_name"] for item in need_save_list]
     if fid_list:
         save_name_list.sort()
-        add_notify(f"《{task['taskname']}》添加追更：{save_name_list}")
+        add_notify(f"《{task['taskname']}》添加追更：{', '.join(save_name_list)}")
         task = save_file(fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken)
         return True
     else:
