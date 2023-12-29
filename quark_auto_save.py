@@ -50,7 +50,7 @@ def common_headers():
 
 
 def get_id_from_url(url):
-    pattern = r"/s/(\w+)(#/list/share/(\w+))?"
+    pattern = r"/s/(\w+)(#/list/share.*/(\w+))?"
     match = re.search(pattern, url)
     if match:
         pwd_id = match.group(1)
