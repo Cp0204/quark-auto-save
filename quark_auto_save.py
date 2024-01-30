@@ -1,6 +1,6 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Modify: 2023-12-25
+# Modify: 2024-01-31
 # Repo: https://github.com/Cp0204/quark_auto_save
 # ConfigFile: quark_config.json
 """
@@ -14,18 +14,35 @@ import random
 import requests
 from datetime import datetime
 
-config_data = []
+config_data = {}
 notifys = []
+
+magic_regex = {
+    "$TV": {
+        "pattern": ".*?(S\\d{1,2}E)?P?(\\d{1,3}).*?\\.(mp4|mkv)",
+        "replace": "\\1\\2.\\3",
+    },
+}
+
+
+# 魔法正则匹配
+def magic_regex_func(pattern, replace):
+    keyword = pattern
+    if keyword in magic_regex:
+        pattern = magic_regex[keyword]["pattern"]
+        if replace == "":
+            replace = magic_regex[keyword]["replace"]
+    return pattern, replace
 
 
 # 发送通知消息
 def send_ql_notify(title, body):
-    global config_data
     try:
         # 导入通知模块
         import sendNotify
+
         # 如未配置 push_config 则使用青龙环境通知设置
-        if config_data["push_config"]:
+        if config_data.get("push_config"):
             sendNotify.push_config = config_data["push_config"]
         sendNotify.send(title, body)
     except Exception as e:
@@ -274,11 +291,12 @@ def save_task(task):
     # 添加符合的
     for share_file in share_file_list:
         # 正则文件名匹配
-        if re.search(task["pattern"], share_file["file_name"]):
+        pattern, replace = magic_regex_func(task["pattern"], task["replace"])
+        if re.search(pattern, share_file["file_name"]):
             # 替换后的文件名
             save_name = (
-                re.sub(task["pattern"], task["replace"], share_file["file_name"])
-                if task["replace"]
+                re.sub(pattern, replace, share_file["file_name"])
+                if replace != ""
                 else share_file["file_name"]
             )
             # 判断目标目录文件是否存在，可选忽略后缀
@@ -314,10 +332,11 @@ def rename_task(task):
     dir_file_list = ls_dir(task["savepath_fid"])
     is_rename = False
     for dir_file in dir_file_list:
-        if re.search(task["pattern"], dir_file["file_name"]):
+        pattern, replace = magic_regex_func(task["pattern"], task["replace"])
+        if re.search(pattern, dir_file["file_name"]):
             save_name = (
-                re.sub(task["pattern"], task["replace"], dir_file["file_name"])
-                if task["replace"]
+                re.sub(pattern, replace, dir_file["file_name"])
+                if replace != ""
                 else dir_file["file_name"]
             )
             if save_name != dir_file["file_name"]:
