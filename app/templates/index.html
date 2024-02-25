@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>夸克自动转存</title>
+    <!-- 引入 Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+
+<body>
+    <div id="app" class="container mt-5">
+        <h1 class="mb-4">夸克自动转存配置</h1>
+        <form @submit.prevent="saveConfig">
+
+            <h2>Cookie</h2>
+            <input type="text" v-model="formData.cookie" class="form-control" placeholder="打开 pan.quark.com 抓取"><br>
+
+            <div class="row">
+                <div class="col-sm-6">
+                    <h2>通知</h2>
+                </div>
+                <div class="col-sm-6 text-right">
+                    <button type="button" class="btn btn-outline-primary mb-3" @click="addItem()">+</button>
+                </div>
+            </div>
+            <div v-for="(value, key) in formData.push_config" :key="key" class="input-group mb-2">
+                <div class="input-group-prepend">
+                    <span class="input-group-text" v-html="key"></span>
+                </div>
+                <input type="text" v-model="formData.push_config[key]" class="form-control">
+                <div class="input-group-append">
+                    <button type="button" class="btn btn-outline-danger" @click="removeItem(key)">-</button>
+                </div>
+            </div>
+
+            <h2>Emby</h2>
+            <div class="form-group row">
+                <label class="col-sm-2 col-form-label">Emby URL</label>
+                <div class="col-sm-10">
+                    <input type="text" v-model="formData.emby.url" class="form-control" placeholder="可选">
+                </div>
+            </div>
+            <div class="form-group row">
+                <label class="col-sm-2 col-form-label">Emby API Key</label>
+                <div class="col-sm-10">
+                    <input type="text" v-model="formData.emby.apikey" class="form-control" placeholder="可选">
+                </div>
+            </div>
+
+            <h2>定时规则</h2>
+            <div class="form-group row">
+                <label class="col-sm-2 col-form-label">Crontab<span class="badge badge-pill badge-light"><a target="_blank" href="https://tool.lu/crontab/">?</a></span></label>
+                <div class="col-sm-10">
+                    <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
+                </div>
+            </div>
+
+            <h2>任务列表</h2>
+            <div v-for="(task, index) in formData.tasklist" :key="index" class="task mb-3">
+                <div class="form-group row">
+                    <div class="col-sm-6">
+                        <h3>任务#<span v-html="index+1"></span></h3>
+                    </div>
+                    <div class="col-sm-6 text-right">
+                        <button type="button" class="btn btn-outline-danger" @click="removeTask(index)">删除任务</button>
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">任务名称</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="taskname[]" class="form-control mb-2" v-model="task.taskname" placeholder="必填">
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">分享链接</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="shareurl[]" class="form-control mb-2" v-model="task.shareurl" placeholder="必填">
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">保存路径</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="savepath[]" class="form-control mb-2" v-model="task.savepath" placeholder="必填">
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">正则过滤</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="pattern[]" class="form-control mb-2" v-model="task.pattern" placeholder="留空为不过滤">
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">正则替换</label>
+                    <div class="col-sm-10">
+                        <input type="text" name="replace[]" class="form-control mb-2" v-model="task.replace" placeholder="留空为不替换">
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">截止日期</label>
+                    <div class="col-sm-10">
+                        <input type="date" name="enddate[]" class="form-control mb-2" v-model="task.enddate" placeholder="可选">
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">Emby ID</label>
+                    <div class="col-sm-10">
+                        <input type="number" name="emby_id[]" class="form-control mb-2" v-model="task.emby_id" placeholder="可选">
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="btn btn-primary" @click="addTask()">增加任务</button>
+            <br><br>
+            <input type="submit" class="btn btn-success" value="保存">
+            <a class="btn btn-danger" href="/logout">退出</a>
+        </form>
+        <div class="text-center">
+            <a href="https://github.com/Cp0204/quark_auto_save">@Cp0204/quark_auto_save</a>
+        </div>
+    </div>
+
+    <!-- 引入 Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <!-- 引入 Vue.js -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <script>
+        var app = new Vue({
+            el: '#app',
+            data: {
+                formData: {
+                    cookie: "",
+                    push_config: {},
+                    emby: {
+                        url: "",
+                        apikey: ""
+                    },
+                    tasklist: []
+                }
+            },
+            mounted() {
+                this.fetchData();
+            },
+            methods: {
+                fetchData() {
+                    axios.get('/data')
+                        .then(response => {
+                            this.formData = response.data;
+                        })
+                        .catch(error => {
+                            console.error('Error fetching data:', error);
+                        });
+                },
+                saveConfig() {
+                    axios.post('/update', this.formData)
+                        .then(response => {
+                            alert(response.data);
+                            console.log('Config saved successfully:', response.data);
+                        })
+                        .catch(error => {
+                            console.error('Error saving config:', error);
+                        });
+                },
+                addItem() {
+                    key = prompt("增加的键名", "");
+                    if (key != "" && key != null)
+                        this.$set(this.formData.push_config, key, "");
+                },
+                removeItem(key) {
+                    this.$delete(this.formData.push_config, key);
+                },
+                addTask() {
+                    this.formData.tasklist.push({
+                        taskname: "",
+                        shareurl: "",
+                        savepath: "",
+                        pattern: "",
+                        replace: "",
+                        enddate: "",
+                        emby_id: ""
+                    });
+                },
+                removeTask(index) {
+                    this.formData.tasklist.splice(index, 1);
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>
