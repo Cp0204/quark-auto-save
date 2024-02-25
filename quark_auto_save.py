@@ -9,6 +9,7 @@ new Env('夸克自动追更');
 """
 import os
 import re
+import sys
 import json
 import random
 import requests
@@ -362,10 +363,10 @@ def emby_refresh(emby_id):
         }
         response = requests.request("POST", url, headers=None, params=querystring)
         if response.text == "":
-            print(f"✅🎞 刷新Emby媒体库：成功")
+            print(f"🎞 刷新Emby媒体库：成功✅")
             return True
         else:
-            print(f"❌🎞 刷新Emby媒体库：{response.text}")
+            print(f"🎞 刷新Emby媒体库：{response.text}❌")
             return False
 
 
@@ -381,10 +382,15 @@ def download_file(url, save_path):
 
 def main():
     global config_data
-
-    # 读取配置
-    DEBUG = 0
-    config_path = "quark_config.json" if not DEBUG else "quark_config_debug.json"
+    formatted_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"============================")
+    print("⏰ 当前时间: ", formatted_time)
+    # 启动参数
+    arguments = sys.argv
+    if len(arguments) > 1:
+        config_path = arguments[1]
+    else:
+        config_path = "quark_config.json"
     # 检查本地文件是否存在，如果不存在就下载
     if not os.path.exists(config_path):
         print(f"❌ 配置文件 {config_path} 不存在，正远程从下载配置模版")
@@ -406,9 +412,9 @@ def main():
     # 验证账号
     account_info = get_info()
     if not account_info:
-        add_notify("❌👤 验证账号：登录失败，cookie无效")
+        add_notify("👤 验证账号: 登录失败，cookie无效❌")
     else:
-        print(f"✅👤 验证账号：{account_info['nickname']}")
+        print(f"👤 验证账号: {account_info['nickname']}✅")
         # 任务列表
         tasklist = config_data.get("tasklist", [])
         # 获取全部保存目录fid
