@@ -1,3 +1,5 @@
+<img src="./img/icon.png" alt="icon" width="128" height="128" align="right"/>
+
 # 夸克网盘自动转存
 
 对于一些持续更新的资源，隔段时间去转存十分麻烦。
@@ -20,12 +22,45 @@
 - [x] 任务结束期限，期限后不执行此任务
 - [x] 追更或整理后自动刷新 Emby 媒体库
 - [x] 可选忽略文件后缀
+- [x] 支持Docker独立部署，WebUI配置
 
 ## 使用
 
+### Docker部署
+
+Docker 部署提供 WebUI 管理配置，但目前 WebUI 并不完善，只供辅助使用，你也应该了解如何[手动配置](#程序配置)。
+
+```shell
+docker run -d \
+  --name quark-auto-save \
+  -p 5005:5005 \
+  -v /yourpath/quark-auto-save/config:/app/config \
+  --network bridge \
+  --restart unless-stopped \
+  ghcr.io/cp0204/quark-auto-save:latest
+```
+
+WebUI 默认管理账号： `admin` ，密码 `admin123`，仅支持在 `quark_config.json` 中修改。
+
+#### WebUI 预览
+
+![screenshot_webui](./img/screenshot_webui.png)
+
+### 青龙部署
+
+1. 拉库命令：
+
+    ```
+    ql repo https://github.com/Cp0204/quark_auto_save.git "quark" "" "sendNotify"
+    ```
+
+2. 首次运行程序将从本仓库下载配置模版。
+
+3. 脚本管理中，手动编辑 `quark_config.json` 配置文件。
+
 ### 程序配置
 
-首次运行程序将从本仓库下载 `quark_config.json` 配置模版：
+首次运行脚本将从本仓库下载 `quark_config.json` 配置模版：
 
 ```json
 {
@@ -97,18 +132,6 @@
 当任务 `pattern` 值为 `$开头` 且 `replace` 留空时，实际将调用程序预设的正则表达式。
 
 如 `$TV` 可适配和自动整理市面上90%分享剧集的文件名格式，具体实现见代码，欢迎贡献规则。
-
-### 青龙拉库
-
-1. 拉库命令：
-
-    ```
-    ql repo https://github.com/Cp0204/quark_auto_save.git "quark" "" "sendNotify"
-    ```
-
-2. 首次运行程序将从本仓库下载配置模版。
-
-3. 脚本管理中，手动编辑 `quark_config.json` 配置文件。
 
 ## 打赏
 
