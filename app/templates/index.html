@@ -18,10 +18,10 @@
             <input type="text" v-model="formData.cookie" class="form-control" placeholder="打开 pan.quark.com 抓取"><br>
 
             <div class="row">
-                <div class="col-sm-6">
+                <div class="col">
                     <h2>通知</h2>
                 </div>
-                <div class="col-sm-6 text-right">
+                <div class="col text-right">
                     <button type="button" class="btn btn-outline-primary mb-3" @click="addItem()">+</button>
                 </div>
             </div>
@@ -60,13 +60,14 @@
             <h2>任务列表</h2>
             <div v-for="(task, index) in formData.tasklist" :key="index" class="task mb-3">
                 <div class="form-group row">
-                    <div class="col-sm-6">
+                    <div class="col">
                         <h3>任务#<span v-html="index+1"></span></h3>
                     </div>
-                    <div class="col-sm-6 text-right">
+                    <div class="col text-right">
                         <button type="button" class="btn btn-outline-danger" @click="removeTask(index)">删除任务</button>
                     </div>
                 </div>
+                <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="task.shareurl_ban"></div>
                 <div class="form-group row">
                     <label class="col-sm-2 col-form-label">任务名称</label>
                     <div class="col-sm-10">
@@ -76,7 +77,7 @@
                 <div class="form-group row">
                     <label class="col-sm-2 col-form-label">分享链接</label>
                     <div class="col-sm-10">
-                        <input type="text" name="shareurl[]" class="form-control mb-2" v-model="task.shareurl" placeholder="必填">
+                        <input type="text" name="shareurl[]" class="form-control mb-2" v-model="task.shareurl" placeholder="必填" @input="clearShareurlBan(task)">
                     </div>
                 </div>
                 <div class="form-group row">
@@ -142,6 +143,10 @@
                     },
                     tasklist: []
                 }
+            }, watch: {
+                'task.shareurl': function (newVal, oldVal) {
+                    this.task.shareurl_ban = '';
+                }
             },
             mounted() {
                 this.fetchData();
@@ -187,6 +192,9 @@
                 },
                 removeTask(index) {
                     this.formData.tasklist.splice(index, 1);
+                },
+                clearShareurlBan(task) {
+                    delete task.shareurl_ban;
                 }
             }
         });
