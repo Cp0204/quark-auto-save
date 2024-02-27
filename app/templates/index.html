@@ -14,15 +14,28 @@
         <h1 class="mb-4">夸克自动转存配置</h1>
         <form @submit.prevent="saveConfig">
 
-            <h2>Cookie</h2>
-            <input type="text" v-model="formData.cookie" class="form-control" placeholder="打开 pan.quark.com 抓取"><br>
+            <div class="row">
+                <div class="col">
+                    <h2>Cookie</h2>
+                </div>
+                <div class="col text-right">
+                    <button type="button" class="btn btn-outline-primary mb-3" @click="addCookie()">+</button>
+                </div>
+            </div>
+            <p>所有账号执行签到，仅第一个账号执行转存，请自行确认顺序。</p>
+            <div v-for="(value, index) in formData.cookie" :key="index" class="input-group mb-2">
+                <input type="text" v-model="formData.cookie[index]" class="form-control" placeholder="打开 pan.quark.com 抓取">
+                <div class="input-group-append">
+                    <button type="button" class="btn btn-outline-danger" @click="removeCookie(index)">-</button>
+                </div>
+            </div>
 
             <div class="row">
                 <div class="col">
                     <h2>通知</h2>
                 </div>
                 <div class="col text-right">
-                    <button type="button" class="btn btn-outline-primary mb-3" @click="addItem()">+</button>
+                    <button type="button" class="btn btn-outline-primary mb-3" @click="addPush()">+</button>
                 </div>
             </div>
             <div v-for="(value, key) in formData.push_config" :key="key" class="input-group mb-2">
@@ -31,7 +44,7 @@
                 </div>
                 <input type="text" v-model="formData.push_config[key]" class="form-control">
                 <div class="input-group-append">
-                    <button type="button" class="btn btn-outline-danger" @click="removeItem(key)">-</button>
+                    <button type="button" class="btn btn-outline-danger" @click="removePush(key)">-</button>
                 </div>
             </div>
 
@@ -135,7 +148,7 @@
             el: '#app',
             data: {
                 formData: {
-                    cookie: "",
+                    cookie: [],
                     push_config: {},
                     emby: {
                         url: "",
@@ -143,7 +156,8 @@
                     },
                     tasklist: []
                 }
-            }, watch: {
+            },
+            watch: {
                 'task.shareurl': function (newVal, oldVal) {
                     this.task.shareurl_ban = '';
                 }
@@ -155,6 +169,8 @@
                 fetchData() {
                     axios.get('/data')
                         .then(response => {
+                            if (typeof response.data.cookie === 'string')
+                                response.data.cookie = [response.data.cookie];
                             this.formData = response.data;
                         })
                         .catch(error => {
@@ -171,12 +187,18 @@
                             console.error('Error saving config:', error);
                         });
                 },
-                addItem() {
+                addCookie() {
+                    this.formData.cookie.push("");
+                },
+                removeCookie(index) {
+                    this.formData.cookie.splice(index, 1);
+                },
+                addPush() {
                     key = prompt("增加的键名", "");
                     if (key != "" && key != null)
                         this.$set(this.formData.push_config, key, "");
                 },
-                removeItem(key) {
+                removePush(key) {
                     this.$delete(this.formData.push_config, key);
                 },
                 addTask() {
