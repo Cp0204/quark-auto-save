@@ -24,6 +24,7 @@
 - [x] 可选忽略文件后缀
 - [x] 支持 Docker 独立部署，WebUI 配置
 - [x] 每日签到领空间
+- [x] 支持多账号（多账号签到，仅首账号转存）
 
 ## 使用
 
@@ -59,13 +60,18 @@ docker run -d \
 
 3. 脚本管理中，手动编辑 `quark_config.json` 配置文件。
 
+> 当配置中没有 cookie 字段时，则从青龙环境变量 `QUARK_COOKIE` 中读取，多账号用换行分隔。
+
 ### 程序配置
 
 首次运行脚本将从本仓库下载 `quark_config.json` 配置模版：
 
 ```json
 {
-  "cookie": "Your pan.quark.cn Cookie",
+  "cookie": [
+    "Your pan.quark.cn Cookie1, Only this one will do save task.",
+    "Your pan.quark.cn Cookie2, Only sign after this."
+  ],
   "push_config": {
     "QYWX_AM": "",
     "其他推送渠道//此项可删": "配置方法同青龙"

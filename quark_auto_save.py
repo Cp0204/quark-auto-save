@@ -17,6 +17,7 @@ from datetime import datetime
 
 config_data = {}
 notifys = []
+first_account = {}
 
 magic_regex = {
     "$TV": {
@@ -44,6 +45,7 @@ def send_ql_notify(title, body):
 
         # 如未配置 push_config 则使用青龙环境通知设置
         if config_data.get("push_config"):
+            config_data["push_config"]["CONSOLE"] = True
             sendNotify.push_config = config_data["push_config"]
         sendNotify.send(title, body)
     except Exception as e:
@@ -60,17 +62,19 @@ def add_notify(text):
 
 
 def common_headers():
-    global config_data
     return {
-        "cookie": config_data["cookie"],
+        "cookie": first_account["cookie"],
         "content-type": "application/json",
     }
 
 
-def get_growth_info():
+def get_growth_info(cookie):
     url = "https://drive-m.quark.cn/1/clouddrive/capacity/growth/info"
     querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
-    headers = common_headers()
+    headers = {
+        "cookie": cookie,
+        "content-type": "application/json",
+    }
     response = requests.request("GET", url, headers=headers, params=querystring).json()
     if response.get("data"):
         return response["data"]
@@ -78,13 +82,16 @@ def get_growth_info():
         return False
 
 
-def get_growth_sign():
+def get_growth_sign(cookie):
     url = "https://drive-m.quark.cn/1/clouddrive/capacity/growth/sign"
     querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
     payload = {
         "sign_cyclic": True,
     }
-    headers = common_headers()
+    headers = {
+        "cookie": cookie,
+        "content-type": "application/json",
+    }
     response = requests.request(
         "POST", url, json=payload, headers=headers, params=querystring
     ).json()
@@ -108,10 +115,13 @@ def get_id_from_url(url):
         return None
 
 
-def get_account_info():
+def get_account_info(cookie):
     url = "https://pan.quark.cn/account/info"
     querystring = {"fr": "pc", "platform": "pc"}
-    headers = common_headers()
+    headers = {
+        "cookie": cookie,
+        "content-type": "application/json",
+    }
     response = requests.request("GET", url, headers=headers, params=querystring).json()
     if response.get("data"):
         return response["data"]
@@ -407,11 +417,99 @@ def download_file(url, save_path):
         return False
 
 
+def get_cookies():
+    cookie_val = (
+        config_data.get("cookie")
+        if config_data.get("cookie")
+        else os.environ.get("QUARK_COOKIE")
+    )
+    if isinstance(cookie_val, list):
+        return cookie_val
+    elif cookie_val:
+        if "\n" in cookie_val:
+            return cookie_val.split("\n")
+        else:
+            return [cookie_val]
+    else:
+        return False
+
+
+def do_sign(cookies):
+    first_account = {}
+    print(f"===============签到任务===============")
+    for index, cookie in enumerate(cookies):
+        # 验证账号
+        account_info = get_account_info(cookie)
+        print(f"▶️ 验证第{index+1}个账号")
+        if not account_info:
+            add_notify(f"👤 第{index+1}个账号登录失败，cookie无效❌")
+        else:
+            if index == 0:
+                first_account = account_info
+                first_account["cookie"] = cookie
+            print(f"👤 账号昵称: {account_info['nickname']}✅")
+            # 每日领空间
+            growth_info = get_growth_info(cookie)
+            if growth_info:
+                if growth_info["cap_sign"]["sign_daily"]:
+                    print(
+                        f"📅 执行签到: 今日已签到+{growth_info['cap_sign']['sign_daily_reward']/1024/1024}MB，连签进度({growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']})✅"
+                    )
+                else:
+                    sign, sign_return = get_growth_sign(cookie)
+                    if sign:
+                        add_notify(
+                            f"📅 执行签到: 今日签到+{sign_return/1024/1024}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅"
+                        )
+                    else:
+                        print(f"📅 执行签到: {sign_return}")
+        print(f"")
+    print(f"")
+    return first_account
+
+
+def do_save():
+    print(f"===============转存任务===============")
+    print(f"转存账号: {first_account['nickname']}")
+    # 任务列表
+    tasklist = config_data.get("tasklist", [])
+    # 获取全部保存目录fid
+    if tasklist:
+        update_savepath_fid(tasklist)
+    # 执行任务
+    for index, task in enumerate(tasklist):
+        # 判断任务期限
+        if not task.get("enddate") or (
+            datetime.now().date()
+            <= datetime.strptime(task["enddate"], "%Y-%m-%d").date()
+        ):
+            print(f"#{index+1}------------------")
+            print(f"任务名称: {task['taskname']}")
+            print(f"分享链接: {task['shareurl']}")
+            print(f"目标目录: {task['savepath']}")
+            print(f"正则匹配: {task['pattern']}")
+            print(f"正则替换: {task['replace']}")
+            if task.get("enddate"):
+                print(f"任务截止: {task['enddate']}")
+            if task.get("emby_id"):
+                print(f"刷媒体库: {task['emby_id']}")
+            if task.get("ignore_extension"):
+                print(f"忽略后缀: {task['ignore_extension']}")
+            print()
+            is_new = save_task(task)
+            is_rename = rename_task(task)
+            if (is_new or is_rename) and task.get("emby_id"):
+                emby_refresh(task["emby_id"])
+    print(f"--------------------")
+    print(f"")
+
+
 def main():
-    global config_data
+    global config_data, first_account
     formatted_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"============================")
+    print(f"===============程序开始===============")
     print(f"⏰ 执行时间: {formatted_time}")
+    print(f"")
     # 启动参数
     arguments = sys.argv
     if len(arguments) > 1:
@@ -428,69 +526,26 @@ def main():
     else:
         with open(config_path, "r", encoding="utf-8") as file:
             config_data = json.load(file)
-    # 推送测试
-    # add_notify("消息测试")
-    # send_ql_notify("【夸克自动追更】", "\n".join(notifys))
-    # return
     # 获取cookie
-    if not config_data.get("cookie"):
+    cookies = get_cookies()
+    if not cookies:
         print("❌ cookie未配置")
         return
-    # 验证账号
-    account_info = get_account_info()
-    if not account_info:
-        add_notify("👤 验证账号: 登录失败，cookie无效❌")
-    else:
-        print(f"👤 验证账号: {account_info['nickname']}✅")
-        # 每日领空间
-        growth_info = get_growth_info()
-        if growth_info:
-            if growth_info["cap_sign"]["sign_daily"]:
-                print(f"📅 签到任务: 今日已签到+{growth_info['cap_sign']['sign_daily_reward']/1024/1024}MB，连签进度({growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']})✅")
-            else:
-                sign, sign_return = get_growth_sign()
-                if sign:
-                    add_notify(f"📅 签到任务: 今日签到+{sign_return/1024/1024}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅")
-                else:
-                    print(f"📅 签到任务: {sign_return}")
-        # 任务列表
-        tasklist = config_data.get("tasklist", [])
-        # 获取全部保存目录fid
-        if tasklist:
-            update_savepath_fid(tasklist)
-        # 执行任务
-        for task in tasklist:
-            # 判断任务期限
-            if not task.get("enddate") or (
-                datetime.now().date()
-                <= datetime.strptime(task["enddate"], "%Y-%m-%d").date()
-            ):
-                print(f"============================")
-                print(f"当前任务: {task['taskname']}")
-                print(f"分享链接: {task['shareurl']}")
-                print(f"目标目录: {task['savepath']}")
-                print(f"正则匹配: {task['pattern']}")
-                print(f"正则替换: {task['replace']}")
-                if task.get("enddate"):
-                    print(f"任务截止: {task['enddate']}")
-                if task.get("emby_id"):
-                    print(f"刷媒体库: {task['emby_id']}")
-                if task.get("ignore_extension"):
-                    print(f"忽略后缀: {task['ignore_extension']}")
-                print()
-                is_new = save_task(task)
-                is_rename = rename_task(task)
-                if (is_new or is_rename) and task.get("emby_id"):
-                    emby_refresh(task["emby_id"])
-                print(f"============================")
-    # 获取cookie
+    # 签到
+    first_account = do_sign(cookies)
+    # 转存
+    if first_account:
+        do_save()
+    # 通知
     if notifys:
         notify_body = "\n".join(notifys)
-        print(f"\n\n推送通知：\n{notify_body}\n\n")
+        print(f"===============推送通知===============")
         send_ql_notify("【夸克自动追更】", notify_body)
+        print(f"")
     # 更新配置
     with open(config_path, "w", encoding="utf-8") as file:
         json.dump(config_data, file, ensure_ascii=False, indent=2)
+    print(f"======================================")
 
 
 if __name__ == "__main__":
