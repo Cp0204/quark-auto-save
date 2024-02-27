@@ -10,6 +10,7 @@ from flask import (
 )
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+import hashlib
 import json
 import os
 
@@ -24,14 +25,10 @@ app.config["JSON_SORT_KEYS"] = False
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 
 
-# 设置icon
-@app.route("/favicon.ico")
-def favicon():
-    return send_from_directory(
-        os.path.join(app.root_path, "static"),
-        "favicon.ico",
-        mimetype="image/vnd.microsoft.icon",
-    )
+def gen_md5(string):
+    md5 = hashlib.md5()
+    md5.update(string.encode("utf-8"))
+    return md5.hexdigest()
 
 
 # 读取 JSON 文件内容
@@ -47,19 +44,38 @@ def write_json(data):
         json.dump(data, f, indent=4, ensure_ascii=False, sort_keys=False)
 
 
+def is_login():
+    data = read_json()
+    username = data["webui"]["username"]
+    password = data["webui"]["password"]
+    if session.get("login") == gen_md5(username + password):
+        return True
+    else:
+        return False
+
+
+# 设置icon
+@app.route("/favicon.ico")
+def favicon():
+    return send_from_directory(
+        os.path.join(app.root_path, "static"),
+        "favicon.ico",
+        mimetype="image/vnd.microsoft.icon",
+    )
+
+
 # 登录页面
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         data = read_json()
-        username = request.form.get("username")
-        password = request.form.get("password")
+        username = data["webui"]["username"]
+        password = data["webui"]["password"]
         # 验证用户名和密码
-        if (
-            username == data["webui"]["username"]
-            and password == data["webui"]["password"]
+        if (username == request.form.get("username")) and (
+            password == request.form.get("password")
         ):
-            session["username"] = username
+            session["login"] = gen_md5(username + password)
             return redirect(url_for("index"))
         else:
             return render_template("login.html", message="登录失败")
@@ -70,14 +86,14 @@ def login():
 # 退出登录
 @app.route("/logout")
 def logout():
-    session.pop("username", None)
+    session.pop("login", None)
     return redirect(url_for("login"))
 
 
 # 管理页面
 @app.route("/")
 def index():
-    if not session.get("username"):
+    if not is_login():
         return redirect(url_for("login"))
     return render_template("index.html")
 
@@ -85,7 +101,7 @@ def index():
 # 获取配置数据
 @app.route("/data")
 def get_data():
-    if not session.get("username"):
+    if not is_login():
         return redirect(url_for("login"))
     data = read_json()
     del data["webui"]
@@ -95,7 +111,7 @@ def get_data():
 # 更新数据
 @app.route("/update", methods=["POST"])
 def update():
-    if not session.get("username"):
+    if not is_login():
         return "未登录"
     data = read_json()
     webui = data["webui"]
