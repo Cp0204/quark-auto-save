@@ -272,7 +272,15 @@ def rename(fid, file_name):
 
 
 def update_savepath_fid(tasklist):
-    dir_paths = [item["savepath"] for item in tasklist]
+    dir_paths = [
+        item["savepath"]
+        for item in tasklist
+        if not item.get("enddate")
+        or (
+            datetime.now().date()
+            <= datetime.strptime(item["enddate"], "%Y-%m-%d").date()
+        )
+    ]
     dir_paths_exist_arr = get_fids(dir_paths)
     dir_paths_exist = [item["file_path"] for item in dir_paths_exist_arr]
     # 比较创建不存在的
