@@ -1,0 +1,51 @@
+name: Bug Report
+description: Create a report to help us improve
+title: "[Bug] "
+labels: ["bug"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report! Please searched for historical issues and check README before opening this issue.
+
+        感谢您抽出宝贵的时间填写此报告！请确认打开此问题前已搜索历史 Issues 并阅读 README。
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: 问题描述和复现步骤
+      placeholder: 问题的具体描述，尽量详细
+    validations:
+      required: true
+  - type: textarea
+    id: config-log
+    attributes:
+      label: Config & Log
+      description: 配置、日志和API请求返回，有效的信息能帮助我更准确地定位问题
+      value: |
+        #### Config
+        ```json
+        {}
+        ```
+        #### Log
+        ```
+        text
+        ```
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Operating environment
+      description: 运行环境
+      options:
+        - Qinglong
+        - Python
+        - Docker
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Environment version
+      description: 运行环境（Qinglong、Python、Docker）的版本
+      placeholder: ex. v2.17.1
