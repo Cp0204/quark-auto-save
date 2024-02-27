@@ -73,6 +73,7 @@ docker run -d \
     "Your pan.quark.cn Cookie2, Only sign after this."
   ],
   "push_config": {
+    "QUARK_SIGN_NOTIFY": true, // 是否发送签到成功通知，也可在环境变量中设置
     "QYWX_AM": "",
     "其他推送渠道//此项可删": "配置方法同青龙"
   },
