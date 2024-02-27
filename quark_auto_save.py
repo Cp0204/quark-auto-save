@@ -458,9 +458,18 @@ def do_sign(cookies):
                 else:
                     sign, sign_return = get_growth_sign(cookie)
                     if sign:
-                        add_notify(
-                            f"📅 执行签到: 今日签到+{sign_return/1024/1024}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅"
-                        )
+                        message = f"📅 执行签到: 今日签到+{sign_return/1024/1024}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅"
+                        if (
+                            config_data.get("push_config").get("QUARK_SIGN_NOTIFY")
+                            == False
+                            or os.environ.get("QUARK_SIGN_NOTIFY") == False
+                        ):
+                            print(message)
+                        else:
+                            message = message.replace(
+                                "今日", f"账号[{account_info['nickname']}] 今日"
+                            )
+                            add_notify(message)
                     else:
                         print(f"📅 执行签到: {sign_return}")
         print(f"")

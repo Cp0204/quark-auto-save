@@ -3,6 +3,7 @@
     "Your pan.quark.cn Cookie1, Only this one will do save task."
   ],
   "push_config": {
+    "QUARK_SIGN_NOTIFY": true,
     "QYWX_AM": "",
     "其他推送渠道//此项可删": "配置方法同青龙"
   },
