@@ -20,9 +20,8 @@ config_path = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
 
 app = Flask(__name__)
 app.secret_key = "ca943f6db6dd34823d36ab08d8d6f65d"
-app.config["JSON_AS_ASCII"] = False
-app.config["JSON_SORT_KEYS"] = False
-app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
+app.json.ensure_ascii = False
+app.json.sort_keys = False
 
 
 def gen_md5(string):
