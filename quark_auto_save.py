@@ -67,6 +67,33 @@ def common_headers():
     }
 
 
+def get_growth_info():
+    url = "https://drive-m.quark.cn/1/clouddrive/capacity/growth/info"
+    querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
+    headers = common_headers()
+    response = requests.request("GET", url, headers=headers, params=querystring).json()
+    if response.get("data"):
+        return response["data"]
+    else:
+        return False
+
+
+def get_growth_sign():
+    url = "https://drive-m.quark.cn/1/clouddrive/capacity/growth/sign"
+    querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
+    payload = {
+        "sign_cyclic": True,
+    }
+    headers = common_headers()
+    response = requests.request(
+        "POST", url, json=payload, headers=headers, params=querystring
+    ).json()
+    if response.get("data"):
+        return True, response["data"]["sign_daily_reward"]
+    else:
+        return False, response["message"]
+
+
 def get_id_from_url(url):
     pattern = r"/s/(\w+)(#/list/share.*/(\w+))?"
     match = re.search(pattern, url)
@@ -81,7 +108,7 @@ def get_id_from_url(url):
         return None
 
 
-def get_info():
+def get_account_info():
     url = "https://pan.quark.cn/account/info"
     querystring = {"fr": "pc", "platform": "pc"}
     headers = common_headers()
@@ -384,7 +411,7 @@ def main():
     global config_data
     formatted_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"============================")
-    print("⏰ 当前时间: ", formatted_time)
+    print(f"⏰ 执行时间: {formatted_time}")
     # 启动参数
     arguments = sys.argv
     if len(arguments) > 1:
@@ -410,15 +437,27 @@ def main():
         print("❌ cookie未配置")
         return
     # 验证账号
-    account_info = get_info()
+    account_info = get_account_info()
     if not account_info:
         add_notify("👤 验证账号: 登录失败，cookie无效❌")
     else:
         print(f"👤 验证账号: {account_info['nickname']}✅")
+        # 每日领空间
+        growth_info = get_growth_info()
+        if growth_info:
+            if growth_info["cap_sign"]["sign_daily"]:
+                print(f"📅 签到任务: 今日已签到+{growth_info['cap_sign']['sign_daily_reward']/1024/1024}MB，连签进度({growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']})✅")
+            else:
+                sign, sign_return = get_growth_sign()
+                if sign:
+                    print(f"📅 签到任务: 今日签到+{sign_return/1024/1024}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅")
+                else:
+                    print(f"📅 签到任务: {sign_return}")
         # 任务列表
         tasklist = config_data.get("tasklist", [])
         # 获取全部保存目录fid
-        update_savepath_fid(tasklist)
+        if tasklist:
+            update_savepath_fid(tasklist)
         # 执行任务
         for task in tasklist:
             # 判断任务期限
