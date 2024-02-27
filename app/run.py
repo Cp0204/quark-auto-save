@@ -20,6 +20,8 @@ config_path = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
 app = Flask(__name__)
 app.secret_key = "ca943f6db6dd34823d36ab08d8d6f65d"
 app.config["JSON_AS_ASCII"] = False
+app.config["JSON_SORT_KEYS"] = False
+app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 
 
 # 设置icon
@@ -42,7 +44,7 @@ def read_json():
 # 将数据写入 JSON 文件
 def write_json(data):
     with open(config_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
+        json.dump(data, f, indent=4, ensure_ascii=False, sort_keys=False)
 
 
 # 登录页面
@@ -77,8 +79,7 @@ def logout():
 def index():
     if not session.get("username"):
         return redirect(url_for("login"))
-    data = read_json()
-    return render_template("index.html", data=data)
+    return render_template("index.html")
 
 
 # 获取配置数据
