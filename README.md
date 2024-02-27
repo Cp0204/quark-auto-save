@@ -22,13 +22,14 @@
 - [x] 任务结束期限，期限后不执行此任务
 - [x] 追更或整理后自动刷新 Emby 媒体库
 - [x] 可选忽略文件后缀
-- [x] 支持Docker独立部署，WebUI配置
+- [x] 支持 Docker 独立部署，WebUI 配置
+- [x] 每日签到领空间
 
 ## 使用
 
-### Docker部署
+### Docker 部署
 
-Docker 部署提供 WebUI 管理配置，但目前 WebUI 并不完善，只供辅助使用，你也应该了解如何[手动配置](#程序配置)。
+提供 WebUI 管理配置，但目前 WebUI 并不完善，只供辅助使用，你也应该了解如何[手动配置](#程序配置)。
 
 ```shell
 docker run -d \
@@ -40,7 +41,7 @@ docker run -d \
   ghcr.io/cp0204/quark-auto-save:latest
 ```
 
-WebUI 默认管理账号： `admin` ，密码 `admin123`，仅支持在 `quark_config.json` 中修改。
+默认管理账号： `admin` ，密码 `admin123`，仅支持在 `quark_config.json` 中修改。
 
 #### WebUI 预览
 
@@ -51,7 +52,7 @@ WebUI 默认管理账号： `admin` ，密码 `admin123`，仅支持在 `quark_c
 1. 拉库命令：
 
     ```
-    ql repo https://github.com/Cp0204/quark_auto_save.git "quark" "" "sendNotify"
+    ql repo https://github.com/Cp0204/quark-auto-save.git "quark" "" "sendNotify"
     ```
 
 2. 首次运行程序将从本仓库下载配置模版。
@@ -64,7 +65,7 @@ WebUI 默认管理账号： `admin` ，密码 `admin123`，仅支持在 `quark_c
 
 ```json
 {
-  "cookie": "夸克网盘网页cookie",
+  "cookie": "Your pan.quark.cn Cookie",
   "push_config": {
     "QYWX_AM": "",
     "其他推送渠道//此项可删": "配置方法同青龙"
@@ -101,7 +102,7 @@ WebUI 默认管理账号： `admin` ，密码 `admin123`，仅支持在 `quark_c
 | `^(\\d+).mp4` | `S02E\\1.mp4` | 01.mp4 → S02E01.mp4<br>02.mp4 → S02E02.mp4 |
 | `$TV` |  | [魔法匹配](#魔法匹配)剧集文件 |
 
-#### 参考资料：
+#### 参考资料
 
 - [正则表达式30分钟入门教程](https://deerchao.cn/tutorials/regex/regex.htm)
 
