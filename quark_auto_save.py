@@ -450,7 +450,7 @@ def main():
             else:
                 sign, sign_return = get_growth_sign()
                 if sign:
-                    print(f"📅 签到任务: 今日签到+{sign_return/1024/1024}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅")
+                    add_notify(f"📅 签到任务: 今日签到+{sign_return/1024/1024}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅")
                 else:
                     print(f"📅 签到任务: {sign_return}")
         # 任务列表
