@@ -7,6 +7,21 @@
     <title>夸克自动转存</title>
     <!-- 引入 Bootstrap CSS -->
     <link rel="stylesheet" href="./static/css/bootstrap.min.css">
+    <style>
+        body {
+            padding-bottom: 60px;
+        }
+
+        .bottom-buttons {
+            position: fixed;
+            left: 0;
+            bottom: 0;
+            width: 100%;
+            background-color: #f1f1f1;
+            padding: 10px 0;
+            text-align: center;
+        }
+    </style>
 </head>
 
 <body>
@@ -125,12 +140,15 @@
                 </div>
             </div>
             <button type="button" class="btn btn-primary" @click="addTask()">增加任务</button>
-            <br><br>
-            <input type="submit" class="btn btn-success" value="保存">
-            <a class="btn btn-danger" href="/logout">退出</a>
+            <div class="bottom-buttons">
+                <input type="submit" class="btn btn-success" value="保存">
+                <a class="btn btn-danger" href="/logout">退出</a>
+            </div>
         </form>
         <div class="text-center">
-            <a href="https://github.com/Cp0204/quark_auto_save">@Cp0204/quark_auto_save</a>
+            <p>
+                <a target="_blank" href="https://github.com/Cp0204/quark-auto-save">@Cp0204/quark_auto_save</a> v{{ version }}
+            </p>
         </div>
     </div>
 
@@ -192,7 +210,7 @@
                 },
                 removeCookie(index) {
                     if (confirm("确认删除吗？"))
-                    this.formData.cookie.splice(index, 1);
+                        this.formData.cookie.splice(index, 1);
                 },
                 addPush() {
                     key = prompt("增加的键名", "");
@@ -201,7 +219,7 @@
                 },
                 removePush(key) {
                     if (confirm("确认删除吗？"))
-                    this.$delete(this.formData.push_config, key);
+                        this.$delete(this.formData.push_config, key);
                 },
                 addTask() {
                     this.formData.tasklist.push({
@@ -216,7 +234,7 @@
                 },
                 removeTask(index) {
                     if (confirm("确认删除吗？"))
-                    this.formData.tasklist.splice(index, 1);
+                        this.formData.tasklist.splice(index, 1);
                 },
                 clearShareurlBan(task) {
                     delete task.shareurl_ban;
