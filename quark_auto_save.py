@@ -281,6 +281,8 @@ def update_savepath_fid(tasklist):
             <= datetime.strptime(item["enddate"], "%Y-%m-%d").date()
         )
     ]
+    if not dir_paths:
+        return False
     dir_paths_exist_arr = get_fids(dir_paths)
     dir_paths_exist = [item["file_path"] for item in dir_paths_exist_arr]
     # 比较创建不存在的
@@ -491,8 +493,7 @@ def do_save():
     # 任务列表
     tasklist = config_data.get("tasklist", [])
     # 获取全部保存目录fid
-    if tasklist:
-        update_savepath_fid(tasklist)
+    update_savepath_fid(tasklist)
     # 执行任务
     for index, task in enumerate(tasklist):
         # 判断任务期限
