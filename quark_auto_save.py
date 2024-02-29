@@ -1,6 +1,6 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Modify: 2024-01-31
+# Modify: 2024-02-29
 # Repo: https://github.com/Cp0204/quark_auto_save
 # ConfigFile: quark_config.json
 """
@@ -241,7 +241,7 @@ def save_file(fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken):
     response = requests.request(
         "POST", url, json=payload, headers=headers, params=querystring
     ).json()
-    return response
+    return response["data"]["task_id"]
 
 
 def mkdir(dir_path):
@@ -299,7 +299,7 @@ def update_savepath_fid(tasklist):
     # print(dir_paths_exist_arr)
 
 
-def save_task(task):
+def do_save_task(task):
     # 判断资源失效记录
     if task.get("shareurl_ban"):
         print(f"《{task['taskname']}》：{task['shareurl_ban']}")
@@ -367,16 +367,37 @@ def save_task(task):
     fid_token_list = [item["share_fid_token"] for item in need_save_list]
     save_name_list = [item["save_name"] for item in need_save_list]
     if fid_list:
-        save_name_list.sort()
-        add_notify(f"《{task['taskname']}》添加追更：{', '.join(save_name_list)}")
-        task = save_file(fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken)
-        return True
+        save_task_id = save_file(fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken)
+        save_task_return = query_task(save_task_id)
+        if save_task_return["code"] == 0:
+            save_name_list.sort()
+            add_notify(f"《{task['taskname']}》添加追更：{', '.join(save_name_list)}")
+            return True
+        else:
+            add_notify(f"《{task['taskname']}》转存失败：{save_task_return['message']}")
     else:
-        print("运行结果：没有新的转存任务")
+        print("任务结束：没有新的转存任务")
         return False
 
 
-def rename_task(task):
+def query_task(task_id):
+    url = "https://drive-pc.quark.cn/1/clouddrive/task"
+    querystring = {
+        "pr": "ucpro",
+        "fr": "pc",
+        "uc_param_str": "",
+        "task_id": task_id,
+        "retry_index": "1",
+        "__dt": int(random.uniform(1, 5) * 60 * 1000),
+        "__t": datetime.now().timestamp(),
+    }
+    headers = common_headers()
+    response = requests.request("GET", url, headers=headers, params=querystring).json()
+    if response["code"] == 32003:
+        response["message"] = "容量限制"
+    return response
+
+def do_rename_task(task):
     dir_file_list = ls_dir(task["savepath_fid"])
     is_rename = False
     for dir_file in dir_file_list:
@@ -477,7 +498,7 @@ def do_sign(cookies):
                             print(message)
                         else:
                             message = message.replace(
-                                "今日", f"账号[{account_info['nickname']}] 今日"
+                                "今日", f"账号[{account_info['nickname']}]今日"
                             )
                             add_notify(message)
                     else:
@@ -514,8 +535,8 @@ def do_save():
             if task.get("ignore_extension"):
                 print(f"忽略后缀: {task['ignore_extension']}")
             print()
-            is_new = save_task(task)
-            is_rename = rename_task(task)
+            is_new = do_save_task(task)
+            is_rename = do_rename_task(task)
             if (is_new or is_rename) and task.get("emby_id"):
                 emby_refresh(task["emby_id"])
     print(f"--------------------")
