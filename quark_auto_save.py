@@ -484,12 +484,12 @@ def do_sign(cookies):
             if growth_info:
                 if growth_info["cap_sign"]["sign_daily"]:
                     print(
-                        f"📅 执行签到: 今日已签到+{growth_info['cap_sign']['sign_daily_reward']/1024/1024}MB，连签进度({growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']})✅"
+                        f"📅 执行签到: 今日已签到+{int(growth_info['cap_sign']['sign_daily_reward']/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']})✅"
                     )
                 else:
                     sign, sign_return = get_growth_sign(cookie)
                     if sign:
-                        message = f"📅 执行签到: 今日签到+{sign_return/1024/1024}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅"
+                        message = f"📅 执行签到: 今日签到+{int(sign_return/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅"
                         if (
                             config_data.get("push_config").get("QUARK_SIGN_NOTIFY")
                             == False
