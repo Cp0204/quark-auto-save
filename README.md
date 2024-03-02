@@ -42,7 +42,7 @@ docker run -d \
   ghcr.io/cp0204/quark-auto-save:latest
 ```
 
-默认管理账号： `admin` ，密码 `admin123`，仅支持在 `quark_config.json` 中修改。
+默认管理账号 `admin` ，密码 `admin123`，仅支持在 `quark_config.json` 中修改。
 
 #### WebUI 预览
 
@@ -72,7 +72,7 @@ docker run -d \
     "Your pan.quark.cn Cookie1, Only this one will do save task.",
     "Your pan.quark.cn Cookie2, Only sign after this."
   ],
-  "push_config": {
+  "push_config": { // 无此字段则从环境变量（青龙设置）读取通知设置
     "QUARK_SIGN_NOTIFY": true, // 是否发送签到成功通知，也可在环境变量中设置
     "QYWX_AM": "",
     "其他推送渠道//此项可删": "配置方法同青龙"
@@ -81,7 +81,7 @@ docker run -d \
     "url": "http://yourdomain.com:8096",
     "apikey": "" // 在后台 高级-API秘钥 中生成
   },
-  "tasklist": [
+  "tasklist": [ // 无任务则只签到
     {
       "taskname": "鸣xx年",
       "shareurl": "https://pan.quark.cn/s/39xxxx35#/list/share/17xxxx72-鸣xx年",
@@ -104,20 +104,19 @@ docker run -d \
 | pattern | replace | 效果 |
 | ------- |---------|------|
 | `.*` |  | 无脑转存所有文件，不整理 |
-| `\\.mp4$` |  | 转存所有 `.mp4` 后缀的文件 |
-| `^【电影TT】形似走肉(\\d+).(mp4\|mkv)` | `\\1.\\2` | 【电影TT】形似走肉01.mp4 → 01.mp4<br>【电影TT】形似走肉02.mkv → 02.mkv |
-| `^(\\d+).mp4` | `S02E\\1.mp4` | 01.mp4 → S02E01.mp4<br>02.mp4 → S02E02.mp4 |
+| `\.mp4$` |  | 转存所有 `.mp4` 后缀的文件 |
+| `^【电影TT】形似走肉(\d+)\.(mp4\|mkv)` | `\1.\2` | 【电影TT】形似走肉01.mp4 → 01.mp4<br>【电影TT】形似走肉02.mkv → 02.mkv |
+| `^(\d+)\.mp4` | `S02E\1.mp4` | 01.mp4 → S02E01.mp4<br>02.mp4 → S02E02.mp4 |
 | `$TV` |  | [魔法匹配](#魔法匹配)剧集文件 |
+
+> [!IMPORTANT]
+> 直接写 json 配置注意`\`多加一重[字符转义](https://deerchao.cn/tutorials/regex/regex.htm#escape)：如`\d`写作`\\d`，匹配字符`.`写作`\\.`
 
 #### 参考资料
 
 - [正则表达式30分钟入门教程](https://deerchao.cn/tutorials/regex/regex.htm)
 
-- 注意`\`和[字符转义](https://deerchao.cn/tutorials/regex/regex.htm#escape)：如`\d`写作`\\d`，匹配字符`.`写作`\\.`
-
-  > 其实上表示例匹配字符`.`并不完全严谨，应写作`\\.`；但`.`又刚好匹配一个位置，我为了可读性偷了个懒，可以效仿但应了解原理。
-
-- 替换的[后向引用](https://deerchao.cn/tutorials/regex/regex.htm#backreference)：有些语言写作`$1`，Python中写作`\1`，转义后为`\\1`
+- 替换的[后向引用](https://deerchao.cn/tutorials/regex/regex.htm#backreference)：有些语言写作`$1`，Python中写作`\1`，json 转义后为`\\1`
 
 ### 特殊场景使用技巧
 
@@ -133,7 +132,7 @@ docker run -d \
 
 #### 自动刷新媒体库
 
-同时配置 `emby.url` `emby.apikey` 和任务的 `emby_id` ，将在新存或整理自动刷新 Emby 媒体库、刷新元数据。
+同时配置 `emby.url` `emby.apikey` 和任务的 `emby_id` ，将在新存或整理后自动刷新 Emby 媒体库、刷新元数据。
 
 #### 魔法匹配
 
