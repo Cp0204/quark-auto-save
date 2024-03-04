@@ -397,6 +397,7 @@ def query_task(task_id):
         response["message"] = "容量限制"
     return response
 
+
 def do_rename_task(task):
     dir_file_list = ls_dir(task["savepath_fid"])
     is_rename = False
@@ -416,26 +417,55 @@ def do_rename_task(task):
 
 
 def emby_refresh(emby_id):
-    global config_data
     emby_url = config_data.get("emby").get("url")
     emby_apikey = config_data.get("emby").get("apikey")
     if emby_url and emby_apikey and emby_id:
         url = f"{emby_url}/emby/Items/{emby_id}/Refresh"
+        headers = {"X-Emby-Token": emby_apikey}
         querystring = {
             "Recursive": "true",
             "MetadataRefreshMode": "FullRefresh",
             "ImageRefreshMode": "FullRefresh",
             "ReplaceAllMetadata": "false",
             "ReplaceAllImages": "false",
-            "api_key": emby_apikey,
         }
-        response = requests.request("POST", url, headers=None, params=querystring)
+        response = requests.request("POST", url, headers=headers, params=querystring)
         if response.text == "":
             print(f"🎞 刷新Emby媒体库：成功✅")
             return True
         else:
             print(f"🎞 刷新Emby媒体库：{response.text}❌")
             return False
+
+
+def emby_search(media_name):
+    emby_url = config_data.get("emby").get("url")
+    emby_apikey = config_data.get("emby").get("apikey")
+    if emby_url and emby_apikey and media_name:
+        url = f"{emby_url}/emby/Items"
+        headers = {"X-Emby-Token": emby_apikey}
+        querystring = {
+            "IncludeItemTypes": "Series",
+            "StartIndex": 0,
+            "SortBy": "SortName",
+            "SortOrder": "Ascending",
+            "ImageTypeLimit": 0,
+            "Recursive": "true",
+            "SearchTerm": media_name,
+            "Limit": 10,
+            "IncludeSearchTypes": "false",
+        }
+        response = requests.request("GET", url, headers=headers, params=querystring)
+        if "application/json" in response.headers["Content-Type"]:
+            response = response.json()
+            if response.get("Items"):
+                for item in response["Items"]:
+                    if item["IsFolder"]:
+                        print(f"🎞 《{item['Name']}》匹配到Emby媒体库ID：{item['Id']}")
+                        return item["Id"]
+        else:
+            print(f"🎞 搜索Emby媒体库：{response.text}❌")
+    return False
 
 
 def download_file(url, save_path):
@@ -522,6 +552,7 @@ def do_save():
             datetime.now().date()
             <= datetime.strptime(task["enddate"], "%Y-%m-%d").date()
         ):
+            print(f"")
             print(f"#{index+1}------------------")
             print(f"任务名称: {task['taskname']}")
             print(f"分享链接: {task['shareurl']}")
@@ -537,9 +568,14 @@ def do_save():
             print()
             is_new = do_save_task(task)
             is_rename = do_rename_task(task)
-            if (is_new or is_rename) and task.get("emby_id"):
-                emby_refresh(task["emby_id"])
-    print(f"--------------------")
+            if (is_new or is_rename) and task.get("emby_id") != "0":
+                if task.get("emby_id"):
+                    emby_refresh(task["emby_id"])
+                else:
+                    match_emby_id = emby_search(task["taskname"])
+                    if match_emby_id:
+                        task["emby_id"] = match_emby_id
+                        emby_refresh(match_emby_id)
     print(f"")
 
 
