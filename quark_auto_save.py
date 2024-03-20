@@ -174,6 +174,10 @@ def get_detail(pwd_id, stoken, pdir_fid):
             break
         if len(file_list) >= response["metadata"]["_total"]:
             break
+    # 仅有一个文件夹
+    if len(file_list) == 1 and file_list[0]["file_type"] == 0:
+        print("🧠 该分享是一个文件夹，读取文件夹内列表")
+        file_list = get_detail(pwd_id, stoken, file_list[0]["fid"])
     return file_list
 
 
