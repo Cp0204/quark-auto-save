@@ -145,6 +145,8 @@ docker run -d \
 
 如果这个项目让你受益，你可以打赏我1块钱，让我知道开源有价值。谢谢！
 
+*由于微信限制，无法反向联系付款人，如非必要微信不回复，项目问题请在 GitHub 提 Issue 。* 😉
+
 ![WeChatPay](img/wechat_pay_qrcode.png)
 
 ## 声明
