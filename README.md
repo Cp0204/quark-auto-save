@@ -61,7 +61,7 @@ docker run -d \
 
 3. 脚本管理中，手动编辑 `quark_config.json` 配置文件。
 
-> 当配置中没有 cookie 字段时，则从青龙环境变量 `QUARK_COOKIE` 中读取，多账号用换行分隔。
+> 当无配置文件时且存在青龙环境变量 `QUARK_COOKIE` 时，则仅签到，多账号用换行分隔。
 
 ### 程序配置
 
