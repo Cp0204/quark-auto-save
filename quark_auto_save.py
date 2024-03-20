@@ -478,12 +478,7 @@ def download_file(url, save_path):
         return False
 
 
-def get_cookies():
-    cookie_val = (
-        config_data.get("cookie")
-        if config_data.get("cookie")
-        else os.environ.get("QUARK_COOKIE")
-    )
+def get_cookies(cookie_val):
     if isinstance(cookie_val, list):
         return cookie_val
     elif cookie_val:
@@ -528,7 +523,7 @@ def do_sign(cookies):
                             print(message)
                         else:
                             message = message.replace(
-                                "今日", f"账号[{account_info['nickname']}]今日"
+                                "今日", f"[{account_info['nickname']}]今日"
                             )
                             add_notify(message)
                     else:
@@ -593,23 +588,33 @@ def main():
         config_path = "quark_config.json"
     # 检查本地文件是否存在，如果不存在就下载
     if not os.path.exists(config_path):
-        print(f"❌ 配置文件 {config_path} 不存在，正远程从下载配置模版")
-        config_url = "https://mirror.ghproxy.com/https://raw.githubusercontent.com/Cp0204/quark_auto_save/main/quark_config.json"
-        if download_file(config_url, config_path):
-            print("✅ 配置模版下载成功，请到程序目录中手动配置")
-        return
+        if os.environ.get("QUARK_COOKIE"):
+            print(
+                f"⚙️ 读取到 QUARK_COOKIE 环境变量，仅签到领空间。如需执行转存，请删除该环境变量后配置 {config_path} 文件"
+            )
+            cookie_val = os.environ.get("QUARK_COOKIE")
+            cookie_form_file = False
+        else:
+            print(f"⚙️ 配置文件 {config_path} 不存在❌，正远程从下载配置模版")
+            config_url = "https://mirror.ghproxy.com/https://raw.githubusercontent.com/Cp0204/quark_auto_save/main/quark_config.json"
+            if download_file(config_url, config_path):
+                print("⚙️ 配置模版下载成功✅，请到程序目录中手动配置")
+            return
     else:
+        print(f"⚙️ 正从 {config_path} 文件中读取配置")
         with open(config_path, "r", encoding="utf-8") as file:
             config_data = json.load(file)
+        cookie_val = config_data.get("cookie")
+        cookie_form_file = True
     # 获取cookie
-    cookies = get_cookies()
+    cookies = get_cookies(cookie_val)
     if not cookies:
-        print("❌ cookie未配置")
+        print("❌ cookie 未配置")
         return
     # 签到
     first_account = do_sign(cookies)
     # 转存
-    if first_account:
+    if first_account and cookie_form_file:
         do_save()
     # 通知
     if notifys:
@@ -617,9 +622,10 @@ def main():
         print(f"===============推送通知===============")
         send_ql_notify("【夸克自动追更】", notify_body)
         print(f"")
-    # 更新配置
-    with open(config_path, "w", encoding="utf-8") as file:
-        json.dump(config_data, file, ensure_ascii=False, indent=2)
+    if cookie_form_file:
+        # 更新配置
+        with open(config_path, "w", encoding="utf-8") as file:
+            json.dump(config_data, file, ensure_ascii=False, indent=2)
     print(f"======================================")
 
 
