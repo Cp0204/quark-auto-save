@@ -1,3 +1,5 @@
+# !/usr/bin/env python3
+# -*- coding: utf-8 -*-
 from flask import (
     Flask,
     render_template,
@@ -7,15 +9,19 @@ from flask import (
     session,
     jsonify,
     send_from_directory,
+    Response,
 )
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+import subprocess
 import hashlib
 import json
 import os
 
 
-# 定义 JSON 文件路径
+# 文件路径
+python_path = "python3" if os.path.exists("/usr/bin/python3") else "python"
+script_path = os.environ.get("SCRIPT_PATH", "./quark_auto_save.py")
 config_path = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
 
 app = Flask(__name__)
@@ -122,6 +128,26 @@ def update():
     return "配置更新成功"
 
 
+# 处理运行脚本请求
+@app.route("/run_script_now", methods=["POST"])
+def run_script_now():
+    if not is_login():
+        return "未登录"
+    command = [python_path, script_path, config_path]
+
+    def generate_output():
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+        )
+        for line in process.stdout:
+            yield line
+
+    return Response(generate_output(), mimetype="text/plain")
+
+
 # 定时任务执行的函数
 def run_script(script_path):
     os.system(f"python {script_path}")
@@ -142,7 +168,7 @@ def reload_tasks():
         trigger = CronTrigger.from_crontab(crontab)
         scheduler.remove_all_jobs()
         scheduler.add_job(
-            run_script, trigger=trigger, args=[f"quark_auto_save.py {config_path}"]
+            run_script, trigger=trigger, args=[f"{python_path} {script_path} {config_path}"]
         )
         if scheduler.state == 2:
             scheduler.resume()  # 恢复调度器
