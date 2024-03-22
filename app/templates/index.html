@@ -142,6 +142,7 @@
             <button type="button" class="btn btn-primary" @click="addTask()">增加任务</button>
             <div class="bottom-buttons">
                 <input type="submit" class="btn btn-success" value="保存">
+                <a class="btn btn-primary" @click="runScriptNow">运行</a>
                 <a class="btn btn-danger" href="/logout">退出</a>
             </div>
         </form>
@@ -150,6 +151,24 @@
                 <a target="_blank" href="https://github.com/Cp0204/quark-auto-save">@Cp0204/quark_auto_save</a> v{{ version }}
             </p>
         </div>
+
+        <!-- 模态框 -->
+        <div class="modal" tabindex="-1" id="logModal">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">执行日志</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <pre v-html="run_log"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- 引入 Bootstrap JS -->
@@ -173,7 +192,8 @@
                         apikey: ""
                     },
                     tasklist: []
-                }
+                },
+                run_log: ""
             },
             watch: {
                 'task.shareurl': function (newVal, oldVal) {
@@ -238,6 +258,18 @@
                 },
                 clearShareurlBan(task) {
                     delete task.shareurl_ban;
+                },
+                runScriptNow() {
+                    $('#logModal').modal('toggle')
+                    this.run_log = "请耐心等待脚本全部执行完毕..."
+                    axios.post('/run_script_now')
+                        .then(response => {
+                            this.run_log = response.data;
+                        })
+                        .catch(error => {
+                            this.run_log = "错误：\n" + error
+                            console.error('Error:', error);
+                        });
                 }
             }
         });
