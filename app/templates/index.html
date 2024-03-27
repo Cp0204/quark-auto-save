@@ -204,8 +204,7 @@
                         for (key in newVal) {
                             if (newVal[key].toLowerCase() === 'false') {
                                 this.$set(this.formData.push_config, key, false);
-                            }
-                            if (newVal[key].toLowerCase() === 'true') {
+                            } else if (newVal[key].toLowerCase() === 'true') {
                                 this.$set(this.formData.push_config, key, true);
                             }
                         }
