@@ -25,7 +25,7 @@ script_path = os.environ.get("SCRIPT_PATH", "./quark_auto_save.py")
 config_path = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
 
 app = Flask(__name__)
-app.config["APP_VERSION"] = "0.2.4"
+app.config["APP_VERSION"] = "0.2.4.1"
 app.secret_key = "ca943f6db6dd34823d36ab08d8d6f65d"
 app.json.ensure_ascii = False
 app.json.sort_keys = False
@@ -149,8 +149,8 @@ def run_script_now():
 
 
 # 定时任务执行的函数
-def run_script(script_path):
-    os.system(f"python {script_path}")
+def run_script(args):
+    os.system(f"{python_path} {args}")
 
 
 # 重新加载任务
@@ -168,7 +168,7 @@ def reload_tasks():
         trigger = CronTrigger.from_crontab(crontab)
         scheduler.remove_all_jobs()
         scheduler.add_job(
-            run_script, trigger=trigger, args=[f"{python_path} {script_path} {config_path}"]
+            run_script, trigger=trigger, args=[f"{script_path} {config_path}"]
         )
         if scheduler.state == 2:
             scheduler.resume()  # 恢复调度器
