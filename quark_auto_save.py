@@ -544,13 +544,24 @@ def do_save():
     tasklist = config_data.get("tasklist", [])
     # 获取全部保存目录fid
     update_savepath_fid(tasklist)
+
+    def check_date(task):
+        return (
+            not task.get("enddate")
+            or (
+                datetime.now().date()
+                <= datetime.strptime(task["enddate"], "%Y-%m-%d").date()
+            )
+        ) and (
+            not task.get("runweek")
+            # 星期一为0，星期日为6
+            or (datetime.today().weekday() + 1 in task.get("runweek"))
+        )
+
     # 执行任务
     for index, task in enumerate(tasklist):
         # 判断任务期限
-        if not task.get("enddate") or (
-            datetime.now().date()
-            <= datetime.strptime(task["enddate"], "%Y-%m-%d").date()
-        ):
+        if check_date(task):
             print(f"")
             print(f"#{index+1}------------------")
             print(f"任务名称: {task['taskname']}")
