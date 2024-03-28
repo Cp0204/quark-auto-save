@@ -2,290 +2,308 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>夸克自动转存</title>
-    <!-- 引入 Bootstrap CSS -->
-    <link rel="stylesheet" href="./static/css/bootstrap.min.css">
-    <style>
-        body {
-            padding-bottom: 60px;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>夸克自动转存</title>
+  <!-- 引入 Bootstrap CSS -->
+  <link rel="stylesheet" href="./static/css/bootstrap.min.css">
+  <style>
+    body {
+      padding-bottom: 60px;
+    }
 
-        .bottom-buttons {
-            position: fixed;
-            left: 0;
-            bottom: 0;
-            width: 100%;
-            background-color: #f1f1f1;
-            padding: 10px 0;
-            text-align: center;
-        }
-    </style>
+    .bottom-buttons {
+      position: fixed;
+      left: 0;
+      bottom: 0;
+      width: 100%;
+      background-color: #f1f1f1;
+      padding: 10px 0;
+      text-align: center;
+    }
+  </style>
 </head>
 
 <body>
-    <div id="app" class="container mt-5">
-        <h1 class="mb-4">夸克自动转存配置</h1>
-        <form @submit.prevent="saveConfig">
+  <div id="app" class="container mt-5">
+    <h1 class="mb-4">夸克自动转存配置</h1>
+    <form @submit.prevent="saveConfig">
 
-            <div class="row">
-                <div class="col">
-                    <h2>Cookie</h2>
-                </div>
-                <div class="col text-right">
-                    <button type="button" class="btn btn-outline-primary mb-3" @click="addCookie()">+</button>
-                </div>
-            </div>
-            <p>所有账号执行签到，仅第一个账号执行转存，请自行确认顺序。</p>
-            <div v-for="(value, index) in formData.cookie" :key="index" class="input-group mb-2">
-                <input type="text" v-model="formData.cookie[index]" class="form-control" placeholder="打开 pan.quark.com 抓取">
-                <div class="input-group-append">
-                    <button type="button" class="btn btn-outline-danger" @click="removeCookie(index)">-</button>
-                </div>
-            </div>
-
-            <div class="row">
-                <div class="col">
-                    <h2>通知</h2>
-                </div>
-                <div class="col text-right">
-                    <button type="button" class="btn btn-outline-primary mb-3" @click="addPush()">+</button>
-                </div>
-            </div>
-            <div v-for="(value, key) in formData.push_config" :key="key" class="input-group mb-2">
-                <div class="input-group-prepend">
-                    <span class="input-group-text" v-html="key"></span>
-                </div>
-                <input type="text" v-model="formData.push_config[key]" class="form-control">
-                <div class="input-group-append">
-                    <button type="button" class="btn btn-outline-danger" @click="removePush(key)">-</button>
-                </div>
-            </div>
-
-            <h2>Emby</h2>
-            <div class="form-group row">
-                <label class="col-sm-2 col-form-label">Emby URL</label>
-                <div class="col-sm-10">
-                    <input type="text" v-model="formData.emby.url" class="form-control" placeholder="可选">
-                </div>
-            </div>
-            <div class="form-group row">
-                <label class="col-sm-2 col-form-label">Emby API Key</label>
-                <div class="col-sm-10">
-                    <input type="text" v-model="formData.emby.apikey" class="form-control" placeholder="可选">
-                </div>
-            </div>
-
-            <h2>定时规则</h2>
-            <div class="form-group row">
-                <label class="col-sm-2 col-form-label">Crontab<span class="badge badge-pill badge-light"><a target="_blank" href="https://tool.lu/crontab/">?</a></span></label>
-                <div class="col-sm-10">
-                    <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
-                </div>
-            </div>
-
-            <h2>任务列表</h2>
-            <div v-for="(task, index) in formData.tasklist" :key="index" class="task mb-3">
-                <div class="form-group row">
-                    <div class="col">
-                        <h3>任务#<span v-html="index+1"></span></h3>
-                    </div>
-                    <div class="col text-right">
-                        <button type="button" class="btn btn-outline-danger" @click="removeTask(index)">删除任务</button>
-                    </div>
-                </div>
-                <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="task.shareurl_ban"></div>
-                <div class="form-group row">
-                    <label class="col-sm-2 col-form-label">任务名称</label>
-                    <div class="col-sm-10">
-                        <input type="text" name="taskname[]" class="form-control mb-2" v-model="task.taskname" placeholder="必填">
-                    </div>
-                </div>
-                <div class="form-group row">
-                    <label class="col-sm-2 col-form-label">分享链接</label>
-                    <div class="col-sm-10">
-                        <input type="text" name="shareurl[]" class="form-control mb-2" v-model="task.shareurl" placeholder="必填" @input="clearShareurlBan(task)">
-                    </div>
-                </div>
-                <div class="form-group row">
-                    <label class="col-sm-2 col-form-label">保存路径</label>
-                    <div class="col-sm-10">
-                        <input type="text" name="savepath[]" class="form-control mb-2" v-model="task.savepath" placeholder="必填">
-                    </div>
-                </div>
-                <div class="form-group row">
-                    <label class="col-sm-2 col-form-label">正则过滤</label>
-                    <div class="col-sm-10">
-                        <input type="text" name="pattern[]" class="form-control mb-2" v-model="task.pattern" placeholder="留空为不过滤">
-                    </div>
-                </div>
-                <div class="form-group row">
-                    <label class="col-sm-2 col-form-label">正则替换</label>
-                    <div class="col-sm-10">
-                        <input type="text" name="replace[]" class="form-control mb-2" v-model="task.replace" placeholder="留空为不替换">
-                    </div>
-                </div>
-                <div class="form-group row">
-                    <label class="col-sm-2 col-form-label">截止日期</label>
-                    <div class="col-sm-10">
-                        <input type="date" name="enddate[]" class="form-control mb-2" v-model="task.enddate" placeholder="可选">
-                    </div>
-                </div>
-                <div class="form-group row">
-                    <label class="col-sm-2 col-form-label">Emby ID</label>
-                    <div class="col-sm-10">
-                        <input type="number" name="emby_id[]" class="form-control mb-2" v-model="task.emby_id" placeholder="可选">
-                    </div>
-                </div>
-            </div>
-            <button type="button" class="btn btn-primary" @click="addTask()">增加任务</button>
-            <div class="bottom-buttons">
-                <input type="submit" class="btn btn-success" value="保存">
-                <a class="btn btn-primary" @click="runScriptNow">运行</a>
-                <a class="btn btn-danger" href="/logout">退出</a>
-            </div>
-        </form>
-        <div class="text-center">
-            <p>
-                <a target="_blank" href="https://github.com/Cp0204/quark-auto-save">@Cp0204/quark_auto_save</a> v{{ version }}
-            </p>
+      <div class="row">
+        <div class="col">
+          <h2>Cookie</h2>
         </div>
-
-        <!-- 模态框 -->
-        <div class="modal" tabindex="-1" id="logModal">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">执行日志</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        <pre v-html="run_log"></pre>
-                    </div>
-                </div>
-            </div>
+        <div class="col text-right">
+          <button type="button" class="btn btn-outline-primary mb-3" @click="addCookie()">+</button>
         </div>
+      </div>
+      <p>所有账号执行签到，仅第一个账号执行转存，请自行确认顺序。</p>
+      <div v-for="(value, index) in formData.cookie" :key="index" class="input-group mb-2">
+        <input type="text" v-model="formData.cookie[index]" class="form-control" placeholder="打开 pan.quark.com 抓取">
+        <div class="input-group-append">
+          <button type="button" class="btn btn-outline-danger" @click="removeCookie(index)">-</button>
+        </div>
+      </div>
 
+      <div class="row">
+        <div class="col">
+          <h2>通知</h2>
+        </div>
+        <div class="col text-right">
+          <button type="button" class="btn btn-outline-primary mb-3" @click="addPush()">+</button>
+        </div>
+      </div>
+      <div v-for="(value, key) in formData.push_config" :key="key" class="input-group mb-2">
+        <div class="input-group-prepend">
+          <span class="input-group-text" v-html="key"></span>
+        </div>
+        <input type="text" v-model="formData.push_config[key]" class="form-control">
+        <div class="input-group-append">
+          <button type="button" class="btn btn-outline-danger" @click="removePush(key)">-</button>
+        </div>
+      </div>
+
+      <h2>Emby</h2>
+      <div class="form-group row">
+        <label class="col-sm-2 col-form-label">Emby URL</label>
+        <div class="col-sm-10">
+          <input type="text" v-model="formData.emby.url" class="form-control" placeholder="可选">
+        </div>
+      </div>
+      <div class="form-group row">
+        <label class="col-sm-2 col-form-label">Emby API Key</label>
+        <div class="col-sm-10">
+          <input type="text" v-model="formData.emby.apikey" class="form-control" placeholder="可选">
+        </div>
+      </div>
+
+      <h2>定时规则</h2>
+      <div class="form-group row">
+        <label class="col-sm-2 col-form-label">Crontab<span class="badge badge-pill badge-light"><a target="_blank" href="https://tool.lu/crontab/">?</a></span></label>
+        <div class="col-sm-10">
+          <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
+        </div>
+      </div>
+
+      <h2>任务列表</h2>
+      <div v-for="(task, index) in formData.tasklist" :key="index" class="task mb-3">
+        <div class="form-group row">
+          <div class="col">
+            <h3>任务#<span v-html="index+1"></span></h3>
+          </div>
+          <div class="col text-right">
+            <button type="button" class="btn btn-outline-danger" @click="removeTask(index)">删除任务</button>
+          </div>
+        </div>
+        <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="task.shareurl_ban"></div>
+        <div class="form-group row">
+          <label class="col-sm-2 col-form-label">任务名称</label>
+          <div class="col-sm-10">
+            <input type="text" name="taskname[]" class="form-control mb-2" v-model="task.taskname" placeholder="必填">
+          </div>
+        </div>
+        <div class="form-group row">
+          <label class="col-sm-2 col-form-label">分享链接</label>
+          <div class="col-sm-10">
+            <input type="text" name="shareurl[]" class="form-control mb-2" v-model="task.shareurl" placeholder="必填" @input="clearShareurlBan(task)">
+          </div>
+        </div>
+        <div class="form-group row">
+          <label class="col-sm-2 col-form-label">保存路径</label>
+          <div class="col-sm-10">
+            <input type="text" name="savepath[]" class="form-control mb-2" v-model="task.savepath" placeholder="必填">
+          </div>
+        </div>
+        <div class="form-group row">
+          <label class="col-sm-2 col-form-label">正则过滤</label>
+          <div class="col-sm-10">
+            <input type="text" name="pattern[]" class="form-control mb-2" v-model="task.pattern" placeholder="留空为不过滤">
+          </div>
+        </div>
+        <div class="form-group row">
+          <label class="col-sm-2 col-form-label">正则替换</label>
+          <div class="col-sm-10">
+            <input type="text" name="replace[]" class="form-control mb-2" v-model="task.replace" placeholder="留空为不替换">
+          </div>
+        </div>
+        <div class="form-group row">
+          <label class="col-sm-2 col-form-label">截止日期</label>
+          <div class="col-sm-10">
+            <input type="date" name="enddate[]" class="form-control mb-2" v-model="task.enddate" placeholder="可选">
+          </div>
+        </div>
+        <div class="form-group row">
+          <label class="col-sm-2 col-form-label">运行星期</label>
+          <div class="col-sm-10">
+            <div class="form-check form-check-inline" v-for="(day, index) in weekdays" :key="index">
+              <input class="form-check-input" type="checkbox" v-model="task.runweek" :value="index+1">
+              <label class="form-check-label" v-html="day"></label>
+            </div>
+          </div>
+        </div>
+        <div class="form-group row">
+          <label class="col-sm-2 col-form-label">Emby ID</label>
+          <div class="col-sm-10">
+            <input type="number" name="emby_id[]" class="form-control mb-2" v-model="task.emby_id" placeholder="可选">
+          </div>
+        </div>
+      </div>
+      <button type="button" class="btn btn-primary" @click="addTask()">增加任务</button>
+      <div class="bottom-buttons">
+        <input type="submit" class="btn btn-success" value="保存">
+        <a class="btn btn-primary" @click="runScriptNow">运行</a>
+        <a class="btn btn-danger" href="/logout">退出</a>
+      </div>
+    </form>
+    <div class="text-center">
+      <p>
+        <a target="_blank" href="https://github.com/Cp0204/quark-auto-save">@Cp0204/quark_auto_save</a> v[[ version ]]
+      </p>
     </div>
 
-    <!-- 引入 Bootstrap JS -->
-    <script src="./static/js/jquery-3.5.1.slim.min.js"></script>
-    <script src="./static/js/popper.min.js"></script>
-    <script src="./static/js/bootstrap.min.js"></script>
+    <!-- 模态框 -->
+    <div class="modal" tabindex="-1" id="logModal">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">执行日志</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <pre v-html="run_log"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
 
-    <!-- 引入 Vue.js -->
-    <script src="./static/js/vue@2.js"></script>
-    <script src="./static/js/axios.min.js"></script>
+  </div>
 
-    <script>
-        var app = new Vue({
-            el: '#app',
-            data: {
-                formData: {
-                    cookie: [],
-                    push_config: {},
-                    emby: {
-                        url: "",
-                        apikey: ""
-                    },
-                    tasklist: []
-                },
-                run_log: ""
-            },
-            watch: {
-                'task.shareurl': function () {
-                    this.task.shareurl_ban = '';
-                },
-                'formData.push_config': {
-                    handler: function (newVal, oldVal) {
-                        for (key in newVal) {
-                            if (newVal[key].toLowerCase() === 'false') {
-                                this.$set(this.formData.push_config, key, false);
-                            } else if (newVal[key].toLowerCase() === 'true') {
-                                this.$set(this.formData.push_config, key, true);
-                            }
-                        }
-                    },
-                    deep: true
+  <!-- 引入 Bootstrap JS -->
+  <script src="./static/js/jquery-3.5.1.slim.min.js"></script>
+  <script src="./static/js/popper.min.js"></script>
+  <script src="./static/js/bootstrap.min.js"></script>
+
+  <!-- 引入 Vue.js -->
+  <script src="./static/js/vue@2.js"></script>
+  <script src="./static/js/axios.min.js"></script>
+
+  <script>
+    var app = new Vue({
+      el: '#app',
+      data: {
+        weekdays: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+        formData: {
+          cookie: [],
+          push_config: {},
+          emby: {
+            url: "",
+            apikey: ""
+          },
+          tasklist: []
+        },
+        run_log: ""
+      },
+      watch: {
+        'formData.push_config': {
+          handler: function (newVal, oldVal) {
+            for (key in newVal) {
+              if (newVal[key] === 'string') {
+                if (newVal[key].toLowerCase() === 'false') {
+                  this.$set(this.formData.push_config, key, false);
+                } else if (newVal[key].toLowerCase() === 'true') {
+                  this.$set(this.formData.push_config, key, true);
                 }
-            },
-            mounted() {
-                this.fetchData();
-            },
-            methods: {
-                fetchData() {
-                    axios.get('/data')
-                        .then(response => {
-                            if (typeof response.data.cookie === 'string')
-                                response.data.cookie = [response.data.cookie];
-                            this.formData = response.data;
-                        })
-                        .catch(error => {
-                            console.error('Error fetching data:', error);
-                        });
-                },
-                saveConfig() {
-                    axios.post('/update', this.formData)
-                        .then(response => {
-                            alert(response.data);
-                            console.log('Config saved successfully:', response.data);
-                        })
-                        .catch(error => {
-                            console.error('Error saving config:', error);
-                        });
-                },
-                addCookie() {
-                    this.formData.cookie.push("");
-                },
-                removeCookie(index) {
-                    if (confirm("确认删除吗？"))
-                        this.formData.cookie.splice(index, 1);
-                },
-                addPush() {
-                    key = prompt("增加的键名", "");
-                    if (key != "" && key != null)
-                        this.$set(this.formData.push_config, key, "");
-                },
-                removePush(key) {
-                    if (confirm("确认删除吗？"))
-                        this.$delete(this.formData.push_config, key);
-                },
-                addTask() {
-                    this.formData.tasklist.push({
-                        taskname: "",
-                        shareurl: "",
-                        savepath: "",
-                        pattern: "",
-                        replace: "",
-                        enddate: "",
-                        emby_id: ""
-                    });
-                },
-                removeTask(index) {
-                    if (confirm("确认删除吗？"))
-                        this.formData.tasklist.splice(index, 1);
-                },
-                clearShareurlBan(task) {
-                    delete task.shareurl_ban;
-                },
-                runScriptNow() {
-                    $('#logModal').modal('toggle')
-                    this.run_log = "请耐心等待脚本全部执行完毕..."
-                    axios.post('/run_script_now')
-                        .then(response => {
-                            this.run_log = response.data;
-                        })
-                        .catch(error => {
-                            this.run_log = "错误：\n" + error
-                            console.error('Error:', error);
-                        });
-                }
+              }
             }
-        });
-    </script>
+          },
+          deep: true
+        }
+      },
+      mounted() {
+        this.fetchData();
+      },
+      methods: {
+        fetchData() {
+          axios.get('/data')
+            .then(response => {
+              // cookie兼容
+              if (typeof response.data.cookie === 'string')
+                response.data.cookie = [response.data.cookie];
+              // 星期运行兼容
+              response.data.tasklist = response.data.tasklist.map(task => {
+                if (!task.hasOwnProperty('runweek')) {
+                  task.runweek = [1, 2, 3, 4, 5, 6, 7];
+                }
+                return task;
+              });
+              this.formData = response.data;
+            })
+            .catch(error => {
+              console.error('Error fetching data:', error);
+            });
+        },
+        saveConfig() {
+          axios.post('/update', this.formData)
+            .then(response => {
+              alert(response.data);
+              console.log('Config saved successfully:', response.data);
+            })
+            .catch(error => {
+              console.error('Error saving config:', error);
+            });
+        },
+        addCookie() {
+          this.formData.cookie.push("");
+        },
+        removeCookie(index) {
+          if (confirm("确认删除吗？"))
+            this.formData.cookie.splice(index, 1);
+        },
+        addPush() {
+          key = prompt("增加的键名", "");
+          if (key != "" && key != null)
+            this.$set(this.formData.push_config, key, "");
+        },
+        removePush(key) {
+          if (confirm("确认删除吗？"))
+            this.$delete(this.formData.push_config, key);
+        },
+        addTask() {
+          this.formData.tasklist.push({
+            taskname: "",
+            shareurl: "",
+            savepath: "",
+            pattern: "",
+            replace: "",
+            enddate: "",
+            emby_id: "",
+            runweek: [1, 2, 3, 4, 5, 6, 7]
+          });
+        },
+        removeTask(index) {
+          if (confirm("确认删除吗？"))
+            this.formData.tasklist.splice(index, 1);
+        },
+        clearShareurlBan(task) {
+          delete task.shareurl_ban;
+        },
+        runScriptNow() {
+          $('#logModal').modal('toggle')
+          this.run_log = "请耐心等待脚本全部执行完毕..."
+          axios.post('/run_script_now')
+            .then(response => {
+              this.run_log = response.data;
+            })
+            .catch(error => {
+              this.run_log = "错误：\n" + error
+              console.error('Error:', error);
+            });
+        }
+      }
+    });
+  </script>
 </body>
 
 </html>
