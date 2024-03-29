@@ -52,6 +52,7 @@ docker run -d \
   --name quark-auto-save \
   -p 5005:5005 \
   -v /yourpath/quark-auto-save/config:/app/config \
+  -v /etc/localtime:/etc/localtime \
   --network bridge \
   --restart unless-stopped \
   ghcr.io/cp0204/quark-auto-save:latest
