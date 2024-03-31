@@ -4,7 +4,6 @@
   ],
   "push_config": {
     "QUARK_SIGN_NOTIFY": true,
-    "QYWX_AM": "",
     "其他推送渠道//此项可删": "配置方法同青龙"
   },
   "emby": {
@@ -13,13 +12,34 @@
   },
   "tasklist": [
     {
-      "taskname": "鸣xx年",
-      "shareurl": "https://pan.quark.cn/s/39xxxx35#/list/share/17xxxx72-鸣xx年",
-      "savepath": "/video/tv/鸣xx年/S01",
-      "pattern": "^广告内容(\\d+).(mp4|mkv)",
-      "replace": "\\1.\\2",
-      "enddate": "2024-01-30",
+      "taskname": "测试-魔法匹配剧集（这是一组有效分享，配置CK后可测试任务是否正常）",
+      "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-夸克自动转存测试",
+      "savepath": "/夸克自动转存测试",
+      "pattern": "$TV",
+      "replace": "",
+      "enddate": "2099-01-30",
       "emby_id": ""
+    },
+    {
+      "taskname": "测试-广告过滤",
+      "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-夸克自动转存测试/680d91e490814da0927c38b432f88edc-带广告文件夹",
+      "savepath": "/夸克自动转存测试/带广告文件夹",
+      "pattern": "【XX电影网】(.*)\\.(mp4|mkv)",
+      "replace": "\\1.\\2",
+      "enddate": "2099-01-30"
+    },
+    {
+      "taskname": "测试-超期任务",
+      "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-夸克自动转存测试",
+      "savepath": "/夸克自动转存测试",
+      "pattern": "",
+      "replace": "",
+      "enddate": "2000-01-30",
+      "runweek": [
+        2,
+        4,
+        6
+      ]
     }
   ]
 }
