@@ -245,7 +245,7 @@ def save_file(fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken):
     response = requests.request(
         "POST", url, json=payload, headers=headers, params=querystring
     ).json()
-    return response["data"]["task_id"]
+    return response
 
 
 def mkdir(dir_path):
@@ -261,7 +261,7 @@ def mkdir(dir_path):
     response = requests.request(
         "POST", url, json=payload, headers=headers, params=querystring
     ).json()
-    return response["data"]
+    return response
 
 
 def rename(fid, file_name):
@@ -272,7 +272,7 @@ def rename(fid, file_name):
     response = requests.request(
         "POST", url, json=payload, headers=headers, params=querystring
     ).json()
-    return response["data"]
+    return response
 
 
 def update_savepath_fid(tasklist):
@@ -292,9 +292,13 @@ def update_savepath_fid(tasklist):
     # 比较创建不存在的
     dir_paths_unexist = list(set(dir_paths) - set(dir_paths_exist))
     for dir_path in dir_paths_unexist:
-        new_dir = mkdir(dir_path)
-        dir_paths_exist_arr.append({"file_path": dir_path, "fid": new_dir["fid"]})
-        print("创建文件夹: ", dir_path)
+        mkdir_return = mkdir(dir_path)
+        if mkdir_return["code"] == 0:
+            new_dir = mkdir_return["data"]
+            dir_paths_exist_arr.append({"file_path": dir_path, "fid": new_dir["fid"]})
+            print(f"创建文件夹: {dir_path}")
+        else:
+            print(f"创建文件夹: {dir_path} 失败, {mkdir_return['message']}")
     # 更新到配置
     for task in tasklist:
         for dir_path in dir_paths_exist_arr:
@@ -371,14 +375,24 @@ def do_save_task(task):
     fid_token_list = [item["share_fid_token"] for item in need_save_list]
     save_name_list = [item["save_name"] for item in need_save_list]
     if fid_list:
-        save_task_id = save_file(fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken)
-        save_task_return = query_task(save_task_id)
-        if save_task_return["code"] == 0:
-            save_name_list.sort()
-            add_notify(f"《{task['taskname']}》添加追更：{', '.join(save_name_list)}")
-            return True
+        save_file_return = save_file(
+            fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken
+        )
+        if save_file_return["code"] == 0:
+            task_id = save_file_return["data"]["task_id"]
+            query_task_return = query_task(task_id)
+            if query_task_return["code"] == 0:
+                save_name_list.sort()
+                add_notify(
+                    f"《{task['taskname']}》添加追更：{', '.join(save_name_list)}"
+                )
+                return True
+            else:
+                err_msg = query_task_return["message"]
         else:
-            add_notify(f"《{task['taskname']}》转存失败：{save_task_return['message']}")
+            err_msg = save_file_return["message"]
+        add_notify(f"《{task['taskname']}》转存失败：{err_msg}")
+        return False
     else:
         print("任务结束：没有新的转存任务")
         return False
@@ -414,9 +428,14 @@ def do_rename_task(task):
                 else dir_file["file_name"]
             )
             if save_name != dir_file["file_name"]:
-                rename(dir_file["fid"], save_name)
-                print("重命名：", dir_file["file_name"], "→", save_name)
-                is_rename = True
+                rename_return = rename(dir_file["fid"], save_name)
+                if rename_return["code"] == 0:
+                    print(f"重命名：{dir_file['file_name']} → {save_name}")
+                    is_rename = True
+                else:
+                    print(
+                        f"重命名：{dir_file['file_name']} → {save_name} 失败，{rename_return['message']}"
+                    )
     return is_rename
 
 
