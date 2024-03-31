@@ -7,6 +7,7 @@
   <title>夸克自动转存</title>
   <!-- 引入 Bootstrap CSS -->
   <link rel="stylesheet" href="./static/css/bootstrap.min.css">
+  <link rel="stylesheet" href="./static/css/bootstrap-icons.css">
   <style>
     body {
       padding-bottom: 60px;
@@ -21,6 +22,10 @@
       padding: 10px 0;
       text-align: center;
     }
+
+    .title {
+      margin-top: 30px;
+    }
   </style>
 </head>
 
@@ -29,7 +34,7 @@
     <h1 class="mb-4">夸克自动转存配置</h1>
     <form @submit.prevent="saveConfig">
 
-      <div class="row">
+      <div class="row title">
         <div class="col">
           <h2>Cookie</h2>
         </div>
@@ -45,7 +50,7 @@
         </div>
       </div>
 
-      <div class="row">
+      <div class="row title">
         <div class="col">
           <h2>通知</h2>
         </div>
@@ -63,7 +68,11 @@
         </div>
       </div>
 
-      <h2>Emby</h2>
+      <div class="row title">
+        <div class="col">
+          <h2>Emby</h2>
+        </div>
+      </div>
       <div class="form-group row">
         <label class="col-sm-2 col-form-label">Emby URL</label>
         <div class="col-sm-10">
@@ -77,7 +86,11 @@
         </div>
       </div>
 
-      <h2>定时规则</h2>
+      <div class="row title">
+        <div class="col">
+          <h2>定时规则</h2>
+        </div>
+      </div>
       <div class="form-group row">
         <label class="col-sm-2 col-form-label">Crontab<span class="badge badge-pill badge-light"><a target="_blank" href="https://tool.lu/crontab/">?</a></span></label>
         <div class="col-sm-10">
@@ -85,8 +98,13 @@
         </div>
       </div>
 
-      <h2>任务列表</h2>
+      <div class="row title">
+        <div class="col">
+          <h2>任务列表</h2>
+        </div>
+      </div>
       <div v-for="(task, index) in formData.tasklist" :key="index" class="task mb-3">
+        <hr>
         <div class="form-group row">
           <div class="col">
             <h3>任务#<span v-html="index+1"></span></h3>
@@ -148,18 +166,25 @@
           </div>
         </div>
       </div>
-      <button type="button" class="btn btn-primary" @click="addTask()">增加任务</button>
+      <div class="row">
+        <div class="col-sm-12 text-center">
+          <button type="button" class="btn btn-primary" @click="addTask()"><i class="bi bi-plus"></i> 增加任务</button>
+        </div>
+      </div>
+      <hr>
+      <div class="row">
+        <div class="col-sm-12 text-center">
+          <p>
+            <a target="_blank" href="https://github.com/Cp0204/quark-auto-save">@Cp0204/quark_auto_save</a> v[[ version ]]
+          </p>
+        </div>
+      </div>
       <div class="bottom-buttons">
-        <input type="submit" class="btn btn-success" value="保存">
-        <a class="btn btn-primary" @click="runScriptNow">运行</a>
-        <a class="btn btn-danger" href="/logout">退出</a>
+        <button class="btn btn-success"><i class="bi bi-save"></i> 保存</button>
+        <a class="btn btn-primary" @click="runScriptNow"><i class="bi bi-play-fill"></i> 运行</a>
+        <a class="btn btn-danger" href="/logout"><i class="bi bi-box-arrow-right"></i> 退出</a>
       </div>
     </form>
-    <div class="text-center">
-      <p>
-        <a target="_blank" href="https://github.com/Cp0204/quark-auto-save">@Cp0204/quark_auto_save</a> v[[ version ]]
-      </p>
-    </div>
 
     <!-- 模态框 -->
     <div class="modal" tabindex="-1" id="logModal">
@@ -291,7 +316,7 @@
         },
         runScriptNow() {
           $('#logModal').modal('toggle')
-          this.run_log = "请耐心等待脚本全部执行完毕..."
+          this.run_log = '<div class="spinner-border" role="status"></div> 请耐心等待脚本全部执行完毕...'
           axios.post('/run_script_now')
             .then(response => {
               this.run_log = response.data;
