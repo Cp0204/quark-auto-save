@@ -182,14 +182,24 @@ def get_detail(pwd_id, stoken, pdir_fid):
 
 
 def get_fids(file_paths):
-    url = "https://drive.quark.cn/1/clouddrive/file/info/path_list"
-    querystring = {"pr": "ucpro", "fr": "pc"}
-    payload = {"file_path": file_paths, "namespace": "0"}
-    headers = common_headers()
-    response = requests.request(
-        "POST", url, json=payload, headers=headers, params=querystring
-    ).json()
-    return response
+    fids = []
+    while True:
+        url = "https://drive.quark.cn/1/clouddrive/file/info/path_list"
+        querystring = {"pr": "ucpro", "fr": "pc"}
+        payload = {"file_path": file_paths[:50], "namespace": "0"}
+        headers = common_headers()
+        response = requests.request(
+            "POST", url, json=payload, headers=headers, params=querystring
+        ).json()
+        if(response["code"] == 0):
+            fids += response["data"]
+            file_paths = file_paths[50:]
+        else:
+            print(f"获取目录ID：失败, {response["message"]}")
+            break
+        if(len(file_paths) == 0):
+            break
+    return fids
 
 
 def ls_dir(pdir_fid):
@@ -286,11 +296,7 @@ def update_savepath_fid(tasklist):
     ]
     if not dir_paths:
         return False
-    get_fids_return = get_fids(dir_paths)
-    if(get_fids_return["code"] != 0):
-        print(f"获取目录ID：失败, {get_fids_return["message"]}")
-        return False
-    dir_paths_exist_arr = get_fids_return["data"]
+    dir_paths_exist_arr = get_fids(dir_paths)
     dir_paths_exist = [item["file_path"] for item in dir_paths_exist_arr]
     # 比较创建不存在的
     dir_paths_unexist = list(set(dir_paths) - set(dir_paths_exist))
