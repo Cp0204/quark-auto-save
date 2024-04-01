@@ -1,4 +1,4 @@
-<img src="./img/icon.png" alt="icon" width="128" height="128" align="right"/>
+<img src="https://github.com/Cp0204/quark-auto-save/raw/main/img/icon.png" alt="icon" width="128" height="128" align="right" />
 
 # 夸克网盘自动转存
 
@@ -62,7 +62,7 @@ docker run -d \
 
 #### WebUI 预览
 
-![screenshot_webui](./img/screenshot_webui.png)
+![screenshot_webui](img/screenshot_webui.png)
 
 ### 青龙部署
 
