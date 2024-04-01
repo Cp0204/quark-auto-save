@@ -103,68 +103,84 @@
           <h2>任务列表</h2>
         </div>
       </div>
+      <div class="form-group row">
+        <label class="col-sm-2 col-form-label">任务分类</label>
+        <div class="col-sm-10">
+          <select class="form-control" v-model="taskDirSelected">
+            <option v-for="(dir, index) in taskDirs" :value="dir" v-html="dir"></option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group row">
+        <label class="col-sm-2 col-form-label">名称筛选</label>
+        <div class="col-sm-10">
+          <input type="text" class="form-control mb-2" v-model="taskNameFilter">
+        </div>
+      </div>
       <div v-for="(task, index) in formData.tasklist" :key="index" class="task mb-3">
-        <hr>
-        <div class="form-group row">
-          <div class="col">
-            <h3>任务#<span v-html="index+1"></span></h3>
-          </div>
-          <div class="col text-right">
-            <button type="button" class="btn btn-outline-danger" @click="removeTask(index)">删除任务</button>
-          </div>
-        </div>
-        <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="task.shareurl_ban"></div>
-        <div class="form-group row">
-          <label class="col-sm-2 col-form-label">任务名称</label>
-          <div class="col-sm-10">
-            <input type="text" name="taskname[]" class="form-control mb-2" v-model="task.taskname" placeholder="必填">
-          </div>
-        </div>
-        <div class="form-group row">
-          <label class="col-sm-2 col-form-label">分享链接</label>
-          <div class="col-sm-10">
-            <input type="text" name="shareurl[]" class="form-control mb-2" v-model="task.shareurl" placeholder="必填" @input="clearShareurlBan(task)">
-          </div>
-        </div>
-        <div class="form-group row">
-          <label class="col-sm-2 col-form-label">保存路径</label>
-          <div class="col-sm-10">
-            <input type="text" name="savepath[]" class="form-control mb-2" v-model="task.savepath" placeholder="必填">
-          </div>
-        </div>
-        <div class="form-group row">
-          <label class="col-sm-2 col-form-label">正则过滤</label>
-          <div class="col-sm-10">
-            <input type="text" name="pattern[]" class="form-control mb-2" v-model="task.pattern" placeholder="留空为不过滤">
-          </div>
-        </div>
-        <div class="form-group row">
-          <label class="col-sm-2 col-form-label">正则替换</label>
-          <div class="col-sm-10">
-            <input type="text" name="replace[]" class="form-control mb-2" v-model="task.replace" placeholder="留空为不替换">
-          </div>
-        </div>
-        <div class="form-group row">
-          <label class="col-sm-2 col-form-label">截止日期</label>
-          <div class="col-sm-10">
-            <input type="date" name="enddate[]" class="form-control mb-2" v-model="task.enddate" placeholder="可选">
-          </div>
-        </div>
-        <div class="form-group row">
-          <label class="col-sm-2 col-form-label">运行星期</label>
-          <div class="col-sm-10">
-            <div class="form-check form-check-inline" v-for="(day, index) in weekdays" :key="index">
-              <input class="form-check-input" type="checkbox" v-model="task.runweek" :value="index+1">
-              <label class="form-check-label" v-html="day"></label>
+        <template v-if="(taskDirSelected == '' || getParentDirectory(task.savepath) == taskDirSelected) && task.taskname.includes(taskNameFilter)">
+          <hr>
+          <div class="form-group row">
+            <div class="col">
+              <h3>任务#<span v-html="index+1"></span></h3>
+            </div>
+            <div class="col text-right">
+              <button type="button" class="btn btn-outline-danger" @click="removeTask(index)">删除任务</button>
             </div>
           </div>
-        </div>
-        <div class="form-group row">
-          <label class="col-sm-2 col-form-label">Emby ID</label>
-          <div class="col-sm-10">
-            <input type="number" name="emby_id[]" class="form-control mb-2" v-model="task.emby_id" placeholder="可选">
+          <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="task.shareurl_ban"></div>
+          <div class="form-group row">
+            <label class="col-sm-2 col-form-label">任务名称</label>
+            <div class="col-sm-10">
+              <input type="text" name="taskname[]" class="form-control mb-2" v-model="task.taskname" placeholder="必填">
+            </div>
           </div>
-        </div>
+          <div class="form-group row">
+            <label class="col-sm-2 col-form-label">分享链接</label>
+            <div class="col-sm-10">
+              <input type="text" name="shareurl[]" class="form-control mb-2" v-model="task.shareurl" placeholder="必填" @input="clearShareurlBan(task)">
+            </div>
+          </div>
+          <div class="form-group row">
+            <label class="col-sm-2 col-form-label">保存路径</label>
+            <div class="col-sm-10">
+              <input type="text" name="savepath[]" class="form-control mb-2" v-model="task.savepath" placeholder="必填">
+            </div>
+          </div>
+          <div class="form-group row">
+            <label class="col-sm-2 col-form-label">正则过滤</label>
+            <div class="col-sm-10">
+              <input type="text" name="pattern[]" class="form-control mb-2" v-model="task.pattern" placeholder="留空为不过滤">
+            </div>
+          </div>
+          <div class="form-group row">
+            <label class="col-sm-2 col-form-label">正则替换</label>
+            <div class="col-sm-10">
+              <input type="text" name="replace[]" class="form-control mb-2" v-model="task.replace" placeholder="留空为不替换">
+            </div>
+          </div>
+          <div class="form-group row">
+            <label class="col-sm-2 col-form-label">截止日期</label>
+            <div class="col-sm-10">
+              <input type="date" name="enddate[]" class="form-control mb-2" v-model="task.enddate" placeholder="可选">
+            </div>
+          </div>
+          <div class="form-group row">
+            <label class="col-sm-2 col-form-label">运行星期</label>
+            <div class="col-sm-10">
+              <div class="form-check form-check-inline" v-for="(day, index) in weekdays" :key="index">
+                <input class="form-check-input" type="checkbox" v-model="task.runweek" :value="index+1">
+                <label class="form-check-label" v-html="day"></label>
+              </div>
+            </div>
+          </div>
+          <div class="form-group row">
+            <label class="col-sm-2 col-form-label">Emby ID</label>
+            <div class="col-sm-10">
+              <input type="number" name="emby_id[]" class="form-control mb-2" v-model="task.emby_id" placeholder="可选">
+            </div>
+          </div>
+        </template>
       </div>
       <div class="row">
         <div class="col-sm-12 text-center">
@@ -228,7 +244,20 @@
           },
           tasklist: []
         },
-        run_log: ""
+        newTask: {
+          taskname: "",
+          shareurl: "",
+          savepath: "",
+          pattern: "",
+          replace: "",
+          enddate: "",
+          emby_id: "",
+          runweek: [1, 2, 3, 4, 5, 6, 7]
+        },
+        run_log: "",
+        taskDirs: [""],
+        taskDirSelected: "",
+        taskNameFilter: ""
       },
       watch: {
         'formData.push_config': {
@@ -263,6 +292,12 @@
                 }
                 return task;
               });
+              // 存所有任务父目录
+              response.data.tasklist.forEach(item => {
+                parentDir = this.getParentDirectory(item.savepath)
+                if (!this.taskDirs.includes(parentDir))
+                  this.taskDirs.push(parentDir);
+              });
               this.formData = response.data;
             })
             .catch(error => {
@@ -296,16 +331,10 @@
             this.$delete(this.formData.push_config, key);
         },
         addTask() {
-          this.formData.tasklist.push({
-            taskname: "",
-            shareurl: "",
-            savepath: "",
-            pattern: "",
-            replace: "",
-            enddate: "",
-            emby_id: "",
-            runweek: [1, 2, 3, 4, 5, 6, 7]
-          });
+          newTask = { ...this.newTask }
+          newTask.taskname = this.taskNameFilter
+          newTask.savepath = this.taskDirSelected + "/" + newTask.taskname
+          this.formData.tasklist.push(newTask);
         },
         removeTask(index) {
           if (confirm("确认删除吗？"))
@@ -325,6 +354,12 @@
               this.run_log = "错误：\n" + error
               console.error('Error:', error);
             });
+        },
+        getParentDirectory(path) {
+          parentDir = path.substring(0, path.lastIndexOf('/'))
+          if (parentDir == "")
+            parentDir = "/"
+          return parentDir;
         }
       }
     });
