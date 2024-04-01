@@ -198,6 +198,7 @@
       <div class="bottom-buttons">
         <button class="btn btn-success"><i class="bi bi-save"></i> 保存</button>
         <a class="btn btn-primary" @click="runScriptNow"><i class="bi bi-play-fill"></i> 运行</a>
+        <a class="btn btn-info" @click="scrollToTop" ><i class="bi bi-chevron-bar-up"></i> 回顶</a>
         <a class="btn btn-danger" href="/logout"><i class="bi bi-box-arrow-right"></i> 退出</a>
       </div>
     </form>
@@ -360,6 +361,12 @@
           if (parentDir == "")
             parentDir = "/"
           return parentDir;
+        },
+        scrollToTop() {
+          window.scrollTo({
+            top: 0,
+            behavior: "smooth"
+          });
         }
       }
     });
