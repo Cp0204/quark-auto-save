@@ -189,8 +189,7 @@ def get_fids(file_paths):
     response = requests.request(
         "POST", url, json=payload, headers=headers, params=querystring
     ).json()
-    # print(response)
-    return response["data"]
+    return response
 
 
 def ls_dir(pdir_fid):
@@ -287,7 +286,11 @@ def update_savepath_fid(tasklist):
     ]
     if not dir_paths:
         return False
-    dir_paths_exist_arr = get_fids(dir_paths)
+    get_fids_return = get_fids(dir_paths)
+    if(get_fids_return["code"] != 0):
+        print(f"获取目录ID：失败, {get_fids_return["message"]}")
+        return False
+    dir_paths_exist_arr = get_fids_return["data"]
     dir_paths_exist = [item["file_path"] for item in dir_paths_exist_arr]
     # 比较创建不存在的
     dir_paths_unexist = list(set(dir_paths) - set(dir_paths_exist))
@@ -296,9 +299,9 @@ def update_savepath_fid(tasklist):
         if mkdir_return["code"] == 0:
             new_dir = mkdir_return["data"]
             dir_paths_exist_arr.append({"file_path": dir_path, "fid": new_dir["fid"]})
-            print(f"创建文件夹: {dir_path}")
+            print(f"创建文件夹：{dir_path}")
         else:
-            print(f"创建文件夹: {dir_path} 失败, {mkdir_return['message']}")
+            print(f"创建文件夹：{dir_path} 失败, {mkdir_return['message']}")
     # 更新到配置
     for task in tasklist:
         for dir_path in dir_paths_exist_arr:
@@ -610,9 +613,9 @@ def do_save():
 
 def main():
     global config_data, first_account
-    formatted_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    start_time = datetime.now()
     print(f"===============程序开始===============")
-    print(f"⏰ 执行时间: {formatted_time}")
+    print(f"⏰ 执行时间: {start_time.strftime("%Y-%m-%d %H:%M:%S")}")
     print(f"")
     # 启动参数
     arguments = sys.argv
@@ -660,8 +663,11 @@ def main():
         # 更新配置
         with open(config_path, "w", encoding="utf-8") as file:
             json.dump(config_data, file, ensure_ascii=False, indent=2)
-    print(f"======================================")
 
+    print(f"===============程序结束===============")
+    duration = datetime.now() - start_time
+    print(f"😃 运行时长: {round(duration.total_seconds(), 2)}s")
+    print(f"")
 
 if __name__ == "__main__":
     main()
