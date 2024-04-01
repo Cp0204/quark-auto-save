@@ -55,7 +55,7 @@ docker run -d \
   -v /etc/localtime:/etc/localtime \
   --network bridge \
   --restart unless-stopped \
-  ghcr.io/cp0204/quark-auto-save:latest
+  cp0204/quark-auto-save:latest
 ```
 
 默认管理账号 `admin` ，密码 `admin123`，仅支持在 `quark_config.json` 中修改。
