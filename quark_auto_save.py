@@ -191,13 +191,13 @@ def get_fids(file_paths):
         response = requests.request(
             "POST", url, json=payload, headers=headers, params=querystring
         ).json()
-        if(response["code"] == 0):
+        if response["code"] == 0:
             fids += response["data"]
             file_paths = file_paths[50:]
         else:
-            print(f"获取目录ID：失败, {response["message"]}")
+            print(f"获取目录ID：失败, {response['message']}")
             break
-        if(len(file_paths) == 0):
+        if len(file_paths) == 0:
             break
     return fids
 
@@ -621,7 +621,7 @@ def main():
     global config_data, first_account
     start_time = datetime.now()
     print(f"===============程序开始===============")
-    print(f"⏰ 执行时间: {start_time.strftime("%Y-%m-%d %H:%M:%S")}")
+    print(f"⏰ 执行时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"")
     # 启动参数
     arguments = sys.argv
@@ -674,6 +674,7 @@ def main():
     duration = datetime.now() - start_time
     print(f"😃 运行时长: {round(duration.total_seconds(), 2)}s")
     print(f"")
+
 
 if __name__ == "__main__":
     main()
