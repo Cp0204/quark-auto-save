@@ -60,6 +60,12 @@ docker run -d \
 
 默认管理账号 `admin` ，密码 `admin123`，仅支持在 `quark_config.json` 中修改。
 
+一键更新：
+
+```shell
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower -cR quark-auto-save
+```
+
 #### WebUI 预览
 
 ![screenshot_webui](img/screenshot_webui.png)
