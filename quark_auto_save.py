@@ -377,7 +377,7 @@ class Quark:
         dir_paths_exist_arr = self.get_fids(dir_paths)
         dir_paths_exist = [item["file_path"] for item in dir_paths_exist_arr]
         # 比较创建不存在的
-        dir_paths_unexist = list(set(dir_paths) - set(dir_paths_exist))
+        dir_paths_unexist = list(set(dir_paths) - set(dir_paths_exist) - set(["/"]))
         for dir_path in dir_paths_unexist:
             mkdir_return = self.mkdir(dir_path)
             if mkdir_return["code"] == 0:
@@ -390,9 +390,12 @@ class Quark:
                 print(f"创建文件夹：{dir_path} 失败, {mkdir_return['message']}")
         # 更新到配置
         for task in tasklist:
-            for dir_path in dir_paths_exist_arr:
-                if task["savepath"] == dir_path["file_path"]:
-                    task["savepath_fid"] = dir_path["fid"]
+            if task["savepath"] == "/":
+                task["savepath_fid"] = "0"
+            else:
+                for dir_path in dir_paths_exist_arr:
+                    if task["savepath"] == dir_path["file_path"]:
+                        task["savepath_fid"] = dir_path["fid"]
         # print(dir_paths_exist_arr)
 
     def do_save_check(self, shareurl, savepath):
