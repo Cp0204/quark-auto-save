@@ -88,7 +88,7 @@ def get_cookies(cookie_val):
 
 class Quark:
     def __init__(self, cookie, index=None):
-        self.cookie = cookie
+        self.cookie = cookie.strip()
         self.index = index + 1
         self.is_active = False
         self.nickname = ""
@@ -677,6 +677,7 @@ def verify_account(account):
 
 def do_sign(account):
     if not verify_account(account):
+        print()
         return
     # 每日领空间
     growth_info = account.get_growth_info()
