@@ -471,11 +471,8 @@ class Quark:
         # print("share_file_list: ", share_file_list)
 
         # 获取目标目录文件列表
-        task["savepath_fid"] = (
-            task.get("savepath_fid")
-            if task.get("savepath_fid")
-            else self.get_fids([task["savepath"]])[0]["fid"]
-        )
+        if not task.get("savepath_fid"):
+            task["savepath_fid"] = self.get_fids([task["savepath"]])[0]["fid"]
         to_pdir_fid = task["savepath_fid"]
         dir_file_list = self.ls_dir(to_pdir_fid)
         # print("dir_file_list: ", dir_file_list)
@@ -595,7 +592,9 @@ class Emby:
         response = requests.request("GET", url, headers=headers, params=querystring)
         if "application/json" in response.headers["Content-Type"]:
             response = response.json()
-            print(f"Emby媒体库: {response.get("ServerName","")} v{response.get("Version","")}")
+            print(
+                f"Emby媒体库: {response.get('ServerName','')} v{response.get('Version','')}"
+            )
             return True
         else:
             print(f"Emby媒体库: 连接失败❌ {response.text}")
@@ -704,7 +703,7 @@ def do_sign(account):
                     add_notify(message)
             else:
                 print(f"📅 执行签到: {sign_return}")
-    print(f"")
+    print()
 
 
 def do_save(account):
@@ -735,7 +734,7 @@ def do_save(account):
     for index, task in enumerate(tasklist):
         # 判断任务期限
         if check_date(task):
-            print(f"")
+            print()
             print(f"#{index+1}------------------")
             print(f"任务名称: {task['taskname']}")
             print(f"分享链接: {task['shareurl']}")
@@ -760,7 +759,7 @@ def do_save(account):
                     if match_emby_id:
                         task["emby_id"] = match_emby_id
                         emby.refresh(match_emby_id)
-    print(f"")
+    print()
 
 
 def main():
@@ -768,7 +767,7 @@ def main():
     start_time = datetime.now()
     print(f"===============程序开始===============")
     print(f"⏰ 执行时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"")
+    print()
     # 启动参数
     arguments = sys.argv
     if len(arguments) > 1:
@@ -805,18 +804,18 @@ def main():
     print(f"===============签到任务===============")
     for account in accounts:
         do_sign(account)
-    print(f"")
+    print()
     # 转存
     if accounts[0].is_active and cookie_form_file:
         print(f"===============转存任务===============")
         do_save(accounts[0])
-        print(f"")
+        print()
     # 通知
     if notifys:
         notify_body = "\n".join(notifys)
         print(f"===============推送通知===============")
         send_ql_notify("【夸克自动追更】", notify_body)
-        print(f"")
+        print()
     if cookie_form_file:
         # 更新配置
         with open(config_path, "w", encoding="utf-8") as file:
@@ -825,7 +824,7 @@ def main():
     print(f"===============程序结束===============")
     duration = datetime.now() - start_time
     print(f"😃 运行时长: {round(duration.total_seconds(), 2)}s")
-    print(f"")
+    print()
 
 
 if __name__ == "__main__":
