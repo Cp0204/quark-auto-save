@@ -93,6 +93,7 @@ class Quark:
         self.is_active = False
         self.nickname = ""
         self.st = self.match_st_form_cookie(cookie)
+        self.savepath_fid = {"/": "0"}
 
     def match_st_form_cookie(self, cookie):
         match = re.search(r"=(st[a-zA-Z0-9]+);", cookie)
@@ -388,14 +389,9 @@ class Quark:
                 print(f"创建文件夹：{dir_path}")
             else:
                 print(f"创建文件夹：{dir_path} 失败, {mkdir_return['message']}")
-        # 更新到配置
-        for task in tasklist:
-            if task["savepath"] == "/":
-                task["savepath_fid"] = "0"
-            else:
-                for dir_path in dir_paths_exist_arr:
-                    if task["savepath"] == dir_path["file_path"]:
-                        task["savepath_fid"] = dir_path["fid"]
+        # 储存目标目录的fid
+        for dir_path in dir_paths_exist_arr:
+            self.savepath_fid[dir_path["file_path"]] = dir_path["fid"]
         # print(dir_paths_exist_arr)
 
     def do_save_check(self, shareurl, savepath):
@@ -408,9 +404,9 @@ class Quark:
             file_name_list = [item["file_name"] for item in share_file_list]
             if not fid_list:
                 return
-            self.mkdir(savepath)
+            get_fids = self.get_fids([savepath])
             to_pdir_fid = (
-                "0" if savepath == "/" else self.get_fids([savepath])[0]["fid"]
+                get_fids[0]["fid"] if get_fids else self.mkdir(savepath)["data"]["fid"]
             )
             save_file = self.save_file(
                 fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken
@@ -471,9 +467,10 @@ class Quark:
         # print("share_file_list: ", share_file_list)
 
         # 获取目标目录文件列表
-        if not task.get("savepath_fid"):
-            task["savepath_fid"] = self.get_fids([task["savepath"]])[0]["fid"]
-        to_pdir_fid = task["savepath_fid"]
+        savepath = task["savepath"]
+        if not self.savepath_fid.get(savepath):
+            self.savepath_fid[savepath] = self.get_fids([savepath])[0]["fid"]
+        to_pdir_fid = self.savepath_fid[savepath]
         dir_file_list = self.ls_dir(to_pdir_fid)
         # print("dir_file_list: ", dir_file_list)
 
@@ -554,7 +551,7 @@ class Quark:
         return response
 
     def do_rename_task(self, task):
-        dir_file_list = self.ls_dir(task["savepath_fid"])
+        dir_file_list = self.ls_dir(self.savepath_fid[task["savepath"]])
         is_rename = False
         for dir_file in dir_file_list:
             pattern, replace = magic_regex_func(task["pattern"], task["replace"])
