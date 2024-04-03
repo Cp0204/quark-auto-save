@@ -114,7 +114,7 @@
       <div class="form-group row">
         <label class="col-sm-2 col-form-label">名称筛选</label>
         <div class="col-sm-10">
-          <input type="text" class="form-control mb-2" v-model="taskNameFilter">
+          <input type="text" class="form-control" v-model="taskNameFilter">
         </div>
       </div>
       <div v-for="(task, index) in formData.tasklist" :key="index" class="task mb-3">
@@ -132,37 +132,39 @@
           <div class="form-group row">
             <label class="col-sm-2 col-form-label">任务名称</label>
             <div class="col-sm-10">
-              <input type="text" name="taskname[]" class="form-control mb-2" v-model="task.taskname" placeholder="必填">
+              <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填">
             </div>
           </div>
           <div class="form-group row">
             <label class="col-sm-2 col-form-label">分享链接</label>
             <div class="col-sm-10">
-              <input type="text" name="shareurl[]" class="form-control mb-2" v-model="task.shareurl" placeholder="必填" @input="clearShareurlBan(task)">
+              <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @input="clearShareurlBan(task)">
             </div>
           </div>
           <div class="form-group row">
             <label class="col-sm-2 col-form-label">保存路径</label>
             <div class="col-sm-10">
-              <input type="text" name="savepath[]" class="form-control mb-2" v-model="task.savepath" placeholder="必填">
+              <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填">
             </div>
           </div>
           <div class="form-group row">
-            <label class="col-sm-2 col-form-label">正则过滤</label>
+            <label class="col-sm-2 col-form-label">正则处理</label>
             <div class="col-sm-10">
-              <input type="text" name="pattern[]" class="form-control mb-2" v-model="task.pattern" placeholder="留空为不过滤">
-            </div>
-          </div>
-          <div class="form-group row">
-            <label class="col-sm-2 col-form-label">正则替换</label>
-            <div class="col-sm-10">
-              <input type="text" name="replace[]" class="form-control mb-2" v-model="task.replace" placeholder="留空为不替换">
+              <div class="input-group">
+                <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式">
+                <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
+                <div class="input-group-append">
+                  <div class="input-group-text">
+                    <input type="checkbox" title="忽略后缀" v-model="task.ignore_extension">&nbsp;忽略后缀
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <div class="form-group row">
             <label class="col-sm-2 col-form-label">截止日期</label>
             <div class="col-sm-10">
-              <input type="date" name="enddate[]" class="form-control mb-2" v-model="task.enddate" placeholder="可选">
+              <input type="date" name="enddate[]" class="form-control" v-model="task.enddate" placeholder="可选">
             </div>
           </div>
           <div class="form-group row">
@@ -177,7 +179,7 @@
           <div class="form-group row">
             <label class="col-sm-2 col-form-label">Emby ID</label>
             <div class="col-sm-10">
-              <input type="number" name="emby_id[]" class="form-control mb-2" v-model="task.emby_id" placeholder="可选">
+              <input type="number" name="emby_id[]" class="form-control" v-model="task.emby_id" placeholder="可选">
             </div>
           </div>
         </template>
