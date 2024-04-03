@@ -95,7 +95,7 @@ class Quark:
         self.st = self.match_st_form_cookie(cookie)
 
     def match_st_form_cookie(self, cookie):
-        match = re.search(r'=(st[a-zA-Z0-9]+);', cookie)
+        match = re.search(r"=(st[a-zA-Z0-9]+);", cookie)
         return match.group(1) if match else False
 
     def common_headers(self):
@@ -578,13 +578,27 @@ class Quark:
 
 class Emby:
     def __init__(self, emby_url, emby_apikey):
+        self.is_active = False
         if emby_url and emby_apikey:
             self.emby_url = emby_url
             self.emby_apikey = emby_apikey
+            if self.get_info():
+                self.is_active = True
+
+    def get_info(self):
+        url = f"{self.emby_url}/emby/System/Info"
+        headers = {"X-Emby-Token": self.emby_apikey}
+        querystring = {}
+        response = requests.request("GET", url, headers=headers, params=querystring)
+        if "application/json" in response.headers["Content-Type"]:
+            response = response.json()
+            print(f"Emby媒体库: {response.get("ServerName","")} v{response.get("Version","")}")
+            return True
         else:
+            print(f"Emby媒体库: 连接失败❌ {response.text}")
             return False
 
-    def emby_refresh(self, emby_id):
+    def refresh(self, emby_id):
         if emby_id:
             url = f"{self.emby_url}/emby/Items/{emby_id}/Refresh"
             headers = {"X-Emby-Token": self.emby_apikey}
@@ -605,7 +619,7 @@ class Emby:
                 print(f"🎞 刷新Emby媒体库：{response.text}❌")
                 return False
 
-    def emby_search(self, media_name):
+    def search(self, media_name):
         if media_name:
             url = f"{self.emby_url}/emby/Items"
             headers = {"X-Emby-Token": self.emby_apikey}
@@ -697,7 +711,8 @@ def do_save(account):
     # 获取全部保存目录fid
     account.update_savepath_fid(tasklist)
     emby = Emby(
-        config_data.get("emby").get("url"), config_data.get("emby").get("apikey")
+        config_data.get("emby", {}).get("url", ""),
+        config_data.get("emby", {}).get("apikey", ""),
     )
 
     def check_date(task):
@@ -734,14 +749,14 @@ def do_save(account):
             is_new = account.do_save_task(task)
             is_rename = account.do_rename_task(task)
             # 刷新媒体库
-            if emby and (is_new or is_rename) and task.get("emby_id") != "0":
+            if emby.is_active and (is_new or is_rename) and task.get("emby_id") != "0":
                 if task.get("emby_id"):
-                    emby.emby_refresh(task["emby_id"])
+                    emby.refresh(task["emby_id"])
                 else:
-                    match_emby_id = emby.emby_search(task["taskname"])
+                    match_emby_id = emby.search(task["taskname"])
                     if match_emby_id:
                         task["emby_id"] = match_emby_id
-                        emby.emby_refresh(match_emby_id)
+                        emby.refresh(match_emby_id)
     print(f"")
 
 
