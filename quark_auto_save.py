@@ -95,8 +95,8 @@ class Quark:
         self.st = self.match_st_form_cookie(cookie)
 
     def match_st_form_cookie(self, cookie):
-        st = re.findall(r"st[a-zA-Z0-9]+", cookie)
-        return st[0] if st else False
+        match = re.search(r'=(st[a-zA-Z0-9]+);', cookie)
+        return match.group(1) if match else False
 
     def common_headers(self):
         headers = {
