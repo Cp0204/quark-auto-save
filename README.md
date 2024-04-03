@@ -1,12 +1,27 @@
-<img src="https://github.com/Cp0204/quark-auto-save/raw/main/img/icon.png" alt="icon" width="128" height="128" align="right" />
+<div align="center">
+
+![quark-logo](img/icon.png)
 
 # 夸克网盘自动转存
+
+夸克网盘签到、自动转存、命名整理、发推送提醒和刷新媒体库一条龙。
 
 对于一些持续更新的资源，隔段时间去转存十分麻烦。
 
 定期执行本脚本自动转存、文件名整理，配合 Alist, rclone, Emby 可达到自动追更的效果。🥳
 
+
+[![github tag][gitHub-tag-image]][github-url] [![docker pulls][docker-pulls-image]][docker-url] [![docker image size][docker-image-size-image]][docker-url]
+
+[gitHub-tag-image]: https://img.shields.io/github/v/tag/Cp0204/quark-auto-save
+[docker-pulls-image]: https://img.shields.io/docker/pulls/cp0204/quark-auto-save
+[docker-image-size-image]: https://img.shields.io/docker/image-size/cp0204/quark-auto-save
+[github-url]: https://github.com/Cp0204/quark-auto-save
+[docker-url]: https://hub.docker.com/r/cp0204/quark-auto-save
+
 ![run_log](img/run_log.png)
+
+</div>
 
 ⛔️⛔️⛔️ 注意！资源不会每时每刻更新，**严禁设定过高的定时运行频率！** 以免账号异常或给夸克服务器造成不必要的压力。雪山崩塌，每一片雪花都有责任！
 
@@ -51,7 +66,7 @@
 docker run -d \
   --name quark-auto-save \
   -p 5005:5005 \
-  -v /yourpath/quark-auto-save/config:/app/config \
+  -v ./quark-auto-save/config:/app/config \
   -v /etc/localtime:/etc/localtime \
   --network bridge \
   --restart unless-stopped \
@@ -60,7 +75,7 @@ docker run -d \
 
 默认管理账号 `admin` ，密码 `admin123`，仅支持在 `quark_config.json` 中修改。
 
-一键更新：
+#### 一键更新
 
 ```shell
 docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower -cR quark-auto-save
