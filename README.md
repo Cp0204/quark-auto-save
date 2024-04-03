@@ -130,7 +130,6 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
       "ignore_extension": true, //可选
       "runweek": [1, 2, 3, 4, 6, 7], //可选，指定星期几执行，无此字段则均执行
       // 以下字段无需手动配置
-      "savepath_fid": "0833xxxx712d7", // 程序运行获得的保存目录id
       "shareurl_ban": "分享地址已失效" // 记录分享是否失效；更新链接后请手动删去，如有此字段将跳过任务
     }
   ]
