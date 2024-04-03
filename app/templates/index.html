@@ -42,9 +42,9 @@
           <button type="button" class="btn btn-outline-primary mb-3" @click="addCookie()">+</button>
         </div>
       </div>
-      <p>所有账号执行签到，仅第一个账号执行转存，请自行确认顺序。</p>
+      <p>所有账号执行签到，仅第一个账号执行转存，请自行确认顺序。<b>最好是手机验证码<a target="_blank" href="https://pan.quark.cn/">登录</a>，CK比较完整！</b></p>
       <div v-for="(value, index) in formData.cookie" :key="index" class="input-group mb-2">
-        <input type="text" v-model="formData.cookie[index]" class="form-control" placeholder="打开 pan.quark.com 抓取">
+        <input type="text" v-model="formData.cookie[index]" class="form-control" placeholder="打开 pan.quark.com 按 F12 抓取">
         <div class="input-group-append">
           <button type="button" class="btn btn-outline-danger" @click="removeCookie(index)">-</button>
         </div>
@@ -104,7 +104,7 @@
         </div>
       </div>
       <div class="form-group row">
-        <label class="col-sm-2 col-form-label">任务分类</label>
+        <label class="col-sm-2 col-form-label">路径筛选</label>
         <div class="col-sm-10">
           <select class="form-control" v-model="taskDirSelected">
             <option v-for="(dir, index) in taskDirs" :value="dir" v-html="dir"></option>
