@@ -705,15 +705,15 @@ def do_sign(account):
 
 
 def do_save(account):
+    emby = Emby(
+        config_data.get("emby", {}).get("url", ""),
+        config_data.get("emby", {}).get("apikey", ""),
+    )
     print(f"转存账号: {account.nickname}")
     # 任务列表
     tasklist = config_data.get("tasklist", [])
     # 获取全部保存目录fid
     account.update_savepath_fid(tasklist)
-    emby = Emby(
-        config_data.get("emby", {}).get("url", ""),
-        config_data.get("emby", {}).get("apikey", ""),
-    )
 
     def check_date(task):
         return (
