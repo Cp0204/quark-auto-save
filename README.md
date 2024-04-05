@@ -53,7 +53,7 @@
 
 - 其它
   - [x] 每日签到领空间
-  - [x] 支持推送通知
+  - [x] 支持多个通知推送渠道
   - [x] 支持多账号（多账号签到，仅首账号转存）
 
 ## 使用
@@ -81,9 +81,12 @@ docker run -d \
 docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower -cR quark-auto-save
 ```
 
-#### WebUI 预览
+<details>
+<summary>WebUI 预览</summary>
 
 ![screenshot_webui](img/screenshot_webui.png)
+
+</details>
 
 ### 青龙部署
 
@@ -105,32 +108,32 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 
 ```json
 {
-  "cookie": [
+  "cookie": [ //请用手机验证码登录，CK比较完整！
     "Your pan.quark.cn Cookie1, Only this one will do save task.",
     "Your pan.quark.cn Cookie2, Only sign after this."
   ],
-  "push_config": { // 无此字段则从环境变量（青龙设置）读取通知设置
-    "QUARK_SIGN_NOTIFY": true, // 是否发送签到成功通知，也可在环境变量中设置
+  "push_config": { //无此字段则从环境变量（青龙设置）读取通知设置
+    "QUARK_SIGN_NOTIFY": true, //是否发送签到成功通知，也可在环境变量中设置
     "QYWX_AM": "",
     "其他推送渠道//此项可删": "配置方法同青龙"
   },
   "emby": {
     "url": "http://yourdomain.com:8096",
-    "apikey": "" // 在后台 高级-API秘钥 中生成
+    "apikey": "" //在后台 高级-API秘钥 中生成
   },
-  "tasklist": [ // 无任务则只签到
+  "tasklist": [ //无任务则只签到
     {
       "taskname": "鸣xx年",
       "shareurl": "https://pan.quark.cn/s/39xxxx35#/list/share/17xxxx72-鸣xx年",
       "savepath": "/video/tv/鸣xx年/S01",
       "pattern": "^广告内容(\\d+).(mp4|mkv)",
       "replace": "\\1.\\2",
-      "enddate": "2024-01-30",  //可选
-      "emby_id": "",            //可选，缺省时根据taskname搜索匹配，为0时强制不匹配
-      "ignore_extension": true, //可选
+      "enddate": "2024-01-30",  //可选，结束日期
+      "emby_id": "",            //可选，缺省时按taskname搜索匹配，为0时强制不匹配
+      "ignore_extension": true, //可选，忽略后缀
       "runweek": [1, 2, 3, 4, 6, 7], //可选，指定星期几执行，无此字段则均执行
-      // 以下字段无需手动配置
-      "shareurl_ban": "分享地址已失效" // 记录分享是否失效；更新链接后请手动删去，如有此字段将跳过任务
+      // 以下字段无需配置
+      "shareurl_ban": "分享地址已失效" //记录分享是否失效；如有此字段将跳过任务，更新链接后请手动删去
     }
   ]
 }
