@@ -15,9 +15,9 @@ import random
 import requests
 from datetime import datetime
 
-config_data = {}
-check_data = {}
-notifys = []
+CONFIG_DATA = {}
+CHECK_DATA = {}
+NOTIFYS = []
 
 
 magic_regex = {
@@ -45,9 +45,9 @@ def send_ql_notify(title, body):
         import sendNotify
 
         # 如未配置 push_config 则使用青龙环境通知设置
-        if config_data.get("push_config"):
-            config_data["push_config"]["CONSOLE"] = True
-            sendNotify.push_config = config_data["push_config"]
+        if CONFIG_DATA.get("push_config"):
+            CONFIG_DATA["push_config"]["CONSOLE"] = True
+            sendNotify.push_config = CONFIG_DATA["push_config"]
         sendNotify.send(title, body)
     except Exception as e:
         if e:
@@ -56,8 +56,8 @@ def send_ql_notify(title, body):
 
 # 添加消息
 def add_notify(text):
-    global notifys
-    notifys.append(text)
+    global NOTIFYS
+    NOTIFYS.append(text)
     print("📢", text)
     return text
 
@@ -649,18 +649,18 @@ class Emby:
 
 
 def save_check(account):
-    global check_data
+    global CHECK_DATA
     if (
-        config_data.get("SAVE_CHECK") == False
+        CONFIG_DATA.get("SAVE_CHECK") == False
         or os.environ.get("SAVE_CHECK") == "false"
     ):
         return
-    if not check_data:
-        check_data = requests.get(
+    if not CHECK_DATA:
+        CHECK_DATA = requests.get(
             "https://mirror.ghproxy.com/https://gist.githubusercontent.com/Cp0204/4764fd0110d5f5bd875eb9a9ff77ccd0/raw/quark_save_check.json"
         ).json()
-    if check_data.get("pwd_id"):
-        return account.do_save_check(check_data["pwd_id"], check_data["savepath"])
+    if CHECK_DATA.get("pwd_id"):
+        return account.do_save_check(CHECK_DATA["pwd_id"], CHECK_DATA["savepath"])
 
 
 def verify_account(account):
@@ -692,7 +692,7 @@ def do_sign(account):
             if sign:
                 message = f"📅 执行签到: 今日签到+{int(sign_return/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']}){save_check_flag}"
                 if (
-                    config_data.get("push_config").get("QUARK_SIGN_NOTIFY") == False
+                    CONFIG_DATA.get("push_config").get("QUARK_SIGN_NOTIFY") == False
                     or os.environ.get("QUARK_SIGN_NOTIFY") == "false"
                 ):
                     print(message)
@@ -706,12 +706,12 @@ def do_sign(account):
 
 def do_save(account):
     emby = Emby(
-        config_data.get("emby", {}).get("url", ""),
-        config_data.get("emby", {}).get("apikey", ""),
+        CONFIG_DATA.get("emby", {}).get("url", ""),
+        CONFIG_DATA.get("emby", {}).get("apikey", ""),
     )
     print(f"转存账号: {account.nickname}")
     # 任务列表
-    tasklist = config_data.get("tasklist", [])
+    tasklist = CONFIG_DATA.get("tasklist", [])
     # 获取全部保存目录fid
     account.update_savepath_fid(tasklist)
 
@@ -761,7 +761,7 @@ def do_save(account):
 
 
 def main():
-    global config_data
+    global CONFIG_DATA
     start_time = datetime.now()
     print(f"===============程序开始===============")
     print(f"⏰ 执行时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -789,8 +789,8 @@ def main():
     else:
         print(f"⚙️ 正从 {config_path} 文件中读取配置")
         with open(config_path, "r", encoding="utf-8") as file:
-            config_data = json.load(file)
-        cookie_val = config_data.get("cookie")
+            CONFIG_DATA = json.load(file)
+        cookie_val = CONFIG_DATA.get("cookie")
         cookie_form_file = True
     # 获取cookie
     cookies = get_cookies(cookie_val)
@@ -809,15 +809,15 @@ def main():
         do_save(accounts[0])
         print()
     # 通知
-    if notifys:
-        notify_body = "\n".join(notifys)
+    if NOTIFYS:
+        notify_body = "\n".join(NOTIFYS)
         print(f"===============推送通知===============")
         send_ql_notify("【夸克自动追更】", notify_body)
         print()
     if cookie_form_file:
         # 更新配置
         with open(config_path, "w", encoding="utf-8") as file:
-            json.dump(config_data, file, ensure_ascii=False, indent=2)
+            json.dump(CONFIG_DATA, file, ensure_ascii=False, indent=2)
 
     print(f"===============程序结束===============")
     duration = datetime.now() - start_time
