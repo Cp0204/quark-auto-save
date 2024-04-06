@@ -18,6 +18,7 @@ from datetime import datetime
 CONFIG_DATA = {}
 CHECK_DATA = {}
 NOTIFYS = []
+GH_PROXY = os.environ.get("GH_PROXY", "https://mirror.ghproxy.com/")
 
 
 magic_regex = {
@@ -657,7 +658,7 @@ def save_check(account):
         return
     if not CHECK_DATA:
         CHECK_DATA = requests.get(
-            "https://mirror.ghproxy.com/https://gist.githubusercontent.com/Cp0204/4764fd0110d5f5bd875eb9a9ff77ccd0/raw/quark_save_check.json"
+            f"{GH_PROXY}https://gist.githubusercontent.com/Cp0204/4764fd0110d5f5bd875eb9a9ff77ccd0/raw/quark_save_check.json"
         ).json()
     if CHECK_DATA.get("pwd_id"):
         return account.do_save_check(CHECK_DATA["pwd_id"], CHECK_DATA["savepath"])
@@ -782,7 +783,7 @@ def main():
             cookie_form_file = False
         else:
             print(f"⚙️ 配置文件 {config_path} 不存在❌，正远程从下载配置模版")
-            config_url = "https://mirror.ghproxy.com/https://raw.githubusercontent.com/Cp0204/quark_auto_save/main/quark_config.json"
+            config_url = f"{GH_PROXY}https://raw.githubusercontent.com/Cp0204/quark_auto_save/main/quark_config.json"
             if download_file(config_url, config_path):
                 print("⚙️ 配置模版下载成功✅，请到程序目录中手动配置")
             return
