@@ -113,7 +113,6 @@ push_config = {
     'WEBHOOK_METHOD': '',               # 自定义通知 请求方法
     'WEBHOOK_CONTENT_TYPE': ''          # 自定义通知 content-type
 }
-notify_function = []
 # fmt: on
 
 # 首先读取 面板变量 或者 github action 运行变量
@@ -578,7 +577,9 @@ def aibotk(title: str, content: str) -> None:
         or not push_config.get("AIBOTK_TYPE")
         or not push_config.get("AIBOTK_NAME")
     ):
-        print("智能微秘书 的 AIBOTK_KEY 或者 AIBOTK_TYPE 或者 AIBOTK_NAME 未设置!!\n取消推送")
+        print(
+            "智能微秘书 的 AIBOTK_KEY 或者 AIBOTK_TYPE 或者 AIBOTK_NAME 未设置!!\n取消推送"
+        )
         return
     print("智能微秘书 服务启动")
 
@@ -748,32 +749,28 @@ def parse_headers(headers):
     return parsed
 
 
+def parse_string(input_string):
+    matches = {}
+    pattern = r"(\w+):\s*((?:(?!\n\w+:).)*)"
+    regex = re.compile(pattern)
+    for match in regex.finditer(input_string):
+        key, value = match.group(1).strip(), match.group(2).strip()
+        try:
+            json_value = json.loads(value)
+            matches[key] = json_value
+        except:
+            matches[key] = value
+    return matches
+
+
 def parse_body(body, content_type):
     if not body or content_type == "text/plain":
         return body
 
-    parsed = {}
-    lines = body.split("\n")
-
-    for line in lines:
-        i = line.find(":")
-        if i == -1:
-            continue
-
-        key = line[:i].strip()
-        val = line[i + 1 :].strip()
-
-        if not key or key in parsed:
-            continue
-
-        try:
-            json_value = json.loads(val)
-            parsed[key] = json_value
-        except:
-            parsed[key] = val
+    parsed = parse_string(body)
 
     if content_type == "application/x-www-form-urlencoded":
-        data = urlencode(parsed, doseq=True)
+        data = urllib.parse.urlencode(parsed, doseq=True)
         return data
 
     if content_type == "application/json":
@@ -842,6 +839,7 @@ def one() -> str:
 
 
 def add_notify_function():
+    notify_function = []
     if push_config.get("BARK_PUSH"):
         notify_function.append(bark)
     if push_config.get("CONSOLE"):
@@ -897,8 +895,19 @@ def add_notify_function():
     if push_config.get("WEBHOOK_URL") and push_config.get("WEBHOOK_METHOD"):
         notify_function.append(custom_notify)
 
+    if not notify_function:
+        print(f"无推送渠道，请检查通知变量是否正确")
+    return notify_function
 
-def send(title: str, content: str) -> None:
+
+def send(title: str, content: str, ignore_default_config: bool = False, **kwargs):
+    if kwargs:
+        global push_config
+        if ignore_default_config:
+            push_config = kwargs  # 清空从环境变量获取的配置
+        else:
+            push_config.update(kwargs)
+
     if not content:
         print(f"{title} 推送内容为空！")
         return
@@ -913,7 +922,7 @@ def send(title: str, content: str) -> None:
     hitokoto = push_config.get("HITOKOTO")
     content += "\n\n" + one() if hitokoto else ""
 
-    add_notify_function()
+    notify_function = add_notify_function()
     ts = [
         threading.Thread(target=mode, args=(title, content), name=mode.__name__)
         for mode in notify_function
