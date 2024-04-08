@@ -767,12 +767,8 @@ def main():
     print(f"===============程序开始===============")
     print(f"⏰ 执行时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print()
-    # 启动参数
-    arguments = sys.argv
-    if len(arguments) > 1:
-        config_path = arguments[1]
-    else:
-        config_path = "quark_config.json"
+    # 读取启动参数
+    config_path = sys.argv[1] if len(sys.argv) > 1 else "quark_config.json"
     # 检查本地文件是否存在，如果不存在就下载
     if not os.path.exists(config_path):
         if os.environ.get("QUARK_COOKIE"):
