@@ -260,6 +260,7 @@
           replace: "",
           enddate: "",
           emby_id: "",
+          ignore_extension: false,
           runweek: [1, 2, 3, 4, 5, 6, 7]
         },
         run_log: "",
@@ -327,7 +328,7 @@
           this.formData.cookie.push("");
         },
         removeCookie(index) {
-          if (confirm("确认删除吗？"))
+          if (this.formData.cookie[index] == "" || confirm("确认删除吗？"))
             this.formData.cookie.splice(index, 1);
         },
         addPush() {
