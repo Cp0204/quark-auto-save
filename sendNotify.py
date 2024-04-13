@@ -213,7 +213,7 @@ def feishu_bot(title: str, content: str) -> None:
     data = {"msg_type": "text", "content": {"text": f"{title}\n\n{content}"}}
     response = requests.post(url, data=json.dumps(data)).json()
 
-    if response.get("StatusCode") == 0:
+    if response.get("StatusCode") == 0 or response.get("code") == 0:
         print("飞书 推送成功！")
     else:
         print("飞书 推送失败！错误信息如下：\n", response)
@@ -749,13 +749,14 @@ def parse_headers(headers):
     return parsed
 
 
-def parse_string(input_string):
+def parse_string(input_string, value_format_fn=None):
     matches = {}
     pattern = r"(\w+):\s*((?:(?!\n\w+:).)*)"
     regex = re.compile(pattern)
     for match in regex.finditer(input_string):
         key, value = match.group(1).strip(), match.group(2).strip()
         try:
+            value = value_format_fn(value) if value_format_fn else value
             json_value = json.loads(value)
             matches[key] = json_value
         except:
@@ -763,11 +764,11 @@ def parse_string(input_string):
     return matches
 
 
-def parse_body(body, content_type):
+def parse_body(body, content_type, value_format_fn=None):
     if not body or content_type == "text/plain":
         return body
 
-    parsed = parse_string(body)
+    parsed = parse_string(body, value_format_fn)
 
     if content_type == "application/x-www-form-urlencoded":
         data = urllib.parse.urlencode(parsed, doseq=True)
@@ -778,18 +779,6 @@ def parse_body(body, content_type):
         return data
 
     return parsed
-
-
-def format_notify_content(url, body, title, content):
-    if "$title" not in url and "$title" not in body:
-        return {}
-
-    formatted_url = url.replace("$title", urllib.parse.quote_plus(title)).replace(
-        "$content", urllib.parse.quote_plus(content)
-    )
-    formatted_body = body.replace("$title", title).replace("$content", content)
-
-    return formatted_url, formatted_body
 
 
 def custom_notify(title: str, content: str) -> None:
@@ -808,18 +797,21 @@ def custom_notify(title: str, content: str) -> None:
     WEBHOOK_BODY = push_config.get("WEBHOOK_BODY")
     WEBHOOK_HEADERS = push_config.get("WEBHOOK_HEADERS")
 
-    formatUrl, formatBody = format_notify_content(
-        WEBHOOK_URL, WEBHOOK_BODY, title, content
-    )
-
-    if not formatUrl and not formatBody:
+    if "$title" not in WEBHOOK_URL and "$title" not in WEBHOOK_BODY:
         print("请求头或者请求体中必须包含 $title 和 $content")
         return
 
     headers = parse_headers(WEBHOOK_HEADERS)
-    body = parse_body(formatBody, WEBHOOK_CONTENT_TYPE)
+    body = parse_body(
+        WEBHOOK_BODY,
+        WEBHOOK_CONTENT_TYPE,
+        lambda v: v.replace("$title", title).replace("$content", content),
+    )
+    formatted_url = WEBHOOK_URL.replace(
+        "$title", urllib.parse.quote_plus(title)
+    ).replace("$content", urllib.parse.quote_plus(content))
     response = requests.request(
-        method=WEBHOOK_METHOD, url=formatUrl, headers=headers, timeout=15, data=body
+        method=WEBHOOK_METHOD, url=formatted_url, headers=headers, timeout=15, data=body
     )
 
     if response.status_code == 200:
