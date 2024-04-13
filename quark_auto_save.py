@@ -11,6 +11,7 @@ import os
 import re
 import sys
 import json
+import time
 import random
 import requests
 from datetime import datetime
@@ -533,22 +534,37 @@ class Quark:
             return False
 
     def query_task(self, task_id):
-        url = "https://drive-m.quark.cn/1/clouddrive/task"
-        querystring = {
-            "pr": "ucpro",
-            "fr": "pc",
-            "uc_param_str": "",
-            "task_id": task_id,
-            "retry_index": "1",
-            "__dt": int(random.uniform(1, 5) * 60 * 1000),
-            "__t": datetime.now().timestamp(),
-        }
-        headers = self.common_headers()
-        response = requests.request(
-            "GET", url, headers=headers, params=querystring
-        ).json()
-        if response["code"] == 32003:
-            response["message"] = "容量超限"
+        retry_index = 0
+        while True:
+            url = "https://drive-m.quark.cn/1/clouddrive/task"
+            querystring = {
+                "pr": "ucpro",
+                "fr": "pc",
+                "uc_param_str": "",
+                "task_id": task_id,
+                "retry_index": retry_index,
+                "__dt": int(random.uniform(1, 5) * 60 * 1000),
+                "__t": datetime.now().timestamp(),
+            }
+            headers = self.common_headers()
+            response = requests.request(
+                "GET", url, headers=headers, params=querystring
+            ).json()
+            if response["data"]["status"] != 0:
+                if retry_index > 0:
+                    print()
+                break
+            else:
+                if retry_index == 0:
+                    print(
+                        f"正在等待[{response['data']['task_title']}]执行结果",
+                        end="",
+                        flush=True,
+                    )
+                else:
+                    print(".", end="", flush=True)
+                retry_index += 1
+                time.sleep(0.500)
         return response
 
     def do_rename_task(self, task):
