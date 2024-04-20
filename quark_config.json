@@ -10,6 +10,7 @@
     "url": "",
     "apikey": ""
   },
+  "allowSubDirectoryRegList": [],
   "tasklist": [
     {
       "taskname": "测试-魔法匹配剧集（这是一组有效分享，配置CK后可测试任务是否正常）",

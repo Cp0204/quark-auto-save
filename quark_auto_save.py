@@ -439,7 +439,7 @@ class Quark:
             if os.environ.get("DEBUG") == True:
                 print(f"转存测试失败: {str(e)}")
 
-    def do_save_task(self, task, folder_id=False, folder_path=False):
+    def do_save_task(self, task, folder_id = False, folder_path = False):
         # 判断资源失效记录
         if task.get("shareurl_ban"):
             print(f"《{task['taskname']}》：{task['shareurl_ban']}")
@@ -463,7 +463,7 @@ class Quark:
         if len(share_file_list) == 1 and share_file_list[0]["dir"]:
             print("🧠 该分享是一个文件夹，读取文件夹内列表")
             share_file_list = self.get_detail(pwd_id, stoken, share_file_list[0]["fid"])
-        if not share_file_list:
+        if not share_file_list and not folder_path:
             add_notify(f"《{task['taskname']}》：分享目录为空")
             return
         # print("share_file_list: ", share_file_list)
@@ -504,7 +504,13 @@ class Quark:
                     for dir_file in dir_file_list
                 )
                 if file_exists and share_file['dir'] == True:
-                    self.do_save_task(task, share_file['fid'] , task["savepath"] + '/' + share_file['file_name'])
+                    # allowSubDirectoryRegList 是一个正则列表，其中只要有一个正则匹配成功，就执行do_save_task
+                    allowSubDirectoryRegList = CONFIG_DATA.get('allowSubDirectoryRegList')
+                    if allowSubDirectoryRegList:
+                        for reg in allowSubDirectoryRegList:
+                            if re.search(reg, share_file["file_name"], re.I):
+                                self.do_save_task(task, share_file['fid'], (folder_path or task["savepath"]) + '/' + share_file['file_name'])
+                                break
                 if not file_exists:
                     share_file["save_name"] = save_name
                     need_save_list.append(share_file)
