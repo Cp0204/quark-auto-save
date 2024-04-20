@@ -117,6 +117,7 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
     "QYWX_AM": "",
     "其他推送渠道//此项可删": "配置方法同青龙"
   },
+  "allowSubDirectoryRegList": [], // 正则列表，用于子目录递归更新，一些资源中会分为4K、1080P等， 就可以配置 ["4k","1080p"], 这样遇到这些文件夹的时候也会进行资源更新
   "emby": {
     "url": "http://yourdomain.com:8096",
     "apikey": "" //在后台 高级-API秘钥 中生成
