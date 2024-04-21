@@ -439,7 +439,7 @@ class Quark:
             if os.environ.get("DEBUG") == True:
                 print(f"转存测试失败: {str(e)}")
 
-    def do_save_task(self, task, folder_id = False, folder_path = False):
+    def do_save_task(self, task):
         # 判断资源失效记录
         if task.get("shareurl_ban"):
             print(f"《{task['taskname']}》：{task['shareurl_ban']}")
@@ -457,19 +457,40 @@ class Quark:
             return
         # print("stoken: ", stoken)
 
+        updated_tips = []
+        updated_path = self.dir_check_and_save(task, pwd_id, stoken, pdir_fid)
+        for path, files in updated_path.items():
+            if files:
+                if path == task["savepath"]:
+                    updated_tips.append(", ".join(files))
+                else:
+                    updated_tips.append(f"{path}：{', '.join(files)}")
+        if updated_tips:
+            add_notify(f"《{task['taskname']}》添加追更：\n{'\n\n'.join(updated_tips)}")
+            return True
+        else:
+            print(f"任务结束：没有新的转存任务")
+            return False
+
+    def dir_check_and_save(self, task, pwd_id, stoken, pdir_fid="", subdir_path=""):
+        updated_paths = {}
         # 获取分享文件列表
-        share_file_list = self.get_detail(pwd_id, stoken, folder_id or pdir_fid)
+        share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)
         # 仅有一个文件夹
-        if len(share_file_list) == 1 and share_file_list[0]["dir"]:
+        if (
+            len(share_file_list) == 1
+            and share_file_list[0]["dir"]
+            and subdir_path == ""
+        ):
             print("🧠 该分享是一个文件夹，读取文件夹内列表")
             share_file_list = self.get_detail(pwd_id, stoken, share_file_list[0]["fid"])
-        if not share_file_list and not folder_path:
-            add_notify(f"《{task['taskname']}》：分享目录为空")
-            return
+        if not share_file_list:
+            # add_notify(f"《{task['taskname']}》：分享目录为空")
+            return updated_paths
         # print("share_file_list: ", share_file_list)
 
         # 获取目标目录文件列表
-        savepath = folder_path or task["savepath"]
+        savepath = f"{task['savepath']}{subdir_path}"
         if not self.savepath_fid.get(savepath):
             self.savepath_fid[savepath] = self.get_fids([savepath])[0]["fid"]
         to_pdir_fid = self.savepath_fid[savepath]
@@ -489,7 +510,7 @@ class Quark:
                     if replace != ""
                     else share_file["file_name"]
                 )
-                # 判断目标目录文件是否存在，可选忽略后缀
+                # 忽略后缀
                 if task.get("ignore_extension"):
                     compare_func = lambda a, b1, b2: (
                         os.path.splitext(a)[0] == os.path.splitext(b1)[0]
@@ -497,23 +518,30 @@ class Quark:
                     )
                 else:
                     compare_func = lambda a, b1, b2: (a == b1 or a == b2)
+                # 判断目标目录文件是否存在
                 file_exists = any(
                     compare_func(
                         dir_file["file_name"], share_file["file_name"], save_name
                     )
                     for dir_file in dir_file_list
                 )
-                if file_exists and share_file['dir'] == True:
-                    # allowSubDirectoryRegList 是一个正则列表，其中只要有一个正则匹配成功，就执行do_save_task
-                    allowSubDirectoryRegList = CONFIG_DATA.get('allowSubDirectoryRegList')
-                    if allowSubDirectoryRegList:
-                        for reg in allowSubDirectoryRegList:
-                            if re.search(reg, share_file["file_name"], re.I):
-                                self.do_save_task(task, share_file['fid'], (folder_path or task["savepath"]) + '/' + share_file['file_name'])
-                                break
                 if not file_exists:
                     share_file["save_name"] = save_name
                     need_save_list.append(share_file)
+                elif share_file["dir"] == True:
+                    # 存在并是一个文件夹
+                    if task.get("update_subdir", False):
+                        if re.search(task["update_subdir"], share_file["file_name"]):
+                            print(f"检查子文件夹：{savepath}/{share_file['file_name']}")
+                            subdir_updated_path = self.dir_check_and_save(
+                                task,
+                                pwd_id,
+                                stoken,
+                                share_file["fid"],
+                                f"{subdir_path}/{share_file['file_name']}",
+                            )
+                            if subdir_updated_path:
+                                updated_paths.update(subdir_updated_path)
 
         fid_list = [item["fid"] for item in need_save_list]
         fid_token_list = [item["share_fid_token"] for item in need_save_list]
@@ -522,24 +550,22 @@ class Quark:
             save_file_return = self.save_file(
                 fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken
             )
+            err_msg = None
             if save_file_return["code"] == 0:
                 task_id = save_file_return["data"]["task_id"]
                 query_task_return = self.query_task(task_id)
                 if query_task_return["code"] == 0:
                     save_name_list.sort()
-                    add_notify(
-                        f"《{task['taskname']}》添加追更：{', '.join(save_name_list)}"
-                    )
-                    return True
+                    updated_paths[savepath] = save_name_list
                 else:
                     err_msg = query_task_return["message"]
             else:
                 err_msg = save_file_return["message"]
-            add_notify(f"《{task['taskname']}》转存失败：{err_msg}")
-            return False
+            if err_msg:
+                add_notify(f"《{task['taskname']}》转存失败：{err_msg}")
         else:
-            print("任务结束：没有新的转存任务")
-            return False
+            updated_paths[savepath] = []
+        return updated_paths
 
     def query_task(self, task_id):
         retry_index = 0
