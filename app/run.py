@@ -135,7 +135,9 @@ def update():
 def run_script_now():
     if not is_login():
         return "未登录"
-    command = [python_path, script_path, config_path]
+    payload = request.json
+    task_index = str(payload.get("task_index", ""))
+    command = [python_path, script_path, config_path, task_index]
 
     def generate_output():
         process = subprocess.Popen(
