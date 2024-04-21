@@ -771,14 +771,12 @@ def do_sign(account):
     print()
 
 
-def do_save(account):
+def do_save(account, tasklist=[]):
     emby = Emby(
         CONFIG_DATA.get("emby", {}).get("url", ""),
         CONFIG_DATA.get("emby", {}).get("apikey", ""),
     )
     print(f"转存账号: {account.nickname}")
-    # 任务列表
-    tasklist = CONFIG_DATA.get("tasklist", [])
     # 获取全部保存目录fid
     account.update_savepath_fid(tasklist)
 
@@ -837,6 +835,7 @@ def main():
     print()
     # 读取启动参数
     config_path = sys.argv[1] if len(sys.argv) > 1 else "quark_config.json"
+    task_index = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else ""
     # 检查本地文件是否存在，如果不存在就下载
     if not os.path.exists(config_path):
         if os.environ.get("QUARK_COOKIE"):
@@ -865,13 +864,21 @@ def main():
     accounts = [Quark(cookie, index) for index, cookie in enumerate(cookies)]
     # 签到
     print(f"===============签到任务===============")
-    for account in accounts:
-        do_sign(account)
+    if type(task_index) is int:
+        do_sign(accounts[0])
+    else:
+        for account in accounts:
+            do_sign(account)
     print()
     # 转存
     if accounts[0].is_active and cookie_form_file:
         print(f"===============转存任务===============")
-        do_save(accounts[0])
+        # 任务列表
+        tasklist = CONFIG_DATA.get("tasklist", [])
+        if type(task_index) is int:
+            do_save(accounts[0], [tasklist[task_index]])
+        else:
+            do_save(accounts[0], tasklist)
         print()
     # 通知
     if NOTIFYS:

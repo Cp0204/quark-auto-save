@@ -131,7 +131,8 @@
               <h3>任务#<span v-html="index+1"></span></h3>
             </div>
             <div class="col text-right">
-              <button type="button" class="btn btn-outline-danger" @click="removeTask(index)">删除任务</button>
+              <button type="button" class="btn btn-outline-primary" @click="runScriptNow(index)" title="运行此任务"><i class="bi bi-play-fill"></i></button>
+              <button type="button" class="btn btn-outline-danger" @click="removeTask(index)" title="删除此任务"><i class="bi bi-trash3-fill"></i></button>
             </div>
           </div>
           <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="task.shareurl_ban"></div>
@@ -154,12 +155,6 @@
             </div>
           </div>
           <div class="form-group row">
-            <label class="col-sm-2 col-form-label">更子目录</label>
-            <div class="col-sm-10">
-              <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，需更新子目录的正则式，多项以|分割，如 4k|1080p ，注意！深层嵌套目录慎用 .* ！" title="注意！深层嵌套目录逐级索引，工作强度会非常大，慎用！">
-            </div>
-          </div>
-          <div class="form-group row">
             <label class="col-sm-2 col-form-label">正则处理</label>
             <div class="col-sm-10">
               <div class="input-group">
@@ -171,6 +166,12 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+          <div class="form-group row">
+            <label class="col-sm-2 col-form-label">更子目录</label>
+            <div class="col-sm-10">
+              <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，需更新子目录的正则式，多项以|分割，如 4k|1080p ，注意！深层嵌套目录慎用 .* ！" title="注意！深层嵌套目录逐级索引，工作强度会非常大，慎用！">
             </div>
           </div>
           <div class="form-group row">
@@ -211,8 +212,8 @@
       </div>
       <div class="bottom-buttons">
         <button class="btn btn-success"><i class="bi bi-save"></i> 保存</button>
-        <a class="btn btn-primary" @click="runScriptNow"><i class="bi bi-play-fill"></i> 运行</a>
-        <a class="btn btn-info" @click="scrollToX(0)" @dblclick="scrollToX()" data-toggle="tooltip" data-placement="top" title="单击回顶，双击到底"><i class="bi bi-chevron-bar-up"></i> 回顶</a>
+        <button type="button" class="btn btn-primary" @click="runScriptNow()"><i class="bi bi-play-fill"></i> 运行</button>
+        <button type="button" class="btn btn-info" @click="scrollToX(0)" @dblclick="scrollToX()" data-toggle="tooltip" data-placement="top" title="单击回顶，双击到底"><i class="bi bi-chevron-bar-up"></i> 回顶</button>
         <a class="btn btn-danger" href="/logout"><i class="bi bi-box-arrow-right"></i> 退出</a>
       </div>
     </form>
@@ -301,14 +302,18 @@
               // cookie兼容
               if (typeof response.data.cookie === 'string')
                 response.data.cookie = [response.data.cookie];
-              // 星期运行兼容
+              // 添加星期预设
               response.data.tasklist = response.data.tasklist.map(task => {
                 if (!task.hasOwnProperty('runweek')) {
                   task.runweek = [1, 2, 3, 4, 5, 6, 7];
                 }
                 return task;
               });
-              // 存所有任务父目录
+              // 添加emby预设
+              if (!response.data.hasOwnProperty('emby')) {
+                response.data.emby = { ...this.emby };
+              }
+              // 获取所有任务父目录
               response.data.tasklist.forEach(item => {
                 parentDir = this.getParentDirectory(item.savepath)
                 if (!this.taskDirs.includes(parentDir))
@@ -366,15 +371,17 @@
         clearData(target) {
           this[target] = "";
         },
-        runScriptNow() {
+        runScriptNow(task_index = "") {
           $('#logModal').modal('toggle')
           this.run_log = '<div class="spinner-border" role="status"></div> 请耐心等待脚本全部执行完毕...'
-          axios.post('/run_script_now')
+          axios.post('/run_script_now', {
+            task_index: task_index,
+          })
             .then(response => {
               this.run_log = response.data;
             })
             .catch(error => {
-              this.run_log = "错误：\n" + error
+              this.run_log = "错误：\n" + error;
               console.error('Error:', error);
             });
         },
