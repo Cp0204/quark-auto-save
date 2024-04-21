@@ -16,6 +16,15 @@ import random
 import requests
 from datetime import datetime
 
+# 兼容青龙
+try:
+    from treelib import Tree
+except:
+    print("正在尝试自动安装依赖...")
+    os.system("pip3 install treelib &> /dev/null")
+    from treelib import Tree
+
+
 CONFIG_DATA = {}
 CHECK_DATA = {}
 NOTIFYS = []
@@ -457,23 +466,17 @@ class Quark:
             return
         # print("stoken: ", stoken)
 
-        updated_tips = []
-        updated_path = self.dir_check_and_save(task, pwd_id, stoken, pdir_fid)
-        for path, files in updated_path.items():
-            if files:
-                if path == task["savepath"]:
-                    updated_tips.append(", ".join(files))
-                else:
-                    updated_tips.append(f"{path}：{', '.join(files)}")
-        if updated_tips:
-            add_notify(f"《{task['taskname']}》添加追更：\n{'\n\n'.join(updated_tips)}")
+        updated_tree = self.dir_check_and_save(task, pwd_id, stoken, pdir_fid)
+        if updated_tree.size(1) > 0:
+            add_notify(f"《{task['taskname']}》添加追更：\n{updated_tree}")
             return True
         else:
             print(f"任务结束：没有新的转存任务")
             return False
 
     def dir_check_and_save(self, task, pwd_id, stoken, pdir_fid="", subdir_path=""):
-        updated_paths = {}
+        tree = Tree()
+        tree.create_node(task["savepath"], pdir_fid)
         # 获取分享文件列表
         share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)
         # 仅有一个文件夹
@@ -486,7 +489,7 @@ class Quark:
             share_file_list = self.get_detail(pwd_id, stoken, share_file_list[0]["fid"])
         if not share_file_list:
             # add_notify(f"《{task['taskname']}》：分享目录为空")
-            return updated_paths
+            return tree
         # print("share_file_list: ", share_file_list)
 
         # 获取目标目录文件列表
@@ -533,15 +536,21 @@ class Quark:
                     if task.get("update_subdir", False):
                         if re.search(task["update_subdir"], share_file["file_name"]):
                             print(f"检查子文件夹：{savepath}/{share_file['file_name']}")
-                            subdir_updated_path = self.dir_check_and_save(
+                            subdir_tree = self.dir_check_and_save(
                                 task,
                                 pwd_id,
                                 stoken,
                                 share_file["fid"],
                                 f"{subdir_path}/{share_file['file_name']}",
                             )
-                            if subdir_updated_path:
-                                updated_paths.update(subdir_updated_path)
+                            if subdir_tree.size(1) > 0:
+                                # 合并子目录树
+                                tree.create_node(
+                                    share_file["file_name"],
+                                    share_file["fid"],
+                                    parent=pdir_fid,
+                                )
+                                tree.merge(share_file["fid"], subdir_tree, deep=False)
 
         fid_list = [item["fid"] for item in need_save_list]
         fid_token_list = [item["share_fid_token"] for item in need_save_list]
@@ -556,16 +565,18 @@ class Quark:
                 query_task_return = self.query_task(task_id)
                 if query_task_return["code"] == 0:
                     save_name_list.sort()
-                    updated_paths[savepath] = save_name_list
+                    # 建立目录树
+                    for item in need_save_list:
+                        tree.create_node(
+                            item["save_name"], item["fid"], parent=pdir_fid
+                        )
                 else:
                     err_msg = query_task_return["message"]
             else:
                 err_msg = save_file_return["message"]
             if err_msg:
                 add_notify(f"《{task['taskname']}》转存失败：{err_msg}")
-        else:
-            updated_paths[savepath] = []
-        return updated_paths
+        return tree
 
     def query_task(self, task_id):
         retry_index = 0
