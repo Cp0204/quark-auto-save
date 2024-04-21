@@ -8,7 +8,7 @@ WORKDIR /app
 ADD . /app
 
 # 安装依赖
-RUN pip install flask apscheduler requests
+RUN pip install flask apscheduler requests treelib
 
 # 时区
 ENV TZ="Asia/Shanghai"
