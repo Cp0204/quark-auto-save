@@ -812,6 +812,8 @@ def do_save(account):
                 print(f"刷媒体库: {task['emby_id']}")
             if task.get("ignore_extension"):
                 print(f"忽略后缀: {task['ignore_extension']}")
+            if task.get("update_subdir"):
+                print(f"更子目录: {task['update_subdir']}")
             print()
             is_new = account.do_save_task(task)
             is_rename = account.do_rename_task(task)
