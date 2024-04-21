@@ -546,7 +546,7 @@ class Quark:
                             if subdir_tree.size(1) > 0:
                                 # 合并子目录树
                                 tree.create_node(
-                                    share_file["file_name"],
+                                    "📁" + share_file["file_name"],
                                     share_file["fid"],
                                     parent=pdir_fid,
                                 )
@@ -567,8 +567,13 @@ class Quark:
                     save_name_list.sort()
                     # 建立目录树
                     for item in need_save_list:
+                        icon = (
+                            "📁"
+                            if item["dir"] == True
+                            else "🎞️" if item["obj_category"] == "video" else ""
+                        )
                         tree.create_node(
-                            item["save_name"], item["fid"], parent=pdir_fid
+                            f"{icon}{item['save_name']}", item["fid"], parent=pdir_fid
                         )
                 else:
                     err_msg = query_task_return["message"]
