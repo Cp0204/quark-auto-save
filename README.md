@@ -132,6 +132,7 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
       "emby_id": "",            //可选，缺省时按taskname搜索匹配，为0时强制不匹配
       "ignore_extension": true, //可选，忽略后缀
       "runweek": [1, 2, 3, 4, 6, 7], //可选，指定星期几执行，无此字段则均执行
+      "update_subdir": "", // 可选，子目录递归更新的正则表达式，如 "4k|1080p"
       // 以下字段无需配置
       "shareurl_ban": "分享地址已失效" //记录分享是否失效；如有此字段将跳过任务，更新链接后请手动删去
     }

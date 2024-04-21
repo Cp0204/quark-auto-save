@@ -18,7 +18,8 @@
       "pattern": "$TV",
       "replace": "",
       "enddate": "2099-01-30",
-      "emby_id": ""
+      "emby_id": "",
+      "update_subdir": "4k|1080p"
     },
     {
       "taskname": "测试-广告过滤",
