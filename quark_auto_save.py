@@ -504,8 +504,11 @@ class Quark:
         need_save_list = []
         # 添加符合的
         for share_file in share_file_list:
+            if share_file["dir"]:
+                pattern, replace = task.get("update_subdir", ""), ""
+            else:
+                pattern, replace = magic_regex_func(task["pattern"], task["replace"])
             # 正则文件名匹配
-            pattern, replace = magic_regex_func(task["pattern"], task["replace"])
             if re.search(pattern, share_file["file_name"]):
                 # 替换后的文件名
                 save_name = (
@@ -531,7 +534,7 @@ class Quark:
                 if not file_exists:
                     share_file["save_name"] = save_name
                     need_save_list.append(share_file)
-                elif share_file["dir"] == True:
+                elif share_file["dir"]:
                     # 存在并是一个文件夹
                     if task.get("update_subdir", False):
                         if re.search(task["update_subdir"], share_file["file_name"]):
