@@ -620,10 +620,15 @@ class Quark:
                 time.sleep(0.500)
         return response
 
-    def do_rename_task(self, task):
-        dir_file_list = self.ls_dir(self.savepath_fid[task["savepath"]])
+    def do_rename_task(self, task, subdir_path=""):
+        savepath = f"{task['savepath']}{subdir_path}"
+        dir_file_list = self.ls_dir(self.savepath_fid[savepath])
+        dir_file_name_list = [item["file_name"] for item in dir_file_list]
         is_rename = False
         for dir_file in dir_file_list:
+            if dir_file["dir"]:
+                self.do_rename_task(task, f"{subdir_path}/{dir_file['file_name']}")
+                break
             pattern, replace = magic_regex_func(task["pattern"], task["replace"])
             if re.search(pattern, dir_file["file_name"]):
                 save_name = (
@@ -631,7 +636,9 @@ class Quark:
                     if replace != ""
                     else dir_file["file_name"]
                 )
-                if save_name != dir_file["file_name"]:
+                if save_name != dir_file["file_name"] and (
+                    save_name not in dir_file_name_list
+                ):
                     rename_return = self.rename(dir_file["fid"], save_name)
                     if rename_return["code"] == 0:
                         print(f"重命名：{dir_file['file_name']} → {save_name}")
