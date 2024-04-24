@@ -769,7 +769,7 @@ def do_sign(account):
             if sign:
                 message = f"📅 执行签到: 今日签到+{int(sign_return/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']}){save_check_flag}"
                 if (
-                    CONFIG_DATA.get("push_config").get("QUARK_SIGN_NOTIFY") == False
+                    CONFIG_DATA.get("push_config", {}).get("QUARK_SIGN_NOTIFY") == False
                     or os.environ.get("QUARK_SIGN_NOTIFY") == "false"
                 ):
                     print(message)
