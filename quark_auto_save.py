@@ -461,14 +461,14 @@ class Quark:
         # 获取stoken，同时可验证资源是否失效
         is_sharing, stoken = self.get_stoken(pwd_id)
         if not is_sharing:
-            add_notify(f"《{task['taskname']}》：{stoken}")
+            add_notify(f"❌《{task['taskname']}》：{stoken}\n")
             task["shareurl_ban"] = stoken
             return
         # print("stoken: ", stoken)
 
         updated_tree = self.dir_check_and_save(task, pwd_id, stoken, pdir_fid)
         if updated_tree.size(1) > 0:
-            add_notify(f"《{task['taskname']}》添加追更：\n{updated_tree}")
+            add_notify(f"✅《{task['taskname']}》添加追更：\n{updated_tree}")
             return True
         else:
             print(f"任务结束：没有新的转存任务")
@@ -583,7 +583,7 @@ class Quark:
             else:
                 err_msg = save_file_return["message"]
             if err_msg:
-                add_notify(f"《{task['taskname']}》转存失败：{err_msg}")
+                add_notify(f"❌《{task['taskname']}》转存失败：{err_msg}\n")
         return tree
 
     def query_task(self, task_id):
