@@ -33,6 +33,10 @@ jobs:
             type=ref,event=branch
             type=ref,event=tag
 
+      - name: Get version
+        id: get_version
+        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -58,7 +62,8 @@ jobs:
           build-args: |
             MAINTAINER=${{ github.repository_owner }}
             BRANCH=${{ github.ref_name }}
-            SOURCE_COMMIT=${{ github.sha }}
+            BUILD_SHA=${{ github.sha }}
+            BUILD_TAG=${{ steps.get_version.outputs.VERSION }}
           context: .
           platforms: |
             linux/amd64
