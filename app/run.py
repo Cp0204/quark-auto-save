@@ -19,13 +19,22 @@ import json
 import os
 
 
+def get_app_ver():
+    BUILD_SHA = os.environ.get("BUILD_SHA", "")
+    BUILD_TAG = os.environ.get("BUILD_TAG", "")
+    if BUILD_TAG[:1] == "v":
+        return BUILD_TAG
+    else:
+        return f"{BUILD_TAG}({BUILD_SHA[:7]})"
+
+
 # 文件路径
 python_path = "python3" if os.path.exists("/usr/bin/python3") else "python"
 script_path = os.environ.get("SCRIPT_PATH", "./quark_auto_save.py")
 config_path = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
 
 app = Flask(__name__)
-app.config["APP_VERSION"] = "0.2.9.2"
+app.config["APP_VERSION"] = get_app_ver()
 app.secret_key = "ca943f6db6dd34823d36ab08d8d6f65d"
 app.json.ensure_ascii = False
 app.json.sort_keys = False

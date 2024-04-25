@@ -13,6 +13,12 @@ RUN pip install flask apscheduler requests treelib
 # 时区
 ENV TZ="Asia/Shanghai"
 
+#构建版本
+ARG BUILD_SHA
+ARG BUILD_TAG
+ENV BUILD_SHA=$BUILD_SHA
+ENV BUILD_TAG=$BUILD_TAG
+
 # 端口
 EXPOSE 5005
 
