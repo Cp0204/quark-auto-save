@@ -622,6 +622,8 @@ class Quark:
 
     def do_rename_task(self, task, subdir_path=""):
         savepath = f"{task['savepath']}{subdir_path}"
+        if not self.savepath_fid.get(savepath):
+            self.savepath_fid[savepath] = self.get_fids([savepath])[0]["fid"]
         dir_file_list = self.ls_dir(self.savepath_fid[savepath])
         dir_file_name_list = [item["file_name"] for item in dir_file_list]
         is_rename = False
