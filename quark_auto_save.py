@@ -626,11 +626,12 @@ class Quark:
             self.savepath_fid[savepath] = self.get_fids([savepath])[0]["fid"]
         dir_file_list = self.ls_dir(self.savepath_fid[savepath])
         dir_file_name_list = [item["file_name"] for item in dir_file_list]
-        is_rename = False
+        is_rename_count = 0
         for dir_file in dir_file_list:
             if dir_file["dir"]:
-                self.do_rename_task(task, f"{subdir_path}/{dir_file['file_name']}")
-                break
+                is_rename_count += self.do_rename_task(
+                    task, f"{subdir_path}/{dir_file['file_name']}"
+                )
             pattern, replace = magic_regex_func(task["pattern"], task["replace"])
             if re.search(pattern, dir_file["file_name"]):
                 save_name = (
@@ -644,12 +645,12 @@ class Quark:
                     rename_return = self.rename(dir_file["fid"], save_name)
                     if rename_return["code"] == 0:
                         print(f"重命名：{dir_file['file_name']} → {save_name}")
-                        is_rename = True
+                        is_rename_count += 1
                     else:
                         print(
                             f"重命名：{dir_file['file_name']} → {save_name} 失败，{rename_return['message']}"
                         )
-        return is_rename
+        return is_rename_count > 0
 
 
 class Emby:
