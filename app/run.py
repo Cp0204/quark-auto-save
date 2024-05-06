@@ -203,6 +203,11 @@ def init():
             "username": "admin",
             "password": "admin123",
         }
+    elif os.environ.get("WEBUI_USERNAME") and os.environ.get("WEBUI_PASSWORD"):
+        data["webui"] = {
+            "username": os.environ.get("WEBUI_USERNAME"),
+            "password": os.environ.get("WEBUI_PASSWORD"),
+        }
     # 默认定时规则
     if not data.get("crontab"):
         data["crontab"] = "0 8,18,20 * * *"

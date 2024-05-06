@@ -73,7 +73,12 @@ docker run -d \
   cp0204/quark-auto-save:latest
 ```
 
-默认管理账号 `admin` ，密码 `admin123`，仅支持在 `quark_config.json` 中修改。
+管理地址：http://yourhost:5005
+
+| 环境变量         | 默认       | 备注     |
+| ---------------- | ---------- | -------- |
+| `WEBUI_USERNAME` | `admin`    | 管理账号 |
+| `WEBUI_PASSWORD` | `admin123` | 管理密码 |
 
 #### 一键更新
 
@@ -114,7 +119,7 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
   ],
   "push_config": { //无此字段则从环境变量（青龙设置）读取通知设置
     "QUARK_SIGN_NOTIFY": true, //是否发送签到成功通知，也可在环境变量中设置
-    "QYWX_AM": "",
+    "QYWX_AM": "", //企业微信应用通知示例
     "其他推送渠道//此项可删": "配置方法同青龙"
   },
   "emby": {
@@ -142,13 +147,13 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 
 ### 正则整理示例
 
-| pattern | replace | 效果 |
-| ------- |---------|------|
-| `.*` |  | 无脑转存所有文件，不整理 |
-| `\.mp4$` |  | 转存所有 `.mp4` 后缀的文件 |
-| `^【电影TT】形似走肉(\d+)\.(mp4\|mkv)` | `\1.\2` | 【电影TT】形似走肉01.mp4 → 01.mp4<br>【电影TT】形似走肉02.mkv → 02.mkv |
-| `^(\d+)\.mp4` | `S02E\1.mp4` | 01.mp4 → S02E01.mp4<br>02.mp4 → S02E02.mp4 |
-| `$TV` |  | [魔法匹配](#魔法匹配)剧集文件 |
+| pattern                                | replace      | 效果                                                                   |
+| -------------------------------------- | ------------ | ---------------------------------------------------------------------- |
+| `.*`                                   |              | 无脑转存所有文件，不整理                                               |
+| `\.mp4$`                               |              | 转存所有 `.mp4` 后缀的文件                                             |
+| `^【电影TT】形似走肉(\d+)\.(mp4\|mkv)` | `\1.\2`      | 【电影TT】形似走肉01.mp4 → 01.mp4<br>【电影TT】形似走肉02.mkv → 02.mkv |
+| `^(\d+)\.mp4`                          | `S02E\1.mp4` | 01.mp4 → S02E01.mp4<br>02.mp4 → S02E02.mp4                             |
+| `$TV`                                  |              | [魔法匹配](#魔法匹配)剧集文件                                          |
 
 > [!IMPORTANT]
 > 直接写 json 配置注意`\`多加一重[字符转义](https://deerchao.cn/tutorials/regex/regex.htm#escape)：如`\d`写作`\\d`，匹配字符`.`写作`\\.`
