@@ -98,7 +98,7 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 1. 拉库命令：
 
     ```
-    ql repo https://github.com/Cp0204/quark-auto-save.git "quark" "" ""
+    ql repo https://github.com/Cp0204/quark-auto-save.git "quark" "" "notify"
     ```
 
 2. 首次运行程序将从本仓库下载配置模版。
