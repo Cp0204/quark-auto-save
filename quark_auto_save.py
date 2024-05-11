@@ -53,13 +53,13 @@ def magic_regex_func(pattern, replace):
 def send_ql_notify(title, body):
     try:
         # 导入通知模块
-        import sendNotify
+        import notify
 
         # 如未配置 push_config 则使用青龙环境通知设置
         if CONFIG_DATA.get("push_config"):
             CONFIG_DATA["push_config"]["CONSOLE"] = True
-            sendNotify.push_config = CONFIG_DATA["push_config"]
-        sendNotify.send(title, body)
+            notify.push_config = CONFIG_DATA["push_config"]
+        notify.send(title, body)
     except Exception as e:
         if e:
             print("发送通知消息失败！")
