@@ -33,7 +33,7 @@ def print(text, *args, **kw):
 # 通知服务
 # fmt: off
 push_config = {
-    'HITOKOTO': False,                  # 启用一言（随机句子）
+    'HITOKOTO': True,                  # 启用一言（随机句子）
 
     'BARK_PUSH': '',                    # bark IP 或设备码，例：https://api.day.app/DxHcxxxxxRxxxxxxcm/
     'BARK_ARCHIVE': '',                 # bark 推送是否存档
@@ -43,7 +43,7 @@ push_config = {
     'BARK_LEVEL': '',                   # bark 推送时效性
     'BARK_URL': '',                     # bark 推送跳转URL
 
-    'CONSOLE': True,                    # 控制台输出
+    'CONSOLE': False,                    # 控制台输出
 
     'DD_BOT_SECRET': '',                # 钉钉机器人的 DD_BOT_SECRET
     'DD_BOT_TOKEN': '',                 # 钉钉机器人的 DD_BOT_TOKEN
@@ -766,7 +766,7 @@ def parse_string(input_string, value_format_fn=None):
 
 def parse_body(body, content_type, value_format_fn=None):
     if not body or content_type == "text/plain":
-        return body
+        return value_format_fn(body) if value_format_fn and body else body
 
     parsed = parse_string(body, value_format_fn)
 
