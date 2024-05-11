@@ -98,14 +98,14 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 1. 拉库命令：
 
     ```
-    ql repo https://github.com/Cp0204/quark-auto-save.git "quark" "" "sendNotify"
+    ql repo https://github.com/Cp0204/quark-auto-save.git "quark" "" ""
     ```
 
 2. 首次运行程序将从本仓库下载配置模版。
 
 3. 脚本管理中，手动编辑 `quark_config.json` 配置文件。
 
-> 当无配置文件时且存在青龙环境变量 `QUARK_COOKIE` 时，则仅签到，多账号用换行分隔。
+> 删除配置文件，且存在青龙环境变量 `QUARK_COOKIE` 时，则仅签到，多账号用换行分隔。
 
 ### 程序配置
 
