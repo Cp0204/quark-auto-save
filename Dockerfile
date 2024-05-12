@@ -5,10 +5,10 @@ FROM python:3.12.2-alpine
 WORKDIR /app
 
 # 将当前目录中的文件添加到工作目录中
-ADD . /app
+COPY . /app
 
 # 安装依赖
-RUN pip install flask apscheduler requests treelib
+RUN pip install --no-cache-dir flask apscheduler requests treelib
 
 # 时区
 ENV TZ="Asia/Shanghai"
