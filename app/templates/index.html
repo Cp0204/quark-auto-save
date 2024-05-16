@@ -26,6 +26,11 @@
     .title {
       margin-top: 30px;
     }
+
+    .modal-body {
+      max-height: calc(100vh - 200px);
+      overflow-y: auto;
+    }
   </style>
 </head>
 
@@ -230,7 +235,8 @@
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">执行日志</h5>
+            <h5 class="modal-title">运行日志 <div v-if="modalLoading" class="spinner-border spinner-border-sm m-1" role="status"></div>
+            </h5>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
               <span aria-hidden="true">&times;</span>
             </button>
@@ -280,7 +286,8 @@
         run_log: "",
         taskDirs: [""],
         taskDirSelected: "",
-        taskNameFilter: ""
+        taskNameFilter: "",
+        modalLoading: false
       },
       watch: {
         'formData.push_config': {
@@ -380,17 +387,27 @@
         },
         runScriptNow(task_index = "") {
           $('#logModal').modal('toggle')
-          this.run_log = '<div class="spinner-border" role="status"></div> 请耐心等待脚本全部执行完毕...'
-          axios.post('/run_script_now', {
-            task_index: task_index,
-          })
-            .then(response => {
-              this.run_log = response.data;
-            })
-            .catch(error => {
-              this.run_log = "错误：\n" + error;
-              console.error('Error:', error);
-            });
+          this.modalLoading = true
+          this.run_log = ''
+          const source = new EventSource(`/run_script_now?task_index=${task_index}`);
+          source.onmessage = (event) => {
+            if (event.data == "[DONE]") {
+              this.modalLoading = false
+              source.close();
+            } else {
+              this.run_log += event.data + '\n';
+              // 在更新 run_log 后将滚动条滚动到底部
+              this.$nextTick(() => {
+                const modalBody = document.querySelector('.modal-body');
+                modalBody.scrollTop = modalBody.scrollHeight;
+              });
+            }
+          };
+          source.onerror = (error) => {
+            this.modalLoading = false
+            console.error('Error:', error);
+            source.close();
+          };
         },
         getParentDirectory(path) {
           parentDir = path.substring(0, path.lastIndexOf('/'))

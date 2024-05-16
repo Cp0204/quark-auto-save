@@ -2,14 +2,15 @@
 # -*- coding: utf-8 -*-
 from flask import (
     Flask,
-    render_template,
-    request,
-    redirect,
     url_for,
     session,
     jsonify,
-    send_from_directory,
+    request,
+    redirect,
     Response,
+    render_template,
+    send_from_directory,
+    stream_with_context,
 )
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -140,13 +141,12 @@ def update():
 
 
 # 处理运行脚本请求
-@app.route("/run_script_now", methods=["POST"])
+@app.route("/run_script_now", methods=["GET"])
 def run_script_now():
     if not is_login():
         return "未登录"
-    payload = request.json
-    task_index = str(payload.get("task_index", ""))
-    command = [python_path, script_path, config_path, task_index]
+    task_index = request.args.get("task_index", "")
+    command = [python_path, "-u", script_path, config_path, task_index]
 
     def generate_output():
         process = subprocess.Popen(
@@ -154,11 +154,20 @@ def run_script_now():
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             universal_newlines=True,
+            bufsize=1,
         )
-        for line in process.stdout:
-            yield line
+        try:
+            for line in iter(process.stdout.readline, ""):
+                yield f"data: {line}\n\n"
+            yield "data: [DONE]\n\n"
+        finally:
+            process.stdout.close()
+            process.wait()
 
-    return Response(generate_output(), mimetype="text/plain")
+    return Response(
+        stream_with_context(generate_output()),
+        content_type="text/event-stream;charset=utf-8",
+    )
 
 
 # 定时任务执行的函数
