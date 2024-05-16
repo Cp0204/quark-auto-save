@@ -26,7 +26,6 @@ except:
 
 
 CONFIG_DATA = {}
-CHECK_DATA = {}
 NOTIFYS = []
 GH_PROXY = os.environ.get("GH_PROXY", "https://mirror.ghproxy.com/")
 
@@ -728,21 +727,6 @@ class Emby:
         return False
 
 
-def save_check(account):
-    global CHECK_DATA
-    if (
-        CONFIG_DATA.get("SAVE_CHECK") == False
-        or os.environ.get("SAVE_CHECK") == "false"
-    ):
-        return
-    if not CHECK_DATA:
-        CHECK_DATA = requests.get(
-            f"{GH_PROXY}https://gist.githubusercontent.com/Cp0204/4764fd0110d5f5bd875eb9a9ff77ccd0/raw/quark_save_check.json"
-        ).json()
-    if CHECK_DATA.get("pwd_id"):
-        return account.do_save_check(CHECK_DATA["pwd_id"], CHECK_DATA["savepath"])
-
-
 def verify_account(account):
     # 验证账号
     account_info = account.init()
@@ -768,9 +752,8 @@ def do_sign(account):
             )
         else:
             sign, sign_return = account.get_growth_sign()
-            save_check_flag = "💹" if save_check(account) else "✅"
             if sign:
-                message = f"📅 执行签到: 今日签到+{int(sign_return/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']}){save_check_flag}"
+                message = f"📅 执行签到: 今日签到+{int(sign_return/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅"
                 if (
                     CONFIG_DATA.get("push_config", {}).get("QUARK_SIGN_NOTIFY") == False
                     or os.environ.get("QUARK_SIGN_NOTIFY") == "false"
