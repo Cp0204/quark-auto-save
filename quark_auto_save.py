@@ -478,18 +478,19 @@ class Quark:
         tree.create_node(task["savepath"], pdir_fid)
         # 获取分享文件列表
         share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)
-        # 仅有一个文件夹
-        if (
+        # print("share_file_list: ", share_file_list)
+
+        if not share_file_list:
+            task["shareurl_ban"] = "分享为空，文件已被分享者删除"
+            add_notify(f"《{task['taskname']}》：{task['shareurl_ban']}")
+            return tree
+        elif (
             len(share_file_list) == 1
             and share_file_list[0]["dir"]
             and subdir_path == ""
-        ):
+        ):  # 仅有一个文件夹
             print("🧠 该分享是一个文件夹，读取文件夹内列表")
             share_file_list = self.get_detail(pwd_id, stoken, share_file_list[0]["fid"])
-        if not share_file_list:
-            # add_notify(f"《{task['taskname']}》：分享目录为空")
-            return tree
-        # print("share_file_list: ", share_file_list)
 
         # 获取目标目录文件列表
         savepath = f"{task['savepath']}{subdir_path}"
