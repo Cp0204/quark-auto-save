@@ -25,8 +25,10 @@ def get_app_ver():
     BUILD_TAG = os.environ.get("BUILD_TAG", "")
     if BUILD_TAG[:1] == "v":
         return BUILD_TAG
-    else:
+    elif BUILD_SHA:
         return f"{BUILD_TAG}({BUILD_SHA[:7]})"
+    else:
+        return "dev"
 
 
 # 文件路径
@@ -229,4 +231,4 @@ if __name__ == "__main__":
     scheduler = BackgroundScheduler()
     reload_tasks()
     scheduler.start()
-    app.run(debug=os.environ.get("DEBUG", False), host="0.0.0.0", port=5005)
+    app.run(debug=os.environ.get("DEBUG", True), host="0.0.0.0", port=5005)

@@ -218,7 +218,7 @@
       <div class="row">
         <div class="col-sm-12 text-center">
           <p>
-            <a target="_blank" href="https://github.com/Cp0204/quark-auto-save"><i class="bi bi-github"></i> Cp0204/quark_auto_save</a> [[ version ]]
+            <a target="_blank" href="https://github.com/Cp0204/quark-auto-save"><i class="bi bi-github"></i> Cp0204/quark_auto_save</a> <span v-html="versionTips"></span>
           </p>
         </div>
       </div>
@@ -262,6 +262,8 @@
     var app = new Vue({
       el: '#app',
       data: {
+        version: "[[ version ]]",
+        versionTips: "",
         weekdays: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
         formData: {
           cookie: [],
@@ -307,9 +309,24 @@
       },
       mounted() {
         this.fetchData();
+        this.checkNewVersion();
         $('[data-toggle="tooltip"]').tooltip()
       },
       methods: {
+        checkNewVersion() {
+          this.versionTips = this.version;
+          axios.get('https://api.github.com/repos/Cp0204/quark-auto-save/tags')
+            .then(response => {
+              latestVersion = response.data[0].name;
+              console.log(`检查版本：当前 ${this.version} 最新 ${latestVersion}`);
+              if (latestVersion != this.version) {
+                this.versionTips += ` <sup><span class="badge badge-pill badge-danger">${latestVersion}</span></sup>`;
+              }
+            })
+            .catch(error => {
+              console.error('Error:', error);
+            });
+        },
         fetchData() {
           axios.get('/data')
             .then(response => {
