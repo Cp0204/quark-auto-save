@@ -27,7 +27,7 @@ except:
 
 CONFIG_DATA = {}
 NOTIFYS = []
-GH_PROXY = os.environ.get("GH_PROXY", "https://mirror.ghproxy.com/")
+GH_PROXY = os.environ.get("GH_PROXY", "https://gh-proxy.com/")
 
 
 magic_regex = {
