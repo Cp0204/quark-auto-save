@@ -58,14 +58,16 @@
 
 ## 使用
 
-### Docker 部署
+### Docker 部署（推荐）
 
-提供 WebUI 管理配置，但目前 WebUI 并不完善，只供辅助使用，你也应该了解如何[手动配置](#程序配置)。
+提供 WebUI 管理配置，~~但目前 WebUI 并不完善，只供辅助使用，你也应该了解如何[手动配置](#程序配置)。~~ WebUI 已能满足绝大多数需求。
 
 ```shell
 docker run -d \
   --name quark-auto-save \
   -p 5005:5005 \
+  -e WEBUI_USERNAME=admin \
+  -e WEBUI_PASSWORD=admin123 \
   -v ./quark-auto-save/config:/app/config \
   -v /etc/localtime:/etc/localtime \
   --network bridge \
@@ -86,10 +88,12 @@ docker run -d \
 docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower -cR quark-auto-save
 ```
 
-<details>
+<details open>
 <summary>WebUI 预览</summary>
 
-![screenshot_webui](img/screenshot_webui.png)
+![screenshot_webui](img/screenshot_webui-1.png)
+
+![screenshot_webui](img/screenshot_webui-2.png)
 
 </details>
 
