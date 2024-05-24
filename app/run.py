@@ -168,7 +168,7 @@ def run_script_now():
         return "未登录"
     task_index = request.args.get("task_index", "")
     command = [PYTHON_PATH, "-u", SCRIPT_PATH, CONFIG_PATH, task_index]
-    logging.info(f">>> 手动运行任务{task_index}")
+    logging.info(f">>> 手动运行任务{task_index+1}")
 
     def generate_output():
         process = subprocess.Popen(
@@ -180,7 +180,7 @@ def run_script_now():
         )
         try:
             for line in iter(process.stdout.readline, ""):
-                logging.info(line)
+                logging.info(line.strip())
                 yield f"data: {line}\n\n"
             yield "data: [DONE]\n\n"
         finally:
