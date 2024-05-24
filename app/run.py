@@ -33,9 +33,9 @@ def get_app_ver():
 
 
 # 文件路径
-python_path = "python3" if os.path.exists("/usr/bin/python3") else "python"
-script_path = os.environ.get("SCRIPT_PATH", "./quark_auto_save.py")
-config_path = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
+PYTHON_PATH = "python3" if os.path.exists("/usr/bin/python3") else "python"
+SCRIPT_PATH = os.environ.get("SCRIPT_PATH", "./quark_auto_save.py")
+CONFIG_PATH = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
 DEBUG = os.environ.get("DEBUG", False)
 
 app = Flask(__name__)
@@ -65,14 +65,14 @@ def gen_md5(string):
 
 # 读取 JSON 文件内容
 def read_json():
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
     return data
 
 
 # 将数据写入 JSON 文件
 def write_json(data):
-    with open(config_path, "w", encoding="utf-8") as f:
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False, sort_keys=False)
 
 
@@ -167,7 +167,7 @@ def run_script_now():
     if not is_login():
         return "未登录"
     task_index = request.args.get("task_index", "")
-    command = [python_path, "-u", script_path, config_path, task_index]
+    command = [PYTHON_PATH, "-u", SCRIPT_PATH, CONFIG_PATH, task_index]
     logging.info(f">>> 手动运行任务{task_index}")
 
     def generate_output():
@@ -196,7 +196,7 @@ def run_script_now():
 # 定时任务执行的函数
 def run_python(args):
     logging.info(f">>> 定时运行任务")
-    os.system(f"{python_path} {args}")
+    os.system(f"{PYTHON_PATH} {args}")
 
 
 # 重新加载任务
@@ -213,8 +213,8 @@ def reload_tasks():
         scheduler.add_job(
             run_python,
             trigger=trigger,
-            args=[f"{script_path} {config_path}"],
-            id=script_path,
+            args=[f"{SCRIPT_PATH} {CONFIG_PATH}"],
+            id=SCRIPT_PATH,
         )
         if scheduler.state == 0:
             scheduler.start()
@@ -234,10 +234,10 @@ def reload_tasks():
 def init():
     logging.info(f">>> 初始化配置")
     # 检查配置文件是否存在
-    if not os.path.exists(config_path):
-        if not os.path.exists(os.path.dirname(config_path)):
-            os.makedirs(os.path.dirname(config_path))
-        with open("quark_config.json", "rb") as src, open(config_path, "wb") as dest:
+    if not os.path.exists(CONFIG_PATH):
+        if not os.path.exists(os.path.dirname(CONFIG_PATH)):
+            os.makedirs(os.path.dirname(CONFIG_PATH))
+        with open("quark_config.json", "rb") as src, open(CONFIG_PATH, "wb") as dest:
             dest.write(src.read())
     data = read_json()
     # 默认管理账号
