@@ -44,6 +44,7 @@ app.json.sort_keys = False
 app.jinja_env.variable_start_string = "[["
 app.jinja_env.variable_end_string = "]]"
 
+scheduler = BackgroundScheduler()
 
 def gen_md5(string):
     md5 = hashlib.md5()
@@ -173,7 +174,7 @@ def run_script_now():
 
 
 # 定时任务执行的函数
-def run_script(args):
+def run_python(args):
     os.system(f"{python_path} {args}")
 
 
@@ -184,18 +185,25 @@ def reload_tasks():
     # 添加新任务
     crontab = data.get("crontab")
     if crontab:
-        print(">>> 重载调度器")
-        print(f"调度状态: {scheduler.state}")
-        print(f"定时规则: {crontab}")
         if scheduler.state == 1:
             scheduler.pause()  # 暂停调度器
         trigger = CronTrigger.from_crontab(crontab)
         scheduler.remove_all_jobs()
         scheduler.add_job(
-            run_script, trigger=trigger, args=[f"{script_path} {config_path}"]
+            run_python,
+            trigger=trigger,
+            args=[f"{script_path} {config_path}"],
+            id=script_path,
         )
-        if scheduler.state == 2:
-            scheduler.resume()  # 恢复调度器
+        if scheduler.state == 0:
+            scheduler.start()
+        elif scheduler.state == 2:
+            scheduler.resume()
+        scheduler_state_map = {0: "停止", 1: "运行", 2: "暂停"}
+        print(">>> 重载调度器")
+        print(f"调度状态: {scheduler_state_map[scheduler.state]}")
+        print(f"定时规则: {crontab}")
+        print(f"现有任务: {scheduler.get_jobs()}")
     else:
         print(">>> no crontab")
 
@@ -227,8 +235,5 @@ def init():
 
 if __name__ == "__main__":
     init()
-    # 创建后台调度器
-    scheduler = BackgroundScheduler()
     reload_tasks()
-    scheduler.start()
-    app.run(debug=os.environ.get("DEBUG", True), host="0.0.0.0", port=5005)
+    app.run(debug=os.environ.get("DEBUG", False), host="0.0.0.0", port=5005)
