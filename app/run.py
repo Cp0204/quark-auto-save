@@ -16,6 +16,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import subprocess
 import hashlib
+import logging
 import json
 import os
 
@@ -35,6 +36,7 @@ def get_app_ver():
 python_path = "python3" if os.path.exists("/usr/bin/python3") else "python"
 script_path = os.environ.get("SCRIPT_PATH", "./quark_auto_save.py")
 config_path = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
+DEBUG = os.environ.get("DEBUG", False)
 
 app = Flask(__name__)
 app.config["APP_VERSION"] = get_app_ver()
@@ -45,6 +47,15 @@ app.jinja_env.variable_start_string = "[["
 app.jinja_env.variable_end_string = "]]"
 
 scheduler = BackgroundScheduler()
+logging.basicConfig(
+    level=logging.DEBUG if DEBUG else logging.INFO,
+    format="[%(asctime)s][%(levelname)s] %(message)s",
+    datefmt="%m-%d %H:%M:%S",
+)
+# 过滤werkzeug日志输出
+if not DEBUG:
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
+
 
 def gen_md5(string):
     md5 = hashlib.md5()
@@ -96,9 +107,11 @@ def login():
         if (username == request.form.get("username")) and (
             password == request.form.get("password")
         ):
+            logging.info(f">>> 用户 {username} 登录成功")
             session["login"] = gen_md5(username + password)
             return redirect(url_for("index"))
         else:
+            logging.info(f">>> 用户 {username} 登录失败")
             return render_template("login.html", message="登录失败")
 
     return render_template("login.html", error=None)
@@ -139,8 +152,13 @@ def update():
     data = request.json
     data["webui"] = webui
     write_json(data)
-    reload_tasks()  # 重新加载任务
-    return "配置更新成功"
+    # 重新加载任务
+    if reload_tasks():
+        logging.info(f">>> 配置更新成功")
+        return "配置更新成功"
+    else:
+        logging.info(f">>> 配置更新失败")
+        return "配置更新失败"
 
 
 # 处理运行脚本请求
@@ -150,6 +168,7 @@ def run_script_now():
         return "未登录"
     task_index = request.args.get("task_index", "")
     command = [python_path, "-u", script_path, config_path, task_index]
+    logging.info(f">>> 手动运行任务{task_index}")
 
     def generate_output():
         process = subprocess.Popen(
@@ -161,6 +180,7 @@ def run_script_now():
         )
         try:
             for line in iter(process.stdout.readline, ""):
+                logging.info(line)
                 yield f"data: {line}\n\n"
             yield "data: [DONE]\n\n"
         finally:
@@ -175,6 +195,7 @@ def run_script_now():
 
 # 定时任务执行的函数
 def run_python(args):
+    logging.info(f">>> 定时运行任务")
     os.system(f"{python_path} {args}")
 
 
@@ -200,15 +221,18 @@ def reload_tasks():
         elif scheduler.state == 2:
             scheduler.resume()
         scheduler_state_map = {0: "停止", 1: "运行", 2: "暂停"}
-        print(">>> 重载调度器")
-        print(f"调度状态: {scheduler_state_map[scheduler.state]}")
-        print(f"定时规则: {crontab}")
-        print(f"现有任务: {scheduler.get_jobs()}")
+        logging.info(">>> 重载调度器")
+        logging.info(f"调度状态: {scheduler_state_map[scheduler.state]}")
+        logging.info(f"定时规则: {crontab}")
+        logging.info(f"现有任务: {scheduler.get_jobs()}")
+        return True
     else:
-        print(">>> no crontab")
+        logging.info(">>> no crontab")
+        return False
 
 
 def init():
+    logging.info(f">>> 初始化配置")
     # 检查配置文件是否存在
     if not os.path.exists(config_path):
         if not os.path.exists(os.path.dirname(config_path)):
@@ -236,4 +260,4 @@ def init():
 if __name__ == "__main__":
     init()
     reload_tasks()
-    app.run(debug=os.environ.get("DEBUG", False), host="0.0.0.0", port=5005)
+    app.run(debug=DEBUG, host="0.0.0.0", port=5005)
