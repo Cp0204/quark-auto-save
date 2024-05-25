@@ -168,7 +168,9 @@ def run_script_now():
         return "未登录"
     task_index = request.args.get("task_index", "")
     command = [PYTHON_PATH, "-u", SCRIPT_PATH, CONFIG_PATH, task_index]
-    logging.info(f">>> 手动运行任务{task_index+1}")
+    logging.info(
+        f">>> 手动运行任务{int(task_index)+1 if task_index.isdigit() else 'all'}"
+    )
 
     def generate_output():
         process = subprocess.Popen(
