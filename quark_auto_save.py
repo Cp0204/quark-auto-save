@@ -15,6 +15,7 @@ import time
 import random
 import requests
 from datetime import datetime
+import html
 
 # 兼容青龙
 try:
@@ -237,6 +238,7 @@ class Quark:
 
     def get_fids(self, file_paths):
         fids = []
+        file_paths = [html.unescape(path) for path in file_paths]
         while True:
             url = "https://drive-m.quark.cn/1/clouddrive/file/info/path_list"
             querystring = {"pr": "ucpro", "fr": "pc"}
