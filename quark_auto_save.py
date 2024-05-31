@@ -621,6 +621,8 @@ class Quark:
         return response
 
     def do_rename_task(self, task, subdir_path=""):
+        if not task["pattern"] or not task["replace"]:
+            return 0
         savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
         if not self.savepath_fid.get(savepath):
             self.savepath_fid[savepath] = self.get_fids([savepath])[0]["fid"]
