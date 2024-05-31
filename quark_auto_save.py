@@ -375,7 +375,7 @@ class Quark:
 
     def update_savepath_fid(self, tasklist):
         dir_paths = [
-            item["savepath"]
+            re.sub(r"/{2,}", "/", f"/{item['savepath']}")
             for item in tasklist
             if not item.get("enddate")
             or (
