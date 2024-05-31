@@ -493,7 +493,7 @@ class Quark:
             share_file_list = self.get_detail(pwd_id, stoken, share_file_list[0]["fid"])
 
         # 获取目标目录文件列表
-        savepath = f"{task['savepath']}{subdir_path}"
+        savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
         if not self.savepath_fid.get(savepath):
             self.savepath_fid[savepath] = self.get_fids([savepath])[0]["fid"]
         to_pdir_fid = self.savepath_fid[savepath]
@@ -621,7 +621,7 @@ class Quark:
         return response
 
     def do_rename_task(self, task, subdir_path=""):
-        savepath = f"{task['savepath']}{subdir_path}"
+        savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
         if not self.savepath_fid.get(savepath):
             self.savepath_fid[savepath] = self.get_fids([savepath])[0]["fid"]
         dir_file_list = self.ls_dir(self.savepath_fid[savepath])
