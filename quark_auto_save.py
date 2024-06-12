@@ -30,7 +30,7 @@ NOTIFYS = []
 GH_PROXY = os.environ.get("GH_PROXY", "https://gh-proxy.com/")
 
 
-magic_regex = {
+MAGIC_REGEX = {
     "$TV": {
         "pattern": ".*?(S\\d{1,2}E)?P?(\\d{1,3}).*?\\.(mp4|mkv)",
         "replace": "\\1\\2.\\3",
@@ -41,10 +41,10 @@ magic_regex = {
 # 魔法正则匹配
 def magic_regex_func(pattern, replace):
     keyword = pattern
-    if keyword in magic_regex:
-        pattern = magic_regex[keyword]["pattern"]
+    if keyword in CONFIG_DATA["magic_regex"]:
+        pattern = CONFIG_DATA["magic_regex"][keyword]["pattern"]
         if replace == "":
-            replace = magic_regex[keyword]["replace"]
+            replace = CONFIG_DATA["magic_regex"][keyword]["replace"]
     return pattern, replace
 
 
@@ -854,6 +854,8 @@ def main():
         with open(config_path, "r", encoding="utf-8") as file:
             CONFIG_DATA = json.load(file)
         cookie_val = CONFIG_DATA.get("cookie")
+        if not CONFIG_DATA.get("magic_regex"):
+            CONFIG_DATA["magic_regex"] = MAGIC_REGEX
         cookie_form_file = True
     # 获取cookie
     cookies = get_cookies(cookie_val)
