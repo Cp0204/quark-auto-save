@@ -522,7 +522,7 @@ class Quark:
                     else share_file["file_name"]
                 )
                 # 忽略后缀
-                if task.get("ignore_extension"):
+                if task.get("ignore_extension") and not share_file["dir"]:
                     compare_func = lambda a, b1, b2: (
                         os.path.splitext(a)[0] == os.path.splitext(b1)[0]
                         or os.path.splitext(a)[0] == os.path.splitext(b2)[0]
