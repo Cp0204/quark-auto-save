@@ -481,8 +481,9 @@ class Quark:
         # print("share_file_list: ", share_file_list)
 
         if not share_file_list:
-            task["shareurl_ban"] = "分享为空，文件已被分享者删除"
-            add_notify(f"《{task['taskname']}》：{task['shareurl_ban']}")
+            if subdir_path == "":
+                task["shareurl_ban"] = "分享为空，文件已被分享者删除"
+                add_notify(f"《{task['taskname']}》：{task['shareurl_ban']}")
             return tree
         elif (
             len(share_file_list) == 1
