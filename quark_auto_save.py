@@ -496,7 +496,11 @@ class Quark:
         # 获取目标目录文件列表
         savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
         if not self.savepath_fid.get(savepath):
-            self.savepath_fid[savepath] = self.get_fids([savepath])[0]["fid"]
+            if get_fids := self.get_fids([savepath]):
+                self.savepath_fid[savepath] = get_fids[0]["fid"]
+            else:
+                print(f"❌ 目录 {savepath} fid获取失败，跳过转存")
+                return tree
         to_pdir_fid = self.savepath_fid[savepath]
         dir_file_list = self.ls_dir(to_pdir_fid)
         # print("dir_file_list: ", dir_file_list)
