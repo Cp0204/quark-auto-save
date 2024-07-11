@@ -196,7 +196,7 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 
 *由于微信限制，无法反向联系付款人，如非必要微信不回复，项目问题请在 GitHub 提 Issue 。* 😉
 
-![WeChatPay](img/wechat_pay_qrcode.png)
+![WeChatPay](https://cdn.jsdelivr.net/gh/Cp0204/Cp0204@main/img/wechat_pay_qrcode.png)
 
 ## 声明
 
