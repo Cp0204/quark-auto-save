@@ -67,6 +67,9 @@
         <div class="input-group-prepend">
           <span class="input-group-text" v-html="key"></span>
         </div>
+        <div class="input-group-prepend" v-if="(key == 'DEER_KEY' || key == 'PUSH_KEY')">
+          <a type="button" class="btn btn-warning" target="_blank" href="https://sct.ftqq.com/r/13249" title="Server酱推荐计划"><i class="bi bi-award"></i></a>
+        </div>
         <input type="text" v-model="formData.push_config[key]" class="form-control">
         <div class="input-group-append">
           <button type="button" class="btn btn-outline-danger" @click="removePush(key)">-</button>
