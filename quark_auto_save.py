@@ -870,11 +870,13 @@ def main():
     accounts = [Quark(cookie, index) for index, cookie in enumerate(cookies)]
     # 签到
     print(f"===============签到任务===============")
-    if type(task_index) is int:
-        do_sign(accounts[0])
-    else:
-        for account in accounts:
-            do_sign(account)
+    # if type(task_index) is int:
+    #     do_sign(accounts[0])
+    # else:
+    #     for account in accounts:
+    #         do_sign(account)
+    verify_account(accounts[0])
+    print(f"📌 签到已失效，故仅验证首账号，了解详情请看项目主页")
     print()
     # 转存
     if accounts[0].is_active and cookie_form_file:
