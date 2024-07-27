@@ -103,11 +103,25 @@ class Quark:
         self.is_active = False
         self.nickname = ""
         self.st = self.match_st_form_cookie(cookie)
+        self.mparam = self.match_mparam_form_cookie(cookie)
         self.savepath_fid = {"/": "0"}
 
     def match_st_form_cookie(self, cookie):
         match = re.search(r"=(st[a-zA-Z0-9]+);", cookie)
         return match.group(1) if match else False
+
+    def match_mparam_form_cookie(self, cookie):
+        mparam = {}
+        kps_match = re.search(r"(?<!\w)kps=([a-zA-Z0-9%]+)[;&]?", cookie)
+        sign_match = re.search(r"(?<!\w)sign=([a-zA-Z0-9%]+)[;&]?", cookie)
+        vcode_match = re.search(r"(?<!\w)vcode=([a-zA-Z0-9%]+)[;&]?", cookie)
+        if kps_match and sign_match and vcode_match:
+            mparam = {
+                "kps": kps_match.group(1).replace("%25", "%"),
+                "sign": sign_match.group(1).replace("%25", "%"),
+                "vcode": vcode_match.group(1).replace("%25", "%"),
+            }
+        return mparam
 
     def common_headers(self):
         headers = {
@@ -144,9 +158,14 @@ class Quark:
 
     def get_growth_info(self):
         url = "https://drive-m.quark.cn/1/clouddrive/capacity/growth/info"
-        querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
+        querystring = {
+            "pr": "ucpro",
+            "fr": "android",
+            "kps": self.mparam.get("kps"),
+            "sign": self.mparam.get("sign"),
+            "vcode": self.mparam.get("vcode"),
+        }
         headers = {
-            "cookie": self.cookie,
             "content-type": "application/json",
         }
         response = requests.request(
@@ -159,12 +178,17 @@ class Quark:
 
     def get_growth_sign(self):
         url = "https://drive-m.quark.cn/1/clouddrive/capacity/growth/sign"
-        querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
+        querystring = {
+            "pr": "ucpro",
+            "fr": "android",
+            "kps": self.mparam.get("kps"),
+            "sign": self.mparam.get("sign"),
+            "vcode": self.mparam.get("vcode"),
+        }
         payload = {
             "sign_cyclic": True,
         }
         headers = {
-            "cookie": self.cookie,
             "content-type": "application/json",
         }
         response = requests.request(
@@ -748,7 +772,8 @@ def verify_account(account):
 
 
 def do_sign(account):
-    if not verify_account(account):
+    if not account.mparam:
+        print("⏭️ 移动端参数未设置，跳过签到")
         print()
         return
     # 每日领空间
@@ -870,13 +895,12 @@ def main():
     accounts = [Quark(cookie, index) for index, cookie in enumerate(cookies)]
     # 签到
     print(f"===============签到任务===============")
-    # if type(task_index) is int:
-    #     do_sign(accounts[0])
-    # else:
-    #     for account in accounts:
-    #         do_sign(account)
-    verify_account(accounts[0])
-    print(f"📌 签到已失效，故仅验证首账号，了解详情请看项目主页")
+    if type(task_index) is int:
+        verify_account(account[0])
+    else:
+        for account in accounts:
+            verify_account(account)
+            do_sign(account)
     print()
     # 转存
     if accounts[0].is_active and cookie_form_file:
