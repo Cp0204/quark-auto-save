@@ -761,14 +761,18 @@ class Emby:
 
 def verify_account(account):
     # 验证账号
-    account_info = account.init()
     print(f"▶️ 验证第{account.index}个账号")
-    if not account_info:
-        add_notify(f"👤 第{account.index}个账号登录失败，cookie无效❌")
+    if "__uid" not in account.cookie:
+        print(f"💡 不存在cookie必要参数，判断为仅签到")
         return False
     else:
-        print(f"👤 账号昵称: {account_info['nickname']}✅")
-        return True
+        account_info = account.init()
+        if not account_info:
+            add_notify(f"👤 第{account.index}个账号登录失败，cookie无效❌")
+            return False
+        else:
+            print(f"👤 账号昵称: {account_info['nickname']}✅")
+            return True
 
 
 def format_bytes(size_bytes: int) -> str:
