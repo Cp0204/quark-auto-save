@@ -771,6 +771,15 @@ def verify_account(account):
         return True
 
 
+def format_bytes(size_bytes: int) -> str:
+    units = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+    i = 0
+    while size_bytes >= 1024 and i < len(units) - 1:
+        size_bytes /= 1024
+        i += 1
+    return f"{size_bytes:.2f} {units[i]}"
+
+
 def do_sign(account):
     if not account.mparam:
         print("⏭️ 移动端参数未设置，跳过签到")
@@ -779,14 +788,16 @@ def do_sign(account):
     # 每日领空间
     growth_info = account.get_growth_info()
     if growth_info:
+        growth_message = f"💾 {'88VIP' if growth_info['88VIP'] else '普通用户'} 总空间：{format_bytes(growth_info['total_capacity'])}，签到累计获得：{format_bytes(growth_info['cap_composition'].get('sign_reward', 0))}"
         if growth_info["cap_sign"]["sign_daily"]:
-            print(
-                f"📅 执行签到: 今日已签到+{int(growth_info['cap_sign']['sign_daily_reward']/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']})✅"
-            )
+            sign_message = f"📅 签到记录: 今日已签到+{int(growth_info['cap_sign']['sign_daily_reward']/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']})✅"
+            message = f"{sign_message}\n{growth_message}"
+            print(message)
         else:
             sign, sign_return = account.get_growth_sign()
             if sign:
-                message = f"📅 执行签到: 今日签到+{int(sign_return/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅"
+                sign_message = f"📅 执行签到: 今日签到+{int(sign_return/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅"
+                message = f"{sign_message}\n{growth_message}"
                 if (
                     CONFIG_DATA.get("push_config", {}).get("QUARK_SIGN_NOTIFY") == False
                     or os.environ.get("QUARK_SIGN_NOTIFY") == "false"
@@ -796,7 +807,7 @@ def do_sign(account):
                     message = message.replace("今日", f"[{account.nickname}]今日")
                     add_notify(message)
             else:
-                print(f"📅 执行签到: {sign_return}")
+                print(f"📅 签到异常: {sign_return}")
     print()
 
 
