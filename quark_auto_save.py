@@ -911,7 +911,7 @@ def main():
     # 签到
     print(f"===============签到任务===============")
     if type(task_index) is int:
-        verify_account(account[0])
+        verify_account(accounts[0])
     else:
         for account in accounts:
             verify_account(account)
