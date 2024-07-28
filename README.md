@@ -30,14 +30,14 @@
 >
 > 受 [@BNDou](https://github.com/BNDou) 提示和方法借鉴，**已适配新的签到方式**。
 >
-> 你需要手机端访问签到页，抓包 kps, sign, vcode 三个参数，附在 cookie 的最后，例如：
+> 你需要手机端访问签到页，抓包 <u>/1/clouddrive/capacity/growth/info</u> 请求的 kps, sign, vcode 三个参数，附在 cookie 的最后，如：
 >
 > > cookie`;kps=123456789&sign=123456789&vcode=123456`
 >
 > 如果你纯粹需要签到功能，建议移步 @BNDou 的 [Auto_Check_In](https://github.com/BNDou/Auto_Check_In/blob/main/checkIn_Quark.py) 项目，更聚焦一些。
 
 > [!NOTE]
-> 因不想当客服处理各种使用咨询，即日起 Issues 关闭，如果你有好的想法或功能建议，欢迎通过 PR 和我对话，谢谢！
+> 因不想当客服处理各种使用咨询，即日起 Issues 关闭，如果你发现了 bug 、有好的想法或功能建议，欢迎通过 PR 和我对话，谢谢！
 
 ## 功能
 
