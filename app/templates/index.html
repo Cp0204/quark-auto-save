@@ -47,7 +47,8 @@
           <button type="button" class="btn btn-outline-primary mb-3" @click="addCookie()">+</button>
         </div>
       </div>
-      <p>所有账号执行签到，仅第一个账号执行转存，请自行确认顺序。<b>最好是手机验证码<a target="_blank" href="https://pan.quark.cn/">登录</a>，CK比较完整！</b></p>
+      <p>1. 所有账号执行签到，纯签到只需移动端参数即可！</p>
+      <p>2. 仅第一个账号执行转存，请自行确认顺序。<b>最好是手机验证码<a target="_blank" href="https://pan.quark.cn/">登录</a>，CK比较完整！</b>如需签到参数附在CK后面。</p>
       <div v-for="(value, index) in formData.cookie" :key="index" class="input-group mb-2">
         <input type="text" v-model="formData.cookie[index]" class="form-control" placeholder="打开 pan.quark.com 按 F12 抓取">
         <div class="input-group-append">
