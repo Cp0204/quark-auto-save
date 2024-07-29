@@ -30,7 +30,7 @@
 >
 > 受 [@BNDou](https://github.com/BNDou) 提示和方法借鉴，**已适配新的签到方式**。
 >
-> 你需要手机端访问签到页，抓包 <u>/1/clouddrive/capacity/growth/info</u> 请求的 kps, sign, vcode 三个参数，附在 cookie 的最后，如：
+> 你需要手机端访问签到页，抓包 <u>/1/clouddrive/capacity/growth/info</u> 请求的 kps, sign, vcode 三个参数，**纯签到只需这三个参数即可！** 转存号可附在 cookie 的最后，如：
 >
 > > cookie`;kps=123456789&sign=123456789&vcode=123456`
 >
