@@ -181,7 +181,10 @@
             <label class="col-sm-2 col-form-label">正则处理</label>
             <div class="col-sm-10">
               <div class="input-group">
-                <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式">
+                <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex">
+                <datalist id="magicRegex">
+                  <option v-for="(value, key) in formData.magic_regex" :key="key" :value="`${key}`" v-html="`${value.pattern} → ${value.replace}`"></option>
+                </datalist>
                 <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
                 <div class="input-group-append">
                   <div class="input-group-text">
@@ -283,7 +286,8 @@
             url: "",
             apikey: ""
           },
-          tasklist: []
+          tasklist: [],
+          magic_regex: {}
         },
         newTask: {
           taskname: "",
