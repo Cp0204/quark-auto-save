@@ -130,10 +130,12 @@ def bark(title: str, content: str) -> None:
         print("bark 服务的 BARK_PUSH 未设置!!\n取消推送")
         return
     print("bark 服务启动")
-
-    if push_config.get("BARK_PUSH").startswith("http"):
+    
+    if push_config.get("BARK_PUSH").startswith("http") or push_config.get("BARK_PUSH").startswith("https"):
+        # 若复制完整推送地址或者自建地址
         url = f'{push_config.get("BARK_PUSH")}/{urllib.parse.quote_plus(title)}/{urllib.parse.quote_plus(content)}'
     else:
+        # 若只上传KEY
         url = f'https://api.day.app/{push_config.get("BARK_PUSH")}/{urllib.parse.quote_plus(title)}/{urllib.parse.quote_plus(content)}'
 
     bark_params = {
