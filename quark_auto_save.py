@@ -650,7 +650,8 @@ class Quark:
         return response
 
     def do_rename_task(self, task, subdir_path=""):
-        if not task["pattern"] or not task["replace"]:
+        pattern, replace = magic_regex_func(task["pattern"], task["replace"])
+        if not pattern or not replace:
             return 0
         savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
         if not self.savepath_fid.get(savepath):
@@ -663,7 +664,6 @@ class Quark:
                 is_rename_count += self.do_rename_task(
                     task, f"{subdir_path}/{dir_file['file_name']}"
                 )
-            pattern, replace = magic_regex_func(task["pattern"], task["replace"])
             if re.search(pattern, dir_file["file_name"]):
                 save_name = (
                     re.sub(pattern, replace, dir_file["file_name"])
