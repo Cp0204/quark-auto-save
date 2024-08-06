@@ -1,5 +1,14 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
+
+import os
+import json
+import logging
+import hashlib
+import subprocess
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.schedulers.background import BackgroundScheduler
 from flask import (
     Flask,
     url_for,
@@ -12,13 +21,13 @@ from flask import (
     send_from_directory,
     stream_with_context,
 )
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
-import subprocess
-import hashlib
-import logging
-import json
-import os
+
+# 导入quark_auto_save文件
+import importlib.util
+module_path = './quark_auto_save.py'
+spec = importlib.util.spec_from_file_location('quark_auto_save', module_path)
+qas = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(qas)
 
 
 def get_app_ver():
@@ -36,8 +45,8 @@ def get_app_ver():
 PYTHON_PATH = "python3" if os.path.exists("/usr/bin/python3") else "python"
 SCRIPT_PATH = os.environ.get("SCRIPT_PATH", "./quark_auto_save.py")
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
-DEBUG = os.environ.get("DEBUG", False)
 
+DEBUG = os.environ.get("DEBUG", False)
 app = Flask(__name__)
 app.config["APP_VERSION"] = get_app_ver()
 app.secret_key = "ca943f6db6dd34823d36ab08d8d6f65d"
@@ -70,7 +79,24 @@ def read_json():
     return data
 
 
+def get_accounts():
+    CONFIG_DATA = read_json()
+    cookie_val = CONFIG_DATA.get("cookie")
+    cookies = qas.get_cookies(cookie_val)
+    return [qas.Quark(cookie, index)
+            for index, cookie in enumerate(cookies)]
+
+
+def get_detail(shareurl):
+    account = get_accounts()[0]
+    pwd_id, pdir_fid = account.get_id_from_url(shareurl)
+    _, stoken = account.get_stoken(pwd_id)
+    share_file_list = account.get_detail(pwd_id, stoken, pdir_fid)
+    return share_file_list
+
 # 将数据写入 JSON 文件
+
+
 def write_json(data):
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False, sort_keys=False)
@@ -141,8 +167,23 @@ def get_data():
     del data["webui"]
     return jsonify(data)
 
+# 获取分享文件列表
+
+
+@app.route("/share_files")
+def get_share_files():
+
+    # if not is_login():
+    #     return redirect(url_for("login"))
+    shareurl = request.args.get("shareurl", "")
+    # with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+    #     data = json.load(f)
+    data = get_detail(shareurl)
+    return jsonify(data)
 
 # 更新数据
+
+
 @app.route("/update", methods=["POST"])
 def update():
     if not is_login():

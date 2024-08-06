@@ -1,0 +1,31 @@
+Metadata-Version: 2.1
+Name: treelib
+Version: 1.7.0
+Summary: A Python implementation of tree structure.
+Home-page: https://github.com/caesar0301/treelib
+Author: Xiaming Chen
+Author-email: chenxm35@gmail.com
+License: Apache License, Version 2.0
+Keywords: data structure,tree,tools
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+License-File: LICENSE
+License-File: AUTHORS
+Requires-Dist: six
+
+This is a simple tree data structure implementation in python.
