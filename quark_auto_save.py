@@ -537,7 +537,7 @@ class Quark:
         need_save_list = []
         # 添加符合的
         for share_file in share_file_list:
-            if share_file['fid'] == task['startid']:
+            if share_file['fid'] == task.get("startid", ""):
                 break
             if share_file["dir"] and task.get("update_subdir", False):
                 pattern, replace = task["update_subdir"], ""
