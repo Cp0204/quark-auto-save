@@ -135,90 +135,94 @@
       <div v-for="(task, index) in formData.tasklist" :key="index" class="task mb-3">
         <template v-if="(taskDirSelected == '' || getParentDirectory(task.savepath) == taskDirSelected) && task.taskname.includes(taskNameFilter)">
           <hr>
-          <div class="form-group row">
-            <div class="col">
-              <h3>任务#<span v-html="index+1"></span></h3>
+          <div class="form-group row" style="display:flex; align-items:center">
+            <div class="col-9" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="true" :aria-controls="'collapse_'+index">
+              <div class="btn btn-block text-left">
+                <i class="bi bi-caret-right-fill"></i> #<span v-html="`${index+1}: ${task.taskname}`"></span>
+              </div>
             </div>
-            <div class="col text-right">
+            <div class="col-3 text-right">
               <button type="button" class="btn btn-outline-primary" @click="runScriptNow(index)" title="运行此任务"><i class="bi bi-play-fill"></i></button>
               <button type="button" class="btn btn-outline-danger" @click="removeTask(index)" title="删除此任务"><i class="bi bi-trash3-fill"></i></button>
             </div>
           </div>
-          <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="task.shareurl_ban"></div>
-          <div class="form-group row">
-            <label class="col-sm-2 col-form-label">任务名称</label>
-            <div class="col-sm-10">
-              <div class="input-group">
-                <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填">
-                <div class="input-group-append">
-                  <div class="input-group-text">
-                    <a target="_blank" :href="`https://www.google.com/search?q=%22pan.quark%22+${task.taskname}`"><i class="bi bi-search"></i></a>
+          <div class="collapse" :id="'collapse_'+index" style="padding-left:2em">
+            <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="task.shareurl_ban"></div>
+            <div class="form-group row">
+              <label class="col-sm-2 col-form-label">任务名称</label>
+              <div class="col-sm-10">
+                <div class="input-group">
+                  <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填">
+                  <div class="input-group-append">
+                    <div class="input-group-text">
+                      <a target="_blank" :href="`https://www.google.com/search?q=%22pan.quark%22+${task.taskname}`"><i class="bi bi-search"></i></a>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-          <div class="form-group row">
-            <label class="col-sm-2 col-form-label">分享链接</label>
-            <div class="col-sm-10">
-              <div class="input-group">
-                <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @input="clearShareurlBan(task)">
-                <div class="input-group-append" v-if="task.shareurl">
-                  <div class="input-group-text">
-                    <a target="_blank" :href="task.shareurl"><i class="bi bi-box-arrow-up-right"></i></a>
+            <div class="form-group row">
+              <label class="col-sm-2 col-form-label">分享链接</label>
+              <div class="col-sm-10">
+                <div class="input-group">
+                  <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @input="clearShareurlBan(task)">
+                  <div class="input-group-append" v-if="task.shareurl">
+                    <div class="input-group-text">
+                      <a target="_blank" :href="task.shareurl"><i class="bi bi-box-arrow-up-right"></i></a>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-          <div class="form-group row">
-            <label class="col-sm-2 col-form-label">保存路径</label>
-            <div class="col-sm-10">
-              <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填">
+            <div class="form-group row">
+              <label class="col-sm-2 col-form-label">保存路径</label>
+              <div class="col-sm-10">
+                <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填">
+              </div>
             </div>
-          </div>
-          <div class="form-group row">
-            <label class="col-sm-2 col-form-label">正则处理</label>
-            <div class="col-sm-10">
-              <div class="input-group">
-                <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex">
-                <datalist id="magicRegex">
-                  <option v-for="(value, key) in formData.magic_regex" :key="key" :value="`${key}`" v-html="`${value.pattern} → ${value.replace}`"></option>
-                </datalist>
-                <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
-                <div class="input-group-append">
-                  <div class="input-group-text">
-                    <input type="checkbox" title="忽略后缀" v-model="task.ignore_extension">&nbsp;忽略后缀
+            <div class="form-group row">
+              <label class="col-sm-2 col-form-label">正则处理</label>
+              <div class="col-sm-10">
+                <div class="input-group">
+                  <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex">
+                  <datalist id="magicRegex">
+                    <option v-for="(value, key) in formData.magic_regex" :key="key" :value="`${key}`" v-html="`${value.pattern} → ${value.replace}`"></option>
+                  </datalist>
+                  <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
+                  <div class="input-group-append">
+                    <div class="input-group-text">
+                      <input type="checkbox" title="忽略后缀" v-model="task.ignore_extension">&nbsp;忽略后缀
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-          <div class="form-group row">
-            <label class="col-sm-2 col-form-label">更子目录</label>
-            <div class="col-sm-10">
-              <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，需更新子目录的正则式，多项以|分割，如 4k|1080p ，注意！深层嵌套目录慎用 .* ！" title="注意！深层嵌套目录逐级索引，工作强度会非常大，慎用！">
-            </div>
-          </div>
-          <div class="form-group row">
-            <label class="col-sm-2 col-form-label">截止日期</label>
-            <div class="col-sm-10">
-              <input type="date" name="enddate[]" class="form-control" v-model="task.enddate" placeholder="可选">
-            </div>
-          </div>
-          <div class="form-group row">
-            <label class="col-sm-2 col-form-label">运行星期</label>
-            <div class="col-sm-10">
-              <div class="form-check form-check-inline" v-for="(day, index) in weekdays" :key="index">
-                <input class="form-check-input" type="checkbox" v-model="task.runweek" :value="index+1">
-                <label class="form-check-label" v-html="day"></label>
+            <div class="form-group row">
+              <label class="col-sm-2 col-form-label">更子目录</label>
+              <div class="col-sm-10">
+                <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，需更新子目录的正则式，多项以|分割，如 4k|1080p ，注意！深层嵌套目录慎用 .* ！" title="注意！深层嵌套目录逐级索引，工作强度会非常大，慎用！">
               </div>
             </div>
-          </div>
-          <div class="form-group row">
-            <label class="col-sm-2 col-form-label">Emby ID</label>
-            <div class="col-sm-10">
-              <input type="number" name="emby_id[]" class="form-control" v-model="task.emby_id" placeholder="可选">
+            <div class="form-group row">
+              <label class="col-sm-2 col-form-label">截止日期</label>
+              <div class="col-sm-10">
+                <input type="date" name="enddate[]" class="form-control" v-model="task.enddate" placeholder="可选">
+              </div>
+            </div>
+            <div class="form-group row">
+              <label class="col-sm-2 col-form-label">运行星期</label>
+              <div class="col-sm-10">
+                <div class="form-check form-check-inline" v-for="(day, index) in weekdays" :key="index">
+                  <input class="form-check-input" type="checkbox" v-model="task.runweek" :value="index+1">
+                  <label class="form-check-label" v-html="day"></label>
+                </div>
+              </div>
+            </div>
+            <div class="form-group row">
+              <label class="col-sm-2 col-form-label">Emby ID</label>
+              <div class="col-sm-10">
+                <input type="number" name="emby_id[]" class="form-control" v-model="task.emby_id" placeholder="可选">
+              </div>
             </div>
           </div>
         </template>
@@ -244,7 +248,7 @@
       </div>
     </form>
 
-    <!-- 模态框 -->
+    <!-- 模态框 运行日志 -->
     <div class="modal" tabindex="-1" id="logModal">
       <div class="modal-dialog">
         <div class="modal-content">
@@ -404,7 +408,9 @@
           this.formData.tasklist.push(newTask);
           // 滚到最下
           setTimeout(() => {
-            this.scrollToX();
+            $('#collapse_' + (this.formData.tasklist.length - 1)).collapse('show').on('shown.bs.collapse', () => {
+              this.scrollToX();
+            });
           }, 1);
         },
         removeTask(index) {
