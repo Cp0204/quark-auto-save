@@ -421,7 +421,7 @@
           }, 1);
         },
         removeTask(index) {
-          if (confirm("确认删除吗？"))
+          if (confirm("确认删除任务 [#" + (index+1) + ": " + this.formData.tasklist[index].taskname + "] 吗？"))
             this.formData.tasklist.splice(index, 1);
         },
         clearShareurlBan(task) {
