@@ -112,23 +112,30 @@
           <h2>任务列表</h2>
         </div>
       </div>
-      <div class="form-group row">
-        <label class="col-sm-2 col-form-label">路径筛选</label>
-        <div class="input-group col-sm-10">
-          <select class="form-control" v-model="taskDirSelected">
-            <option v-for="(dir, index) in taskDirs" :value="dir" v-html="dir"></option>
-          </select>
-          <div class="input-group-append">
-            <button type="button" class="btn btn-outline-secondary" @click="clearData('taskDirSelected')"><i class="bi bi-x-lg"></i></button>
+      <hr>
+      <div class="row">
+        <div class="col-lg-6 col-md-12">
+          <div class="form-group row">
+            <label class="col-form-label col-md-3">名称筛选</label>
+            <div class="input-group col-md-9">
+              <input type="text" class="form-control" v-model="taskNameFilter" placeholder="名称 筛选/搜索">
+              <div class="input-group-append">
+                <button type="button" class="btn btn-outline-secondary" @click="clearData('taskNameFilter')"><i class="bi bi-x-lg"></i></button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="form-group row">
-        <label class="col-sm-2 col-form-label">名称筛选</label>
-        <div class="input-group col-sm-10">
-          <input type="text" class="form-control" v-model="taskNameFilter">
-          <div class="input-group-append">
-            <button type="button" class="btn btn-outline-secondary" @click="clearData('taskNameFilter')"><i class="bi bi-x-lg"></i></button>
+        <div class="col-lg-6 col-md-12">
+          <div class="form-group row">
+            <label class="col-form-label col-md-3">路径筛选</label>
+            <div class="input-group col-md-9">
+              <select class="form-control" v-model="taskDirSelected">
+                <option v-for="(dir, index) in taskDirs" :value="dir" v-html="dir"></option>
+              </select>
+              <div class="input-group-append">
+                <button type="button" class="btn btn-outline-secondary" @click="clearData('taskDirSelected')"><i class="bi bi-x-lg"></i></button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
