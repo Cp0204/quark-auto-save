@@ -960,7 +960,7 @@ def send(title: str, content: str, ignore_default_config: bool = False, **kwargs
             print(f"{title} 在SKIP_PUSH_TITLE环境变量内，跳过推送！")
             return
 
-    hitokoto = push_config.get("HITOKOTO", False)
+    hitokoto = push_config.get("HITOKOTO", "false")
     content += "\n\n" + one() if hitokoto != "false" else ""
 
     notify_function = add_notify_function()
