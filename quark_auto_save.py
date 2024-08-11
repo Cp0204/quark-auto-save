@@ -583,6 +583,9 @@ class Quark:
                                     parent=pdir_fid,
                                 )
                                 tree.merge(share_file["fid"], subdir_tree, deep=False)
+            # 指定文件开始订阅/到达指定文件（含）结束历遍
+            if share_file["fid"] == task.get("startfid", ""):
+                break
 
         fid_list = [item["fid"] for item in need_save_list]
         fid_token_list = [item["share_fid_token"] for item in need_save_list]
