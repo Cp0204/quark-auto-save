@@ -412,8 +412,7 @@ class Quark:
         dir_paths_exist_arr = self.get_fids(dir_paths)
         dir_paths_exist = [item["file_path"] for item in dir_paths_exist_arr]
         # 比较创建不存在的
-        dir_paths_unexist = list(
-            set(dir_paths) - set(dir_paths_exist) - set(["/"]))
+        dir_paths_unexist = list(set(dir_paths) - set(dir_paths_exist) - set(["/"]))
         for dir_path in dir_paths_unexist:
             mkdir_return = self.mkdir(dir_path)
             if mkdir_return["code"] == 0:
@@ -435,15 +434,13 @@ class Quark:
             is_sharing, stoken = self.get_stoken(pwd_id)
             share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)
             fid_list = [item["fid"] for item in share_file_list]
-            fid_token_list = [item["share_fid_token"]
-                              for item in share_file_list]
+            fid_token_list = [item["share_fid_token"] for item in share_file_list]
             file_name_list = [item["file_name"] for item in share_file_list]
             if not fid_list:
                 return
             get_fids = self.get_fids([savepath])
             to_pdir_fid = (
-                get_fids[0]["fid"] if get_fids else self.mkdir(savepath)[
-                    "data"]["fid"]
+                get_fids[0]["fid"] if get_fids else self.mkdir(savepath)["data"]["fid"]
             )
             save_file = self.save_file(
                 fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken
@@ -518,8 +515,7 @@ class Quark:
             and subdir_path == ""
         ):  # 仅有一个文件夹
             print("🧠 该分享是一个文件夹，读取文件夹内列表")
-            share_file_list = self.get_detail(
-                pwd_id, stoken, share_file_list[0]["fid"])
+            share_file_list = self.get_detail(pwd_id, stoken, share_file_list[0]["fid"])
 
         # 获取目标目录文件列表
         savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
@@ -537,13 +533,10 @@ class Quark:
         need_save_list = []
         # 添加符合的
         for share_file in share_file_list:
-            if share_file['fid'] == task['startid']:
-                break
             if share_file["dir"] and task.get("update_subdir", False):
                 pattern, replace = task["update_subdir"], ""
             else:
-                pattern, replace = magic_regex_func(
-                    task["pattern"], task["replace"])
+                pattern, replace = magic_regex_func(task["pattern"], task["replace"])
             # 正则文件名匹配
             if re.search(pattern, share_file["file_name"]):
                 # 替换后的文件名
@@ -554,12 +547,12 @@ class Quark:
                 )
                 # 忽略后缀
                 if task.get("ignore_extension") and not share_file["dir"]:
-                    def compare_func(a, b1, b2): return (
+                    compare_func = lambda a, b1, b2: (
                         os.path.splitext(a)[0] == os.path.splitext(b1)[0]
                         or os.path.splitext(a)[0] == os.path.splitext(b2)[0]
                     )
                 else:
-                    def compare_func(a, b1, b2): return (a == b1 or a == b2)
+                    compare_func = lambda a, b1, b2: (a == b1 or a == b2)
                 # 判断目标目录文件是否存在
                 file_exists = any(
                     compare_func(
@@ -574,8 +567,7 @@ class Quark:
                     # 存在并是一个文件夹
                     if task.get("update_subdir", False):
                         if re.search(task["update_subdir"], share_file["file_name"]):
-                            print(
-                                f"检查子文件夹：{savepath}/{share_file['file_name']}")
+                            print(f"检查子文件夹：{savepath}/{share_file['file_name']}")
                             subdir_tree = self.dir_check_and_save(
                                 task,
                                 pwd_id,
@@ -590,8 +582,7 @@ class Quark:
                                     share_file["fid"],
                                     parent=pdir_fid,
                                 )
-                                tree.merge(
-                                    share_file["fid"], subdir_tree, deep=False)
+                                tree.merge(share_file["fid"], subdir_tree, deep=False)
 
         fid_list = [item["fid"] for item in need_save_list]
         fid_token_list = [item["share_fid_token"] for item in need_save_list]
@@ -672,8 +663,7 @@ class Quark:
                 is_rename_count += self.do_rename_task(
                     task, f"{subdir_path}/{dir_file['file_name']}"
                 )
-            pattern, replace = magic_regex_func(
-                task["pattern"], task["replace"])
+            pattern, replace = magic_regex_func(task["pattern"], task["replace"])
             if re.search(pattern, dir_file["file_name"]):
                 save_name = (
                     re.sub(pattern, replace, dir_file["file_name"])
@@ -689,8 +679,7 @@ class Quark:
                         is_rename_count += 1
                     else:
                         print(
-                            f"重命名：{dir_file['file_name']} → {
-                                save_name} 失败，{rename_return['message']}"
+                            f"重命名：{dir_file['file_name']} → {save_name} 失败，{rename_return['message']}"
                         )
         return is_rename_count > 0
 
@@ -708,13 +697,11 @@ class Emby:
         url = f"{self.emby_url}/emby/System/Info"
         headers = {"X-Emby-Token": self.emby_apikey}
         querystring = {}
-        response = requests.request(
-            "GET", url, headers=headers, params=querystring)
+        response = requests.request("GET", url, headers=headers, params=querystring)
         if "application/json" in response.headers["Content-Type"]:
             response = response.json()
             print(
-                f"Emby媒体库: {response.get('ServerName', '')} v{
-                    response.get('Version', '')}"
+                f"Emby媒体库: {response.get('ServerName','')} v{response.get('Version','')}"
             )
             return True
         else:
@@ -757,8 +744,7 @@ class Emby:
                 "Limit": 10,
                 "IncludeSearchTypes": "false",
             }
-            response = requests.request(
-                "GET", url, headers=headers, params=querystring)
+            response = requests.request("GET", url, headers=headers, params=querystring)
             if "application/json" in response.headers["Content-Type"]:
                 response = response.json()
                 if response.get("Items"):
@@ -806,22 +792,18 @@ def do_sign(account):
     # 每日领空间
     growth_info = account.get_growth_info()
     if growth_info:
-        growth_message = f"💾 {'88VIP' if growth_info['88VIP'] else '普通用户'} 总空间：{format_bytes(
-            growth_info['total_capacity'])}，签到累计获得：{format_bytes(growth_info['cap_composition'].get('sign_reward', 0))}"
+        growth_message = f"💾 {'88VIP' if growth_info['88VIP'] else '普通用户'} 总空间：{format_bytes(growth_info['total_capacity'])}，签到累计获得：{format_bytes(growth_info['cap_composition'].get('sign_reward', 0))}"
         if growth_info["cap_sign"]["sign_daily"]:
-            sign_message = f"📅 签到记录: 今日已签到+{int(growth_info['cap_sign']['sign_daily_reward']/1024/1024)}MB，连签进度({
-                growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']})✅"
+            sign_message = f"📅 签到记录: 今日已签到+{int(growth_info['cap_sign']['sign_daily_reward']/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']})✅"
             message = f"{sign_message}\n{growth_message}"
             print(message)
         else:
             sign, sign_return = account.get_growth_sign()
             if sign:
-                sign_message = f"📅 执行签到: 今日签到+{int(sign_return/1024/1024)}MB，连签进度({
-                    growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅"
+                sign_message = f"📅 执行签到: 今日签到+{int(sign_return/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅"
                 message = f"{sign_message}\n{growth_message}"
                 if (
-                    CONFIG_DATA.get("push_config", {}).get(
-                        "QUARK_SIGN_NOTIFY") == False
+                    CONFIG_DATA.get("push_config", {}).get("QUARK_SIGN_NOTIFY") == False
                     or os.environ.get("QUARK_SIGN_NOTIFY") == "false"
                 ):
                     print(message)
@@ -897,21 +879,18 @@ def main():
     print()
     # 读取启动参数
     config_path = sys.argv[1] if len(sys.argv) > 1 else "quark_config.json"
-    task_index = int(sys.argv[2]) if len(
-        sys.argv) > 2 and sys.argv[2].isdigit() else ""
+    task_index = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else ""
     # 检查本地文件是否存在，如果不存在就下载
     if not os.path.exists(config_path):
         if os.environ.get("QUARK_COOKIE"):
             print(
-                f"⚙️ 读取到 QUARK_COOKIE 环境变量，仅签到领空间。如需执行转存，请删除该环境变量后配置 {
-                    config_path} 文件"
+                f"⚙️ 读取到 QUARK_COOKIE 环境变量，仅签到领空间。如需执行转存，请删除该环境变量后配置 {config_path} 文件"
             )
             cookie_val = os.environ.get("QUARK_COOKIE")
             cookie_form_file = False
         else:
             print(f"⚙️ 配置文件 {config_path} 不存在❌，正远程从下载配置模版")
-            config_url = f"{
-                GH_PROXY}https://raw.githubusercontent.com/Cp0204/quark_auto_save/main/quark_config.json"
+            config_url = f"{GH_PROXY}https://raw.githubusercontent.com/Cp0204/quark_auto_save/main/quark_config.json"
             if download_file(config_url, config_path):
                 print("⚙️ 配置模版下载成功✅，请到程序目录中手动配置")
             return
