@@ -188,13 +188,13 @@
               </div>
             </div>
             <div class="form-group row">
-              <label class="col-sm-2 col-form-label">正则处理</label>
+              <label class="col-sm-2 col-form-label">保存规则</label>
               <div class="col-sm-10">
                 <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">正则处理</span>
+                  </div>
                   <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex">
-                  <datalist id="magicRegex">
-                    <option v-for="(value, key) in formData.magic_regex" :key="key" :value="`${key}`" v-html="`${value.pattern} → ${value.replace}`"></option>
-                  </datalist>
                   <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
                   <div class="input-group-append">
                     <div class="input-group-text">
@@ -202,6 +202,9 @@
                     </div>
                   </div>
                 </div>
+                <datalist id="magicRegex">
+                  <option v-for="(value, key) in formData.magic_regex" :key="key" :value="`${key}`" v-html="`${value.pattern} → ${value.replace}`"></option>
+                </datalist>
               </div>
             </div>
             <div class="form-group row">
@@ -260,7 +263,8 @@
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">运行日志 <div v-if="modalLoading" class="spinner-border spinner-border-sm m-1" role="status"></div>
+            <h5 class="modal-title"><b>运行日志</b>
+              <div v-if="modalLoading" class="spinner-border spinner-border-sm m-1" role="status"></div>
             </h5>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
               <span aria-hidden="true">&times;</span>
@@ -421,7 +425,7 @@
           }, 1);
         },
         removeTask(index) {
-          if (confirm("确认删除任务 [#" + (index+1) + ": " + this.formData.tasklist[index].taskname + "] 吗？"))
+          if (confirm("确认删除任务 [#" + (index + 1) + ": " + this.formData.tasklist[index].taskname + "] 吗？"))
             this.formData.tasklist.splice(index, 1);
         },
         clearShareurlBan(task) {
