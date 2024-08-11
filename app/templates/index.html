@@ -184,7 +184,20 @@
             <div class="form-group row">
               <label class="col-sm-2 col-form-label">保存路径</label>
               <div class="col-sm-10">
-                <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填">
+                <div class="input-group">
+                  <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填">
+                  <div class="input-group-append">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" @click="getSavepathDirs(task.savepath)" data-toggle="dropdown" aria-expanded="false">选择</button>
+                    <div class="dropdown-menu">
+                      <a v-for="(item, key) in savepaths" v-if="item.dir" :class="{'disabled': item.fid === 0}" class="dropdown-item" @click.stop.prevent="selectSavepath(index,item.fid,item.file_name)">
+                        <i class="bi bi-folder2"></i> {{ item.file_name }}
+                      </a>
+                      <span v-if="!savepaths.some(item => item.dir)" class="dropdown-item disabled">
+                        无子目录
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="form-group row">
@@ -369,6 +382,7 @@
         taskDirs: [""],
         taskDirSelected: "",
         taskNameFilter: "",
+        savepaths: [],
         modalLoading: false,
         shareFiles: [],
         forceTaskIndex: null
@@ -500,12 +514,33 @@
         clearData(target) {
           this[target] = "";
         },
+        selectSavepath(index, fid, name) {
+          const savepath = `/${this.formData.tasklist[index].savepath}/${name}`.replace(/\/{2,}/g, '/')
+          Vue.set(this.formData.tasklist[index], 'savepath', savepath);
+          this.getSavepathDirs(fid);
+        },
+        getSavepathDirs(fid = 0) {
+          if (fid.includes('/')) {
+            params = { path: fid }
+          } else {
+            params = { fid: fid }
+          }
+          this.savepaths = [{ fid: 0, dir: true, file_name: "加载中..." }]
+          console.log(this.savepaths)
+          axios.get('/get_savepath', { params: params })
+            .then(response => {
+              this.savepaths = response.data
+              console.log(this.savepaths)
+            })
+            .catch(error => {
+              console.error('Error get_share_files:', error);
+            });
+        },
         selectStartFid(fid) {
           Vue.set(this.formData.tasklist[this.forceTaskIndex], 'startfid', fid);
           $('#shareDetailModal').modal('toggle')
         },
         showShareFiles(index) {
-
           this.shareFiles = []
           $('#shareDetailModal').modal('toggle')
           this.modalLoading = true
