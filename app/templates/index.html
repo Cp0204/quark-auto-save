@@ -208,6 +208,17 @@
               </div>
             </div>
             <div class="form-group row">
+              <label class="col-sm-2 col-form-label">文件开始</label>
+              <div class="col-sm-10">
+                <div class="input-group">
+                  <input type="text" class="form-control" placeholder="可选" name="startfid[]" v-model="task.startfid">
+                  <div class="input-group-append">
+                    <button class="btn btn-outline-secondary" type="button" @click="showShareFiles(index)">选择</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="form-group row">
               <label class="col-sm-2 col-form-label">更子目录</label>
               <div class="col-sm-10">
                 <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，需更新子目录的正则式，多项以|分割，如 4k|1080p ，注意！深层嵌套目录慎用 .* ！" title="注意！深层嵌套目录逐级索引，工作强度会非常大，慎用！">
@@ -277,6 +288,45 @@
       </div>
     </div>
 
+    <!-- 模态框 分享文件列表 -->
+    <div class="modal" tabindex="-1" id="shareDetailModal">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><b>分享文件列表</b>
+              <div v-if="modalLoading" class="spinner-border spinner-border-sm m-1" role="status"></div>
+            </h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <table class="table table-hover table-sm" v-if="!modalLoading" title="请选择转存起始文件，将只转存修改日期>选中文件的文件">
+              <thead>
+                <tr>
+                  <!-- <th scope="col">fid</th> -->
+                  <th scope="col">文件名</th>
+                  <th scope="col">大小</th>
+                  <th scope="col">修改日期 ↓</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colspan="4"><i class="bi bi-folder-plus"></i> 后续更新的文件...</td>
+                </tr>
+                <tr v-for="(file, key) in shareFiles" :key="key" @click="selectStartFid(file.fid)" style="cursor: pointer;">
+                  <!-- <td>{{file.fid}}</td> -->
+                  <td><i v-if="file.dir==true" class="bi bi-folder2"></i><i v-if="file.dir==false" class="bi bi-file-earmark"></i> {{file.file_name}}</td>
+                  <td>{{file.size | size}}</td>
+                  <td>{{file.last_update_at | ts2date}}</td>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- 引入 Bootstrap JS -->
@@ -319,7 +369,23 @@
         taskDirs: [""],
         taskDirSelected: "",
         taskNameFilter: "",
-        modalLoading: false
+        modalLoading: false,
+        shareFiles: [],
+        forceTaskIndex: null
+      },
+      filters: {
+        ts2date: function (value) {
+          const date = new Date(value);
+          return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+        },
+        size: function (value) {
+          if (!value) return "0B";
+          const unitArr = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+          const srcsize = parseFloat(value);
+          const index = srcsize ? Math.floor(Math.log(srcsize) / Math.log(1024)) : 0;
+          const size = (srcsize / Math.pow(1024, index)).toFixed(2).replace(/\.?0+$/, "");
+          return size + unitArr[index];
+        }
       },
       watch: {
         'formData.push_config': {
@@ -433,6 +499,25 @@
         },
         clearData(target) {
           this[target] = "";
+        },
+        selectStartFid(fid) {
+          Vue.set(this.formData.tasklist[this.forceTaskIndex], 'startfid', fid);
+          $('#shareDetailModal').modal('toggle')
+        },
+        showShareFiles(index) {
+
+          this.shareFiles = []
+          $('#shareDetailModal').modal('toggle')
+          this.modalLoading = true
+          axios.get('/get_share_files', { params: { shareurl: this.formData.tasklist[index].shareurl } })
+            .then(response => {
+              this.forceTaskIndex = index
+              this.shareFiles = response.data;
+              this.modalLoading = false
+            })
+            .catch(error => {
+              console.error('Error get_share_files:', error);
+            });
         },
         runScriptNow(task_index = "") {
           $('#logModal').modal('toggle')
