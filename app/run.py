@@ -212,6 +212,25 @@ def get_share_files():
     return jsonify(share_file_list)
 
 
+@app.route("/get_savepath")
+def get_savepath():
+    if not is_login():
+        return jsonify({"error": "未登录"})
+    data = read_json()
+    account = Quark(data["cookie"][0], 0)
+    if path := request.args.get("path"):
+        if path == "/":
+            fid = 0
+        elif get_fids := account.get_fids([path]):
+            fid = get_fids[0]["fid"]
+        else:
+            return jsonify([])
+    else:
+        fid = request.args.get("fid", 0)
+    file_list = account.ls_dir(fid)
+    return jsonify(file_list)
+
+
 # 定时任务执行的函数
 def run_python(args):
     logging.info(f">>> 定时运行任务")
