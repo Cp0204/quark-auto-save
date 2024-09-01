@@ -188,13 +188,13 @@
                   <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填">
                   <div class="input-group-append">
                     <button class="btn btn-outline-secondary dropdown-toggle" type="button" @click="getSavepathDirs(task.savepath)" data-toggle="dropdown" aria-expanded="false">选择</button>
-                    <div class="dropdown-menu">
-                      <a v-for="(item, key) in savepaths" v-if="item.dir" :class="{'disabled': item.fid === 0}" class="dropdown-item" @click.stop.prevent="selectSavepath(index,item.fid,item.file_name)">
-                        <i class="bi bi-folder2"></i> {{ item.file_name }}
-                      </a>
+                    <div class="dropdown-menu" style="max-height: 300px; overflow-y: auto;">
                       <span v-if="!savepaths.some(item => item.dir)" class="dropdown-item disabled">
                         无子目录
                       </span>
+                      <a v-for="(item, key) in savepaths" :class="{'disabled': item.fid === 0 || !item.dir}" class="dropdown-item" @click.stop.prevent="selectSavepath(index,item.fid,item.file_name)" href="#">
+                        <i class="bi" :class="item.dir ? 'bi-folder2' : 'bi-file-earmark'"></i> {{ item.file_name }}
+                      </a>
                     </div>
                   </div>
                 </div>
@@ -329,7 +329,7 @@
                 </tr>
                 <tr v-for="(file, key) in shareFiles" :key="key" @click="selectStartFid(file.fid)" style="cursor: pointer;">
                   <!-- <td>{{file.fid}}</td> -->
-                  <td><i v-if="file.dir==true" class="bi bi-folder2"></i><i v-if="file.dir==false" class="bi bi-file-earmark"></i> {{file.file_name}}</td>
+                  <td><i class="bi" :class="item.dir ? 'bi-folder2' : 'bi-file-earmark'"></i> {{file.file_name}}</td>
                   <td>{{file.size | size}}</td>
                   <td>{{file.last_update_at | ts2date}}</td>
                   </td>
