@@ -160,7 +160,7 @@
               <div class="col-sm-10">
                 <div class="input-group">
                   <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填">
-                  <div class="input-group-append">
+                  <div class="input-group-append" v-if="task.taskname">
                     <div class="input-group-text">
                       <a target="_blank" :href="`https://www.google.com/search?q=%22pan.quark%22+${task.taskname}`"><i class="bi bi-search"></i></a>
                     </div>
@@ -225,7 +225,7 @@
               <div class="col-sm-10">
                 <div class="input-group">
                   <input type="text" class="form-control" placeholder="可选" name="startfid[]" v-model="task.startfid">
-                  <div class="input-group-append">
+                  <div class="input-group-append" v-if="task.shareurl">
                     <button class="btn btn-outline-secondary" type="button" @click="showShareFiles(index)">选择</button>
                   </div>
                 </div>
