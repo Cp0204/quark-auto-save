@@ -149,12 +149,12 @@
               </div>
             </div>
             <div class="col-3 text-right">
-              <button type="button" class="btn btn-outline-primary" @click="runScriptNow(index)" title="运行此任务"><i class="bi bi-play-fill"></i></button>
+              <button class="btn btn-warning" v-if="task.shareurl_ban" v-html="task.shareurl_ban" disabled></button>
+              <button type="button" class="btn btn-outline-primary" @click="runScriptNow(index)" title="运行此任务" v-else><i class="bi bi-play-fill"></i></button>
               <button type="button" class="btn btn-outline-danger" @click="removeTask(index)" title="删除此任务"><i class="bi bi-trash3-fill"></i></button>
             </div>
           </div>
           <div class="collapse" :id="'collapse_'+index" style="padding-left:2em">
-            <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="task.shareurl_ban"></div>
             <div class="form-group row">
               <label class="col-sm-2 col-form-label">任务名称</label>
               <div class="col-sm-10">
