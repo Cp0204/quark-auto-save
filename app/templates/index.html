@@ -189,9 +189,8 @@
                   <div class="input-group-append">
                     <button class="btn btn-outline-secondary dropdown-toggle" type="button" @click="getSavepathDirs(task.savepath)" data-toggle="dropdown" aria-expanded="false">选择</button>
                     <div class="dropdown-menu" style="max-height: 300px; overflow-y: auto;">
-                      <span v-if="!savepaths.some(item => item.dir)" class="dropdown-item disabled">
-                        无子目录
-                      </span>
+                      <a class="dropdown-item" @click.stop.prevent="selectSavepath(index,getParentDirectory(task.savepath),'..')" href="#">..</a>
+                      <span v-if="!savepaths.some(item => item.dir)" class="dropdown-item disabled">无子目录</span>
                       <a v-for="(item, key) in savepaths" :class="{'disabled': item.fid === 0 || !item.dir}" class="dropdown-item" @click.stop.prevent="selectSavepath(index,item.fid,item.file_name)" href="#">
                         <i class="bi" :class="item.dir ? 'bi-folder2' : 'bi-file-earmark'"></i> {{ item.file_name }}
                       </a>
@@ -515,7 +514,7 @@
           this[target] = "";
         },
         selectSavepath(index, fid, name) {
-          const savepath = `/${this.formData.tasklist[index].savepath}/${name}`.replace(/\/{2,}/g, '/')
+          const savepath = name == ".." ? this.getParentDirectory(this.formData.tasklist[index].savepath) : `/${this.formData.tasklist[index].savepath}/${name}`.replace(/\/{2,}/g, '/')
           Vue.set(this.formData.tasklist[index], 'savepath', savepath);
           this.getSavepathDirs(fid);
         },
