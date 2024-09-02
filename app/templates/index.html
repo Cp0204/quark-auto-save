@@ -313,7 +313,8 @@
             </button>
           </div>
           <div class="modal-body">
-            <table class="table table-hover table-sm" v-if="!modalLoading" title="请选择转存起始文件，将只转存修改日期>选中文件的文件">
+            <div class="alert alert-warning" v-if="shareFiles.error" v-html="shareFiles.error"></div>
+            <table class="table table-hover table-sm" v-else-if="!modalLoading" title="请选择转存起始文件，将只转存修改日期>选中文件的文件">
               <thead>
                 <tr>
                   <!-- <th scope="col">fid</th> -->
