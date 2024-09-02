@@ -328,7 +328,7 @@
                 </tr>
                 <tr v-for="(file, key) in shareFiles" :key="key" @click="selectStartFid(file.fid)" style="cursor: pointer;">
                   <!-- <td>{{file.fid}}</td> -->
-                  <td><i class="bi" :class="item.dir ? 'bi-folder2' : 'bi-file-earmark'"></i> {{file.file_name}}</td>
+                  <td><i class="bi" :class="file.dir ? 'bi-folder2' : 'bi-file-earmark'"></i> {{file.file_name}}</td>
                   <td>{{file.size | size}}</td>
                   <td>{{file.last_update_at | ts2date}}</td>
                   </td>
