@@ -448,7 +448,9 @@ def wecom_app(title: str, content: str) -> None:
         print("QYWX_AM 未设置!!\n取消推送")
         return
     QYWX_AM_AY = re.split(",", push_config.get("QYWX_AM"))
-    if 4 < len(QYWX_AM_AY) > 5:
+    param_len = len(QYWX_AM_AY)
+    # 参数只能是4个或5个
+    if  param_len < 4 or param_len > 5:
         print("QYWX_AM 设置错误!!\n取消推送")
         return
     print("企业微信 APP 服务启动")
@@ -457,10 +459,8 @@ def wecom_app(title: str, content: str) -> None:
     corpsecret = QYWX_AM_AY[1]
     touser = QYWX_AM_AY[2]
     agentid = QYWX_AM_AY[3]
-    try:
-        media_id = QYWX_AM_AY[4]
-    except IndexError:
-        media_id = ""
+    media_id = QYWX_AM_AY[4] if param_len == 5 else ''
+
     wx = WeCom(corpid, corpsecret, agentid)
     # 如果没有配置 media_id 默认就以 text 方式发送
     if not media_id:
@@ -798,7 +798,7 @@ def parse_headers(headers):
 
 def parse_string(input_string, value_format_fn=None):
     matches = {}
-    pattern = r"(\w+):\s*((?:(?!\n\w+:).)*)"
+    pattern = r'"(\w+)":\s*("(?:[^"\\]|\\.)*"|\d+|true|false|null)'
     regex = re.compile(pattern)
     for match in regex.finditer(input_string):
         key, value = match.group(1).strip(), match.group(2).strip()
@@ -807,6 +807,9 @@ def parse_string(input_string, value_format_fn=None):
             json_value = json.loads(value)
             matches[key] = json_value
         except:
+            # json字符串的value可能是被""包裹的, 如果json.loads无法正常解析, 那么此处需要去除首尾的"
+            if value and value.startswith('"') and value.endswith('"'):
+                value = value[1:-1]
             matches[key] = value
     return matches
 
