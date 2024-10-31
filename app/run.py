@@ -46,6 +46,7 @@ DEBUG = os.environ.get("DEBUG", False)
 app = Flask(__name__)
 app.config["APP_VERSION"] = get_app_ver()
 app.secret_key = "ca943f6db6dd34823d36ab08d8d6f65d"
+app.config['SESSION_COOKIE_NAME'] = 'QUARK_AUTO_SAVE_SESSION'
 app.json.ensure_ascii = False
 app.json.sort_keys = False
 app.jinja_env.variable_start_string = "[["
