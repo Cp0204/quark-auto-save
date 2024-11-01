@@ -58,7 +58,10 @@
 
       <div class="row title">
         <div class="col">
-          <h2>通知</h2>
+          <h2 style="display: inline-block;">通知</h2>
+          <span class="badge badge-pill badge-light">
+            <a href="https://github.com/Cp0204/quark-auto-save/wiki/%E9%80%9A%E7%9F%A5%E6%8E%A8%E9%80%81%E6%9C%8D%E5%8A%A1%E9%85%8D%E7%BD%AE" target="_blank">?</a>
+          </span>
         </div>
         <div class="col text-right">
           <button type="button" class="btn btn-outline-primary mb-3" @click="addPush()">+</button>
@@ -101,7 +104,7 @@
         </div>
       </div>
       <div class="form-group row">
-        <label class="col-sm-2 col-form-label">Crontab<span class="badge badge-pill badge-light"><a target="_blank" href="https://tool.lu/crontab/">?</a></span></label>
+        <label class="col-sm-2 col-form-label">Crontab <span class="badge badge-pill badge-light"><a target="_blank" href="https://tool.lu/crontab/">?</a></span></label>
         <div class="col-sm-10">
           <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
         </div>
@@ -149,7 +152,7 @@
               </div>
             </div>
             <div class="col-3 text-right">
-              <button class="btn btn-warning" v-if="task.shareurl_ban" v-html="task.shareurl_ban" disabled></button>
+              <button class="btn btn-warning" v-if="task.shareurl_ban" :title="task.shareurl_ban" disabled><i class="bi bi-exclamation-triangle-fill"></i></button>
               <button type="button" class="btn btn-outline-primary" @click="runScriptNow(index)" title="运行此任务" v-else><i class="bi bi-play-fill"></i></button>
               <button type="button" class="btn btn-outline-danger" @click="removeTask(index)" title="删除此任务"><i class="bi bi-trash3-fill"></i></button>
             </div>
