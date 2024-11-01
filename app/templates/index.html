@@ -158,6 +158,7 @@
             </div>
           </div>
           <div class="collapse" :id="'collapse_'+index" style="padding-left:2em">
+            <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="task.shareurl_ban"></div>
             <div class="form-group row">
               <label class="col-sm-2 col-form-label">任务名称</label>
               <div class="col-sm-10">
@@ -175,7 +176,7 @@
               <label class="col-sm-2 col-form-label">分享链接</label>
               <div class="col-sm-10">
                 <div class="input-group">
-                  <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @input="clearShareurlBan(task)">
+                  <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @change="changeShareurl(task)">
                   <div class="input-group-append" v-if="task.shareurl">
                     <div class="input-group-text">
                       <a target="_blank" :href="task.shareurl"><i class="bi bi-box-arrow-up-right"></i></a>
@@ -498,7 +499,12 @@
         addTask() {
           newTask = { ...this.newTask }
           newTask.taskname = this.taskNameFilter
-          newTask.savepath = this.taskDirSelected + "/" + newTask.taskname
+          lastTask = this.formData.tasklist[this.formData.tasklist.length - 1]
+          if (this.formData.tasklist.length > 0 && lastTask.taskname) {
+            newTask.savepath = lastTask.savepath.replace(lastTask.taskname, 'newTask')
+          } else {
+            newTask.savepath = this.taskDirSelected + "/" + newTask.taskname
+          }
           this.formData.tasklist.push(newTask);
           // 滚到最下
           setTimeout(() => {
@@ -511,8 +517,22 @@
           if (confirm("确认删除任务 [#" + (index + 1) + ": " + this.formData.tasklist[index].taskname + "] 吗？"))
             this.formData.tasklist.splice(index, 1);
         },
-        clearShareurlBan(task) {
-          delete task.shareurl_ban;
+        changeShareurl(task) {
+          if (!task.shareurl)
+            return;
+          axios.get('/get_share_detail', { params: { shareurl: task.shareurl } })
+            .then(response => {
+              if (response.data.error) {
+                this.$set(task, "shareurl_ban", response.data.error);
+              } else {
+                task.taskname = task.taskname == "" ? response.data.share.title : task.taskname;
+                task.savepath = task.savepath.replace(/newTask/g, response.data.share.title);
+                this.$set(task, "shareurl_ban", undefined);
+              }
+            })
+            .catch(error => {
+              console.error('Error get_share_detail:', error);
+            });
         },
         clearData(target) {
           this[target] = "";
@@ -536,7 +556,7 @@
               console.log(this.savepaths)
             })
             .catch(error => {
-              console.error('Error get_share_files:', error);
+              console.error('Error get_savepath:', error);
             });
         },
         selectStartFid(fid) {
@@ -547,14 +567,14 @@
           this.shareFiles = []
           $('#shareDetailModal').modal('toggle')
           this.modalLoading = true
-          axios.get('/get_share_files', { params: { shareurl: this.formData.tasklist[index].shareurl } })
+          axios.get('/get_share_detail', { params: { shareurl: this.formData.tasklist[index].shareurl } })
             .then(response => {
               this.forceTaskIndex = index
-              this.shareFiles = response.data;
+              this.shareFiles = response.data.list;
               this.modalLoading = false
             })
             .catch(error => {
-              console.error('Error get_share_files:', error);
+              console.error('Error get_share_detail:', error);
             });
         },
         runScriptNow(task_index = "") {
