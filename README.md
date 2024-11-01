@@ -11,13 +11,15 @@
 定期执行本脚本自动转存、文件名整理，配合 Alist, rclone, Emby 可达到自动追更的效果。🥳
 
 
-[![github tag][gitHub-tag-image]][github-url] [![docker pulls][docker-pulls-image]][docker-url] [![docker image size][docker-image-size-image]][docker-url]
+[![wiki][wiki-image]][wiki-url] [![github tag][gitHub-tag-image]][github-url] [![docker pulls][docker-pulls-image]][docker-url] [![docker image size][docker-image-size-image]][docker-url]
 
-[gitHub-tag-image]: https://img.shields.io/github/v/tag/Cp0204/quark-auto-save
-[docker-pulls-image]: https://img.shields.io/docker/pulls/cp0204/quark-auto-save
-[docker-image-size-image]: https://img.shields.io/docker/image-size/cp0204/quark-auto-save
+[wiki-image]: https://img.shields.io/badge/wiki-Documents-blue?logo=github
+[gitHub-tag-image]: https://img.shields.io/github/v/tag/Cp0204/quark-auto-save?logo=github
+[docker-pulls-image]: https://img.shields.io/docker/pulls/cp0204/quark-auto-save?logo=docker&&logoColor=white
+[docker-image-size-image]: https://img.shields.io/docker/image-size/cp0204/quark-auto-save?logo=docker&&logoColor=white
 [github-url]: https://github.com/Cp0204/quark-auto-save
 [docker-url]: https://hub.docker.com/r/cp0204/quark-auto-save
+[wiki-url]: https://github.com/Cp0204/quark-auto-save/wiki
 
 ![run_log](img/run_log.png)
 
