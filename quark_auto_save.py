@@ -227,8 +227,8 @@ class Quark:
         else:
             return False, response["message"]
 
-    def get_detail(self, pwd_id, stoken, pdir_fid):
-        file_list = []
+    def get_detail(self, pwd_id, stoken, pdir_fid, _fetch_share=0):
+        list_merge = []
         page = 1
         while True:
             url = "https://drive-m.quark.cn/1/clouddrive/share/sharepage/detail"
@@ -242,7 +242,7 @@ class Quark:
                 "_page": page,
                 "_size": "50",
                 "_fetch_banner": "0",
-                "_fetch_share": "0",
+                "_fetch_share": _fetch_share,
                 "_fetch_total": "1",
                 "_sort": "file_type:asc,updated_at:desc",
             }
@@ -251,13 +251,14 @@ class Quark:
                 "GET", url, headers=headers, params=querystring
             ).json()
             if response["data"]["list"]:
-                file_list += response["data"]["list"]
+                list_merge += response["data"]["list"]
                 page += 1
             else:
                 break
-            if len(file_list) >= response["metadata"]["_total"]:
+            if len(list_merge) >= response["metadata"]["_total"]:
                 break
-        return file_list
+        response["data"]["list"] = list_merge
+        return response["data"]
 
     def get_fids(self, file_paths):
         fids = []
@@ -432,7 +433,7 @@ class Quark:
         try:
             pwd_id, pdir_fid = self.get_id_from_url(shareurl)
             is_sharing, stoken = self.get_stoken(pwd_id)
-            share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)
+            share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["list"]
             fid_list = [item["fid"] for item in share_file_list]
             fid_token_list = [item["share_fid_token"] for item in share_file_list]
             file_name_list = [item["file_name"] for item in share_file_list]
@@ -501,7 +502,7 @@ class Quark:
         tree = Tree()
         tree.create_node(task["savepath"], pdir_fid)
         # 获取分享文件列表
-        share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)
+        share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["list"]
         # print("share_file_list: ", share_file_list)
 
         if not share_file_list:
@@ -515,7 +516,9 @@ class Quark:
             and subdir_path == ""
         ):  # 仅有一个文件夹
             print("🧠 该分享是一个文件夹，读取文件夹内列表")
-            share_file_list = self.get_detail(pwd_id, stoken, share_file_list[0]["fid"])
+            share_file_list = self.get_detail(
+                pwd_id, stoken, share_file_list[0]["fid"]
+            )["list"]
 
         # 获取目标目录文件列表
         savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
