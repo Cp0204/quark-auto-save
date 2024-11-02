@@ -39,12 +39,14 @@ MAGIC_REGEX = {
 
 
 # 魔法正则匹配
-def magic_regex_func(pattern, replace):
+def magic_regex_func(pattern, replace, taskname=""):
     keyword = pattern
     if keyword in CONFIG_DATA["magic_regex"]:
         pattern = CONFIG_DATA["magic_regex"][keyword]["pattern"]
         if replace == "":
             replace = CONFIG_DATA["magic_regex"][keyword]["replace"]
+    if taskname:
+        replace = replace.replace("$TASKNAME", taskname)
     return pattern, replace
 
 
@@ -531,7 +533,9 @@ class Quark:
             if share_file["dir"] and task.get("update_subdir", False):
                 pattern, replace = task["update_subdir"], ""
             else:
-                pattern, replace = magic_regex_func(task["pattern"], task["replace"])
+                pattern, replace = magic_regex_func(
+                    task["pattern"], task["replace"], task["taskname"]
+                )
             # 正则文件名匹配
             if re.search(pattern, share_file["file_name"]):
                 # 替换后的文件名
@@ -648,7 +652,9 @@ class Quark:
         return response
 
     def do_rename_task(self, task, subdir_path=""):
-        pattern, replace = magic_regex_func(task["pattern"], task["replace"])
+        pattern, replace = magic_regex_func(
+            task["pattern"], task["replace"], task["taskname"]
+        )
         if not pattern or not replace:
             return 0
         savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
