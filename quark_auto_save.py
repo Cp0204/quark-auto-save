@@ -102,13 +102,8 @@ class Quark:
         self.index = index + 1
         self.is_active = False
         self.nickname = ""
-        self.st = self.match_st_form_cookie(cookie)
         self.mparam = self.match_mparam_form_cookie(cookie)
         self.savepath_fid = {"/": "0"}
-
-    def match_st_form_cookie(self, cookie):
-        match = re.search(r"=(st[a-zA-Z0-9]+);", cookie)
-        return match.group(1) if match else False
 
     def match_mparam_form_cookie(self, cookie):
         mparam = {}
@@ -128,8 +123,6 @@ class Quark:
             "cookie": self.cookie,
             "content-type": "application/json",
         }
-        if self.st:
-            headers["x-clouddrive-st"] = self.st
         return headers
 
     def init(self):
@@ -157,7 +150,7 @@ class Quark:
             return False
 
     def get_growth_info(self):
-        url = "https://drive-m.quark.cn/1/clouddrive/capacity/growth/info"
+        url = "https://drive-h.quark.cn/1/clouddrive/capacity/growth/info"
         querystring = {
             "pr": "ucpro",
             "fr": "android",
@@ -177,7 +170,7 @@ class Quark:
             return False
 
     def get_growth_sign(self):
-        url = "https://drive-m.quark.cn/1/clouddrive/capacity/growth/sign"
+        url = "https://drive-h.quark.cn/1/clouddrive/capacity/growth/sign"
         querystring = {
             "pr": "ucpro",
             "fr": "android",
@@ -215,7 +208,7 @@ class Quark:
 
     # 可验证资源是否失效
     def get_stoken(self, pwd_id):
-        url = "https://drive-m.quark.cn/1/clouddrive/share/sharepage/token"
+        url = "https://drive-h.quark.cn/1/clouddrive/share/sharepage/token"
         querystring = {"pr": "ucpro", "fr": "h5"}
         payload = {"pwd_id": pwd_id, "passcode": ""}
         headers = self.common_headers()
@@ -231,7 +224,7 @@ class Quark:
         list_merge = []
         page = 1
         while True:
-            url = "https://drive-m.quark.cn/1/clouddrive/share/sharepage/detail"
+            url = "https://drive-h.quark.cn/1/clouddrive/share/sharepage/detail"
             querystring = {
                 "pr": "ucpro",
                 "fr": "pc",
@@ -263,7 +256,7 @@ class Quark:
     def get_fids(self, file_paths):
         fids = []
         while True:
-            url = "https://drive-m.quark.cn/1/clouddrive/file/info/path_list"
+            url = "https://drive-h.quark.cn/1/clouddrive/file/info/path_list"
             querystring = {"pr": "ucpro", "fr": "pc"}
             payload = {"file_path": file_paths[:50], "namespace": "0"}
             headers = self.common_headers()
@@ -284,7 +277,7 @@ class Quark:
         file_list = []
         page = 1
         while True:
-            url = "https://drive-m.quark.cn/1/clouddrive/file/sort"
+            url = "https://drive-h.quark.cn/1/clouddrive/file/sort"
             querystring = {
                 "pr": "ucpro",
                 "fr": "pc",
@@ -310,7 +303,7 @@ class Quark:
         return file_list
 
     def save_file(self, fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken):
-        url = "https://drive-m.quark.cn/1/clouddrive/share/sharepage/save"
+        url = "https://drive-h.quark.cn/1/clouddrive/share/sharepage/save"
         querystring = {
             "pr": "ucpro",
             "fr": "pc",
@@ -319,7 +312,6 @@ class Quark:
             "__dt": int(random.uniform(1, 5) * 60 * 1000),
             "__t": datetime.now().timestamp(),
         }
-        querystring["fr"] = "h5" if self.st else "pc"
         payload = {
             "fid_list": fid_list,
             "fid_token_list": fid_token_list,
@@ -336,7 +328,7 @@ class Quark:
         return response
 
     def mkdir(self, dir_path):
-        url = "https://drive-m.quark.cn/1/clouddrive/file"
+        url = "https://drive-h.quark.cn/1/clouddrive/file"
         querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
         payload = {
             "pdir_fid": "0",
@@ -351,7 +343,7 @@ class Quark:
         return response
 
     def rename(self, fid, file_name):
-        url = "https://drive-m.quark.cn/1/clouddrive/file/rename"
+        url = "https://drive-h.quark.cn/1/clouddrive/file/rename"
         querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
         payload = {"fid": fid, "file_name": file_name}
         headers = self.common_headers()
@@ -361,7 +353,7 @@ class Quark:
         return response
 
     def delete(self, filelist):
-        url = "https://drive-m.quark.cn/1/clouddrive/file/delete"
+        url = "https://drive-h.quark.cn/1/clouddrive/file/delete"
         querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
         payload = {"action_type": 2, "filelist": filelist, "exclude_fids": []}
         headers = self.common_headers()
@@ -371,7 +363,7 @@ class Quark:
         return response
 
     def recycle_list(self, page=1, size=30):
-        url = "https://drive-m.quark.cn/1/clouddrive/file/recycle/list"
+        url = "https://drive-h.quark.cn/1/clouddrive/file/recycle/list"
         querystring = {
             "_page": page,
             "_size": size,
@@ -386,7 +378,7 @@ class Quark:
         return response["data"]["list"]
 
     def recycle_remove(self, record_list):
-        url = "https://drive-m.quark.cn/1/clouddrive/file/recycle/remove"
+        url = "https://drive-h.quark.cn/1/clouddrive/file/recycle/remove"
         querystring = {"uc_param_str": "", "fr": "pc", "pr": "ucpro"}
         payload = {
             "select_mode": 2,
@@ -624,7 +616,7 @@ class Quark:
     def query_task(self, task_id):
         retry_index = 0
         while True:
-            url = "https://drive-m.quark.cn/1/clouddrive/task"
+            url = "https://drive-h.quark.cn/1/clouddrive/task"
             querystring = {
                 "pr": "ucpro",
                 "fr": "pc",
