@@ -13,7 +13,7 @@
 
 [![wiki][wiki-image]][wiki-url] [![github tag][gitHub-tag-image]][github-url] [![docker pulls][docker-pulls-image]][docker-url] [![docker image size][docker-image-size-image]][docker-url]
 
-[wiki-image]: https://img.shields.io/badge/wiki-Documents-blue?logo=github
+[wiki-image]: https://img.shields.io/badge/wiki-Documents-green?logo=github
 [gitHub-tag-image]: https://img.shields.io/github/v/tag/Cp0204/quark-auto-save?logo=github
 [docker-pulls-image]: https://img.shields.io/docker/pulls/cp0204/quark-auto-save?logo=docker&&logoColor=white
 [docker-image-size-image]: https://img.shields.io/docker/image-size/cp0204/quark-auto-save?logo=docker&&logoColor=white
@@ -26,17 +26,7 @@
 </div>
 
 > [!CAUTION]
-> ⛔️⛔️⛔️ 注意！资源不会每时每刻更新，**严禁设定过高的定时运行频率！** 以免账号异常或给夸克服务器造成不必要的压力。雪山崩塌，每一片雪花都有责任！
-
-> [!TIP]
->
-> 受 [@BNDou](https://github.com/BNDou) 提示和方法借鉴，**已适配新的签到方式**。
->
-> 你需要手机端访问签到页，抓包 <u>/1/clouddrive/capacity/growth/info</u> 请求的 kps, sign, vcode 三个参数，**纯签到只需这三个参数即可！** 转存号可附在 cookie 的最后，如：
->
-> > cookie`;kps=123456789&sign=123456789&vcode=123456`
->
-> 如果你纯粹需要签到功能，建议移步 @BNDou 的 [Auto_Check_In](https://github.com/BNDou/Auto_Check_In/blob/main/checkIn_Quark.py) 项目，更聚焦一些。
+> ⛔️⛔️⛔️ 注意！资源不会每时每刻更新，**严禁设定过高的定时运行频率！** 以免账号风控和给夸克服务器造成不必要的压力。雪山崩塌，每一片雪花都有责任！
 
 > [!NOTE]
 > 因不想当客服处理各种使用咨询，即日起 Issues 关闭，如果你发现了 bug 、有好的想法或功能建议，欢迎通过 PR 和我对话，谢谢！
@@ -68,15 +58,15 @@
   - [x] 追更或整理后自动刷新 Emby 媒体库
 
 - 其它
-  - [x] 每日签到领空间
-  - [x] 支持多个通知推送渠道
+  - [x] 每日签到领空间 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/%E4%BD%BF%E7%94%A8%E6%8A%80%E5%B7%A7%E9%9B%86%E9%94%A6#%E6%AF%8F%E6%97%A5%E7%AD%BE%E5%88%B0%E9%A2%86%E7%A9%BA%E9%97%B4)</sup>
+  - [x] 支持多个通知推送渠道 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/%E9%80%9A%E7%9F%A5%E6%8E%A8%E9%80%81%E6%9C%8D%E5%8A%A1%E9%85%8D%E7%BD%AE)</sup>
   - [x] 支持多账号（多账号签到，仅首账号转存）
 
 ## 使用
 
-### Docker 部署（推荐）
+### Docker 部署
 
-提供 WebUI 管理配置，~~但目前 WebUI 并不完善，只供辅助使用，你也应该了解如何[手动配置](#程序配置)。~~ WebUI 已能满足绝大多数需求。
+Docker 部署提供 WebUI 管理配置，图形化配置已能满足绝大多数需求。部署命令：
 
 ```shell
 docker run -d \
@@ -89,6 +79,27 @@ docker run -d \
   --network bridge \
   --restart unless-stopped \
   cp0204/quark-auto-save:latest
+```
+
+docker-compose.yml
+
+```yaml
+name: quark-auto-save
+services:
+  quark-auto-save:
+    image: cp0204/quark-auto-save:latest
+    # image: registry.cn-shenzhen.aliyuncs.com/cp0204/quark-auto-save:latest
+    container_name: quark-auto-save
+    network_mode: bridge
+    ports:
+      - 5005:5005
+    restart: unless-stopped
+    environment:
+      WEBUI_USERNAME: "admin"
+      WEBUI_PASSWORD: "admin123"
+    volumes:
+      - ./quark-auto-save/config:/app/config
+      - /etc/localtime:/etc/localtime
 ```
 
 管理地址：http://yourhost:5005
@@ -115,55 +126,9 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 
 ### 青龙部署
 
-1. 拉库命令：
+程序也支持以青龙定时任务的方式运行，但该方式无法使用 WebUI 管理任务，需手动修改配置文件。
 
-    ```
-    ql repo https://github.com/Cp0204/quark-auto-save.git "quark" "" "notify"
-    ```
-
-2. 首次运行程序将从本仓库下载配置模版。
-
-3. 脚本管理中，手动编辑 `quark_config.json` 配置文件。
-
-> 删除配置文件，且存在青龙环境变量 `QUARK_COOKIE` 时，则仅签到，多账号用换行分隔。
-
-### 程序配置
-
-首次运行脚本将从本仓库下载 `quark_config.json` 配置模版：
-
-```json
-{
-  "cookie": [ //请用手机验证码登录，CK比较完整！
-    "Your pan.quark.cn Cookie1, Only this one will do save task.",
-    "Your pan.quark.cn Cookie2, Only sign after this."
-  ],
-  "push_config": { //无此字段则从环境变量（青龙设置）读取通知设置
-    "QUARK_SIGN_NOTIFY": true, //是否发送签到成功通知，也可在环境变量中设置
-    "QYWX_AM": "", //企业微信应用通知示例
-    "其他推送渠道//此项可删": "配置方法同青龙"
-  },
-  "emby": {
-    "url": "http://yourdomain.com:8096",
-    "apikey": "" //在后台 高级-API秘钥 中生成
-  },
-  "tasklist": [ //无任务则只签到
-    {
-      "taskname": "鸣xx年",
-      "shareurl": "https://pan.quark.cn/s/39xxxx35#/list/share/17xxxx72-鸣xx年",
-      "savepath": "/video/tv/鸣xx年/S01",
-      "pattern": "^广告内容(\\d+).(mp4|mkv)",
-      "replace": "\\1.\\2",
-      "enddate": "2024-01-30",  //可选，结束日期
-      "emby_id": "",            //可选，缺省时按taskname搜索匹配，为0时强制不匹配
-      "ignore_extension": true, //可选，忽略后缀
-      "runweek": [1, 2, 3, 4, 6, 7], //可选，指定星期几执行，无此字段则均执行
-      "update_subdir": "", // 可选，子目录递归更新的正则表达式，如 "4k|1080p"
-      // 以下字段无需配置
-      "shareurl_ban": "分享地址已失效" //记录分享是否失效；如有此字段将跳过任务，更新链接后请手动删去
-    }
-  ]
-}
-```
+青龙部署说明已转移到 Wiki ：[青龙部署教程](https://github.com/Cp0204/quark-auto-save/wiki/%E9%83%A8%E7%BD%B2%E6%95%99%E7%A8%8B#%E9%9D%92%E9%BE%99%E9%83%A8%E7%BD%B2)
 
 ### 正则整理示例
 
@@ -174,15 +139,9 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 | `^【电影TT】形似走肉(\d+)\.(mp4\|mkv)` | `\1.\2`      | 【电影TT】形似走肉01.mp4 → 01.mp4<br>【电影TT】形似走肉02.mkv → 02.mkv |
 | `^(\d+)\.mp4`                          | `S02E\1.mp4` | 01.mp4 → S02E01.mp4<br>02.mp4 → S02E02.mp4                             |
 | `$TV`                                  |              | [魔法匹配](#魔法匹配)剧集文件                                          |
+| `^(\d+)\.mp4`                          | `$TASKNAME.S02E\1.mp4` | 01.mp4 → 任务名.S02E01.mp4                                             |
 
-> [!IMPORTANT]
-> 直接写 json 配置注意`\`多加一重[字符转义](https://deerchao.cn/tutorials/regex/regex.htm#escape)：如`\d`写作`\\d`，匹配字符`.`写作`\\.`
-
-#### 参考资料
-
-- [正则表达式30分钟入门教程](https://deerchao.cn/tutorials/regex/regex.htm)
-
-- 替换的[后向引用](https://deerchao.cn/tutorials/regex/regex.htm#backreference)：有些语言写作`$1`，Python中写作`\1`，json 转义后为`\\1`
+更多正则使用说明已转移到 Wiki ：[正则处理教程](https://github.com/Cp0204/quark-auto-save/wiki/%E6%AD%A3%E5%88%99%E5%A4%84%E7%90%86%E6%95%99%E7%A8%8B)
 
 ### 特殊场景使用技巧
 
@@ -191,10 +150,6 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 - 当目录已存*01.mp4、02.mp4*，新的源又有*01.mkv、02.mkv、03.mkv*，只希望获得*03.mkv*更新时。
 
 - 一个部剧同时追更两个源，看谁更新快🤪，但两个源的视频格式不一时。
-
-#### 使用青龙通知设置
-
-删去配置文件中的整个 `push_config` 数组。
 
 #### 自动刷新媒体库
 
