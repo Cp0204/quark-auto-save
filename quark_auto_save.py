@@ -196,23 +196,21 @@ class Quark:
 
     def get_id_from_url(self, url):
         url = url.replace("https://pan.quark.cn/s/", "")
-        pattern = r"(\w+)(#/list/share.*/(\w+))?"
+        pattern = r"(\w+)(\?pwd=(\w+))?(#/list/share.*/(\w+))?"
         match = re.search(pattern, url)
         if match:
             pwd_id = match.group(1)
-            if match.group(2):
-                pdir_fid = match.group(3)
-            else:
-                pdir_fid = 0
-            return pwd_id, pdir_fid
+            passcode = match.group(3) if match.group(3) else ""
+            pdir_fid = match.group(5) if match.group(5) else 0
+            return pwd_id, passcode, pdir_fid
         else:
             return None
 
     # 可验证资源是否失效
-    def get_stoken(self, pwd_id):
+    def get_stoken(self, pwd_id, passcode=""):
         url = "https://drive-h.quark.cn/1/clouddrive/share/sharepage/token"
-        querystring = {"pr": "ucpro", "fr": "h5"}
-        payload = {"pwd_id": pwd_id, "passcode": ""}
+        querystring = {"pr": "ucpro", "fr": "pc"}
+        payload = {"pwd_id": pwd_id, "passcode": passcode}
         headers = self.common_headers()
         response = requests.request(
             "POST", url, json=payload, headers=headers, params=querystring
@@ -425,8 +423,8 @@ class Quark:
 
     def do_save_check(self, shareurl, savepath):
         try:
-            pwd_id, pdir_fid = self.get_id_from_url(shareurl)
-            is_sharing, stoken = self.get_stoken(pwd_id)
+            pwd_id, passcode, pdir_fid = self.get_id_from_url(shareurl)
+            is_sharing, stoken = self.get_stoken(pwd_id, passcode)
             share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["list"]
             fid_list = [item["fid"] for item in share_file_list]
             fid_token_list = [item["share_fid_token"] for item in share_file_list]
@@ -473,11 +471,11 @@ class Quark:
             return
 
         # 链接转换所需参数
-        pwd_id, pdir_fid = self.get_id_from_url(task["shareurl"])
+        pwd_id, passcode, pdir_fid = self.get_id_from_url(task["shareurl"])
         # print("match: ", pwd_id, pdir_fid)
 
         # 获取stoken，同时可验证资源是否失效
-        is_sharing, stoken = self.get_stoken(pwd_id)
+        is_sharing, stoken = self.get_stoken(pwd_id, passcode)
         if not is_sharing:
             add_notify(f"❌《{task['taskname']}》：{stoken}\n")
             task["shareurl_ban"] = stoken
