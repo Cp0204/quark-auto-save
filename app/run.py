@@ -207,8 +207,8 @@ def get_share_files():
         return jsonify({"error": "未登录"})
     shareurl = request.args.get("shareurl", "")
     account = Quark("", 0)
-    pwd_id, pdir_fid = account.get_id_from_url(shareurl)
-    is_sharing, stoken = account.get_stoken(pwd_id)
+    pwd_id, passcode, pdir_fid = account.get_id_from_url(shareurl)
+    is_sharing, stoken = account.get_stoken(pwd_id, passcode)
     if not is_sharing:
         return jsonify({"error": stoken})
     share_detail = account.get_detail(pwd_id, stoken, pdir_fid, 1)

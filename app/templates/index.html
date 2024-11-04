@@ -531,6 +531,14 @@
           axios.get('/get_share_detail', { params: { shareurl: task.shareurl } })
             .then(response => {
               if (response.data.error) {
+                if (response.data.error.includes("提取码")) {
+                  const passcode = prompt("检查失败[" + response.data.error + "]，请输入提取码：");
+                  if (passcode != null) {
+                    task.shareurl = task.shareurl.replace(/pan.quark.cn\/s\/(\w+)(\?pwd=\w*)*/, `pan.quark.cn/s/$1?pwd=${passcode}`);
+                    this.changeShareurl(task);
+                    return;
+                  }
+                }
                 this.$set(task, "shareurl_ban", response.data.error);
               } else {
                 task.taskname = task.taskname == "" ? response.data.share.title : task.taskname;
