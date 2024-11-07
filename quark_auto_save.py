@@ -215,7 +215,7 @@ class Quark:
         response = requests.request(
             "POST", url, json=payload, headers=headers, params=querystring
         ).json()
-        if response.get("data"):
+        if response.get("status") == 200:
             return True, response["data"]["stoken"]
         else:
             return False, response["message"]
