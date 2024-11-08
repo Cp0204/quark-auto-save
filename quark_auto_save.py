@@ -32,8 +32,8 @@ GH_PROXY = os.environ.get("GH_PROXY", "https://ghproxy.net/")
 
 MAGIC_REGEX = {
     "$TV": {
-        "pattern": ".*?(S\\d{1,2}E)?P?(\\d{1,3}).*?\\.(mp4|mkv)",
-        "replace": "\\1\\2.\\3",
+        "pattern": r".*?(?<!\d)([Ss]\d{1,2})?([Ee]?[Pp]?[Xx]?\d{1,3})(?!\d).*?\.(mp4|mkv)",
+        "replace": r"\1\2.\3",
     },
 }
 
