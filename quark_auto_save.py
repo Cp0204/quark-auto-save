@@ -1,6 +1,6 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Modify: 2024-04-03
+# Modify: 2024-11-13
 # Repo: https://github.com/Cp0204/quark_auto_save
 # ConfigFile: quark_config.json
 """
@@ -14,6 +14,7 @@ import json
 import time
 import random
 import requests
+import importlib
 from datetime import datetime
 
 # 兼容青龙
@@ -686,79 +687,19 @@ class Quark:
         return is_rename_count > 0
 
 
-class Emby:
-    def __init__(self, emby_url, emby_apikey):
-        self.is_active = False
-        if emby_url and emby_apikey:
-            self.emby_url = emby_url
-            self.emby_apikey = emby_apikey
-            if self.get_info():
-                self.is_active = True
-
-    def get_info(self):
-        url = f"{self.emby_url}/emby/System/Info"
-        headers = {"X-Emby-Token": self.emby_apikey}
-        querystring = {}
-        response = requests.request("GET", url, headers=headers, params=querystring)
-        if "application/json" in response.headers["Content-Type"]:
-            response = response.json()
-            print(
-                f"Emby媒体库: {response.get('ServerName','')} v{response.get('Version','')}"
-            )
-            return True
-        else:
-            print(f"Emby媒体库: 连接失败❌ {response.text}")
-            return False
-
-    def refresh(self, emby_id):
-        if emby_id:
-            url = f"{self.emby_url}/emby/Items/{emby_id}/Refresh"
-            headers = {"X-Emby-Token": self.emby_apikey}
-            querystring = {
-                "Recursive": "true",
-                "MetadataRefreshMode": "FullRefresh",
-                "ImageRefreshMode": "FullRefresh",
-                "ReplaceAllMetadata": "false",
-                "ReplaceAllImages": "false",
-            }
-            response = requests.request(
-                "POST", url, headers=headers, params=querystring
-            )
-            if response.text == "":
-                print(f"🎞 刷新Emby媒体库：成功✅")
-                return True
-            else:
-                print(f"🎞 刷新Emby媒体库：{response.text}❌")
-                return False
-
-    def search(self, media_name):
-        if media_name:
-            url = f"{self.emby_url}/emby/Items"
-            headers = {"X-Emby-Token": self.emby_apikey}
-            querystring = {
-                "IncludeItemTypes": "Series",
-                "StartIndex": 0,
-                "SortBy": "SortName",
-                "SortOrder": "Ascending",
-                "ImageTypeLimit": 0,
-                "Recursive": "true",
-                "SearchTerm": media_name,
-                "Limit": 10,
-                "IncludeSearchTypes": "false",
-            }
-            response = requests.request("GET", url, headers=headers, params=querystring)
-            if "application/json" in response.headers["Content-Type"]:
-                response = response.json()
-                if response.get("Items"):
-                    for item in response["Items"]:
-                        if item["IsFolder"]:
-                            print(
-                                f"🎞 《{item['Name']}》匹配到Emby媒体库ID：{item['Id']}"
-                            )
-                            return item["Id"]
-            else:
-                print(f"🎞 搜索Emby媒体库：{response.text}❌")
-        return False
+def load_media_servers(media_servers_config):
+    media_servers = {}
+    for server_name, server_config in media_servers_config.items():
+        try:
+            module = importlib.import_module(f"media_servers.{server_name}")
+            ServerClass = getattr(module, server_name.capitalize())
+            # 复制配置，避免修改原始配置
+            server_args = server_config.copy()
+            # 动态传递参数
+            media_servers[server_name] = ServerClass(**server_args)
+        except (ImportError, AttributeError):
+            print(f"加载媒体服务器模块 {server_name} 失败。")
+    return media_servers
 
 
 def verify_account(account):
@@ -818,10 +759,7 @@ def do_sign(account):
 
 
 def do_save(account, tasklist=[]):
-    emby = Emby(
-        CONFIG_DATA.get("emby", {}).get("url", ""),
-        CONFIG_DATA.get("emby", {}).get("apikey", ""),
-    )
+    media_servers = load_media_servers(CONFIG_DATA.get("media_servers", {}))
     print(f"转存账号: {account.nickname}")
     # 获取全部保存目录fid
     account.update_savepath_fid(tasklist)
@@ -862,15 +800,31 @@ def do_save(account, tasklist=[]):
             is_new = account.do_save_task(task)
             is_rename = account.do_rename_task(task)
             # 刷新媒体库
-            if emby.is_active and (is_new or is_rename) and task.get("emby_id") != "0":
-                if task.get("emby_id"):
-                    emby.refresh(task["emby_id"])
-                else:
-                    match_emby_id = emby.search(task["taskname"])
-                    if match_emby_id:
-                        task["emby_id"] = match_emby_id
-                        emby.refresh(match_emby_id)
+            for server_name, media_server in media_servers.items():
+                if (
+                    media_server.is_active
+                    and (is_new or is_rename)
+                    and task.get("media_id") != "0"
+                ):
+                    if task.get("media_id"):
+                        media_server.refresh(task["media_id"])
+                    else:
+                        match_media_id = media_server.search(task["taskname"])
+                        if match_media_id:
+                            task["media_id"] = match_media_id
+                            media_server.refresh(match_media_id)
     print()
+
+
+def reaking_change_update():
+    global CONFIG_DATA
+    # print("Update config v0.3.6.1 to 0.3.7")
+    if CONFIG_DATA.get("emby"):
+        CONFIG_DATA.setdefault("media_servers", {})["emby"] = CONFIG_DATA["emby"]
+        del CONFIG_DATA["emby"]
+        for task in CONFIG_DATA.get("tasklist", {}):
+            task["media_id"] = task.get("emby_id", "")
+            del task["emby_id"]
 
 
 def main():
@@ -900,6 +854,7 @@ def main():
         print(f"⚙️ 正从 {config_path} 文件中读取配置")
         with open(config_path, "r", encoding="utf-8") as file:
             CONFIG_DATA = json.load(file)
+            reaking_change_update()
         cookie_val = CONFIG_DATA.get("cookie")
         if not CONFIG_DATA.get("magic_regex"):
             CONFIG_DATA["magic_regex"] = MAGIC_REGEX
