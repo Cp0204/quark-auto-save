@@ -179,12 +179,18 @@ def run_script_now():
     )
 
     def generate_output():
+        # 设置环境变量
+        process_env = os.environ.copy()
+        process_env["PYTHONIOENCODING"] = "utf-8"
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             universal_newlines=True,
+            encoding="utf-8",
+            errors="replace",
             bufsize=1,
+            env=process_env,
         )
         try:
             for line in iter(process.stdout.readline, ""):
