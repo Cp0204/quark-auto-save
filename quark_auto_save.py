@@ -687,18 +687,23 @@ class Quark:
         return is_rename_count > 0
 
 
-def load_media_servers(media_servers_config):
+def load_media_servers(media_servers_config, media_servers_dir="media_servers"):
     media_servers = {}
-    for server_name, server_config in media_servers_config.items():
+    available_modules = [
+        f.replace(".py", "") for f in os.listdir(media_servers_dir) if f.endswith(".py")
+    ]
+    for module_name in available_modules:
         try:
-            module = importlib.import_module(f"media_servers.{server_name}")
-            ServerClass = getattr(module, server_name.capitalize())
-            # 复制配置，避免修改原始配置
-            server_args = server_config.copy()
-            # 动态传递参数
-            media_servers[server_name] = ServerClass(**server_args)
+            module = importlib.import_module(f"{media_servers_dir}.{module_name}")
+            ServerClass = getattr(module, module_name.capitalize())
+            # 检查配置中是否存在该模块的配置
+            if module_name in media_servers_config:
+                server_config = media_servers_config[module_name]
+                media_servers[module_name] = ServerClass(**server_config)
+            else:
+                media_servers_config[module_name] = ServerClass().default_config
         except (ImportError, AttributeError):
-            print(f"加载媒体服务器模块 {server_name} 失败。")
+            print(f"加载模块 {module_name} 失败")
     return media_servers
 
 
