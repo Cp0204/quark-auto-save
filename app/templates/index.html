@@ -82,19 +82,24 @@
 
       <div class="row title">
         <div class="col">
-          <h2>Emby</h2>
+          <h2>媒体库</h2>
         </div>
       </div>
-      <div class="form-group row">
-        <label class="col-sm-2 col-form-label">Emby URL</label>
-        <div class="col-sm-10">
-          <input type="text" v-model="formData.emby.url" class="form-control" placeholder="可选">
+      <div v-for="(server, serverName) in formData.media_servers" :key="serverName" class="task mb-3">
+        <div class="form-group row" style="display:flex; align-items:center">
+          <div class="col-9" data-toggle="collapse" :data-target="'#collapse_'+serverName" aria-expanded="true" :aria-controls="'collapse_'+serverName">
+            <div class="btn btn-block text-left">
+              <i class="bi bi-caret-right-fill"></i> <span v-html="`${serverName}`"></span>
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="form-group row">
-        <label class="col-sm-2 col-form-label">Emby API Key</label>
-        <div class="col-sm-10">
-          <input type="text" v-model="formData.emby.apikey" class="form-control" placeholder="可选">
+        <div class="collapse" :id="'collapse_'+serverName" style="padding-left:2em">
+          <div v-for="(value, key) in server" :key="key" class="form-group row">
+            <label class="col-sm-2 col-form-label">{{ key }}</label>
+            <div class="col-sm-10">
+              <input type="text" v-model="formData.media_servers[serverName][key]" class="form-control" :placeholder="key === 'url' ? 'URL' : 'API Key/Token'">
+            </div>
+          </div>
         </div>
       </div>
 
@@ -256,9 +261,9 @@
               </div>
             </div>
             <div class="form-group row">
-              <label class="col-sm-2 col-form-label">Emby ID</label>
+              <label class="col-sm-2 col-form-label">媒体库ID</label>
               <div class="col-sm-10">
-                <input type="number" name="emby_id[]" class="form-control" v-model="task.emby_id" placeholder="可选">
+                <input type="number" name="media_id[]" class="form-control" v-model="task.media_id" placeholder="可选">
               </div>
             </div>
           </div>
@@ -365,10 +370,7 @@
         formData: {
           cookie: [],
           push_config: {},
-          emby: {
-            url: "",
-            apikey: ""
-          },
+          media_servers: {},
           tasklist: [],
           magic_regex: {}
         },
@@ -379,7 +381,7 @@
           pattern: "",
           replace: "",
           enddate: "",
-          emby_id: "",
+          media_id: "",
           ignore_extension: false,
           runweek: [1, 2, 3, 4, 5, 6, 7]
         },
