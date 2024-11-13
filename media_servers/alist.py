@@ -39,10 +39,9 @@ class Alist:
                 return True
             else:
                 print(f"Alist: 连接失败❌ {response.get('message')}")
-                return False
         except requests.exceptions.RequestException as e:
             print(f"获取Alist信息出错: {e}")
-            return False
+        return False
 
     def refresh(self, path, force_refresh=True):
         url = f"{self.url}/api/fs/list"
@@ -74,10 +73,9 @@ class Alist:
                 return self.refresh(parent_path)
             else:
                 print(f"📁 刷新Alist目录：失败❌ {response.get('message')}")
-                return False
         except requests.exceptions.RequestException as e:
             print(f"刷新Alist目录出错: {e}")
-            return False
+        return False
 
     def _normalize_path(self, path):
         """标准化路径格式"""
