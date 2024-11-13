@@ -46,15 +46,16 @@ class Alist:
     def refresh(self, path, force_refresh=True):
         url = f"{self.url}/api/fs/list"
         headers = {"Authorization": self.token}
-        querystring = {
+        payload = {
             "path": path,
             "refresh": force_refresh,
+            "password": "",
             "page": 1,
             "per_page": 0,
         }
         try:
             response = requests.request(
-                "POST", url, headers=headers, params=querystring
+                "POST", url, headers=headers, json=payload
             )
             response.raise_for_status()
             response = response.json()
