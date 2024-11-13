@@ -8,7 +8,7 @@ WORKDIR /app
 COPY . /app
 
 # 安装依赖
-RUN pip install --no-cache-dir flask apscheduler requests treelib
+RUN pip install --no-cache-dir -r requirements.txt
 
 # 时区
 ENV TZ="Asia/Shanghai"
