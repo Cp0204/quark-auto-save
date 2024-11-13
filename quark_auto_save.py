@@ -797,8 +797,8 @@ def do_save(account, tasklist=[]):
             print(f"正则替换: {task['replace']}")
             if task.get("enddate"):
                 print(f"任务截止: {task['enddate']}")
-            if task.get("emby_id"):
-                print(f"刷媒体库: {task['emby_id']}")
+            if task.get("media_id"):
+                print(f"刷媒体库: {task['media_id']}")
             if task.get("ignore_extension"):
                 print(f"忽略后缀: {task['ignore_extension']}")
             if task.get("update_subdir"):
