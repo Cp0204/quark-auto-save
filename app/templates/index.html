@@ -60,7 +60,7 @@
         <div class="col">
           <h2 style="display: inline-block;">通知</h2>
           <span class="badge badge-pill badge-light">
-            <a href="https://github.com/Cp0204/quark-auto-save/wiki/%E9%80%9A%E7%9F%A5%E6%8E%A8%E9%80%81%E6%9C%8D%E5%8A%A1%E9%85%8D%E7%BD%AE" target="_blank">?</a>
+            <a href="https://github.com/Cp0204/quark-auto-save/wiki/%E9%80%9A%E7%9F%A5%E6%8E%A8%E9%80%81%E6%9C%8D%E5%8A%A1%E9%85%8D%E7%BD%AE" target="_blank" title="通知配置说明">?</a>
           </span>
         </div>
         <div class="col text-right">
@@ -82,7 +82,10 @@
 
       <div class="row title">
         <div class="col">
-          <h2>媒体库</h2>
+          <h2 style="display: inline-block;">媒体库</h2>
+          <span class="badge badge-pill badge-light">
+            <a href="https://github.com/Cp0204/quark-auto-save/tree/main/media_servers" target="_blank" title="媒体库模块开发指南">?</a>
+          </span>
         </div>
       </div>
       <div v-for="(server, serverName) in formData.media_servers" :key="serverName" class="task mb-3">
@@ -97,7 +100,7 @@
           <div v-for="(value, key) in server" :key="key" class="form-group row">
             <label class="col-sm-2 col-form-label">{{ key }}</label>
             <div class="col-sm-10">
-              <input type="text" v-model="formData.media_servers[serverName][key]" class="form-control" :placeholder="key === 'url' ? 'URL' : 'API Key/Token'">
+              <input type="text" v-model="formData.media_servers[serverName][key]" class="form-control">
             </div>
           </div>
         </div>
@@ -109,7 +112,7 @@
         </div>
       </div>
       <div class="form-group row">
-        <label class="col-sm-2 col-form-label">Crontab <span class="badge badge-pill badge-light"><a target="_blank" href="https://tool.lu/crontab/">?</a></span></label>
+        <label class="col-sm-2 col-form-label">Crontab <span class="badge badge-pill badge-light"><a target="_blank" href="https://tool.lu/crontab/" title="CRON时间计算器">?</a></span></label>
         <div class="col-sm-10">
           <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
         </div>
