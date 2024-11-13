@@ -11,10 +11,10 @@
 定期执行本脚本自动转存、文件名整理，配合 Alist, rclone, Emby 可达到自动追更的效果。🥳
 
 
-[![wiki][wiki-image]][wiki-url] [![github tag][gitHub-tag-image]][github-url] [![docker pulls][docker-pulls-image]][docker-url] [![docker image size][docker-image-size-image]][docker-url]
+[![wiki][wiki-image]][wiki-url] [![github releases][gitHub-releases-image]][github-url] [![docker pulls][docker-pulls-image]][docker-url] [![docker image size][docker-image-size-image]][docker-url]
 
 [wiki-image]: https://img.shields.io/badge/wiki-Documents-green?logo=github
-[gitHub-tag-image]: https://img.shields.io/github/v/tag/Cp0204/quark-auto-save?logo=github
+[gitHub-releases-image]: https://img.shields.io/github/v/release/Cp0204/quark-auto-save?logo=github
 [docker-pulls-image]: https://img.shields.io/docker/pulls/cp0204/quark-auto-save?logo=docker&&logoColor=white
 [docker-image-size-image]: https://img.shields.io/docker/image-size/cp0204/quark-auto-save?logo=docker&&logoColor=white
 [github-url]: https://github.com/Cp0204/quark-auto-save
@@ -57,6 +57,7 @@
 - 媒体库整合
   - [x] 根据任务名搜索 Emby 媒体库
   - [x] 追更或整理后自动刷新 Emby 媒体库
+  - [x] **媒体库模块化，用户可很方便地[开发自己的媒体库hook模块](./media_servers)**
 
 - 其它
   - [x] 每日签到领空间 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/%E4%BD%BF%E7%94%A8%E6%8A%80%E5%B7%A7%E9%9B%86%E9%94%A6#%E6%AF%8F%E6%97%A5%E7%AD%BE%E5%88%B0%E9%A2%86%E7%A9%BA%E9%97%B4)</sup>

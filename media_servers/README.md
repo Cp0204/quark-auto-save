@@ -29,23 +29,6 @@ default_config = {"url": "", "token": ""}
   * `task` 是一个字典，包含任务信息。如果需要修改任务参数，返回修改后的 `task` 字典；
   * 无修改则不返回或返回 `False`。
 
-## 配置文件
-
-在 `quark_config.json` 中配置模块:
-
-```json
-{
-  "media_servers": {
-    "emby": {
-      "url": "http://your-emby-server:8096",
-      "token": "YOUR_EMBY_TOKEN"
-    }
-  }
-}
-```
-
-当模块代码正确赋值 `default_config` 时，首次运行会自动补充缺失的键。
-
 ## 模块示例
 
 参考 [emby.py](emby.py)
@@ -69,7 +52,36 @@ try:
     # ......
     # 返回
 except requests.exceptions.RequestException as e:
-    print(f"获取Emby媒体库信息出错: {e}")
+    print(f"Error: {e}")
     return False
 ```
 
+## 使用自定义模块
+
+放到 `/media_servers` 目录即可识别，如果你使用 docker 运行：
+
+```shell
+docker run -d \
+  # ... 例如添加这行挂载，其它一致
+  -v ./quark-auto-save/media_servers/plex.py:/app/media_servers/plex.py \
+  # ...
+```
+
+如果你有写自定义模块的能力，相信你也知道如何挂载自定义模块，算我啰嗦。🙃
+
+## 配置文件
+
+在 `quark_config.json` 的 `media_servers` 中配置模块参数:
+
+```json
+{
+  "media_servers": {
+    "emby": {
+      "url": "http://your-emby-server:8096",
+      "token": "YOUR_EMBY_TOKEN"
+    }
+  }
+}
+```
+
+当模块代码正确赋值 `default_config` 时，首次运行会自动补充缺失的键。
