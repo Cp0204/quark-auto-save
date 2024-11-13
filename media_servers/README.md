@@ -14,16 +14,16 @@
 
 * **`default_config`**：字典，包含模块所需参数及其默认值。例如：
 
-```python
-# 该模块必须配置的键，值可留空
-default_config = {"url": "", "token": ""}
-```
+  ```python
+  # 该模块必须配置的键，值可留空
+  default_config = {"url": "", "token": ""}
+  ```
 
 * **`is_active`**：布尔值，默认为 `False`.
 
 * **`__init__(self, **kwargs)`**：构造函数，接收配置参数 `kwargs`。它应该:
-    1. 检查 `kwargs` 是否包含所有 `default_config` 中的参数，缺少参数则打印警告。
-    2. 若参数完整，尝试连接服务器并验证配置，成功则设置 `self.is_active = True`。
+  1. 检查 `kwargs` 是否包含所有 `default_config` 中的参数，缺少参数则打印警告。
+  2. 若参数完整，尝试连接服务器并验证配置，成功则设置 `self.is_active = True`。
 
 * **`run(self, task)`**：整个模块入口函数，处理模块逻辑。
   * `task` 是一个字典，包含任务信息。如果需要修改任务参数，返回修改后的 `task` 字典；
