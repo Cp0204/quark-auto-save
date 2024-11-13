@@ -692,7 +692,7 @@ def load_media_servers(media_servers_config, media_servers_dir="media_servers"):
     available_modules = [
         f.replace(".py", "") for f in os.listdir(media_servers_dir) if f.endswith(".py")
     ]
-    print(f"> 载入加载媒体库模块")
+    print(f"🧩 载入媒体库模块")
     for module_name in available_modules:
         try:
             module = importlib.import_module(f"{media_servers_dir}.{module_name}")
@@ -806,10 +806,12 @@ def do_save(account, tasklist=[]):
             print()
             is_new = account.do_save_task(task)
             is_rename = account.do_rename_task(task)
-            # 刷新媒体库
-            for server_name, media_server in media_servers.items():
-                if media_server.is_active and (is_new or is_rename):
-                    task = media_server.run(task) or task
+            # 调用媒体库模块
+            if is_new or is_rename:
+                print(f"🧩 调用媒体库模块")
+                for server_name, media_server in media_servers.items():
+                    if media_server.is_active:
+                        task = media_server.run(task) or task
     print()
 
 
