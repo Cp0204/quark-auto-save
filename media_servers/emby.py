@@ -42,10 +42,9 @@ class Emby:
                 return True
             else:
                 print(f"Emby媒体库: 连接失败❌ {response.text}")
-                return False
         except requests.exceptions.RequestException as e:
             print(f"获取Emby媒体库信息出错: {e}")
-            return False
+        return False
 
     def refresh(self, emby_id):
         if not emby_id:
@@ -68,10 +67,9 @@ class Emby:
                 return True
             else:
                 print(f"🎞️ 刷新Emby媒体库：{response.text}❌")
-                return False
         except requests.exceptions.RequestException as e:
             print(f"刷新Emby媒体库出错: {e}")
-            return False
+        return False
 
     def search(self, media_name):
         if not media_name:
@@ -102,7 +100,6 @@ class Emby:
                             return item["Id"]
             else:
                 print(f"🎞️ 搜索Emby媒体库：{response.text}❌")
-                return False
         except requests.exceptions.RequestException as e:
             print(f"搜索Emby媒体库出错: {e}")
-            return False
+        return False
