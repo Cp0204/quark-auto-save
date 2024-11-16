@@ -77,6 +77,7 @@ docker run -d \
   -e WEBUI_USERNAME=admin \
   -e WEBUI_PASSWORD=admin123 \
   -v ./quark-auto-save/config:/app/config \
+  -v ./media:/media \
   -v /etc/localtime:/etc/localtime \
   --network bridge \
   --restart unless-stopped \
@@ -101,6 +102,7 @@ services:
       WEBUI_PASSWORD: "admin123"
     volumes:
       - ./quark-auto-save/config:/app/config
+      - ./media:/media
       - /etc/localtime:/etc/localtime
 ```
 
@@ -144,6 +146,44 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 | `^(\d+)\.mp4`                          | `$TASKNAME.S02E\1.mp4` | 01.mp4 → 任务名.S02E01.mp4                                             |
 
 更多正则使用说明已转移到 Wiki ：[正则处理教程](https://github.com/Cp0204/quark-auto-save/wiki/%E6%AD%A3%E5%88%99%E5%A4%84%E7%90%86%E6%95%99%E7%A8%8B)
+
+### 媒体库配置
+
+#### alist
+
+用于自动刷新 Alist 目录，各配置含义如下：
+
+* url: Alist 访问地址，例如：http://127.0.0.1:5244
+* token：Alist 访问令牌，Alist 管理后台-设置-其他-令牌-复制令牌
+* path_prefix: Alist 夸克网盘的挂载路径，Alist 管理后台-存储-夸克驱动-挂载路径，默认 `/quark`
+* quark_root_dir: Alist 挂载的夸克网盘根目录，Alist 管理后台-存储-夸克驱动-根文件夹ID（Alist 填写的为文件夹 ID，此处需要填写文件夹路径），默认 `/`
+
+#### alist_strm_lite
+
+用于从 Alist 生成 strm 文件，基于 WebDAV 实现的轻量版本，alist_strm_lite 与 alist_strm 二选一即可，各配置含义如下： 
+
+* url: Alist 访问地址，例如：http://127.0.0.1:5244
+* webdav_username: Alist WebDAV 用户名
+* webdav_password: Alist WebDAV 密码
+* path_prefix: Alist 夸克网盘的挂载路径，Alist 管理后台-存储-夸克驱动-挂载路径，默认 `/quark`
+* quark_root_dir: Alist 挂载的夸克网盘根目录，Alist 管理后台-存储-夸克驱动-根文件夹ID（Alist 填写的为文件夹 ID，此处需要填写文件夹路径），默认 `/`
+* strm_save_dir: strm 文件保存路径，如使用 docker 对应 docker 内部路径，默认 `/media`
+* strm_url_host: strm 文件内链接使用的主机地址，例如：http://example.host ，配合自定义 host 解析在 strm 文件迁移机器时无需重新生成 strm 文件，修改自定义 host 解析地址即可，默认为空时使用 url 配置
+
+#### alist_strm
+
+用于从 Alist 生成 strm 文件，需配合 [alist-strm](https://github.com/tefuirZ/alist-strm) 项目使用，alist_strm_lite 与 alist_strm 二选一即可，各配置含义如下：
+
+* url: alist-strm 访问地址，例如：http://127.0.0.1:5000
+* cookie: alist-strm 的访问 cookie
+* config_id: alist-strm 的配置 ID
+
+#### emby
+
+用于自动扫描媒体库文件，各配置含义如下：
+
+* url: Emby 访问地址，例如：http://127.0.0.1:8096
+* token: Emby API 密钥，管理 Emby Server-高级-API 密钥-新 API 密钥
 
 ### 特殊场景使用技巧
 
