@@ -155,7 +155,7 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 
 * url: Alist 访问地址，例如：http://127.0.0.1:5244
 * token：Alist 访问令牌，Alist 管理后台-设置-其他-令牌-复制令牌
-* path_prefix: Alist 夸克网盘的挂载路径，Alist 管理后台-存储-夸克驱动-挂载路径，默认 `/quark`
+* quark_root_path: Alist 夸克网盘的挂载路径，Alist 管理后台-存储-夸克驱动-挂载路径，默认 `/quark`
 * quark_root_dir: Alist 挂载的夸克网盘根目录，Alist 管理后台-存储-夸克驱动-根文件夹ID（Alist 填写的为文件夹 ID，此处需要填写文件夹路径），默认 `/`
 
 #### alist_strm_lite
@@ -165,7 +165,7 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 * url: Alist 访问地址，例如：http://127.0.0.1:5244
 * webdav_username: Alist WebDAV 用户名
 * webdav_password: Alist WebDAV 密码
-* path_prefix: Alist 夸克网盘的挂载路径，Alist 管理后台-存储-夸克驱动-挂载路径，默认 `/quark`
+* quark_root_path: Alist 夸克网盘的挂载路径，Alist 管理后台-存储-夸克驱动-挂载路径，默认 `/quark`
 * quark_root_dir: Alist 挂载的夸克网盘根目录，Alist 管理后台-存储-夸克驱动-根文件夹ID（Alist 填写的为文件夹 ID，此处需要填写文件夹路径），默认 `/`
 * strm_save_dir: strm 文件保存路径，如使用 docker 对应 docker 内部路径，默认 `/media`
 * strm_url_host: strm 文件内链接使用的主机地址，例如：http://example.host ，配合自定义 host 解析在 strm 文件迁移机器时无需重新生成 strm 文件，修改自定义 host 解析地址即可，默认为空时使用 url 配置

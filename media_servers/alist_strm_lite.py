@@ -16,7 +16,7 @@ from webdav3.client import Client
 class Alist_strm_lite:
 
     video_exts = ["mp4", "mkv", "flv", "mov", "m4v", "avi", "webm", "wmv"]
-    default_config = {"url": "", "webdav_username": "", "webdav_password": "", "path_prefix": "/quark", "quark_root_dir": "/", "strm_save_dir": "/media", "strm_url_host": ""}
+    default_config = {"url": "", "webdav_username": "", "webdav_password": "", "quark_root_path": "/quark", "quark_root_dir": "/", "strm_save_dir": "/media", "strm_url_host": ""}
     is_active = False
 
     def __init__(self, **kwargs):
@@ -40,8 +40,10 @@ class Alist_strm_lite:
 
     def run(self, task):
         if task.get("savepath") and task.get("savepath").startswith(self.quark_root_dir):
-            path = self._normalize_path(task["savepath"])
-            self.refresh(path)
+            full_path = os.path.normpath(
+                os.path.join(self.quark_root_path, task["savepath"].lstrip("/").lstrip(self.quark_root_dir))
+            ).replace("\\", "/")
+            self.refresh(full_path)
 
     def get_info(self):
         try:
@@ -82,9 +84,3 @@ class Alist_strm_lite:
                 host = self.strm_url_host.rstrip("/") if self.strm_url_host.strip() else self.url.rstrip("/")
                 strm_file.write(f"{host}/d{file_path}")
             print(f"📺 生成STRM文件 {strm_path} 成功✅")
-
-    def _normalize_path(self, path):
-        """标准化路径格式"""
-        if not path.startswith(self.path_prefix):
-            path = f"/{self.path_prefix}/{path.lstrip(self.quark_root_dir)}"
-        return re.sub(r"/{2,}", "/", path)

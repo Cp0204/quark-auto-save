@@ -10,14 +10,14 @@
     "alist": {
       "url": "",
       "token": "",
-      "path_prefix": "/quark",
+      "quark_root_path": "/quark",
       "quark_root_dir": "/"
     },
     "alist_strm_lite": {
       "url": "",
       "webdav_username": "",
       "webdav_password": "",
-      "path_prefix": "/quark",
+      "quark_root_path": "/quark",
       "quark_root_dir": "/",
       "strm_save_dir": "/media",
       "strm_url_host": ""
