@@ -5,7 +5,7 @@ import requests
 
 class Alist:
 
-    default_config = {"url": "", "token": "", "path_prefix": "/quark"}
+    default_config = {"url": "", "token": "", "path_prefix": "/quark", "quark_root_dir": "/"}
     is_active = False
 
     def __init__(self, **kwargs):
@@ -20,7 +20,7 @@ class Alist:
                     self.is_active = True
 
     def run(self, task):
-        if task.get("savepath"):
+        if task.get("savepath") and task.get("savepath").startswith(self.quark_root_dir):
             path = self._normalize_path(task["savepath"])
             self.refresh(path)
 
@@ -81,5 +81,5 @@ class Alist:
     def _normalize_path(self, path):
         """标准化路径格式"""
         if not path.startswith(self.path_prefix):
-            path = f"/{self.path_prefix}/{path}"
+            path = f"/{self.path_prefix}/{path.lstrip(self.quark_root_dir)}"
         return re.sub(r"/{2,}", "/", path)
