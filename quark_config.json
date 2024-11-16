@@ -15,8 +15,7 @@
     },
     "alist_strm_lite": {
       "url": "",
-      "webdav_username": "",
-      "webdav_password": "",
+      "token": "",
       "quark_root_path": "/quark",
       "quark_root_dir": "/",
       "strm_save_dir": "/media",

@@ -2,21 +2,27 @@
 # -*- encoding: utf-8 -*-
 """
 @File    :   alist_strm_lite.py
-@Desc    :   Alist 生成 strm 文件简化版（基于 WebDAV）
+@Desc    :   Alist 生成 strm 文件简化版
 @Version :   v1.0
 @Time    :   2024/11/16
 @Author  :   xiaoQQya
 @Contact :   xiaoQQya@126.com
 """
 import os
-import re
-from webdav3.client import Client
+import requests
 
 
 class Alist_strm_lite:
 
     video_exts = ["mp4", "mkv", "flv", "mov", "m4v", "avi", "webm", "wmv"]
-    default_config = {"url": "", "webdav_username": "", "webdav_password": "", "quark_root_path": "/quark", "quark_root_dir": "/", "strm_save_dir": "/media", "strm_url_host": ""}
+    default_config = {
+        "url": "",  # Alist 服务器 URL
+        "token": "",  # Alist 服务器 Token
+        "quark_root_path": "/quark",  # 夸克根目录在 Alist 中的挂载路径
+        "quark_root_dir": "/",  # 夸克在 Alist 中挂载的根目录
+        "strm_save_dir": "/media",  # 生成的 strm 文件保存的路径
+        "strm_url_host": ""  # strm 文件内链接的主机地址
+    }
     is_active = False
 
     def __init__(self, **kwargs):
@@ -26,16 +32,7 @@ class Alist_strm_lite:
                     setattr(self, key, kwargs[key])
                 else:
                     print(f"{self.__class__.__name__} 模块缺少必要参数: {key}")
-
-            options = {
-                "webdav_hostname": f"{self.url.rstrip('/')}/dav/",
-                "webdav_login": self.webdav_username,
-                "webdav_password": self.webdav_password,
-                "disable_check": True
-            }
-            self.client = Client(options)
-
-            if self.url and self.webdav_username and self.webdav_password and self.get_info():
+            if self.url and self.token and self.get_info():
                 self.is_active = True
 
     def run(self, task):
@@ -46,36 +43,57 @@ class Alist_strm_lite:
             self.refresh(full_path)
 
     def get_info(self):
+        url = f"{self.url}/api/admin/setting/list"
+        headers = {"Authorization": self.token}
+        querystring = {"group": "1"}
         try:
-            response = self.client.info("/")
-            if response.get("name"):
-                print(f"Alist2strm Lite: {response.get('name')}")
+            response = requests.request("GET", url, headers=headers, params=querystring)
+            response.raise_for_status()
+            response = response.json()
+            if response.get("code") == 200:
+                print(f"Alist-strm Lite: {response.get('data',[])[1].get('value','')} {response.get('data',[])[0].get('value','')}")
                 return True
             else:
-                print(f"Alist2strm Lite: 连接失败❌ {response}")
-        except Exception as e:
-            print(f"Alist2strm Lite: 获取信息出错 {e}")
+                print(f"Alist-strm Lite: 连接失败❌ {response.get('message')}")
+        except requests.exceptions.RequestException as e:
+            print(f"Alist-strm Lite: 获取Alist信息出错 {e}")
         return False
 
     def refresh(self, path):
         try:
-            files = self.client.list(path)
-
-            for item in files[1:]:
-                full_path = re.sub(r"/{2,}", "/", f"{path}/{item}")
-                if full_path.endswith("/"):
-                    self.refresh(full_path)
-                else:
-                    self.generate_strm(full_path)
-            return True
+            response = self.list(path)
+            if response.get("code") != 200:
+                print(f"📺 生成 STRM 文件失败❌ {response.get('message')}")
+                return
+            else:
+                files = response.get("data").get("content")
+                for item in files:
+                    full_path = f"{path}/{item.get('name')}".replace("//", "/")
+                    if item.get("is_dir"):
+                        self.refresh(full_path)
+                    else:
+                        self.generate_strm(full_path)
         except Exception as e:
-            print(f"📺 生成STRM文件失败❌ {e}")
-        return False
+            print(f"📺 获取 Alist 文件列表失败❌ {e}")
+
+    def list(self, path):
+        url = f"{self.url}/api/fs/list"
+        headers = {"Authorization": self.token}
+        payload = {
+            "path": path,
+            "refresh": False,
+            "password": "",
+            "page": 1,
+            "per_page": 0,
+        }
+        response = requests.request("POST", url, headers=headers, json=payload)
+        response.raise_for_status()
+        return response.json()
 
     def generate_strm(self, file_path):
         ext = file_path.split(".")[-1]
         if ext.lower() in self.video_exts:
-            strm_path = re.sub(r"/{2,}", "/", f"{self.strm_save_dir}{file_path.rstrip(ext)}strm")
+            strm_path = f"{self.strm_save_dir}{file_path.rstrip(ext)}strm".replace("//", "/")
             if os.path.exists(strm_path):
                 return
             if not os.path.exists(os.path.dirname(strm_path)):
