@@ -2,4 +2,3 @@ flask
 apscheduler
 requests
 treelib
-webdavclient3
