@@ -7,6 +7,26 @@
     "其他推送渠道//此项可删": "配置方法同青龙"
   },
   "media_servers": {
+    "alist": {
+      "url": "",
+      "token": "",
+      "path_prefix": "/quark",
+      "quark_root_dir": "/"
+    },
+    "alist_strm_lite": {
+      "url": "",
+      "webdav_username": "",
+      "webdav_password": "",
+      "path_prefix": "/quark",
+      "quark_root_dir": "/",
+      "strm_save_dir": "/media",
+      "strm_url_host": ""
+    },
+    "alist_strm": {
+      "url": "",
+      "cookie": "",
+      "config_id": ""
+    },
     "emby": {
       "url": "",
       "token": ""
