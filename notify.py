@@ -101,9 +101,11 @@ push_config = {
 
     'SMTP_SERVER': '',                  # SMTP 发送邮件服务器，形如 smtp.exmail.qq.com:465
     'SMTP_SSL': 'false',                # SMTP 发送邮件服务器是否使用 SSL，填写 true 或 false
-    'SMTP_EMAIL': '',                   # SMTP 收发件邮箱，通知将会由自己发给自己
+    'SMTP_EMAIL_FROM': '',              # SMTP 发件邮箱
+    'SMTP_NAME_FROM': '',               # SMTP 发件人姓名，可随意填写
     'SMTP_PASSWORD': '',                # SMTP 登录密码，也可能为特殊口令，视具体邮件服务商说明而定
-    'SMTP_NAME': '',                    # SMTP 收发件人姓名，可随意填写
+    'SMTP_EMAIL_TO': '',                # SMTP 收件邮箱，多个收件邮箱逗号分开
+    'SMTP_NAME_TO': '',                 # SMTP 收件人姓名，多个收件人逗号分开，顺序与 SMTP_EMAIL_TO 保持一致
 
     'PUSHME_KEY': '',                   # PushMe 的 PUSHME_KEY
     'PUSHME_URL': '',                   # PushMe 的 PUSHME_URL
@@ -662,12 +664,14 @@ def smtp(title: str, content: str) -> None:
     if (
         not push_config.get("SMTP_SERVER")
         or not push_config.get("SMTP_SSL")
-        or not push_config.get("SMTP_EMAIL")
+        or not push_config.get("SMTP_EMAIL_FROM")
+        or not push_config.get("SMTP_EMAIL_TO")
         or not push_config.get("SMTP_PASSWORD")
-        or not push_config.get("SMTP_NAME")
+        or not push_config.get("SMTP_NAME_FROM")
+        or not push_config.get("SMTP_NAME_TO")
     ):
         print(
-            "SMTP 邮件 的 SMTP_SERVER 或者 SMTP_SSL 或者 SMTP_EMAIL 或者 SMTP_PASSWORD 或者 SMTP_NAME 未设置!!\n取消推送"
+            "SMTP 邮件 的 SMTP_SERVER 或者 SMTP_SSL 或者 SMTP_EMAIL_FROM 或者 SMTP_EMAIL_TO 或者 SMTP_PASSWORD 或者 SMTP_NAME_FROM 或者 SMTP_NAME_TO 未设置!!\n取消推送"
         )
         return
     print("SMTP 邮件 服务启动")
@@ -675,16 +679,18 @@ def smtp(title: str, content: str) -> None:
     message = MIMEText(content, "plain", "utf-8")
     message["From"] = formataddr(
         (
-            Header(push_config.get("SMTP_NAME"), "utf-8").encode(),
-            push_config.get("SMTP_EMAIL"),
+            Header(push_config.get("SMTP_NAME_FROM"), "utf-8").encode(),
+            push_config.get("SMTP_EMAIL_FROM"),
         )
     )
-    message["To"] = formataddr(
+    to_emails = push_config.get("SMTP_EMAIL_TO").split(",")
+    to_names = push_config.get("SMTP_NAME_TO").split(",")
+    message["To"] = ",".join([formataddr(
         (
-            Header(push_config.get("SMTP_NAME"), "utf-8").encode(),
-            push_config.get("SMTP_EMAIL"),
+            Header(to_names[index] if len(to_names) > index else "", "utf-8").encode(),
+            to_email,
         )
-    )
+    ) for index, to_email in enumerate(to_emails)])
     message["Subject"] = Header(title, "utf-8")
 
     try:
@@ -694,11 +700,11 @@ def smtp(title: str, content: str) -> None:
             else smtplib.SMTP(push_config.get("SMTP_SERVER"))
         )
         smtp_server.login(
-            push_config.get("SMTP_EMAIL"), push_config.get("SMTP_PASSWORD")
+            push_config.get("SMTP_EMAIL_FROM"), push_config.get("SMTP_PASSWORD")
         )
         smtp_server.sendmail(
-            push_config.get("SMTP_EMAIL"),
-            push_config.get("SMTP_EMAIL"),
+            push_config.get("SMTP_EMAIL_FROM"),
+            to_emails,
             message.as_bytes(),
         )
         smtp_server.close()
@@ -966,9 +972,11 @@ def add_notify_function():
     if (
         push_config.get("SMTP_SERVER")
         and push_config.get("SMTP_SSL")
-        and push_config.get("SMTP_EMAIL")
+        and push_config.get("SMTP_EMAIL_FROM")
         and push_config.get("SMTP_PASSWORD")
-        and push_config.get("SMTP_NAME")
+        and push_config.get("SMTP_EMAIL_TO")
+        and push_config.get("SMTP_NAME_FROM")
+        and push_config.get("SMTP_NAME_TO")
     ):
         notify_function.append(smtp)
     if push_config.get("PUSHME_KEY"):
