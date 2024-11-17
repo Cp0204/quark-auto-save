@@ -110,9 +110,9 @@ class Quark:
 
     def match_mparam_form_cookie(self, cookie):
         mparam = {}
-        kps_match = re.search(r"(?<!\w)kps=([a-zA-Z0-9%]+)[;&]?", cookie)
-        sign_match = re.search(r"(?<!\w)sign=([a-zA-Z0-9%]+)[;&]?", cookie)
-        vcode_match = re.search(r"(?<!\w)vcode=([a-zA-Z0-9%]+)[;&]?", cookie)
+        kps_match = re.search(r"(?<!\w)kps=([a-zA-Z0-9%+/=]+)[;&]?", cookie)
+        sign_match = re.search(r"(?<!\w)sign=([a-zA-Z0-9%+/=]+)[;&]?", cookie)
+        vcode_match = re.search(r"(?<!\w)vcode=([a-zA-Z0-9%+/=]+)[;&]?", cookie)
         if kps_match and sign_match and vcode_match:
             mparam = {
                 "kps": kps_match.group(1).replace("%25", "%"),
