@@ -115,11 +115,6 @@ class Quark:
         vcode_match = re.search(r"(?<!\w)vcode=([a-zA-Z0-9%+/=]+)[;&]?", cookie)
         if kps_match and sign_match and vcode_match:
             mparam = {
-                # from urllib.parse import unquote
-                # "kps": unquote(kps_match.group(1)),
-                # "sign": unquote(sign_match.group(1)),
-                # "vcode": unquote(vcode_match.group(1)),
-
                 "kps": kps_match.group(1).replace("%25", "%"),
                 "sign": sign_match.group(1).replace("%25", "%"),
                 "vcode": vcode_match.group(1).replace("%25", "%"),
