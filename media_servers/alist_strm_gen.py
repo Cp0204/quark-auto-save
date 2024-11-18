@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- encoding: utf-8 -*-
 """
-@File    :   alist_strm_lite.py
+@File    :   alist_strm_gen.py
 @Desc    :   Alist 生成 strm 文件简化版
 @Version :   v1.1
 @Time    :   2024/11/16
@@ -13,7 +13,7 @@ import json
 import requests
 
 
-class Alist_strm_lite:
+class Alist_strm_gen:
 
     video_exts = ["mp4", "mkv", "flv", "mov", "m4v", "avi", "webm", "wmv"]
     default_config = {
@@ -51,7 +51,7 @@ class Alist_strm_lite:
                             self.is_active = True
                     else:
                         print(
-                            f"Alist-strm Lite:  不支持[{storage_info['driver']}]驱动 ❌"
+                            f"Alist-Strm生成: 不支持[{storage_info['driver']}]驱动 ❌"
                         )
                     # 替换strm文件内链接的主机地址
                     self.strm_replace_host = self.strm_replace_host.strip()
@@ -84,12 +84,12 @@ class Alist_strm_lite:
             response.raise_for_status()
             data = response.json()
             if data.get("code") == 200:
-                print(f"Alist-strm Lite: Storage[{data['data']['mount_path']}]")
+                print(f"Alist-Strm生成: {data['data']['driver']}[{data['data']['mount_path']}]")
                 return data.get("data", [])
             else:
-                print(f"Alist-strm Lite: 连接失败❌ {response.get('message')}")
+                print(f"Alist-Strm生成: 连接失败❌ {response.get('message')}")
         except requests.exceptions.RequestException as e:
-            print(f"Alist-strm Lite: 获取Alist存储出错 {e}")
+            print(f"Alist-Strm生成: 获取Alist存储出错 {e}")
         return False
 
     def refresh(self, path):
@@ -169,5 +169,5 @@ class Alist_strm_lite:
                 ]
                 return "/".join(file_names)
         except requests.exceptions.RequestException as e:
-            print(f"Alist-strm Lite: 获取Quark路径出错 {e}")
+            print(f"Alist-Strm生成: 获取Quark路径出错 {e}")
         return False
