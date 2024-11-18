@@ -39,15 +39,20 @@ class Alist_strm_lite:
             if self.url and self.token and self.storage_id:
                 storage_info = self.get_storage_info(self.storage_id)
                 if storage_info:
-                    addition = json.loads(storage_info["addition"])
-                    # 存储挂载路径
-                    self.storage_mount_path = storage_info["mount_path"]
-                    # 夸克根文件夹
-                    self.quark_root_dir = self.get_root_folder_full_path(
-                        addition["cookie"], addition["root_folder_id"]
-                    )
-                    if self.storage_mount_path and self.quark_root_dir:
-                        self.is_active = True
+                    if storage_info["driver"] == "Quark":
+                        addition = json.loads(storage_info["addition"])
+                        # 存储挂载路径
+                        self.storage_mount_path = storage_info["mount_path"]
+                        # 夸克根文件夹
+                        self.quark_root_dir = self.get_root_folder_full_path(
+                            addition["cookie"], addition["root_folder_id"]
+                        )
+                        if self.storage_mount_path and self.quark_root_dir:
+                            self.is_active = True
+                    else:
+                        print(
+                            f"Alist-strm Lite:  不支持[{storage_info['driver']}]驱动 ❌"
+                        )
                     # 替换strm文件内链接的主机地址
                     self.strm_replace_host = self.strm_replace_host.strip()
                     if self.strm_replace_host:
