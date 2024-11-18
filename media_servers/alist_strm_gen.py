@@ -9,6 +9,7 @@
 @Contact :   xiaoQQya@126.com
 """
 import os
+import re
 import json
 import requests
 
@@ -37,22 +38,11 @@ class Alist_strm_gen:
                 else:
                     print(f"{self.__class__.__name__} 模块缺少必要参数: {key}")
             if self.url and self.token and self.storage_id:
-                storage_info = self.get_storage_info(self.storage_id)
-                if storage_info:
-                    if storage_info["driver"] == "Quark":
-                        addition = json.loads(storage_info["addition"])
-                        # 存储挂载路径
-                        self.storage_mount_path = storage_info["mount_path"]
-                        # 夸克根文件夹
-                        self.quark_root_dir = self.get_root_folder_full_path(
-                            addition["cookie"], addition["root_folder_id"]
-                        )
-                        if self.storage_mount_path and self.quark_root_dir:
-                            self.is_active = True
-                    else:
-                        print(
-                            f"Alist-Strm生成: 不支持[{storage_info['driver']}]驱动 ❌"
-                        )
+                success, result = self.storage_id_to_path(self.storage_id)
+                if success:
+                    self.is_active = True
+                    # 存储挂载路径, 夸克根文件夹
+                    self.storage_mount_path, self.quark_root_dir = result
                     # 替换strm文件内链接的主机地址
                     self.strm_replace_host = self.strm_replace_host.strip()
                     if self.strm_replace_host:
@@ -75,6 +65,27 @@ class Alist_strm_gen:
             ).replace("\\", "/")
             self.refresh(alist_path)
 
+    def storage_id_to_path(self, storage_id):
+        # 1. 检查是否符合 /aaa:/bbb 格式
+        match = re.match(r"^(\/[^:]*):(\/[^:]*)$", storage_id)
+        if match:
+            return True, (match.group(1), match.group(2))
+        # 2. 调用 Alist API 获取存储信息
+        storage_info = self.get_storage_info(storage_id)
+        if storage_info:
+            if storage_info["driver"] == "Quark":
+                addition = json.loads(storage_info["addition"])
+                # 存储挂载路径
+                storage_mount_path = storage_info["mount_path"]
+                # 夸克根文件夹
+                quark_root_dir = self.get_root_folder_full_path(
+                    addition["cookie"], addition["root_folder_id"]
+                )
+                if storage_mount_path and quark_root_dir:
+                    return True, (storage_mount_path, quark_root_dir)
+            else:
+                print(f"Alist刷新: 不支持[{storage_info['driver']}]驱动 ❌")
+
     def get_storage_info(self, storage_id):
         url = f"{self.url}/api/admin/storage/get"
         headers = {"Authorization": self.token}
@@ -84,7 +95,9 @@ class Alist_strm_gen:
             response.raise_for_status()
             data = response.json()
             if data.get("code") == 200:
-                print(f"Alist-Strm生成: {data['data']['driver']}[{data['data']['mount_path']}]")
+                print(
+                    f"Alist-Strm生成: {data['data']['driver']}[{data['data']['mount_path']}]"
+                )
                 return data.get("data", [])
             else:
                 print(f"Alist-Strm生成: 连接失败❌ {response.get('message')}")
