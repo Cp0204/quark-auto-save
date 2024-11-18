@@ -21,11 +21,13 @@ class Alist_strm_lite:
         "token": "",  # Alist 服务器 Token
         "storage_id": "",  # Alist 服务器夸克存储 ID
         "strm_save_dir": "/media",  # 生成的 strm 文件保存的路径
-        "strm_url_host": "",  # strm 文件内链接的主机地址 （可选，缺省时=url）
+        "strm_replace_host": "",  # strm 文件内链接的主机地址 （可选，缺省时=url）
     }
     is_active = False
+    # 缓存参数
     storage_mount_path = None
     quark_root_dir = None
+    strm_server = None
 
     def __init__(self, **kwargs):
         if kwargs:
@@ -46,6 +48,15 @@ class Alist_strm_lite:
                     )
                     if self.storage_mount_path and self.quark_root_dir:
                         self.is_active = True
+                    # 替换strm文件内链接的主机地址
+                    self.strm_replace_host = self.strm_replace_host.strip()
+                    if self.strm_replace_host:
+                        if self.strm_replace_host.startswith("http"):
+                            self.strm_server = f"{self.strm_replace_host}/d"
+                        else:
+                            self.strm_server = f"http://{self.strm_replace_host}/d"
+                    else:
+                        self.strm_server = f"{self.url.strip()}/d"
 
     def run(self, task):
         if task.get("savepath") and task.get("savepath").startswith(
@@ -120,10 +131,7 @@ class Alist_strm_lite:
             if not os.path.exists(os.path.dirname(strm_path)):
                 os.makedirs(os.path.dirname(strm_path))
             with open(strm_path, "w", encoding="utf-8") as strm_file:
-                host = (
-                    self.strm_url_host if self.strm_url_host.strip() else self.url
-                ).rstrip("/")
-                strm_file.write(f"{host}/d{file_path}")
+                strm_file.write(f"{self.strm_server}{file_path}")
             print(f"📺 生成STRM文件 {strm_path} 成功✅")
 
     def get_root_folder_full_path(self, cookie, pdir_fid):
