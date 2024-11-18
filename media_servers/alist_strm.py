@@ -1,12 +1,19 @@
 import re
 import requests
+
 """
     配合 alist-strm 项目，触发特定配置运行
     https://github.com/tefuirZ/alist-strm
 """
+
+
 class Alist_strm:
 
-    default_config = {"url": "", "cookie": "", "config_id": ""}
+    default_config = {
+        "url": "",  # alist-strm服务器URL
+        "cookie": "",  # alist-strm的cookie，F12抓取，关键参数：session=ey***
+        "config_id": "",  # 要触发运行的配置ID
+    }
     is_active = False
 
     def __init__(self, **kwargs):
@@ -34,10 +41,10 @@ class Alist_strm:
             match = re.search(r'name="config_name" value="([^"]+)"', html_content)
             if match:
                 config_name = match.group(1)
-                print(f"alist-strm配置: {config_name}")
+                print(f"alist-strm配置运行: {config_name}")
                 return True
             else:
-                print(f"alist-strm配置: 匹配失败❌")
+                print(f"alist-strm配置运行: 匹配失败❌")
         except requests.exceptions.RequestException as e:
             print(f"获取alist-strm配置信息出错: {e}")
         return False
