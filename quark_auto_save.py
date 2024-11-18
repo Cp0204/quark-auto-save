@@ -690,11 +690,22 @@ class Quark:
 
 def load_media_servers(media_servers_config, media_servers_dir="media_servers"):
     media_servers = {}
-    available_modules = [
+    all_modules = [
         f.replace(".py", "") for f in os.listdir(media_servers_dir) if f.endswith(".py")
     ]
+    # 调整模块优先级
+    priority_path = os.path.join(media_servers_dir, "_priority.json")
+    try:
+        with open(priority_path, encoding="utf-8") as f:
+            priority_modules = json.load(f)
+        if priority_modules:
+            all_modules = [
+                module for module in priority_modules if module in all_modules
+            ] + [module for module in all_modules if module not in priority_modules]
+    except (FileNotFoundError, json.JSONDecodeError):
+        priority_modules = []
     print(f"🧩 载入媒体库模块")
-    for module_name in available_modules:
+    for module_name in all_modules:
         try:
             module = importlib.import_module(f"{media_servers_dir}.{module_name}")
             ServerClass = getattr(module, module_name.capitalize())
