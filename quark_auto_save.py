@@ -274,7 +274,7 @@ class Quark:
                 break
         return fids
 
-    def ls_dir(self, pdir_fid):
+    def ls_dir(self, pdir_fid, **kwargs):
         file_list = []
         page = 1
         while True:
@@ -289,6 +289,7 @@ class Quark:
                 "_fetch_total": "1",
                 "_fetch_sub_dirs": "0",
                 "_sort": "file_type:asc,updated_at:desc",
+                "_fetch_full_path": kwargs.get("fetch_full_path", 0),
             }
             headers = self.common_headers()
             response = requests.request(
@@ -703,8 +704,8 @@ def load_media_servers(media_servers_config, media_servers_dir="media_servers"):
                 media_servers[module_name] = ServerClass(**server_config)
             else:
                 media_servers_config[module_name] = ServerClass().default_config
-        except (ImportError, AttributeError):
-            print(f"载入模块 {module_name} 失败")
+        except (ImportError, AttributeError) as e:
+            print(f"载入模块 {module_name} 失败: {e}")
     print()
     return media_servers
 
