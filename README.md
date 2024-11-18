@@ -77,10 +77,12 @@ docker run -d \
   -e WEBUI_USERNAME=admin \
   -e WEBUI_PASSWORD=admin123 \
   -v ./quark-auto-save/config:/app/config \
-  -v /etc/localtime:/etc/localtime \
+  -v ./quark-auto-save/media:/media \ # 可选，模块alist_strm_gen生成strm使用
+  -v /etc/localtime:/etc/localtime \ # 可选，同步宿主机时区
   --network bridge \
   --restart unless-stopped \
   cp0204/quark-auto-save:latest
+  # registry.cn-shenzhen.aliyuncs.com/cp0204/quark-auto-save:latest # 国内镜像地址
 ```
 
 docker-compose.yml
@@ -90,7 +92,6 @@ name: quark-auto-save
 services:
   quark-auto-save:
     image: cp0204/quark-auto-save:latest
-    # image: registry.cn-shenzhen.aliyuncs.com/cp0204/quark-auto-save:latest
     container_name: quark-auto-save
     network_mode: bridge
     ports:
@@ -101,6 +102,7 @@ services:
       WEBUI_PASSWORD: "admin123"
     volumes:
       - ./quark-auto-save/config:/app/config
+      - ./quark-auto-save/media:/media
       - /etc/localtime:/etc/localtime
 ```
 
@@ -130,7 +132,7 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 
 程序也支持以青龙定时任务的方式运行，但该方式无法使用 WebUI 管理任务，需手动修改配置文件。
 
-青龙部署说明已转移到 Wiki ：[青龙部署教程](https://github.com/Cp0204/quark-auto-save/wiki/%E9%83%A8%E7%BD%B2%E6%95%99%E7%A8%8B#%E9%9D%92%E9%BE%99%E9%83%A8%E7%BD%B2)
+青龙部署说明已转移到 Wiki ：[青龙部署教程](https://github.com/Cp0204/quark-auto-save/wiki/青龙部署教程)
 
 ### 正则整理示例
 
@@ -143,7 +145,15 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 | `$TV`                                  |              | [魔法匹配](#魔法匹配)剧集文件                                          |
 | `^(\d+)\.mp4`                          | `$TASKNAME.S02E\1.mp4` | 01.mp4 → 任务名.S02E01.mp4                                             |
 
-更多正则使用说明已转移到 Wiki ：[正则处理教程](https://github.com/Cp0204/quark-auto-save/wiki/%E6%AD%A3%E5%88%99%E5%A4%84%E7%90%86%E6%95%99%E7%A8%8B)
+更多正则使用说明已转移到 Wiki ：[正则处理教程](https://github.com/Cp0204/quark-auto-save/wiki/正则处理教程)
+
+### 媒体库配置
+
+媒体库模块主要在执行任务，有新转存时触发完成相应功能，如刷新媒体库、生成 .strm 文件等。
+
+媒体库目前已完成模块化，可以很方便地挂载集成，如果你有兴趣请参考[媒体库模块开发指南](https://github.com/Cp0204/quark-auto-save/tree/main/media_servers)。
+
+目前已完成的模块配置参考 Wiki ：[媒体库模块配置教程](https://github.com/Cp0204/quark-auto-save/wiki/媒体库模块配置教程)
 
 ### 特殊场景使用技巧
 
