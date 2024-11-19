@@ -60,7 +60,7 @@
         <div class="col">
           <h2 style="display: inline-block;">通知</h2>
           <span class="badge badge-pill badge-light">
-            <a href="https://github.com/Cp0204/quark-auto-save/wiki/%E9%80%9A%E7%9F%A5%E6%8E%A8%E9%80%81%E6%9C%8D%E5%8A%A1%E9%85%8D%E7%BD%AE" target="_blank" title="通知配置说明">?</a>
+            <a href="https://github.com/Cp0204/quark-auto-save/wiki/通知推送服务配置" target="_blank" title="通知推送服务配置">?</a>
           </span>
         </div>
         <div class="col text-right">
@@ -84,7 +84,7 @@
         <div class="col">
           <h2 style="display: inline-block;">媒体库</h2>
           <span class="badge badge-pill badge-light">
-            <a href="https://github.com/Cp0204/quark-auto-save/tree/main/media_servers" target="_blank" title="媒体库模块开发指南">?</a>
+            <a href="https://github.com/Cp0204/quark-auto-save/wiki/媒体库模块配置" target="_blank" title="媒体库模块配置">?</a>
           </span>
         </div>
       </div>
@@ -227,7 +227,7 @@
                   </div>
                 </div>
                 <datalist id="magicRegex">
-                  <option v-for="(value, key) in formData.magic_regex" :key="key" :value="`${key}`" v-html="`${value.pattern} → ${value.replace}`"></option>
+                  <option v-for="(value, key) in formData.magic_regex" :key="key" :value="`${key}`" v-html="`${value.pattern.replace('<', '&lt;\u200B')} → ${value.replace}`"></option>
                 </datalist>
               </div>
             </div>
@@ -507,7 +507,7 @@
           newTask.taskname = this.taskNameFilter
           lastTask = this.formData.tasklist[this.formData.tasklist.length - 1]
           if (this.formData.tasklist.length > 0 && lastTask.taskname) {
-            newTask.savepath = lastTask.savepath.replace(lastTask.taskname, 'newTask')
+            newTask.savepath = lastTask.savepath.replace(lastTask.taskname, 'TASKNAME')
           } else {
             newTask.savepath = this.taskDirSelected + "/" + newTask.taskname
           }
@@ -530,7 +530,7 @@
           const matches = decodeURIComponent(task.shareurl).match(/\/(\w{32})-([^\/]+)$/);
           if (matches) {
             task.taskname = task.taskname == "" ? matches[2] : task.taskname;
-            task.savepath = task.savepath.replace(/newTask/g, matches[2]);
+            task.savepath = task.savepath.replace(/TASKNAME/g, matches[2]);
           }
           // 从分享中提取任务名
           axios.get('/get_share_detail', { params: { shareurl: task.shareurl } })
@@ -547,7 +547,7 @@
                 this.$set(task, "shareurl_ban", response.data.error);
               } else {
                 task.taskname = task.taskname == "" ? response.data.share.title : task.taskname;
-                task.savepath = task.savepath.replace(/newTask/g, response.data.share.title);
+                task.savepath = task.savepath.replace(/TASKNAME/g, response.data.share.title);
                 this.$set(task, "shareurl_ban", undefined);
               }
             })
