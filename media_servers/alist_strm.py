@@ -18,7 +18,7 @@ class Alist_strm:
 
     def __init__(self, **kwargs):
         if kwargs:
-            for key, value in self.default_config.items():
+            for key, _ in self.default_config.items():
                 if key in kwargs:
                     setattr(self, key, kwargs[key])
                 else:
@@ -30,17 +30,23 @@ class Alist_strm:
     def run(self, task):
         self.run_selected_configs(self.config_id)
 
-    def get_info(self, config_id):
-        url = f"{self.url}/edit/{config_id}"
+    def get_info(self, config_id_str):
+        url = f"{self.url}/configs"
         headers = {"Cookie": self.cookie}
         try:
             response = requests.request("GET", url, headers=headers)
             response.raise_for_status()
             html_content = response.text
             # 用正则提取 config_name 的值
-            match = re.search(r'name="config_name" value="([^"]+)"', html_content)
-            if match:
-                config_name = match.group(1)
+            matchs = re.findall(
+                r'value="(\d*)">\s*<strong>名称:</strong>([^<]+)', html_content
+            )
+            if matchs:
+                config_name = [
+                    item[1].strip()
+                    for item in matchs
+                    if item[0] in config_id_str.split(",")
+                ]
                 print(f"alist-strm配置运行: {config_name}")
                 return True
             else:
