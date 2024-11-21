@@ -117,7 +117,7 @@ class Alist:
                 return data.get("data")
             elif "object not found" in data.get("message", ""):
                 # 如果是根目录就不再往上查找
-                if path == "/" or path == self.quark_root_path:
+                if path == "/" or path == self.storage_mount_path:
                     print(f"📁 Alist刷新：根目录不存在，请检查 Alist 配置")
                     return False
                 # 获取父目录
