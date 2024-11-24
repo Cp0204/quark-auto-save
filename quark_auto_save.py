@@ -714,13 +714,13 @@ class Quark:
         return is_rename_count > 0
 
 
-def load_media_servers(media_servers_config, media_servers_dir="media_servers"):
-    media_servers = {}
+def load_plugins(plugins_config, plugins_dir="plugins"):
+    plugins = {}
     all_modules = [
-        f.replace(".py", "") for f in os.listdir(media_servers_dir) if f.endswith(".py")
+        f.replace(".py", "") for f in os.listdir(plugins_dir) if f.endswith(".py")
     ]
     # 调整模块优先级
-    priority_path = os.path.join(media_servers_dir, "_priority.json")
+    priority_path = os.path.join(plugins_dir, "_priority.json")
     try:
         with open(priority_path, encoding="utf-8") as f:
             priority_modules = json.load(f)
@@ -730,21 +730,21 @@ def load_media_servers(media_servers_config, media_servers_dir="media_servers"):
             ] + [module for module in all_modules if module not in priority_modules]
     except (FileNotFoundError, json.JSONDecodeError):
         priority_modules = []
-    print(f"🧩 载入媒体库模块")
+    print(f"🧩 载入插件")
     for module_name in all_modules:
         try:
-            module = importlib.import_module(f"{media_servers_dir}.{module_name}")
+            module = importlib.import_module(f"{plugins_dir}.{module_name}")
             ServerClass = getattr(module, module_name.capitalize())
             # 检查配置中是否存在该模块的配置
-            if module_name in media_servers_config:
-                server_config = media_servers_config[module_name]
-                media_servers[module_name] = ServerClass(**server_config)
+            if module_name in plugins_config:
+                server_config = plugins_config[module_name]
+                plugins[module_name] = ServerClass(**server_config)
             else:
-                media_servers_config[module_name] = ServerClass().default_config
+                plugins_config[module_name] = ServerClass().default_config
         except (ImportError, AttributeError) as e:
             print(f"载入模块 {module_name} 失败: {e}")
     print()
-    return media_servers
+    return plugins
 
 
 def verify_account(account):
@@ -804,7 +804,7 @@ def do_sign(account):
 
 
 def do_save(account, tasklist=[]):
-    media_servers = load_media_servers(CONFIG_DATA.get("media_servers", {}))
+    plugins = load_plugins(CONFIG_DATA.get("plugins", {}))
     print(f"转存账号: {account.nickname}")
     # 获取全部保存目录fid
     account.update_savepath_fid(tasklist)
@@ -835,30 +835,28 @@ def do_save(account, tasklist=[]):
             print(f"正则替换: {task['replace']}")
             if task.get("enddate"):
                 print(f"任务截止: {task['enddate']}")
-            if task.get("media_id"):
-                print(f"刷媒体库: {task['media_id']}")
             if task.get("ignore_extension"):
                 print(f"忽略后缀: {task['ignore_extension']}")
             if task.get("update_subdir"):
                 print(f"更子目录: {task['update_subdir']}")
             print()
-            is_new = account.do_save_task(task)
+            is_new_tree = account.do_save_task(task)
             is_rename = account.do_rename_task(task)
-            # 调用媒体库模块
-            print(f"🧩 调用媒体库模块")
-            for server_name, media_server in media_servers.items():
-                if hasattr(media_server, "default_task_config") and not task.get(
+            # 调用插件
+            print(f"🧩 调用插件")
+            for plugin_name, plugin in plugins.items():
+                if hasattr(plugin, "default_task_config") and not task.get(
                     "addition", {}
-                ).get(server_name):
+                ).get(plugin_name):
                     task.setdefault("addition", {})[
-                        server_name
-                    ] = media_server.default_task_config
-                if media_server.is_active and (is_new or is_rename):
-                    task = media_server.run(task, account=account, tree=is_new) or task
+                        plugin_name
+                    ] = plugin.default_task_config
+                if plugin.is_active and (is_new_tree or is_rename):
+                    task = plugin.run(task, account=account, tree=is_new_tree) or task
     print()
 
 
-def reaking_change_update():
+def breaking_change_update():
     global CONFIG_DATA
     # print("Update config v0.3.6.1 to 0.3.7")
     if CONFIG_DATA.get("emby"):
@@ -900,7 +898,7 @@ def main():
         print(f"⚙️ 正从 {config_path} 文件中读取配置")
         with open(config_path, "r", encoding="utf-8") as file:
             CONFIG_DATA = json.load(file)
-            reaking_change_update()
+            breaking_change_update()
         cookie_val = CONFIG_DATA.get("cookie")
         if not CONFIG_DATA.get("magic_regex"):
             CONFIG_DATA["magic_regex"] = MAGIC_REGEX

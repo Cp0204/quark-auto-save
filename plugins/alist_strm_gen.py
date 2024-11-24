@@ -40,7 +40,7 @@ class Alist_strm_gen:
                 if key in kwargs:
                     setattr(self, key, kwargs[key])
                 else:
-                    print(f"{self.__class__.__name__} 模块缺少必要参数: {key}")
+                    print(f"{self.plugin_name} 模块缺少必要参数: {key}")
             if self.url and self.token and self.storage_id:
                 success, result = self.storage_id_to_path(self.storage_id)
                 if success:
