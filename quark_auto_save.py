@@ -868,10 +868,13 @@ def do_save(account, tasklist=[]):
                 task.get("addition", {}), CONFIG_DATA["task_plugins_config"]
             )
             # 调用插件
-            print(f"🧩 调用插件")
-            for plugin_name, plugin in plugins.items():
-                if plugin.is_active and (is_new_tree or is_rename):
-                    task = plugin.run(task, account=account, tree=is_new_tree) or task
+            if is_new_tree or is_rename:
+                print(f"🧩 调用插件")
+                for plugin_name, plugin in plugins.items():
+                    if plugin.is_active and (is_new_tree or is_rename):
+                        task = (
+                            plugin.run(task, account=account, tree=is_new_tree) or task
+                        )
     print()
 
 
