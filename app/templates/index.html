@@ -82,25 +82,25 @@
 
       <div class="row title">
         <div class="col">
-          <h2 style="display: inline-block;">媒体库</h2>
+          <h2 style="display: inline-block;">插件</h2>
           <span class="badge badge-pill badge-light">
             <a href="https://github.com/Cp0204/quark-auto-save/wiki/媒体库模块配置" target="_blank" title="媒体库模块配置">?</a>
           </span>
         </div>
       </div>
-      <div v-for="(server, serverName) in formData.media_servers" :key="serverName" class="task mb-3">
+      <div v-for="(plugin, pluginName) in formData.plugins" :key="pluginName" class="task mb-3">
         <div class="form-group row" style="display:flex; align-items:center">
-          <div class="col-9" data-toggle="collapse" :data-target="'#collapse_'+serverName" aria-expanded="true" :aria-controls="'collapse_'+serverName">
+          <div class="col-9" data-toggle="collapse" :data-target="'#collapse_'+pluginName" aria-expanded="true" :aria-controls="'collapse_'+pluginName">
             <div class="btn btn-block text-left">
-              <i class="bi bi-caret-right-fill"></i> <span v-html="`${serverName}`"></span>
+              <i class="bi bi-caret-right-fill"></i> <span v-html="`${pluginName}`"></span>
             </div>
           </div>
         </div>
-        <div class="collapse" :id="'collapse_'+serverName" style="padding-left:2em">
-          <div v-for="(value, key) in server" :key="key" class="form-group row">
+        <div class="collapse" :id="'collapse_'+pluginName" style="padding-left:2em">
+          <div v-for="(value, key) in plugin" :key="key" class="form-group row">
             <label class="col-sm-2 col-form-label">{{ key }}</label>
             <div class="col-sm-10">
-              <input type="text" v-model="formData.media_servers[serverName][key]" class="form-control">
+              <input type="text" v-model="formData.plugins[pluginName][key]" class="form-control">
             </div>
           </div>
         </div>
@@ -267,7 +267,7 @@
               <label class="col-sm-2 col-form-label">插件配置</label>
               <div class="col-sm-10">
                 <!-- <input type="text" name="addition[]" class="form-control" v-model="task.addition" placeholder="可选"> -->
-                <v-jsoneditor v-model="task.addition" :options="{mode:'tree'}" :plus="false" height="150px"></v-jsoneditor>
+                <v-jsoneditor v-model="task.addition" :options="{mode:'tree'}" :plus="false" height="200px"></v-jsoneditor>
               </div>
             </div>
           </div>

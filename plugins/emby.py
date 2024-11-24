@@ -16,11 +16,11 @@ class Emby:
     def __init__(self, **kwargs):
         self.plugin_name = self.__class__.__name__.lower()
         if kwargs:
-            for key, value in self.default_config.items():
+            for key, _ in self.default_config.items():
                 if key in kwargs:
                     setattr(self, key, kwargs[key])
                 else:
-                    print(f"{self.__class__.__name__} 模块缺少必要参数: {key}")
+                    print(f"{self.plugin_name} 模块缺少必要参数: {key}")
             if self.url and self.token:
                 if self.get_info():
                     self.is_active = True

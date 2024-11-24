@@ -1,21 +1,21 @@
-# 媒体库模块开发指南
+# 插件开发指南
 
-本指南介绍如何开发自定义媒体库模块，你可以通过添加新的媒体库模块来扩展项目功能。
+本指南介绍如何开发自定义插件，你可以通过添加新的插件来扩展项目功能。
 
 ## 基本结构
 
-* 模块位于 `media_servers` 目录下.
-* 每个模块是一个 `.py` 文件 (例如 `emby.py`, `plex.py`)，文件名小写。
-* 每个模块文件包含一个与文件名对应的首字母大写命名类（例如 `emby.py` 中的 `Emby` 类）。
+* 插件位于 `media_servers` 目录下.
+* 每个插件是一个 `.py` 文件 (例如 `emby.py`, `plex.py`)，文件名小写。
+* 每个插件文件包含一个与文件名对应的首字母大写命名类（例如 `emby.py` 中的 `Emby` 类）。
 
-## 模块要求
+## 插件要求
 
-每个模块类必须包含以下内容:
+每个插件类必须包含以下内容:
 
-* **`default_config`**：字典，包含模块所需参数及其默认值。例如：
+* **`default_config`**：字典，包含插件所需参数及其默认值。例如：
 
   ```python
-  # 该模块必须配置的键，值可留空
+  # 该插件必须配置的键，值可留空
   default_config = {"url": "", "token": ""}
   ```
 
@@ -25,11 +25,11 @@
   1. 检查 `kwargs` 是否包含所有 `default_config` 中的参数，缺少参数则打印警告。
   2. 若参数完整，尝试连接服务器并验证配置，成功则设置 `self.is_active = True`。
 
-* **`run(self, task)`**：整个模块入口函数，处理模块逻辑。
+* **`run(self, task, **kwargs)`**：整个插件入口函数，处理插件逻辑。
   * `task` 是一个字典，包含任务信息。如果需要修改任务参数，返回修改后的 `task` 字典；
   * 无修改则不返回或返回 `None`。
 
-## 模块示例
+## 插件示例
 
 参考 [emby.py](emby.py)
 
@@ -43,7 +43,7 @@
 
 ### 最佳实践
 
-requests 部分使用 try-except 块，以防模块请求出错中断整个转存任务。
+requests 部分使用 try-except 块，以防插件请求出错中断整个转存任务。
 
 ```python
 try:
@@ -56,7 +56,7 @@ except requests.exceptions.RequestException as e:
     return False
 ```
 
-## 使用自定义模块
+## 使用自定义插件
 
 放到 `/media_servers` 目录即可识别，如果你使用 docker 运行：
 
@@ -67,11 +67,11 @@ docker run -d \
   # ...
 ```
 
-如果你有写自定义模块的能力，相信你也知道如何挂载自定义模块，算我啰嗦。🙃
+如果你有写自定义插件的能力，相信你也知道如何挂载自定义插件，算我啰嗦。🙃
 
 ## 配置文件
 
-在 `quark_config.json` 的 `media_servers` 中配置模块参数:
+在 `quark_config.json` 的 `media_servers` 中配置插件参数:
 
 ```json
 {
@@ -84,10 +84,11 @@ docker run -d \
 }
 ```
 
-当模块代码正确赋值 `default_config` 时，首次运行会自动补充缺失的键。
+当插件代码正确赋值 `default_config` 时，首次运行会自动补充缺失的键。
 
 ## 🤝 贡献者
 
-| 模块    | 说明                 | 贡献者                                  |
+| 插件    | 说明                 | 贡献者                                  |
 | ------- | -------------------- | --------------------------------------- |
 | plex.py | 自动刷新 Plex 媒体库 | [zhazhayu](https://github.com/zhazhayu) |
+| alist_strm_gen.py | 自动生成strm | [xiaoQQya](https://github.com/xiaoQQya) |
