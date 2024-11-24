@@ -877,8 +877,8 @@ def do_save(account, tasklist=[]):
 
 def breaking_change_update():
     global CONFIG_DATA
-    # print("Update config v0.3.6.1 to 0.3.7")
     if CONFIG_DATA.get("emby"):
+        print("🔼 Update config v0.3.6.1 to 0.3.7")
         CONFIG_DATA.setdefault("media_servers", {})["emby"] = {
             "url": CONFIG_DATA["emby"]["url"],
             "token": CONFIG_DATA["emby"]["apikey"],
@@ -888,6 +888,18 @@ def breaking_change_update():
             task["media_id"] = task.get("emby_id", "")
             if task.get("emby_id"):
                 del task["emby_id"]
+    if CONFIG_DATA.get("media_servers"):
+        print("🔼 Update config v0.3.8 to 0.3.9")
+        CONFIG_DATA["plugins"] = CONFIG_DATA.get("media_servers")
+        del CONFIG_DATA["media_servers"]
+        for task in CONFIG_DATA.get("tasklist", {}):
+            task["addition"] = {
+                "emby": {
+                    "media_id": task.get("media_id", ""),
+                }
+            }
+            if task.get("media_id"):
+                del task["media_id"]
 
 
 def main():
