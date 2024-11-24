@@ -2,6 +2,7 @@
     "alist",
     "alist_strm",
     "alist_strm_gen",
+    "aria2",
     "emby",
     "plex"
 ]
