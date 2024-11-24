@@ -12,7 +12,7 @@ class Alist_strm:
     default_config = {
         "url": "",  # alist-strm服务器URL
         "cookie": "",  # alist-strm的cookie，F12抓取，关键参数：session=ey***
-        "config_id": "",  # 要触发运行的配置ID
+        "config_id": "",  # 要触发运行的配置ID，支持多个，用逗号分隔
     }
     is_active = False
 
@@ -27,7 +27,7 @@ class Alist_strm:
                 if self.get_info(self.config_id):
                     self.is_active = True
 
-    def run(self, task):
+    def run(self, task, **kwargs):
         self.run_selected_configs(self.config_id)
 
     def get_info(self, config_id_str):

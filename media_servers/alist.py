@@ -30,7 +30,7 @@ class Alist:
                         self.storage_mount_path, self.quark_root_dir = result
                         self.is_active = True
 
-    def run(self, task):
+    def run(self, task, **kwargs):
         if task.get("savepath") and task.get("savepath").startswith(
             self.quark_root_dir
         ):
