@@ -125,6 +125,7 @@ class Quark:
         headers = {
             "cookie": self.cookie,
             "content-type": "application/json",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) quark-cloud-drive/3.14.2 Chrome/112.0.5615.165 Electron/24.1.3.8 Safari/537.36 Channel/pckk_other_ch",
         }
         return headers
 
@@ -328,6 +329,16 @@ class Quark:
             "POST", url, json=payload, headers=headers, params=querystring
         ).json()
         return response
+
+    def download(self, fids):
+        url = "https://drive-h.quark.cn/1/clouddrive/file/download"
+        querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
+        payload = {"fids": fids}
+        headers = self.common_headers()
+        response = requests.post(url, json=payload, headers=headers, params=querystring)
+        set_cookie = response.cookies.get_dict()
+        cookie_str = "; ".join([f"{key}={value}" for key, value in set_cookie.items()])
+        return response.json(), cookie_str
 
     def mkdir(self, dir_path):
         url = "https://drive-h.quark.cn/1/clouddrive/file"
