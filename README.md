@@ -40,7 +40,7 @@
 - 分享链接
   - [x] 支持分享链接的子目录
   - [x] 记录失效分享并跳过任务
-  - [x] 支持需提取码的分享链接 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/%E4%BD%BF%E7%94%A8%E6%8A%80%E5%B7%A7%E9%9B%86%E9%94%A6#%E6%94%AF%E6%8C%81%E9%9C%80%E6%8F%90%E5%8F%96%E7%A0%81%E7%9A%84%E5%88%86%E4%BA%AB%E9%93%BE%E6%8E%A5)</sup>
+  - [x] 支持需提取码的分享链接 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦#支持需提取码的分享链接)</sup>
 
 - 文件管理
   - [x] 目标目录不存在时自动新建
@@ -57,11 +57,11 @@
 - 媒体库整合
   - [x] 根据任务名搜索 Emby 媒体库
   - [x] 追更或整理后自动刷新 Emby 媒体库
-  - [x] **媒体库模块化，用户可很方便地[开发自己的媒体库hook模块](./media_servers)**
+  - [x] **媒体库模块化，用户可很方便地[开发自己的媒体库hook模块](./plugins)**
 
 - 其它
-  - [x] 每日签到领空间 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/%E4%BD%BF%E7%94%A8%E6%8A%80%E5%B7%A7%E9%9B%86%E9%94%A6#%E6%AF%8F%E6%97%A5%E7%AD%BE%E5%88%B0%E9%A2%86%E7%A9%BA%E9%97%B4)</sup>
-  - [x] 支持多个通知推送渠道 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/%E9%80%9A%E7%9F%A5%E6%8E%A8%E9%80%81%E6%9C%8D%E5%8A%A1%E9%85%8D%E7%BD%AE)</sup>
+  - [x] 每日签到领空间 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦#每日签到领空间)</sup>
+  - [x] 支持多个通知推送渠道 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/通知推送服务配置)</sup>
   - [x] 支持多账号（多账号签到，仅首账号转存）
 
 ## 部署
@@ -155,9 +155,9 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 
 ### 刷新媒体库
 
-在有新转存时，可触发完成相应功能，如自动刷新媒体库、生成 .strm 文件等。配置指南：[媒体库模块配置](https://github.com/Cp0204/quark-auto-save/wiki/媒体库模块配置)
+在有新转存时，可触发完成相应功能，如自动刷新媒体库、生成 .strm 文件等。配置指南：[插件配置](https://github.com/Cp0204/quark-auto-save/wiki/插件配置)
 
-媒体库模块以模块化方式的集成，如果你有兴趣请参考[媒体库模块开发指南](https://github.com/Cp0204/quark-auto-save/tree/main/media_servers)。
+媒体库模块以插件的方式的集成，如果你有兴趣请参考[插件开发指南](https://github.com/Cp0204/quark-auto-save/tree/main/plugins)。
 
 ### 更多使用技巧
 
