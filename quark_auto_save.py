@@ -498,14 +498,13 @@ class Quark:
         updated_tree = self.dir_check_and_save(task, pwd_id, stoken, pdir_fid)
         if updated_tree.size(1) > 0:
             add_notify(f"✅《{task['taskname']}》添加追更：\n{updated_tree}")
-            return True
+            return updated_tree
         else:
             print(f"任务结束：没有新的转存任务")
             return False
 
     def dir_check_and_save(self, task, pwd_id, stoken, pdir_fid="", subdir_path=""):
         tree = Tree()
-        tree.create_node(task["savepath"], pdir_fid)
         # 获取分享文件列表
         share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["list"]
         # print("share_file_list: ", share_file_list)
@@ -536,6 +535,14 @@ class Quark:
         to_pdir_fid = self.savepath_fid[savepath]
         dir_file_list = self.ls_dir(to_pdir_fid)
         # print("dir_file_list: ", dir_file_list)
+
+        tree.create_node(
+            savepath,
+            pdir_fid,
+            data={
+                "is_dir": True,
+            },
+        )
 
         # 需保存的文件清单
         need_save_list = []
@@ -591,6 +598,9 @@ class Quark:
                                     "📁" + share_file["file_name"],
                                     share_file["fid"],
                                     parent=pdir_fid,
+                                    data={
+                                        "is_dir": share_file["dir"],
+                                    },
                                 )
                                 tree.merge(share_file["fid"], subdir_tree, deep=False)
             # 指定文件开始订阅/到达指定文件（含）结束历遍
@@ -599,7 +609,6 @@ class Quark:
 
         fid_list = [item["fid"] for item in need_save_list]
         fid_token_list = [item["share_fid_token"] for item in need_save_list]
-        save_name_list = [item["save_name"] for item in need_save_list]
         if fid_list:
             save_file_return = self.save_file(
                 fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken
@@ -609,16 +618,22 @@ class Quark:
                 task_id = save_file_return["data"]["task_id"]
                 query_task_return = self.query_task(task_id)
                 if query_task_return["code"] == 0:
-                    save_name_list.sort()
                     # 建立目录树
-                    for item in need_save_list:
+                    for index, item in enumerate(need_save_list):
                         icon = (
                             "📁"
                             if item["dir"] == True
                             else "🎞️" if item["obj_category"] == "video" else ""
                         )
                         tree.create_node(
-                            f"{icon}{item['save_name']}", item["fid"], parent=pdir_fid
+                            f"{icon}{item['save_name']}",
+                            item["fid"],
+                            parent=pdir_fid,
+                            data={
+                                "fid": f"{query_task_return['data']['save_as']['save_as_top_fids'][index]}",
+                                "path": f"{savepath}/{item['save_name']}",
+                                "is_dir": item["dir"],
+                            },
                         )
                 else:
                     err_msg = query_task_return["message"]
