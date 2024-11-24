@@ -830,7 +830,7 @@ def do_save(account, tasklist=[]):
             print(f"#{index+1}------------------")
             print(f"任务名称: {task['taskname']}")
             print(f"分享链接: {task['shareurl']}")
-            print(f"目标目录: {task['savepath']}")
+            print(f"保存路径: {task['savepath']}")
             print(f"正则匹配: {task['pattern']}")
             print(f"正则替换: {task['replace']}")
             if task.get("enddate"):
@@ -845,11 +845,16 @@ def do_save(account, tasklist=[]):
             is_new = account.do_save_task(task)
             is_rename = account.do_rename_task(task)
             # 调用媒体库模块
-            if is_new or is_rename:
-                print(f"🧩 调用媒体库模块")
-                for server_name, media_server in media_servers.items():
-                    if media_server.is_active:
-                        task = media_server.run(task) or task
+            print(f"🧩 调用媒体库模块")
+            for server_name, media_server in media_servers.items():
+                if hasattr(media_server, "default_task_config") and not task.get(
+                    "addition", {}
+                ).get(server_name):
+                    task.setdefault("addition", {})[
+                        server_name
+                    ] = media_server.default_task_config
+                if media_server.is_active and (is_new or is_rename):
+                    task = media_server.run(task, account=account, tree=is_new) or task
     print()
 
 

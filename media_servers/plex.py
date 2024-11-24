@@ -23,7 +23,7 @@ class Plex:
                 if self.get_info():
                     self.is_active = True
 
-    def run(self, task):
+    def run(self, task, **kwargs):
         if task.get("savepath"):
             # 检查是否已缓存库信息
             if self._libraries is None:
