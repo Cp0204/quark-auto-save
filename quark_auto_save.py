@@ -715,7 +715,8 @@ class Quark:
 
 
 def load_plugins(plugins_config, plugins_dir="plugins"):
-    plugins = {}
+    plugins_available = {}
+    task_plugins_config = {}
     all_modules = [
         f.replace(".py", "") for f in os.listdir(plugins_dir) if f.endswith(".py")
     ]
@@ -737,14 +738,18 @@ def load_plugins(plugins_config, plugins_dir="plugins"):
             ServerClass = getattr(module, module_name.capitalize())
             # 检查配置中是否存在该模块的配置
             if module_name in plugins_config:
-                server_config = plugins_config[module_name]
-                plugins[module_name] = ServerClass(**server_config)
+                plugin = ServerClass(**plugins_config[module_name])
+                plugins_available[module_name] = plugin
             else:
-                plugins_config[module_name] = ServerClass().default_config
+                plugin = ServerClass()
+                plugins_config[module_name] = plugin.default_config
+            # 检查插件是否支持单独任务配置
+            if hasattr(plugin, "default_task_config"):
+                task_plugins_config[module_name] = plugin.default_task_config
         except (ImportError, AttributeError) as e:
             print(f"载入模块 {module_name} 失败: {e}")
     print()
-    return plugins
+    return plugins_available, task_plugins_config
 
 
 def verify_account(account):
@@ -804,7 +809,9 @@ def do_sign(account):
 
 
 def do_save(account, tasklist=[]):
-    plugins = load_plugins(CONFIG_DATA.get("plugins", {}))
+    plugins, CONFIG_DATA["task_plugins_config"] = load_plugins(
+        CONFIG_DATA.get("plugins", {})
+    )
     print(f"转存账号: {account.nickname}")
     # 获取全部保存目录fid
     account.update_savepath_fid(tasklist)
@@ -842,15 +849,27 @@ def do_save(account, tasklist=[]):
             print()
             is_new_tree = account.do_save_task(task)
             is_rename = account.do_rename_task(task)
+
+            # 补充任务的插件配置
+            def merge_dicts(a, b):
+                result = a.copy()
+                for key, value in b.items():
+                    if (
+                        key in result
+                        and isinstance(result[key], dict)
+                        and isinstance(value, dict)
+                    ):
+                        result[key] = merge_dicts(result[key], value)
+                    elif key not in result:
+                        result[key] = value
+                return result
+
+            task["addition"] = merge_dicts(
+                task.get("addition", {}), CONFIG_DATA["task_plugins_config"]
+            )
             # 调用插件
             print(f"🧩 调用插件")
             for plugin_name, plugin in plugins.items():
-                if hasattr(plugin, "default_task_config") and not task.get(
-                    "addition", {}
-                ).get(plugin_name):
-                    task.setdefault("addition", {})[
-                        plugin_name
-                    ] = plugin.default_task_config
                 if plugin.is_active and (is_new_tree or is_rename):
                     task = plugin.run(task, account=account, tree=is_new_tree) or task
     print()

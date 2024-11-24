@@ -267,7 +267,7 @@
               <label class="col-sm-2 col-form-label">插件配置</label>
               <div class="col-sm-10">
                 <!-- <input type="text" name="addition[]" class="form-control" v-model="task.addition" placeholder="可选"> -->
-                <v-jsoneditor v-model="task.addition" :options="{mode:'tree'}" :plus="false" height="200px"></v-jsoneditor>
+                <v-jsoneditor v-model="task.addition" :options="{mode:'tree'}" :plus="false" height="180px"></v-jsoneditor>
               </div>
             </div>
           </div>
@@ -462,16 +462,13 @@
                 }
                 return task;
               });
-              // 添加emby预设
-              if (!response.data.hasOwnProperty('emby')) {
-                response.data.emby = { ...this.emby };
-              }
               // 获取所有任务父目录
               response.data.tasklist.forEach(item => {
                 parentDir = this.getParentDirectory(item.savepath)
                 if (!this.taskDirs.includes(parentDir))
                   this.taskDirs.push(parentDir);
               });
+              this.newTask.addition = response.data.task_plugins_config;
               this.formData = response.data;
             })
             .catch(error => {
