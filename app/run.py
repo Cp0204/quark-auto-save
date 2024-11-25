@@ -288,16 +288,12 @@ def init():
             dest.write(src.read())
     data = read_json()
     # 默认管理账号
-    if not data.get("webui"):
-        data["webui"] = {
-            "username": "admin",
-            "password": "admin123",
-        }
-    elif os.environ.get("WEBUI_USERNAME") and os.environ.get("WEBUI_PASSWORD"):
-        data["webui"] = {
-            "username": os.environ.get("WEBUI_USERNAME"),
-            "password": os.environ.get("WEBUI_PASSWORD"),
-        }
+    data["webui"] = {
+        "username": os.environ.get("WEBUI_USERNAME")
+        or data.get("webui", {}).get("username", "admin"),
+        "password": os.environ.get("WEBUI_PASSWORD")
+        or data.get("webui", {}).get("password", "admin123"),
+    }
     # 默认定时规则
     if not data.get("crontab"):
         data["crontab"] = "0 8,18,20 * * *"
