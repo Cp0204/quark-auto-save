@@ -4,7 +4,7 @@
 
 ## 基本结构
 
-* 插件位于 `media_servers` 目录下.
+* 插件位于 `plugins` 目录下.
 * 每个插件是一个 `.py` 文件 (例如 `emby.py`, `plex.py`)，文件名小写。
 * 每个插件文件包含一个与文件名对应的首字母大写命名类（例如 `emby.py` 中的 `Emby` 类）。
 
@@ -58,12 +58,12 @@ except requests.exceptions.RequestException as e:
 
 ## 使用自定义插件
 
-放到 `/media_servers` 目录即可识别，如果你使用 docker 运行：
+放到 `/plugins` 目录即可识别，如果你使用 docker 运行：
 
 ```shell
 docker run -d \
   # ... 例如添加这行挂载，其它一致
-  -v ./quark-auto-save/media_servers/plex.py:/app/media_servers/plex.py \
+  -v ./quark-auto-save/plugins/plex.py:/app/plugins/plex.py \
   # ...
 ```
 
@@ -71,7 +71,7 @@ docker run -d \
 
 ## 配置文件
 
-在 `quark_config.json` 的 `media_servers` 中配置插件参数:
+在 `quark_config.json` 的 `plugins` 中配置插件参数:
 
 ```json
 {
