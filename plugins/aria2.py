@@ -10,7 +10,8 @@ class Aria2:
         "dir": "/Downloads",  # 下载目录，需要Aria2有权限访问
     }
     default_task_config = {
-        "auto_download": False,  # 是否开启自动下载
+        "auto_download": False,  # 是否自动添加下载任务
+        "pause": False,  # 添加任务后为暂停状态，不自动开始（手动下载）
     }
     is_active = False
     rpc_url = None
@@ -29,9 +30,11 @@ class Aria2:
                     self.is_active = True
 
     def run(self, task, **kwargs):
-        if task_config := task.get("addition", {}).get(self.plugin_name, {}):
-            if not task_config.get("auto_download"):
-                return
+        task_config = task.get("addition", {}).get(
+            self.plugin_name, self.default_task_config
+        )
+        if not task_config.get("auto_download"):
+            return
         if (tree := kwargs.get("tree")) and (account := kwargs.get("account")):
             for node in tree.all_nodes_itr():
                 if not node.data.get("is_dir", True):
@@ -52,6 +55,7 @@ class Aria2:
                             ],
                             "out": os.path.basename(save_path),
                             "dir": os.path.dirname(save_path),
+                            "pause": task_config.get("pause"),
                         },
                     ]
                     self.add_uri(aria2_params)
