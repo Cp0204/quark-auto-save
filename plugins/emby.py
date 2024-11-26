@@ -26,15 +26,18 @@ class Emby:
                     self.is_active = True
 
     def run(self, task, **kwargs):
-        if task_config := task.get("addition", {}).get(self.plugin_name, {}):
-            if media_id := task_config.get("media_id"):
-                if media_id != "0":
-                    self.refresh(media_id)
-            elif task_config.get("try_match"):
-                if match_media_id := self.search(task["taskname"]):
-                    self.refresh(match_media_id)
-                    task["addition"][self.plugin_name]["media_id"] = match_media_id
-                    return task
+        task_config = task.get("addition", {}).get(
+            self.plugin_name, self.default_task_config
+        )
+        if media_id := task_config.get("media_id"):
+            if media_id != "0":
+                self.refresh(media_id)
+        elif task_config.get("try_match"):
+            if match_media_id := self.search(task["taskname"]):
+                self.refresh(match_media_id)
+                task_config["media_id"] = match_media_id
+                task.setdefault("addition", {})[self.plugin_name] = task_config
+                return task
 
     def get_info(self):
         url = f"{self.url}/emby/System/Info"

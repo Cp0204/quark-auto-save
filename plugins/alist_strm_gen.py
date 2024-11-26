@@ -58,9 +58,11 @@ class Alist_strm_gen:
                         self.strm_server = f"{self.url.strip()}/d"
 
     def run(self, task, **kwargs):
-        if task_config := task.get("addition", {}).get(self.plugin_name, {}):
-            if not task_config.get("auto_gen"):
-                return
+        task_config = task.get("addition", {}).get(
+            self.plugin_name, self.default_task_config
+        )
+        if not task_config.get("auto_gen"):
+            return
         if task.get("savepath") and task.get("savepath").startswith(
             self.quark_root_dir
         ):
