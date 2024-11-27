@@ -84,7 +84,7 @@ class Emby:
 
     def search(self, media_name):
         if not media_name:
-            return False
+            return ""
         url = f"{self.url}/emby/Items"
         headers = {"X-Emby-Token": self.token}
         querystring = {
@@ -113,4 +113,4 @@ class Emby:
                 print(f"🎞️ 搜索Emby媒体库：{response.text}❌")
         except requests.exceptions.RequestException as e:
             print(f"搜索Emby媒体库出错: {e}")
-        return False
+        return ""

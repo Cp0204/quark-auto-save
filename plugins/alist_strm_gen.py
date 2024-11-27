@@ -124,7 +124,7 @@ class Alist_strm_gen:
                 print(f"Alist-Strm生成: 获取存储失败❌ {data.get('message')}")
         except requests.exceptions.RequestException as e:
             print(f"Alist-Strm生成: 获取存储出错 {e}")
-        return False
+        return []
 
     def check_dir(self, path):
         data = self.get_file_list(path)
@@ -155,7 +155,7 @@ class Alist_strm_gen:
             return response.json()
         except Exception as e:
             print(f"📺 Alist-Strm生成: 获取文件列表出错❌ {e}")
-        return False
+        return {}
 
     def generate_strm(self, file_path):
         ext = file_path.split(".")[-1]
@@ -204,4 +204,4 @@ class Alist_strm_gen:
                 return "/".join(file_names)
         except requests.exceptions.RequestException as e:
             print(f"Alist-Strm生成: 获取Quark路径出错 {e}")
-        return False
+        return ""

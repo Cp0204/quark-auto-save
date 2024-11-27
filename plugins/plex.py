@@ -90,7 +90,6 @@ class Plex:
                 return libraries
             else:
                 print(f"🎞️ 获取Plex媒体库信息失败❌ 状态码：{response.status_code}")
-                return None
         except Exception as e:
             print(f"获取Plex媒体库信息出错: {e}")
-            return None
+        return []
