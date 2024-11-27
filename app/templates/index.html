@@ -288,8 +288,8 @@
         </div>
       </div>
       <div class="bottom-buttons">
-        <button class="btn btn-success"><i class="bi bi-save"></i> 保存</button>
-        <button type="button" class="btn btn-primary" @click="runScriptNow()"><i class="bi bi-play-fill"></i> 运行</button>
+        <button class="btn btn-success" title="CTRL+S"><i class="bi bi-save"></i> 保存</button>
+        <button type="button" class="btn btn-primary" title="CTRL+R" @click="runScriptNow()"><i class="bi bi-play-fill"></i> 运行</button>
         <button type="button" class="btn btn-info" @click="scrollToX(0)" @dblclick="scrollToX()" data-toggle="tooltip" data-placement="top" title="单击回顶，双击到底"><i class="bi bi-chevron-bar-up"></i> 回顶</button>
         <a class="btn btn-danger" href="/logout"><i class="bi bi-box-arrow-right"></i> 退出</a>
       </div>
@@ -432,7 +432,8 @@
       mounted() {
         this.fetchData();
         this.checkNewVersion();
-        $('[data-toggle="tooltip"]').tooltip()
+        $('[data-toggle="tooltip"]').tooltip();
+        document.addEventListener('keydown', this.handleKeyDown);
       },
       methods: {
         checkNewVersion() {
@@ -474,6 +475,17 @@
             .catch(error => {
               console.error('Error fetching data:', error);
             });
+        },
+        handleKeyDown(event) {
+          if (event.ctrlKey || event.metaKey) {
+            if (event.keyCode === 83 || event.key === 's') {
+              event.preventDefault();
+              this.saveConfig();
+            } else if (event.keyCode === 82 || event.key === 'r') {
+              event.preventDefault();
+              this.runScriptNow();
+            }
+          }
         },
         saveConfig() {
           axios.post('/update', this.formData)
