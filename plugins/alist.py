@@ -67,7 +67,9 @@ class Alist:
         if match := re.match(r"^(\/[^:]*):(\/[^:]*)$", storage_id):
             # 存储挂载路径, 夸克根文件夹
             storage_mount_path, quark_root_dir = match.group(1), match.group(2)
-            if not self.get_file_list(storage_mount_path):
+            file_list = self.get_file_list(storage_mount_path)
+            if file_list.get("code") != 200:
+                print(f"Alist刷新: 获取挂载路径失败❌ {file_list.get('message')}")
                 return False, (None, None)
         # 2. 检查是否数字，调用 Alist API 获取存储信息
         elif re.match(r"^\d+$", storage_id):
