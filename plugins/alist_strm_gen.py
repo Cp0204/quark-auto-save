@@ -94,6 +94,7 @@ class Alist_strm_gen:
                     return True, (storage_mount_path, quark_root_dir)
             else:
                 print(f"Alist刷新: 不支持[{storage_info['driver']}]驱动 ❌")
+        return False, (None, None)
 
     def get_storage_info(self, storage_id):
         url = f"{self.url}/api/admin/storage/get"
