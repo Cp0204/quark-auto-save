@@ -72,29 +72,41 @@ class Alist_strm_gen:
                     task["savepath"].replace(self.quark_root_dir, "", 1).lstrip("/"),
                 )
             ).replace("\\", "/")
-            self.refresh(alist_path)
+            self.check_dir(alist_path)
 
     def storage_id_to_path(self, storage_id):
+        storage_mount_path, quark_root_dir = None, None
         # 1. 检查是否符合 /aaa:/bbb 格式
-        match = re.match(r"^(\/[^:]*):(\/[^:]*)$", storage_id)
-        if match:
-            return True, (match.group(1), match.group(2))
-        # 2. 调用 Alist API 获取存储信息
-        storage_info = self.get_storage_info(storage_id)
-        if storage_info:
-            if storage_info["driver"] == "Quark":
-                addition = json.loads(storage_info["addition"])
-                # 存储挂载路径
-                storage_mount_path = storage_info["mount_path"]
-                # 夸克根文件夹
-                quark_root_dir = self.get_root_folder_full_path(
-                    addition["cookie"], addition["root_folder_id"]
-                )
-                if storage_mount_path and quark_root_dir:
-                    return True, (storage_mount_path, quark_root_dir)
-            else:
-                print(f"Alist刷新: 不支持[{storage_info['driver']}]驱动 ❌")
-        return False, (None, None)
+        if match := re.match(r"^(\/[^:]*):(\/[^:]*)$", storage_id):
+            # 存储挂载路径, 夸克根文件夹
+            storage_mount_path, quark_root_dir = match.group(1), match.group(2)
+            if not self.get_file_list(storage_mount_path):
+                return False, (None, None)
+        # 2. 检查是否数字，调用 Alist API 获取存储信息
+        elif re.match(r"^\d+$", storage_id):
+            if storage_info := self.get_storage_info(storage_id):
+                if storage_info["driver"] == "Quark":
+                    addition = json.loads(storage_info["addition"])
+                    # 存储挂载路径
+                    storage_mount_path = storage_info["mount_path"]
+                    # 夸克根文件夹
+                    quark_root_dir = self.get_root_folder_full_path(
+                        addition["cookie"], addition["root_folder_id"]
+                    )
+                elif storage_info["driver"] == "QuarkTV":
+                    print(
+                        f"Alist-Strm生成: [QuarkTV]驱动⚠️ storage_id请手动填入 /Alist挂载路径:/Quark目录路径"
+                    )
+                else:
+                    print(f"Alist-Strm生成: 不支持[{storage_info['driver']}]驱动 ❌")
+        else:
+            print(f"Alist-Strm生成: storage_id[{storage_id}]格式错误❌")
+        # 返回结果
+        if storage_mount_path and quark_root_dir:
+            print(f"Alist-Strm生成: [{storage_mount_path}:{quark_root_dir}]")
+            return True, (storage_mount_path, quark_root_dir)
+        else:
+            return False, (None, None)
 
     def get_storage_info(self, storage_id):
         url = f"{self.url}/api/admin/storage/get"
@@ -105,46 +117,43 @@ class Alist_strm_gen:
             response.raise_for_status()
             data = response.json()
             if data.get("code") == 200:
-                print(
-                    f"Alist-Strm生成: {data['data']['driver']}[{data['data']['mount_path']}]"
-                )
                 return data.get("data", [])
             else:
-                print(f"Alist-Strm生成: 连接失败❌ {response.get('message')}")
+                print(f"Alist-Strm生成: 获取存储失败❌ {data.get('message')}")
         except requests.exceptions.RequestException as e:
-            print(f"Alist-Strm生成: 获取Alist存储出错 {e}")
+            print(f"Alist-Strm生成: 获取存储出错 {e}")
         return False
 
-    def refresh(self, path):
-        try:
-            response = self.get_file_list(path)
-            if response.get("code") != 200:
-                print(f"📺 生成 STRM 文件失败❌ {response.get('message')}")
-                return
-            else:
-                files = response.get("data").get("content")
-                for item in files:
-                    item_path = f"{path}/{item.get('name')}".replace("//", "/")
-                    if item.get("is_dir"):
-                        self.refresh(item_path)
-                    else:
-                        self.generate_strm(item_path)
-        except Exception as e:
-            print(f"📺 获取 Alist 文件列表失败❌ {e}")
+    def check_dir(self, path):
+        data = self.get_file_list(path)
+        if data.get("code") != 200:
+            print(f"📺 Alist-Strm生成: 获取文件列表失败❌{data.get('message')}")
+            return
+        elif files := data.get("data", {}).get("content"):
+            for item in files:
+                item_path = f"{path}/{item.get('name')}".replace("//", "/")
+                if item.get("is_dir"):
+                    self.check_dir(item_path)
+                else:
+                    self.generate_strm(item_path)
 
-    def get_file_list(self, path):
+    def get_file_list(self, path, force_refresh=False):
         url = f"{self.url}/api/fs/list"
         headers = {"Authorization": self.token}
         payload = {
             "path": path,
-            "refresh": False,
+            "refresh": force_refresh,
             "password": "",
             "page": 1,
             "per_page": 0,
         }
-        response = requests.request("POST", url, headers=headers, json=payload)
-        response.raise_for_status()
-        return response.json()
+        try:
+            response = requests.request("POST", url, headers=headers, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            print(f"📺 Alist-Strm生成: 获取文件列表出错❌ {e}")
+        return False
 
     def generate_strm(self, file_path):
         ext = file_path.split(".")[-1]
