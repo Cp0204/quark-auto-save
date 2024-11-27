@@ -61,8 +61,8 @@ class Alist_strm:
         try:
             selected_configs = [int(x.strip()) for x in selected_configs_str.split(",")]
         except ValueError:
-            print("Error: 运行alist-strm配置错误，id应以,分割")
-            return None
+            print("🔗 alist-strm配置运行: 出错❌ id应以,分割")
+            return False
         data = [("selected_configs", config_id) for config_id in selected_configs]
         data.append(("action", "run_selected"))
         try:

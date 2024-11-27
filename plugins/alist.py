@@ -110,7 +110,7 @@ class Alist:
                 print(f"Alist刷新: 存储{storage_id}连接失败❌ {data.get('message')}")
         except requests.exceptions.RequestException as e:
             print(f"Alist刷新: 获取Alist存储出错 {e}")
-        return False
+        return []
 
     def refresh(self, path):
         data = self.get_file_list(path, True)
@@ -146,7 +146,7 @@ class Alist:
             return response.json()
         except Exception as e:
             print(f"📁 Alist刷新: 获取文件列表出错❌ {e}")
-        return False
+        return {}
 
     def get_root_folder_full_path(self, cookie, pdir_fid):
         if pdir_fid == "0":
@@ -179,4 +179,4 @@ class Alist:
                 return "/".join(file_names)
         except requests.exceptions.RequestException as e:
             print(f"Alist刷新: 获取Quark路径出错 {e}")
-        return False
+        return ""

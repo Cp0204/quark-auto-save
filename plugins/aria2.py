@@ -76,7 +76,7 @@ class Aria2:
             return response.json()
         except requests.exceptions.RequestException as e:
             print(f"Aria2下载: 错误{e}")
-            return None
+        return {}
 
     def get_version(self):
         """检查与 Aria2 的连接."""
@@ -91,4 +91,4 @@ class Aria2:
     def add_uri(self, params=None):
         """添加 URI 下载任务."""
         response = self._make_rpc_request("aria2.addUri", params)
-        return response.get("result") if response else None
+        return response.get("result") if response else {}
