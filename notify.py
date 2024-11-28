@@ -33,7 +33,7 @@ def print(text, *args, **kw):
 # 通知服务
 # fmt: off
 push_config = {
-    'HITOKOTO': True,                  # 启用一言（随机句子）
+    'HITOKOTO': True,                   # 启用一言（随机句子）
 
     'BARK_PUSH': '',                    # bark IP 或设备码，例：https://api.day.app/DxHcxxxxxRxxxxxxcm/
     'BARK_ARCHIVE': '',                 # bark 推送是否存档
@@ -43,7 +43,7 @@ push_config = {
     'BARK_LEVEL': '',                   # bark 推送时效性
     'BARK_URL': '',                     # bark 推送跳转URL
 
-    'CONSOLE': False,                    # 控制台输出
+    'CONSOLE': False,                   # 控制台输出
 
     'DD_BOT_SECRET': '',                # 钉钉机器人的 DD_BOT_SECRET
     'DD_BOT_TOKEN': '',                 # 钉钉机器人的 DD_BOT_TOKEN
@@ -77,7 +77,7 @@ push_config = {
 
     'WE_PLUS_BOT_TOKEN': '',            # 微加机器人的用户令牌
     'WE_PLUS_BOT_RECEIVER': '',         # 微加机器人的消息接收者
-    'WE_PLUS_BOT_VERSION': 'pro',          # 微加机器人的调用版本
+    'WE_PLUS_BOT_VERSION': 'pro',       # 微加机器人的调用版本
 
     'QMSG_KEY': '',                     # qmsg 酱的 QMSG_KEY
     'QMSG_TYPE': '',                    # qmsg 酱的 QMSG_TYPE
@@ -101,9 +101,11 @@ push_config = {
 
     'SMTP_SERVER': '',                  # SMTP 发送邮件服务器，形如 smtp.exmail.qq.com:465
     'SMTP_SSL': 'false',                # SMTP 发送邮件服务器是否使用 SSL，填写 true 或 false
-    'SMTP_EMAIL': '',                   # SMTP 收发件邮箱，通知将会由自己发给自己
+    'SMTP_EMAIL': '',                   # SMTP 发件邮箱
     'SMTP_PASSWORD': '',                # SMTP 登录密码，也可能为特殊口令，视具体邮件服务商说明而定
-    'SMTP_NAME': '',                    # SMTP 收发件人姓名，可随意填写
+    'SMTP_NAME': '',                    # SMTP 发件人姓名，可随意填写
+    'SMTP_EMAIL_TO': '',                # SMTP 收件邮箱，可选，缺省时将自己发给自己，多个收件邮箱逗号间隔
+    'SMTP_NAME_TO': '',                 # SMTP 收件人姓名，可选，可随意填写，多个收件人逗号间隔，顺序与 SMTP_EMAIL_TO 保持一致
 
     'PUSHME_KEY': '',                   # PushMe 的 PUSHME_KEY
     'PUSHME_URL': '',                   # PushMe 的 PUSHME_URL
@@ -679,12 +681,23 @@ def smtp(title: str, content: str) -> None:
             push_config.get("SMTP_EMAIL"),
         )
     )
-    message["To"] = formataddr(
-        (
-            Header(push_config.get("SMTP_NAME"), "utf-8").encode(),
-            push_config.get("SMTP_EMAIL"),
+    if  not push_config.get("SMTP_EMAIL_TO"):
+        smtp_email_to = push_config.get("SMTP_EMAIL")
+        message["To"] = formataddr(
+            (
+                Header(push_config.get("SMTP_NAME"), "utf-8").encode(),
+                push_config.get("SMTP_EMAIL"),
+            )
         )
-    )
+    else:
+        smtp_email_to = push_config.get("SMTP_EMAIL_TO").split(",")
+        smtp_name_to = push_config.get("SMTP_NAME_TO","").split(",")
+        message["To"] = ",".join([formataddr(
+            (
+                Header(smtp_name_to[i] if len(smtp_name_to) > i else "", "utf-8").encode(),
+                email_to,
+            )
+        ) for i, email_to in enumerate(smtp_email_to)])
     message["Subject"] = Header(title, "utf-8")
 
     try:
@@ -698,7 +711,7 @@ def smtp(title: str, content: str) -> None:
         )
         smtp_server.sendmail(
             push_config.get("SMTP_EMAIL"),
-            push_config.get("SMTP_EMAIL"),
+            smtp_email_to,
             message.as_bytes(),
         )
         smtp_server.close()
