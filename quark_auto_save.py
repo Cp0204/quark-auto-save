@@ -59,8 +59,8 @@ def send_ql_notify(title, body):
 
         # 如未配置 push_config 则使用青龙环境通知设置
         if CONFIG_DATA.get("push_config"):
-            CONFIG_DATA["push_config"]["CONSOLE"] = True
-            notify.push_config = CONFIG_DATA["push_config"]
+            notify.push_config = CONFIG_DATA["push_config"].copy()
+            notify.push_config["CONSOLE"] = notify.push_config.get("CONSOLE", True)
         notify.send(title, body)
     except Exception as e:
         if e:
@@ -796,7 +796,10 @@ def do_sign(account):
                 sign_message = f"📅 执行签到: 今日签到+{int(sign_return/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅"
                 message = f"{sign_message}\n{growth_message}"
                 if (
-                    CONFIG_DATA.get("push_config", {}).get("QUARK_SIGN_NOTIFY") == False
+                    str(
+                        CONFIG_DATA.get("push_config", {}).get("QUARK_SIGN_NOTIFY")
+                    ).lower()
+                    == "false"
                     or os.environ.get("QUARK_SIGN_NOTIFY") == "false"
                 ):
                     print(message)
