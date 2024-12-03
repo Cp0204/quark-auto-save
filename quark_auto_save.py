@@ -199,18 +199,6 @@ class Quark:
         else:
             return False, response["message"]
 
-    def get_id_from_url(self, url):
-        url = url.replace("https://pan.quark.cn/s/", "")
-        pattern = r"(\w+)(\?pwd=(\w+))?(#/list/share.*/(\w+))?"
-        match = re.search(pattern, url)
-        if match:
-            pwd_id = match.group(1)
-            passcode = match.group(3) if match.group(3) else ""
-            pdir_fid = match.group(5) if match.group(5) else 0
-            return pwd_id, passcode, pdir_fid
-        else:
-            return None
-
     # 可验证资源是否失效
     def get_stoken(self, pwd_id, passcode=""):
         url = "https://drive-h.quark.cn/1/clouddrive/share/sharepage/token"
@@ -324,6 +312,37 @@ class Quark:
         ).json()
         return response
 
+    def query_task(self, task_id):
+        retry_index = 0
+        while True:
+            url = "https://drive-h.quark.cn/1/clouddrive/task"
+            querystring = {
+                "pr": "ucpro",
+                "fr": "pc",
+                "uc_param_str": "",
+                "task_id": task_id,
+                "retry_index": retry_index,
+                "__dt": int(random.uniform(1, 5) * 60 * 1000),
+                "__t": datetime.now().timestamp(),
+            }
+            response = requests.request("GET", url, params=querystring).json()
+            if response["data"]["status"] != 0:
+                if retry_index > 0:
+                    print()
+                break
+            else:
+                if retry_index == 0:
+                    print(
+                        f"正在等待[{response['data']['task_title']}]执行结果",
+                        end="",
+                        flush=True,
+                    )
+                else:
+                    print(".", end="", flush=True)
+                retry_index += 1
+                time.sleep(0.500)
+        return response
+
     def download(self, fids):
         url = "https://drive-h.quark.cn/1/clouddrive/file/download"
         querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
@@ -388,6 +407,21 @@ class Quark:
             "POST", url, json=payload, params=querystring
         ).json()
         return response
+
+    # ↑ 请求函数
+    # ↓ 操作函数
+
+    def get_id_from_url(self, url):
+        url = url.replace("https://pan.quark.cn/s/", "")
+        pattern = r"(\w+)(\?pwd=(\w+))?(#/list/share.*/(\w+))?"
+        match = re.search(pattern, url)
+        if match:
+            pwd_id = match.group(1)
+            passcode = match.group(3) if match.group(3) else ""
+            pdir_fid = match.group(5) if match.group(5) else 0
+            return pwd_id, passcode, pdir_fid
+        else:
+            return None
 
     def update_savepath_fid(self, tasklist):
         dir_paths = [
@@ -628,37 +662,6 @@ class Quark:
             if err_msg:
                 add_notify(f"❌《{task['taskname']}》转存失败：{err_msg}\n")
         return tree
-
-    def query_task(self, task_id):
-        retry_index = 0
-        while True:
-            url = "https://drive-h.quark.cn/1/clouddrive/task"
-            querystring = {
-                "pr": "ucpro",
-                "fr": "pc",
-                "uc_param_str": "",
-                "task_id": task_id,
-                "retry_index": retry_index,
-                "__dt": int(random.uniform(1, 5) * 60 * 1000),
-                "__t": datetime.now().timestamp(),
-            }
-            response = requests.request("GET", url, params=querystring).json()
-            if response["data"]["status"] != 0:
-                if retry_index > 0:
-                    print()
-                break
-            else:
-                if retry_index == 0:
-                    print(
-                        f"正在等待[{response['data']['task_title']}]执行结果",
-                        end="",
-                        flush=True,
-                    )
-                else:
-                    print(".", end="", flush=True)
-                retry_index += 1
-                time.sleep(0.500)
-        return response
 
     def do_rename_task(self, task, subdir_path=""):
         pattern, replace = magic_regex_func(
