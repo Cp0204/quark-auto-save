@@ -105,10 +105,10 @@ class Quark:
         self.index = index + 1
         self.is_active = False
         self.nickname = ""
-        self.mparam = self.match_mparam_form_cookie(cookie)
+        self.mparam = self._match_mparam_form_cookie(cookie)
         self.savepath_fid = {"/": "0"}
 
-    def match_mparam_form_cookie(self, cookie):
+    def _match_mparam_form_cookie(self, cookie):
         mparam = {}
         kps_match = re.search(r"(?<!\w)kps=([a-zA-Z0-9%+/=]+)[;&]?", cookie)
         sign_match = re.search(r"(?<!\w)sign=([a-zA-Z0-9%+/=]+)[;&]?", cookie)
@@ -121,13 +121,22 @@ class Quark:
             }
         return mparam
 
-    def common_headers(self):
+    def _send_request(self, method, url, **kwargs):
         headers = {
             "cookie": self.cookie,
             "content-type": "application/json",
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) quark-cloud-drive/3.14.2 Chrome/112.0.5615.165 Electron/24.1.3.8 Safari/537.36 Channel/pckk_other_ch",
         }
-        return headers
+        try:
+            response = requests.request(method, url, headers=headers, **kwargs)
+            response.raise_for_status()  # 检查请求是否成功
+            return response
+        except Exception as e:
+            print(f"_send_request error:\n{e}")
+            fake_response = requests.Response()
+            fake_response.status_code = 500
+            fake_response._content = b'{"error": 1}'
+            return fake_response
 
     def init(self):
         account_info = self.get_account_info()
@@ -141,13 +150,7 @@ class Quark:
     def get_account_info(self):
         url = "https://pan.quark.cn/account/info"
         querystring = {"fr": "pc", "platform": "pc"}
-        headers = {
-            "cookie": self.cookie,
-            "content-type": "application/json",
-        }
-        response = requests.request(
-            "GET", url, headers=headers, params=querystring
-        ).json()
+        response = self._send_request("GET", url, params=querystring).json()
         if response.get("data"):
             return response["data"]
         else:
@@ -213,9 +216,8 @@ class Quark:
         url = "https://drive-h.quark.cn/1/clouddrive/share/sharepage/token"
         querystring = {"pr": "ucpro", "fr": "pc"}
         payload = {"pwd_id": pwd_id, "passcode": passcode}
-        headers = self.common_headers()
-        response = requests.request(
-            "POST", url, json=payload, headers=headers, params=querystring
+        response = self._send_request(
+            "POST", url, json=payload, params=querystring
         ).json()
         if response.get("status") == 200:
             return True, response["data"]["stoken"]
@@ -241,10 +243,7 @@ class Quark:
                 "_fetch_total": "1",
                 "_sort": "file_type:asc,updated_at:desc",
             }
-            headers = self.common_headers()
-            response = requests.request(
-                "GET", url, headers=headers, params=querystring
-            ).json()
+            response = self._send_request("GET", url, params=querystring).json()
             if response["data"]["list"]:
                 list_merge += response["data"]["list"]
                 page += 1
@@ -261,9 +260,8 @@ class Quark:
             url = "https://drive-h.quark.cn/1/clouddrive/file/info/path_list"
             querystring = {"pr": "ucpro", "fr": "pc"}
             payload = {"file_path": file_paths[:50], "namespace": "0"}
-            headers = self.common_headers()
-            response = requests.request(
-                "POST", url, json=payload, headers=headers, params=querystring
+            response = self._send_request(
+                "POST", url, json=payload, params=querystring
             ).json()
             if response["code"] == 0:
                 fids += response["data"]
@@ -292,10 +290,7 @@ class Quark:
                 "_sort": "file_type:asc,updated_at:desc",
                 "_fetch_full_path": kwargs.get("fetch_full_path", 0),
             }
-            headers = self.common_headers()
-            response = requests.request(
-                "GET", url, headers=headers, params=querystring
-            ).json()
+            response = self._send_request("GET", url, params=querystring).json()
             if response["data"]["list"]:
                 file_list += response["data"]["list"]
                 page += 1
@@ -324,9 +319,8 @@ class Quark:
             "pdir_fid": "0",
             "scene": "link",
         }
-        headers = self.common_headers()
-        response = requests.request(
-            "POST", url, json=payload, headers=headers, params=querystring
+        response = self._send_request(
+            "POST", url, json=payload, params=querystring
         ).json()
         return response
 
@@ -334,8 +328,7 @@ class Quark:
         url = "https://drive-h.quark.cn/1/clouddrive/file/download"
         querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
         payload = {"fids": fids}
-        headers = self.common_headers()
-        response = requests.post(url, json=payload, headers=headers, params=querystring)
+        response = self._send_request("POST", url, json=payload, params=querystring)
         set_cookie = response.cookies.get_dict()
         cookie_str = "; ".join([f"{key}={value}" for key, value in set_cookie.items()])
         return response.json(), cookie_str
@@ -349,9 +342,8 @@ class Quark:
             "dir_path": dir_path,
             "dir_init_lock": False,
         }
-        headers = self.common_headers()
-        response = requests.request(
-            "POST", url, json=payload, headers=headers, params=querystring
+        response = self._send_request(
+            "POST", url, json=payload, params=querystring
         ).json()
         return response
 
@@ -359,9 +351,8 @@ class Quark:
         url = "https://drive-h.quark.cn/1/clouddrive/file/rename"
         querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
         payload = {"fid": fid, "file_name": file_name}
-        headers = self.common_headers()
-        response = requests.request(
-            "POST", url, json=payload, headers=headers, params=querystring
+        response = self._send_request(
+            "POST", url, json=payload, params=querystring
         ).json()
         return response
 
@@ -369,9 +360,8 @@ class Quark:
         url = "https://drive-h.quark.cn/1/clouddrive/file/delete"
         querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
         payload = {"action_type": 2, "filelist": filelist, "exclude_fids": []}
-        headers = self.common_headers()
-        response = requests.request(
-            "POST", url, json=payload, headers=headers, params=querystring
+        response = self._send_request(
+            "POST", url, json=payload, params=querystring
         ).json()
         return response
 
@@ -384,10 +374,7 @@ class Quark:
             "fr": "pc",
             "uc_param_str": "",
         }
-        headers = self.common_headers()
-        response = requests.request(
-            "GET", url, headers=headers, params=querystring
-        ).json()
+        response = self._send_request("GET", url, params=querystring).json()
         return response["data"]["list"]
 
     def recycle_remove(self, record_list):
@@ -397,9 +384,8 @@ class Quark:
             "select_mode": 2,
             "record_list": record_list,
         }
-        headers = self.common_headers()
-        response = requests.request(
-            "POST", url, json=payload, headers=headers, params=querystring
+        response = self._send_request(
+            "POST", url, json=payload, params=querystring
         ).json()
         return response
 
@@ -656,10 +642,7 @@ class Quark:
                 "__dt": int(random.uniform(1, 5) * 60 * 1000),
                 "__t": datetime.now().timestamp(),
             }
-            headers = self.common_headers()
-            response = requests.request(
-                "GET", url, headers=headers, params=querystring
-            ).json()
+            response = requests.request("GET", url, params=querystring).json()
             if response["data"]["status"] != 0:
                 if retry_index > 0:
                     print()
