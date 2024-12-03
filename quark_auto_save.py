@@ -127,8 +127,12 @@ class Quark:
             "content-type": "application/json",
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) quark-cloud-drive/3.14.2 Chrome/112.0.5615.165 Electron/24.1.3.8 Safari/537.36 Channel/pckk_other_ch",
         }
+        if "headers" in kwargs:
+            headers = kwargs["headers"]
+            del kwargs["headers"]
         try:
             response = requests.request(method, url, headers=headers, **kwargs)
+            # print(f"{response.text}")
             response.raise_for_status()  # 检查请求是否成功
             return response
         except Exception as e:
@@ -157,7 +161,7 @@ class Quark:
             return False
 
     def get_growth_info(self):
-        url = "https://drive-h.quark.cn/1/clouddrive/capacity/growth/info"
+        url = "https://drive-m.quark.cn/1/clouddrive/capacity/growth/info"
         querystring = {
             "pr": "ucpro",
             "fr": "android",
@@ -168,7 +172,7 @@ class Quark:
         headers = {
             "content-type": "application/json",
         }
-        response = requests.request(
+        response = self._send_request(
             "GET", url, headers=headers, params=querystring
         ).json()
         if response.get("data"):
@@ -177,7 +181,7 @@ class Quark:
             return False
 
     def get_growth_sign(self):
-        url = "https://drive-h.quark.cn/1/clouddrive/capacity/growth/sign"
+        url = "https://drive-m.quark.cn/1/clouddrive/capacity/growth/sign"
         querystring = {
             "pr": "ucpro",
             "fr": "android",
@@ -191,7 +195,7 @@ class Quark:
         headers = {
             "content-type": "application/json",
         }
-        response = requests.request(
+        response = self._send_request(
             "POST", url, json=payload, headers=headers, params=querystring
         ).json()
         if response.get("data"):
