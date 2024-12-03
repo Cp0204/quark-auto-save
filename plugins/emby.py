@@ -53,7 +53,7 @@ class Emby:
                 return True
             else:
                 print(f"Emby媒体库: 连接失败❌ {response.text}")
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             print(f"获取Emby媒体库信息出错: {e}")
         return False
 
@@ -78,7 +78,7 @@ class Emby:
                 return True
             else:
                 print(f"🎞️ 刷新Emby媒体库：{response.text}❌")
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             print(f"刷新Emby媒体库出错: {e}")
         return False
 
@@ -111,6 +111,6 @@ class Emby:
                             return item["Id"]
             else:
                 print(f"🎞️ 搜索Emby媒体库：{response.text}❌")
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             print(f"搜索Emby媒体库出错: {e}")
         return ""

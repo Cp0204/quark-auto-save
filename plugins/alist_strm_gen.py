@@ -122,7 +122,7 @@ class Alist_strm_gen:
                 return data.get("data", [])
             else:
                 print(f"Alist-Strm生成: 获取存储失败❌ {data.get('message')}")
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             print(f"Alist-Strm生成: 获取存储出错 {e}")
         return []
 
@@ -202,6 +202,6 @@ class Alist_strm_gen:
                     item["file_name"] for item in response["data"]["full_path"]
                 ]
                 return "/".join(file_names)
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             print(f"Alist-Strm生成: 获取Quark路径出错 {e}")
         return ""

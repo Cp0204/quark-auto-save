@@ -74,7 +74,7 @@ class Aria2:
             response = requests.post(self.rpc_url, json=jsonrpc_data)
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             print(f"Aria2下载: 错误{e}")
         return {}
 
