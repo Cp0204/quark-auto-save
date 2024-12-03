@@ -51,7 +51,7 @@ try:
     # 处理响应数据
     # ......
     # 返回
-except requests.exceptions.RequestException as e:
+except Exception as e:
     print(f"Error: {e}")
     return False
 ```

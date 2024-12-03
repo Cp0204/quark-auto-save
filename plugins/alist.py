@@ -108,7 +108,7 @@ class Alist:
                 return data.get("data", [])
             else:
                 print(f"Alist刷新: 存储{storage_id}连接失败❌ {data.get('message')}")
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             print(f"Alist刷新: 获取Alist存储出错 {e}")
         return []
 
@@ -177,6 +177,6 @@ class Alist:
                     item["file_name"] for item in response["data"]["full_path"]
                 ]
                 return "/".join(file_names)
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             print(f"Alist刷新: 获取Quark路径出错 {e}")
         return ""

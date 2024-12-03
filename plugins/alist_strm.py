@@ -51,7 +51,7 @@ class Alist_strm:
                 return True
             else:
                 print(f"alist-strm配置运行: 匹配失败❌")
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             print(f"获取alist-strm配置信息出错: {e}")
         return False
 
@@ -77,6 +77,6 @@ class Alist_strm:
                 return True
             else:
                 print(f"🔗 alist-strm配置运行: 失败❌")
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             print(f"Error: {e}")
         return False
