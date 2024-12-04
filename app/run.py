@@ -24,6 +24,7 @@ import os
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
 from quark_auto_save import Quark
+from quark_auto_save import Config
 
 
 def get_app_ver():
@@ -41,7 +42,9 @@ def get_app_ver():
 PYTHON_PATH = "python3" if os.path.exists("/usr/bin/python3") else "python"
 SCRIPT_PATH = os.environ.get("SCRIPT_PATH", "./quark_auto_save.py")
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
-DEBUG = os.environ.get("DEBUG", False)
+DEBUG = os.environ.get("DEBUG", True)
+
+task_plugins_config = {}
 
 app = Flask(__name__)
 app.config["APP_VERSION"] = get_app_ver()
@@ -145,6 +148,7 @@ def get_data():
         return redirect(url_for("login"))
     data = read_json()
     del data["webui"]
+    data["task_plugins_config"] = task_plugins_config
     return jsonify(data)
 
 
@@ -153,10 +157,10 @@ def get_data():
 def update():
     if not is_login():
         return "未登录"
-    data = read_json()
-    webui = data["webui"]
     data = request.json
-    data["webui"] = webui
+    data["webui"] = read_json()["webui"]
+    if "task_plugins_config" in data:
+        del data["task_plugins_config"]
     write_json(data)
     # 重新加载任务
     if reload_tasks():
@@ -279,6 +283,7 @@ def reload_tasks():
 
 
 def init():
+    global task_plugins_config
     logging.info(f">>> 初始化配置")
     # 检查配置文件是否存在
     if not os.path.exists(CONFIG_PATH):
@@ -287,6 +292,7 @@ def init():
         with open("quark_config.json", "rb") as src, open(CONFIG_PATH, "wb") as dest:
             dest.write(src.read())
     data = read_json()
+    Config.breaking_change_update(data)
     # 默认管理账号
     data["webui"] = {
         "username": os.environ.get("WEBUI_USERNAME")
@@ -297,6 +303,10 @@ def init():
     # 默认定时规则
     if not data.get("crontab"):
         data["crontab"] = "0 8,18,20 * * *"
+    # 初始化插件配置
+    _, plugins_config_default, task_plugins_config = Config.load_plugins()
+    plugins_config_default.update(data.get("plugins", {}))
+    data["plugins"] = plugins_config_default
     write_json(data)
 
 

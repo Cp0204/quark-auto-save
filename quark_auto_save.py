@@ -39,18 +39,6 @@ MAGIC_REGEX = {
 }
 
 
-# 魔法正则匹配
-def magic_regex_func(pattern, replace, taskname=""):
-    keyword = pattern
-    if keyword in CONFIG_DATA["magic_regex"]:
-        pattern = CONFIG_DATA["magic_regex"][keyword]["pattern"]
-        if replace == "":
-            replace = CONFIG_DATA["magic_regex"][keyword]["replace"]
-    if taskname:
-        replace = replace.replace("$TASKNAME", taskname)
-    return pattern, replace
-
-
 # 发送通知消息
 def send_ql_notify(title, body):
     try:
@@ -75,28 +63,89 @@ def add_notify(text):
     return text
 
 
-# 下载配置
-def download_file(url, save_path):
-    response = requests.get(url)
-    if response.status_code == 200:
-        with open(save_path, "wb") as file:
-            file.write(response.content)
-        return True
-    else:
-        return False
-
-
-# 读取CK
-def get_cookies(cookie_val):
-    if isinstance(cookie_val, list):
-        return cookie_val
-    elif cookie_val:
-        if "\n" in cookie_val:
-            return cookie_val.split("\n")
+class Config:
+    # 下载配置
+    def download_file(url, save_path):
+        response = requests.get(url)
+        if response.status_code == 200:
+            with open(save_path, "wb") as file:
+                file.write(response.content)
+            return True
         else:
-            return [cookie_val]
-    else:
-        return False
+            return False
+
+    # 读取CK
+    def get_cookies(cookie_val):
+        if isinstance(cookie_val, list):
+            return cookie_val
+        elif cookie_val:
+            if "\n" in cookie_val:
+                return cookie_val.split("\n")
+            else:
+                return [cookie_val]
+        else:
+            return False
+
+    def load_plugins(plugins_config={}, plugins_dir="plugins"):
+        plugins_available = {}
+        task_plugins_config = {}
+        all_modules = [
+            f.replace(".py", "") for f in os.listdir(plugins_dir) if f.endswith(".py")
+        ]
+        # 调整模块优先级
+        priority_path = os.path.join(plugins_dir, "_priority.json")
+        try:
+            with open(priority_path, encoding="utf-8") as f:
+                priority_modules = json.load(f)
+            if priority_modules:
+                all_modules = [
+                    module for module in priority_modules if module in all_modules
+                ] + [module for module in all_modules if module not in priority_modules]
+        except (FileNotFoundError, json.JSONDecodeError):
+            priority_modules = []
+        for module_name in all_modules:
+            try:
+                module = importlib.import_module(f"{plugins_dir}.{module_name}")
+                ServerClass = getattr(module, module_name.capitalize())
+                # 检查配置中是否存在该模块的配置
+                if module_name in plugins_config:
+                    plugin = ServerClass(**plugins_config[module_name])
+                    plugins_available[module_name] = plugin
+                else:
+                    plugin = ServerClass()
+                    plugins_config[module_name] = plugin.default_config
+                # 检查插件是否支持单独任务配置
+                if hasattr(plugin, "default_task_config"):
+                    task_plugins_config[module_name] = plugin.default_task_config
+            except (ImportError, AttributeError) as e:
+                print(f"载入模块 {module_name} 失败: {e}")
+        print()
+        return plugins_available, plugins_config, task_plugins_config
+
+    def breaking_change_update(config_data):
+        if config_data.get("emby"):
+            print("🔼 Update config v0.3.6.1 to 0.3.7")
+            config_data.setdefault("media_servers", {})["emby"] = {
+                "url": config_data["emby"]["url"],
+                "token": config_data["emby"]["apikey"],
+            }
+            del config_data["emby"]
+            for task in config_data.get("tasklist", {}):
+                task["media_id"] = task.get("emby_id", "")
+                if task.get("emby_id"):
+                    del task["emby_id"]
+        if config_data.get("media_servers"):
+            print("🔼 Update config v0.3.8 to 0.3.9")
+            config_data["plugins"] = config_data.get("media_servers")
+            del config_data["media_servers"]
+            for task in config_data.get("tasklist", {}):
+                task["addition"] = {
+                    "emby": {
+                        "media_id": task.get("media_id", ""),
+                    }
+                }
+                if task.get("media_id"):
+                    del task["media_id"]
 
 
 class Quark:
@@ -418,6 +467,18 @@ class Quark:
     # ↑ 请求函数
     # ↓ 操作函数
 
+    # 魔法正则匹配
+    def magic_regex_func(self, pattern, replace, taskname=None):
+        magic_regex = CONFIG_DATA.get("magic_regex") or MAGIC_REGEX or {}
+        keyword = pattern
+        if keyword in magic_regex:
+            pattern = magic_regex[keyword]["pattern"]
+            if replace == "":
+                replace = magic_regex[keyword]["replace"]
+        if taskname:
+            replace = replace.replace("$TASKNAME", taskname)
+        return pattern, replace
+
     def get_id_from_url(self, url):
         url = url.replace("https://pan.quark.cn/s/", "")
         pattern = r"(\w+)(\?pwd=(\w+))?(#/list/share.*/(\w+))?"
@@ -578,7 +639,7 @@ class Quark:
             if share_file["dir"] and task.get("update_subdir", False):
                 pattern, replace = task["update_subdir"], ""
             else:
-                pattern, replace = magic_regex_func(
+                pattern, replace = self.magic_regex_func(
                     task["pattern"], task["replace"], task["taskname"]
                 )
             # 正则文件名匹配
@@ -671,7 +732,7 @@ class Quark:
         return tree
 
     def do_rename_task(self, task, subdir_path=""):
-        pattern, replace = magic_regex_func(
+        pattern, replace = self.magic_regex_func(
             task["pattern"], task["replace"], task["taskname"]
         )
         if not pattern or not replace:
@@ -705,44 +766,6 @@ class Quark:
                             f"重命名：{dir_file['file_name']} → {save_name} 失败，{rename_return['message']}"
                         )
         return is_rename_count > 0
-
-
-def load_plugins(plugins_config, plugins_dir="plugins"):
-    plugins_available = {}
-    task_plugins_config = {}
-    all_modules = [
-        f.replace(".py", "") for f in os.listdir(plugins_dir) if f.endswith(".py")
-    ]
-    # 调整模块优先级
-    priority_path = os.path.join(plugins_dir, "_priority.json")
-    try:
-        with open(priority_path, encoding="utf-8") as f:
-            priority_modules = json.load(f)
-        if priority_modules:
-            all_modules = [
-                module for module in priority_modules if module in all_modules
-            ] + [module for module in all_modules if module not in priority_modules]
-    except (FileNotFoundError, json.JSONDecodeError):
-        priority_modules = []
-    print(f"🧩 载入插件")
-    for module_name in all_modules:
-        try:
-            module = importlib.import_module(f"{plugins_dir}.{module_name}")
-            ServerClass = getattr(module, module_name.capitalize())
-            # 检查配置中是否存在该模块的配置
-            if module_name in plugins_config:
-                plugin = ServerClass(**plugins_config[module_name])
-                plugins_available[module_name] = plugin
-            else:
-                plugin = ServerClass()
-                plugins_config[module_name] = plugin.default_config
-            # 检查插件是否支持单独任务配置
-            if hasattr(plugin, "default_task_config"):
-                task_plugins_config[module_name] = plugin.default_task_config
-        except (ImportError, AttributeError) as e:
-            print(f"载入模块 {module_name} 失败: {e}")
-    print()
-    return plugins_available, task_plugins_config
 
 
 def verify_account(account):
@@ -805,7 +828,8 @@ def do_sign(account):
 
 
 def do_save(account, tasklist=[]):
-    plugins, CONFIG_DATA["task_plugins_config"] = load_plugins(
+    print(f"🧩 载入插件")
+    plugins, CONFIG_DATA["plugins"], task_plugins_config = Config.load_plugins(
         CONFIG_DATA.get("plugins", {})
     )
     print(f"转存账号: {account.nickname}")
@@ -861,7 +885,7 @@ def do_save(account, tasklist=[]):
                 return result
 
             task["addition"] = merge_dicts(
-                task.get("addition", {}), CONFIG_DATA["task_plugins_config"]
+                task.get("addition", {}), task_plugins_config
             )
             # 调用插件
             if is_new_tree or is_rename:
@@ -872,33 +896,6 @@ def do_save(account, tasklist=[]):
                             plugin.run(task, account=account, tree=is_new_tree) or task
                         )
     print()
-
-
-def breaking_change_update():
-    global CONFIG_DATA
-    if CONFIG_DATA.get("emby"):
-        print("🔼 Update config v0.3.6.1 to 0.3.7")
-        CONFIG_DATA.setdefault("media_servers", {})["emby"] = {
-            "url": CONFIG_DATA["emby"]["url"],
-            "token": CONFIG_DATA["emby"]["apikey"],
-        }
-        del CONFIG_DATA["emby"]
-        for task in CONFIG_DATA.get("tasklist", {}):
-            task["media_id"] = task.get("emby_id", "")
-            if task.get("emby_id"):
-                del task["emby_id"]
-    if CONFIG_DATA.get("media_servers"):
-        print("🔼 Update config v0.3.8 to 0.3.9")
-        CONFIG_DATA["plugins"] = CONFIG_DATA.get("media_servers")
-        del CONFIG_DATA["media_servers"]
-        for task in CONFIG_DATA.get("tasklist", {}):
-            task["addition"] = {
-                "emby": {
-                    "media_id": task.get("media_id", ""),
-                }
-            }
-            if task.get("media_id"):
-                del task["media_id"]
 
 
 def main():
@@ -921,20 +918,20 @@ def main():
         else:
             print(f"⚙️ 配置文件 {config_path} 不存在❌，正远程从下载配置模版")
             config_url = f"{GH_PROXY}https://raw.githubusercontent.com/Cp0204/quark_auto_save/main/quark_config.json"
-            if download_file(config_url, config_path):
+            if Config.download_file(config_url, config_path):
                 print("⚙️ 配置模版下载成功✅，请到程序目录中手动配置")
             return
     else:
         print(f"⚙️ 正从 {config_path} 文件中读取配置")
         with open(config_path, "r", encoding="utf-8") as file:
             CONFIG_DATA = json.load(file)
-            breaking_change_update()
+            Config.breaking_change_update(CONFIG_DATA)
         cookie_val = CONFIG_DATA.get("cookie")
         if not CONFIG_DATA.get("magic_regex"):
             CONFIG_DATA["magic_regex"] = MAGIC_REGEX
         cookie_form_file = True
     # 获取cookie
-    cookies = get_cookies(cookie_val)
+    cookies = Config.get_cookies(cookie_val)
     if not cookies:
         print("❌ cookie 未配置")
         return
