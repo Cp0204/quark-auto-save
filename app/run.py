@@ -82,7 +82,7 @@ def read_json():
 # 将数据写入 JSON 文件
 def write_json(data):
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False, sort_keys=False)
+        json.dump(data, f, ensure_ascii=False, sort_keys=False, indent=2)
 
 
 def is_login():
