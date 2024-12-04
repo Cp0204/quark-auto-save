@@ -42,7 +42,7 @@ def get_app_ver():
 PYTHON_PATH = "python3" if os.path.exists("/usr/bin/python3") else "python"
 SCRIPT_PATH = os.environ.get("SCRIPT_PATH", "./quark_auto_save.py")
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
-DEBUG = os.environ.get("DEBUG", True)
+DEBUG = os.environ.get("DEBUG", False)
 
 task_plugins_config = {}
 
