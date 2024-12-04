@@ -964,7 +964,7 @@ def main():
     if cookie_form_file:
         # 更新配置
         with open(config_path, "w", encoding="utf-8") as file:
-            json.dump(CONFIG_DATA, file, ensure_ascii=False, indent=2)
+            json.dump(CONFIG_DATA, file, ensure_ascii=False, sort_keys=False, indent=2)
 
     print(f"===============程序结束===============")
     duration = datetime.now() - start_time
