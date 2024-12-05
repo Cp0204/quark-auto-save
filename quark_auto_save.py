@@ -381,7 +381,7 @@ class Quark:
                 "__dt": int(random.uniform(1, 5) * 60 * 1000),
                 "__t": datetime.now().timestamp(),
             }
-            response = requests.request("GET", url, params=querystring).json()
+            response = self._send_request("GET", url, params=querystring).json()
             if response["data"]["status"] != 0:
                 if retry_index > 0:
                     print()
