@@ -524,11 +524,16 @@
         changeShareurl(task) {
           if (!task.shareurl)
             return;
+          this.$set(task, "shareurl_ban", undefined);
           // 从URL中提取任务名
-          const matches = decodeURIComponent(task.shareurl).match(/\/(\w{32})-([^\/]+)$/);
-          if (matches) {
-            task.taskname = task.taskname == "" ? matches[2] : task.taskname;
-            task.savepath = task.savepath.replace(/TASKNAME/g, matches[2]);
+          try {
+            const matches = decodeURIComponent(task.shareurl).match(/\/(\w{32})-([^\/]+)$/);
+            if (matches) {
+              task.taskname = task.taskname == "" ? matches[2] : task.taskname;
+              task.savepath = task.savepath.replace(/TASKNAME/g, matches[2]);
+            }
+          } catch (e) {
+            console.error("Error decodeURIComponent:", e);
           }
           // 从分享中提取任务名
           axios.get('/get_share_detail', { params: { shareurl: task.shareurl } })
