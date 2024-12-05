@@ -185,13 +185,13 @@ class Quark:
         try:
             response = requests.request(method, url, headers=headers, **kwargs)
             # print(f"{response.text}")
-            response.raise_for_status()  # 检查请求是否成功
+            # response.raise_for_status()  # 检查请求是否成功，但返回非200也会抛出异常
             return response
         except Exception as e:
             print(f"_send_request error:\n{e}")
             fake_response = requests.Response()
             fake_response.status_code = 500
-            fake_response._content = b'{"error": 1}'
+            fake_response._content = b'{"status": 500, "message": "request error"}'
             return fake_response
 
     def init(self):
@@ -263,6 +263,7 @@ class Quark:
         response = self._send_request(
             "POST", url, json=payload, params=querystring
         ).json()
+        print(response)
         if response.get("status") == 200:
             return True, response["data"]["stoken"]
         else:
