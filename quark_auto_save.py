@@ -87,6 +87,7 @@ class Config:
             return False
 
     def load_plugins(plugins_config={}, plugins_dir="plugins"):
+        PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "").split(",")
         plugins_available = {}
         task_plugins_config = {}
         all_modules = [
@@ -104,6 +105,8 @@ class Config:
         except (FileNotFoundError, json.JSONDecodeError):
             priority_modules = []
         for module_name in all_modules:
+            if f"-{module_name}" in PLUGIN_FLAGS:
+                continue
             try:
                 module = importlib.import_module(f"{plugins_dir}.{module_name}")
                 ServerClass = getattr(module, module_name.capitalize())

@@ -42,6 +42,7 @@ def get_app_ver():
 PYTHON_PATH = "python3" if os.path.exists("/usr/bin/python3") else "python"
 SCRIPT_PATH = os.environ.get("SCRIPT_PATH", "./quark_auto_save.py")
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
+PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "")
 DEBUG = os.environ.get("DEBUG", False)
 
 task_plugins_config = {}
@@ -138,7 +139,7 @@ def logout():
 def index():
     if not is_login():
         return redirect(url_for("login"))
-    return render_template("index.html", version=app.config["APP_VERSION"])
+    return render_template("index.html", version=app.config["APP_VERSION"], plugin_flags=PLUGIN_FLAGS)
 
 
 # 获取配置数据
