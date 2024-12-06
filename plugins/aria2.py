@@ -51,7 +51,7 @@ class Aria2:
                         {
                             "header": [
                                 f"Cookie: {cookie}",
-                                f"User-Agent: {account.common_headers().get('user-agent')}",
+                                f"User-Agent: {account.USER_AGENT}",
                             ],
                             "out": os.path.basename(save_path),
                             "dir": os.path.dirname(save_path),

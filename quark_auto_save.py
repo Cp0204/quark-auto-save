@@ -151,6 +151,7 @@ class Config:
 class Quark:
     BASE_URL = "https://drive-pc.quark.cn"
     BASE_URL_APP = "https://drive-m.quark.cn"
+    USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) quark-cloud-drive/3.14.2 Chrome/112.0.5615.165 Electron/24.1.3.8 Safari/537.36 Channel/pckk_other_ch"
 
     def __init__(self, cookie, index=None):
         self.cookie = cookie.strip()
@@ -177,7 +178,7 @@ class Quark:
         headers = {
             "cookie": self.cookie,
             "content-type": "application/json",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) quark-cloud-drive/3.14.2 Chrome/112.0.5615.165 Electron/24.1.3.8 Safari/537.36 Channel/pckk_other_ch",
+            "user-agent": self.USER_AGENT,
         }
         if "headers" in kwargs:
             headers = kwargs["headers"]
@@ -263,7 +264,6 @@ class Quark:
         response = self._send_request(
             "POST", url, json=payload, params=querystring
         ).json()
-        print(response)
         if response.get("status") == 200:
             return True, response["data"]["stoken"]
         else:
