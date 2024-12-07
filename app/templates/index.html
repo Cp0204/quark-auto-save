@@ -262,6 +262,10 @@
             <div class="form-group row">
               <label class="col-sm-2 col-form-label">运行星期</label>
               <div class="col-sm-10 col-form-label">
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="checkbox" :checked="task.runweek.length === 7" @change="toggleAllWeekdays(task)">
+                  <label class="form-check-label">全选</label>
+                </div>
                 <div class="form-check form-check-inline" v-for="(day, index) in weekdays" :key="index">
                   <input class="form-check-input" type="checkbox" v-model="task.runweek" :value="index+1">
                   <label class="form-check-label" v-html="day"></label>
@@ -646,6 +650,13 @@
         isPluginDisabled(pluginName) {
           const pluginsFlagsArray = this.plugin_flags.split(',');
           return pluginsFlagsArray.includes(`-${pluginName}`);
+        },
+        toggleAllWeekdays(task) {
+          if (task.runweek.length === 7) {
+            task.runweek = [];
+          } else {
+            task.runweek = [1, 2, 3, 4, 5, 6, 7];
+          }
         }
       }
     });
