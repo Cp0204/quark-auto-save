@@ -618,6 +618,8 @@
             if (event.data == "[DONE]") {
               this.modalLoading = false
               source.close();
+              // 运行后刷新数据
+              this.fetchData();
             } else {
               this.run_log += event.data + '\n';
               // 在更新 run_log 后将滚动条滚动到底部
