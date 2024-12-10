@@ -186,6 +186,35 @@ class Quark:
         if "headers" in kwargs:
             headers = kwargs["headers"]
             del kwargs["headers"]
+        if self.mparam and "share" in url and self.BASE_URL in url:
+            url = url.replace(self.BASE_URL, self.BASE_URL_APP)
+            kwargs["params"].update(
+                {
+                    "device_model": "M2011K2C",
+                    "entry": "default_clouddrive",
+                    "_t_group": "0%3A_s_vp%3A1",
+                    "dmn": "Mi%2B11",
+                    "fr": "android",
+                    "pf": "3300",
+                    "bi": "35937",
+                    "ve": "7.4.5.680",
+                    "ss": "411x875",
+                    "mi": "M2011K2C",
+                    "nt": "5",
+                    "nw": "0",
+                    "kt": "4",
+                    "pr": "ucpro",
+                    "sv": "release",
+                    "dt": "phone",
+                    "data_from": "ucapi",
+                    "kps": self.mparam.get("kps"),
+                    "sign": self.mparam.get("sign"),
+                    "vcode": self.mparam.get("vcode"),
+                    "app": "clouddrive",
+                    "kkkk": "1",
+                }
+            )
+            del headers["cookie"]
         try:
             response = requests.request(method, url, headers=headers, **kwargs)
             # print(f"{response.text}")
