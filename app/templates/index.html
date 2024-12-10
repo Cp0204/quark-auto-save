@@ -85,7 +85,7 @@
         </div>
       </div>
 
-      <div class="row title">
+      <div class="row title" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length">
         <div class="col">
           <h2 style="display: inline-block;">插件</h2>
           <span class="badge badge-pill badge-light">
@@ -93,7 +93,7 @@
           </span>
         </div>
       </div>
-      <div v-for="(plugin, pluginName) in formData.plugins" :key="pluginName" v-if="!isPluginDisabled(pluginName)">
+      <div v-for="(plugin, pluginName) in getAvailablePlugins(formData.plugins)" :key="pluginName">
         <div class="form-group row mb-0" style="display:flex; align-items:center;">
           <div class="col-9" data-toggle="collapse" :data-target="'#collapse_'+pluginName" aria-expanded="true" :aria-controls="'collapse_'+pluginName">
             <div class="btn btn-block text-left">
@@ -272,7 +272,7 @@
                 </div>
               </div>
             </div>
-            <div class="form-group row">
+            <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length">
               <label class="col-sm-2 col-form-label">插件选项</label>
               <div class="col-sm-10">
                 <v-jsoneditor v-model="task.addition" :options="{mode:'tree'}" :plus="false" height="180px"></v-jsoneditor>
@@ -281,7 +281,7 @@
           </div>
         </template>
       </div>
-      <div class="row">
+      <div class="row mt-5">
         <div class="col-sm-12 text-center">
           <button type="button" class="btn btn-primary" @click="addTask()"><i class="bi bi-plus"></i> 增加任务</button>
         </div>
@@ -647,9 +647,15 @@
             behavior: "smooth"
           });
         },
-        isPluginDisabled(pluginName) {
+        getAvailablePlugins(plugins) {
+          availablePlugins = {};
           const pluginsFlagsArray = this.plugin_flags.split(',');
-          return pluginsFlagsArray.includes(`-${pluginName}`);
+          for (const pluginName in plugins) {
+            if (!pluginsFlagsArray.includes(`-${pluginName}`)) {
+              availablePlugins[pluginName] = plugins[pluginName];
+            }
+          }
+          return availablePlugins;
         },
         toggleAllWeekdays(task) {
           if (task.runweek.length === 7) {
