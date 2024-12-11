@@ -633,7 +633,7 @@ class Quark:
         if not share_file_list:
             if subdir_path == "":
                 task["shareurl_ban"] = "分享为空，文件已被分享者删除"
-                add_notify(f"《{task['taskname']}》：{task['shareurl_ban']}")
+                add_notify(f"❌《{task['taskname']}》：{task['shareurl_ban']}\n")
             return tree
         elif (
             len(share_file_list) == 1
