@@ -177,7 +177,7 @@
               <div class="col-sm-10">
                 <div class="input-group">
                   <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(index, task)" @input="changeTaskname(index, task)">
-                  <div class="dropdown-menu" :class="{'show': smart_param.showSuggestions && smart_param.taskSuggestions.length && smart_param.index === index}" style="width: 100%; max-height: 500px; overflow-y: auto;">
+                  <div class="dropdown-menu" :class="{'show': smart_param.showSuggestions && smart_param.taskSuggestions.length && smart_param.index === index}" style="width: 100%; max-height: 500px; overflow-y: auto; transform: translate(0, -100%); top: 0; margin-top: -5px;">
                     <div class="text-muted text-center" style="font-size: small;">以下资源来自第三方，网络公开搜集，请自行辨识，如有侵权请联系夸克官方</div>
                     <div v-for="suggestion in smart_param.taskSuggestions" :key="suggestion.taskname" class="dropdown-item" @click.prevent="selectSuggestion(task, suggestion)" style="cursor: pointer;">
                       <span v-html="suggestion.verify ? '✅': '❔'"></span> {{ suggestion.taskname }}
