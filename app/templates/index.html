@@ -176,10 +176,23 @@
               <label class="col-sm-2 col-form-label">任务名称</label>
               <div class="col-sm-10">
                 <div class="input-group">
-                  <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="focusTaskname(index, task)" @input="changeTaskname(task)">
-                  <div class="input-group-append" v-if="task.taskname">
+                  <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(index, task)" @input="changeTaskname(index, task)">
+                  <div class="dropdown-menu" :class="{'show': smart_param.showSuggestions && smart_param.taskSuggestions.length && smart_param.index === index}" style="width: 100%; max-height: 500px; overflow-y: auto;">
+                    <div class="text-muted text-center" style="font-size: small;">以下资源来自第三方，网络公开搜集，请自行辨识，如有侵权请联系夸克官方</div>
+                    <div v-for="suggestion in smart_param.taskSuggestions" :key="suggestion.taskname" class="dropdown-item" @click.prevent="selectSuggestion(task, suggestion)" style="cursor: pointer;">
+                      <span v-html="suggestion.verify ? '✅': '❔'"></span> {{ suggestion.taskname }}
+                      <small class="text-muted">
+                        <a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a>
+                      </small>
+                    </div>
+                  </div>
+                  <div class="input-group-append">
+                    <button class="btn btn-primary" type="button" @click="searchSuggestions(index, task.taskname)">
+                      <i v-if="smart_param.isSearching && smart_param.index === index" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
+                      <i v-else class="bi bi-search-heart"></i>
+                    </button>
                     <div class="input-group-text">
-                      <a target="_blank" :href="`https://www.google.com/search?q=%22pan.quark%22+${task.taskname}`"><i class="bi bi-search"></i></a>
+                      <a target="_blank" :href="`https://www.google.com/search?q=%22pan.quark.cn/s%22+${task.taskname}`"><i class="bi bi-google"></i></a>
                     </div>
                   </div>
                 </div>
@@ -413,6 +426,10 @@
           index: null,
           savepath: "",
           origin_savepath: "",
+          taskSuggestions: [],
+          showSuggestions: false,
+          lastSuggestionsTime: 0,
+          isSearching: false,
         },
       },
       filters: {
@@ -436,6 +453,11 @@
         this.checkNewVersion();
         $('[data-toggle="tooltip"]').tooltip();
         document.addEventListener('keydown', this.handleKeyDown);
+        document.addEventListener('click', (e) => {
+          if (!e.target.closest('.input-group')) {
+            this.smart_param.showSuggestions = false;
+          }
+        });
       },
       methods: {
         checkNewVersion() {
@@ -541,7 +563,7 @@
         focusTaskname(index, task) {
           this.smart_param.index = index
           this.smart_param.origin_savepath = task.savepath
-          regex = new RegExp(`/${task.taskname}(/|$)`)
+          regex = new RegExp(`/${task.taskname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(/|$)`)
           if (task.savepath.includes('TASKNAME')) {
             this.smart_param.savepath = task.savepath;
           } else if (task.savepath.match(regex)) {
@@ -550,7 +572,8 @@
             this.smart_param.savepath = undefined;
           }
         },
-        changeTaskname(task) {
+        changeTaskname(index, task) {
+          this.searchSuggestions(index, task.taskname, 500);
           if (this.smart_param.savepath)
             task.savepath = this.smart_param.savepath.replace('TASKNAME', task.taskname);
         },
@@ -694,7 +717,41 @@
           } else {
             task.runweek = [1, 2, 3, 4, 5, 6, 7];
           }
-        }
+        },
+        searchSuggestions(index, taskname, limit_msec = 0) {
+          if (taskname.length == 0)
+            return
+          if (limit_msec > 0) {
+            const now = Date.now();
+            if (now - this.smart_param.lastSuggestionsTime < limit_msec)
+              return;
+            this.smart_param.lastSuggestionsTime = now;
+          }
+          this.smart_param.isSearching = true
+          axios.get('/task_suggestions', {
+            params: {
+              q: taskname,
+              d: limit_msec == 0 ? 1 : 0
+            }
+          }).then(response => {
+            this.smart_param.taskSuggestions = response.data;
+            this.smart_param.index = index;
+            this.showSuggestions = true;
+          }).catch(error => {
+            console.error('Error fetching suggestions:', error);
+          }).finally(() => {
+            this.smart_param.isSearching = false;
+          });
+        },
+        selectSuggestion(task, suggestion) {
+          task.taskname = suggestion.taskname;
+          task.shareurl = suggestion.shareurl;
+          if (this.smart_param.savepath)
+            task.savepath = this.smart_param.savepath.replace('TASKNAME', task.taskname);
+          this.changeShareurl(task);
+          this.smart_param.showSuggestions = false;
+          this.smart_param.index = null;
+        },
       }
     });
   </script>
