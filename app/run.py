@@ -15,8 +15,10 @@ from flask import (
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import subprocess
+import requests
 import hashlib
 import logging
+import base64
 import json
 import sys
 import os
@@ -139,7 +141,9 @@ def logout():
 def index():
     if not is_login():
         return redirect(url_for("login"))
-    return render_template("index.html", version=app.config["APP_VERSION"], plugin_flags=PLUGIN_FLAGS)
+    return render_template(
+        "index.html", version=app.config["APP_VERSION"], plugin_flags=PLUGIN_FLAGS
+    )
 
 
 # 获取配置数据
@@ -210,6 +214,21 @@ def run_script_now():
         stream_with_context(generate_output()),
         content_type="text/event-stream;charset=utf-8",
     )
+
+
+@app.route("/task_suggestions")
+def get_task_suggestions():
+    if not is_login():
+        return jsonify({"error": "未登录"})
+    base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
+    query = request.args.get("q", "").lower()
+    deep = request.args.get("d", "").lower()
+    url = f"{base_url}/task_suggestions?q={query}&d={deep}"
+    try:
+        response = requests.get(url)
+        return jsonify(response.json())
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 
 @app.route("/get_share_detail")
