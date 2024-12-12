@@ -217,7 +217,7 @@
                 <div class="input-group">
                   <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填" @focus="focusTaskname(index, task)">
                   <div class="input-group-append">
-                    <button class="btn btn-secondary" type="button" v-if="smart_param.index == index && task.savepath != smart_param.origin_savepath" @click="task.savepath = smart_param.origin_savepath"><i class="
+                    <button class="btn btn-secondary" type="button" v-if="smart_param.savepath && smart_param.index == index && task.savepath != smart_param.origin_savepath" @click="task.savepath = smart_param.origin_savepath"><i class="
                       bi bi-reply"></i></button>
                     <button class="btn btn-outline-secondary dropdown-toggle" type="button" @click="getSavepathDirs(task.savepath)" data-toggle="dropdown" aria-expanded="false">选择</button>
                     <div class="dropdown-menu" style="max-height: 300px; overflow-y: auto;">
@@ -728,6 +728,7 @@
             this.smart_param.lastSuggestionsTime = now;
           }
           this.smart_param.isSearching = true
+          this.smart_param.index = index;
           axios.get('/task_suggestions', {
             params: {
               q: taskname,
@@ -735,8 +736,7 @@
             }
           }).then(response => {
             this.smart_param.taskSuggestions = response.data;
-            this.smart_param.index = index;
-            this.showSuggestions = true;
+            this.smart_param.showSuggestions = true;
           }).catch(error => {
             console.error('Error fetching suggestions:', error);
           }).finally(() => {
@@ -746,11 +746,8 @@
         selectSuggestion(task, suggestion) {
           task.taskname = suggestion.taskname;
           task.shareurl = suggestion.shareurl;
-          if (this.smart_param.savepath)
-            task.savepath = this.smart_param.savepath.replace('TASKNAME', task.taskname);
           this.changeShareurl(task);
           this.smart_param.showSuggestions = false;
-          this.smart_param.index = null;
         },
       }
     });
