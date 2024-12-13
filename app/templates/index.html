@@ -36,6 +36,16 @@
       max-height: calc(100vh - 200px);
       overflow-y: auto;
     }
+
+    .task-suggestions {
+        width: 100%;
+        max-height: 500px;
+        overflow-y: auto;
+        transform: translate(0, -100%);
+        top: 0;
+        margin-top: -5px;
+        border: 1px solid #007bff;
+    }
   </style>
 </head>
 
@@ -177,7 +187,7 @@
               <div class="col-sm-10">
                 <div class="input-group">
                   <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(index, task)" @input="changeTaskname(index, task)">
-                  <div class="dropdown-menu show" v-if="smart_param.showSuggestions && smart_param.taskSuggestions.length && smart_param.index === index" style="width: 100%; max-height: 500px; overflow-y: auto; transform: translate(0, -100%); top: 0; margin-top: -5px;">
+                  <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.taskSuggestions.length && smart_param.index === index">
                     <div class="text-muted text-center" style="font-size: small;">以下资源来自第三方，网络公开搜集，请自行辨识，如有侵权请联系夸克官方</div>
                     <div v-for="suggestion in smart_param.taskSuggestions" :key="suggestion.taskname" class="dropdown-item" @click.prevent="selectSuggestion(task, suggestion)" style="cursor: pointer;">
                       <span v-html="suggestion.verify ? '✅': '❔'"></span> {{ suggestion.taskname }}
@@ -186,12 +196,12 @@
                       </small>
                     </div>
                   </div>
-                  <div class="input-group-append">
+                  <div class="input-group-append" title="深度搜索">
                     <button class="btn btn-primary" type="button" @click="searchSuggestions(index, task.taskname)">
                       <i v-if="smart_param.isSearching && smart_param.index === index" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
                       <i v-else class="bi bi-search-heart"></i>
                     </button>
-                    <div class="input-group-text">
+                    <div class="input-group-text" title="谷歌搜索">
                       <a target="_blank" :href="`https://www.google.com/search?q=%22pan.quark.cn/s%22+${task.taskname}`"><i class="bi bi-google"></i></a>
                     </div>
                   </div>
