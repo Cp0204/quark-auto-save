@@ -110,7 +110,7 @@ services:
 | ---------------- | ---------- | -------- |
 | `WEBUI_USERNAME` | `admin`    | 管理账号 |
 | `WEBUI_PASSWORD` | `admin123` | 管理密码 |
-| `PLUGIN_FLAGS`   |            | 插件标志，示例使用 `-emby,-aria2` 来关闭插件 |
+| `PLUGIN_FLAGS`   |            | 插件标志，如 `-emby,-aria2` 禁用某些插件 |
 
 #### 一键更新
 
