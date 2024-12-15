@@ -36,7 +36,11 @@ class Aria2:
         if not task_config.get("auto_download"):
             return
         if (tree := kwargs.get("tree")) and (account := kwargs.get("account")):
-            for node in tree.all_nodes_itr():
+            # 按文件路径排序添加下载任务
+            nodes = sorted(
+                tree.all_nodes_itr(), key=lambda node: node.data.get("path", "")
+            )
+            for node in nodes:
                 if not node.data.get("is_dir", True):
                     quark_path = node.data.get("path")
                     quark_fid = node.data.get("fid")
