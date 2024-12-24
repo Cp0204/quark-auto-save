@@ -40,29 +40,31 @@ class Aria2:
             nodes = sorted(
                 tree.all_nodes_itr(), key=lambda node: node.data.get("path", "")
             )
+            file_fids = []
+            file_paths = []
             for node in nodes:
                 if not node.data.get("is_dir", True):
-                    quark_path = node.data.get("path")
-                    quark_fid = node.data.get("fid")
-                    save_path = f"{self.dir}{quark_path}"
-                    print(f"📥 Aria2下载: {quark_path}")
-                    download_return, cookie = account.download([quark_fid])
-                    download_url = [
-                        item["download_url"] for item in download_return["data"]
-                    ]
-                    aria2_params = [
-                        download_url,
-                        {
-                            "header": [
-                                f"Cookie: {cookie or account.cookie}",
-                                f"User-Agent: {account.USER_AGENT}",
-                            ],
-                            "out": os.path.basename(save_path),
-                            "dir": os.path.dirname(save_path),
-                            "pause": task_config.get("pause"),
-                        },
-                    ]
-                    self.add_uri(aria2_params)
+                    file_fids.append(node.data.get("fid"))
+                    file_paths.append(node.data.get("path"))
+            download_return, cookie = account.download(file_fids)
+            file_urls = [item["download_url"] for item in download_return["data"]]
+            for index, file_url in enumerate(file_urls):
+                file_path = file_paths[index]
+                print(f"📥 Aria2下载: {file_path}")
+                local_path = f"{self.dir}{file_paths[index]}"
+                aria2_params = [
+                    [file_url],
+                    {
+                        "header": [
+                            f"Cookie: {cookie or account.cookie}",
+                            f"User-Agent: {account.USER_AGENT}",
+                        ],
+                        "out": os.path.basename(local_path),
+                        "dir": os.path.dirname(local_path),
+                        "pause": task_config.get("pause"),
+                    },
+                ]
+                self.add_uri(aria2_params)
 
     def _make_rpc_request(self, method, params=None):
         """发出 JSON-RPC 请求."""
