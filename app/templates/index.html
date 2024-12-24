@@ -212,7 +212,7 @@
               <label class="col-sm-2 col-form-label">分享链接</label>
               <div class="col-sm-10">
                 <div class="input-group">
-                  <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @change="changeShareurl(task)">
+                    <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @blur="changeShareurl(task)">
                   <div class="input-group-append" v-if="task.shareurl">
                     <div class="input-group-text">
                       <a target="_blank" :href="task.shareurl"><i class="bi bi-box-arrow-up-right"></i></a>
