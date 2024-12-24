@@ -54,7 +54,7 @@ class Aria2:
                         download_url,
                         {
                             "header": [
-                                f"Cookie: {cookie}",
+                                f"Cookie: {cookie or account.cookie}",
                                 f"User-Agent: {account.USER_AGENT}",
                             ],
                             "out": os.path.basename(save_path),
