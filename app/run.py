@@ -264,6 +264,19 @@ def get_savepath():
     return jsonify(file_list)
 
 
+@app.route("/delete_file", methods=["POST"])
+def delete_file():
+    if not is_login():
+        return jsonify({"error": "未登录"})
+    data = read_json()
+    account = Quark(data["cookie"][0], 0)
+    if fid := request.json.get("fid"):
+        response = account.delete([fid])
+    else:
+        response = {"error": "fid not found"}
+    return jsonify(response)
+
+
 # 定时任务执行的函数
 def run_python(args):
     logging.info(f">>> 定时运行任务")
