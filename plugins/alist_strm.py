@@ -50,7 +50,7 @@ class Alist_strm:
                 print(f"alist-strm配置运行: {config_name}")
                 return True
             else:
-                print(f"alist-strm配置运行: 匹配失败❌")
+                print(f"alist-strm配置运行: 匹配失败❌，请检查网络连通和cookie有效性")
         except Exception as e:
             print(f"获取alist-strm配置信息出错: {e}")
         return False
