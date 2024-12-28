@@ -79,6 +79,21 @@
 
             <div class="row title">
               <div class="col">
+                <h2 style="display: inline-block;"><i class="bi bi-clock"></i> 定时规则</h2>
+                <span class="badge badge-pill badge-light">
+                  <a target="_blank" href="https://tool.lu/crontab/" title="CRON时间计算器">?</a>
+                </span>
+              </div>
+            </div>
+            <div class="input-group mt-2 mb-2">
+              <div class="input-group-prepend">
+                <span class="input-group-text">Crontab</span>
+              </div>
+              <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
+            </div>
+
+            <div class="row title">
+              <div class="col">
                 <h2 style="display: inline-block;"><i class="bi bi-bell"></i> 通知</h2>
                 <span class="badge badge-pill badge-light">
                   <a href="https://github.com/Cp0204/quark-auto-save/wiki/通知推送服务配置" target="_blank" title="通知推送服务配置">?</a>
@@ -101,18 +116,6 @@
               </div>
             </div>
 
-            <div class="row title">
-              <div class="col">
-                <h2><i class="bi bi-clock"></i> 定时规则</h2>
-              </div>
-            </div>
-            <div class="mt-2 form-group row">
-              <label class="col-sm-2 col-form-label">Crontab <span class="badge badge-pill badge-light"><a target="_blank" href="https://tool.lu/crontab/" title="CRON时间计算器">?</a></span></label>
-              <div class="col-sm-10">
-                <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
-              </div>
-            </div>
-
             <div class="row title" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length">
               <div class="col">
                 <h2 style="display: inline-block;"><i class="bi bi-plug"></i> 插件</h2>
@@ -131,7 +134,7 @@
               </div>
               <div class="collapse" :id="'collapse_'+pluginName" style="padding-left:2em">
                 <div v-for="(value, key) in plugin" :key="key" class="form-group row">
-                  <label class="col-sm-2 col-form-label">{{ key }}</label>
+                  <label class="col-sm-2 col-form-label" v-html="key"></label>
                   <div class="col-sm-10">
                     <input type="text" v-model="formData.plugins[pluginName][key]" class="form-control">
                   </div>
