@@ -1,333 +1,335 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>夸克自动转存</title>
-  <!-- 引入 Bootstrap CSS -->
+  <!-- CSS -->
   <link rel="stylesheet" href="./static/css/bootstrap.min.css">
-  <link rel="stylesheet" href="./static/css/bootstrap-icons.css">
-  <style>
-    body {
-      padding-bottom: 60px;
-    }
-
-    .bottom-buttons {
-      z-index: 99;
-      position: fixed;
-      left: 0;
-      bottom: 0;
-      width: 100%;
-      background-color: #f1f1f1;
-      padding: 10px 0;
-      text-align: center;
-    }
-
-    .title {
-      margin-top: 30px;
-    }
-
-    table.jsoneditor-tree>tbody>tr.jsoneditor-expandable:first-child {
-      display: none;
-    }
-
-    .modal-body {
-      max-height: calc(100vh - 200px);
-      overflow-y: auto;
-    }
-
-    .task-suggestions {
-      width: 100%;
-      max-height: 500px;
-      overflow-y: auto;
-      transform: translate(0, -100%);
-      top: 0;
-      margin-top: -5px;
-      border: 1px solid #007bff;
-    }
-  </style>
+  <link rel="stylesheet" href="./static/css/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="./static/css/dashboard.css">
+  <!-- Bootstrap JS -->
+  <script src="./static/js/jquery-3.5.1.slim.min.js"></script>
+  <script src="./static/js/bootstrap.bundle.min.js"></script>
+  <!-- Vue.js -->
+  <script src="./static/js/vue@2.js"></script>
+  <script src="./static/js/axios.min.js"></script>
+  <script src="./static/js/v-jsoneditor.min.js"></script>
 </head>
 
 <body>
-  <div id="app" class="container mt-5">
-    <h1 class="mb-4"><i class="bi bi-clouds"></i> 夸克自动转存</h1>
-    <form @submit.prevent="saveConfig">
+  <div id="app">
 
-      <div class="row title">
-        <div class="col">
-          <h2>Cookie</h2>
-        </div>
-        <div class="col text-right">
-          <button type="button" class="btn btn-outline-primary mb-3" @click="addCookie()">+</button>
-        </div>
-      </div>
-      <p>1. 所有账号执行签到，纯签到只需移动端参数即可！</p>
-      <p>2. 仅第一个账号执行转存，请自行确认顺序。<b>最好是手机验证码<a target="_blank" href="https://pan.quark.cn/">登录</a>，CK比较完整！</b>如需签到参数附在CK后面。</p>
-      <div v-for="(value, index) in formData.cookie" :key="index" class="input-group mb-2">
-        <input type="text" v-model="formData.cookie[index]" class="form-control" placeholder="打开 pan.quark.com 按 F12 抓取">
-        <div class="input-group-append">
-          <button type="button" class="btn btn-outline-danger" @click="removeCookie(index)">-</button>
-        </div>
-      </div>
+    <nav class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0">
+      <a class="navbar-brand col-md-3 col-lg-2 mr-0 px-3" href="#"><i class="bi bi-clouds"></i> 夸克自动转存</a>
+      <button class="navbar-toggler position-absolute d-md-none collapsed" type="button" data-toggle="collapse" data-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+    </nav>
 
-      <div class="row title">
-        <div class="col">
-          <h2 style="display: inline-block;">通知</h2>
-          <span class="badge badge-pill badge-light">
-            <a href="https://github.com/Cp0204/quark-auto-save/wiki/通知推送服务配置" target="_blank" title="通知推送服务配置">?</a>
-          </span>
-        </div>
-        <div class="col text-right">
-          <button type="button" class="btn btn-outline-primary mb-3" @click="addPush()">+</button>
-        </div>
-      </div>
-      <div v-for="(value, key) in formData.push_config" :key="key" class="input-group mb-2">
-        <div class="input-group-prepend">
-          <span class="input-group-text" v-html="key"></span>
-        </div>
-        <div class="input-group-prepend" v-if="(key == 'DEER_KEY' || key == 'PUSH_KEY')">
-          <a type="button" class="btn btn-warning" target="_blank" href="https://sct.ftqq.com/r/13249" title="Server酱推荐计划"><i class="bi bi-award"></i></a>
-        </div>
-        <input type="text" v-model="formData.push_config[key]" class="form-control">
-        <div class="input-group-append">
-          <button type="button" class="btn btn-outline-danger" @click="removePush(key)">-</button>
-        </div>
-      </div>
-
-      <div class="row title" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length">
-        <div class="col">
-          <h2 style="display: inline-block;">插件</h2>
-          <span class="badge badge-pill badge-light">
-            <a href="https://github.com/Cp0204/quark-auto-save/wiki/插件配置" target="_blank" title="插件配置">?</a>
-          </span>
-        </div>
-      </div>
-      <div v-for="(plugin, pluginName) in getAvailablePlugins(formData.plugins)" :key="pluginName">
-        <div class="form-group row mb-0" style="display:flex; align-items:center;">
-          <div class="col-9" data-toggle="collapse" :data-target="'#collapse_'+pluginName" aria-expanded="true" :aria-controls="'collapse_'+pluginName">
-            <div class="btn btn-block text-left">
-              <i class="bi bi-caret-right-fill"></i> <span v-html="`${pluginName}`"></span>
-            </div>
+    <div class="container-fluid">
+      <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+        <div class="sidebar-sticky pt-3">
+          <ul class="nav flex-column">
+            <li class="nav-item">
+              <a class="nav-link" href="#" :class="{active: activeTab === 'config'}" @click="changeTab('config')">
+                <i class="bi bi-gear-fill"></i> 系统配置
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" :class="{active: activeTab === 'tasklist'}" @click="changeTab('tasklist')">
+                <i class="bi bi-list-task"></i> 任务列表
+              </a>
+            </li>
+            <h6 class="sidebar-heading px-3 mt-4 mb-1 text-muted">dashboard</h6>
+            <li class="nav-item">
+              <a class="nav-link" href="/logout">
+                <i class="bi bi-box-arrow-right"></i></i> 退出
+              </a>
+            </li>
+          </ul>
+          <div class="text-center" style="position: absolute; bottom: 32px; width: 100%; font-size: small;">
+            <p><a class="" target="_blank" href="https://github.com/Cp0204/quark-auto-save/wiki"><i class="bi bi-wechat"></i> 使用交流</a></p>
+            <p><a target="_blank" href="https://github.com/Cp0204/quark-auto-save"><i class="bi bi-github"></i> quark-auto-save</a><br><span v-html="versionTips"></span></p>
           </div>
         </div>
-        <div class="collapse" :id="'collapse_'+pluginName" style="padding-left:2em">
-          <div v-for="(value, key) in plugin" :key="key" class="form-group row">
-            <label class="col-sm-2 col-form-label">{{ key }}</label>
-            <div class="col-sm-10">
-              <input type="text" v-model="formData.plugins[pluginName][key]" class="form-control">
+      </nav>
+
+      <main class="col-md-9 col-lg-10 ml-sm-auto">
+        <form @submit.prevent="saveConfig">
+
+          <div v-if="activeTab === 'config'">
+            <div class="row title">
+              <div class="col">
+                <h2><i class="bi bi-cookie"></i> Cookie</h2>
+              </div>
+              <div class="col text-right">
+                <button type="button" class="btn btn-outline-primary mb-3" @click="addCookie()">+</button>
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="row title">
-        <div class="col">
-          <h2>定时规则</h2>
-        </div>
-      </div>
-      <div class="form-group row">
-        <label class="col-sm-2 col-form-label">Crontab <span class="badge badge-pill badge-light"><a target="_blank" href="https://tool.lu/crontab/" title="CRON时间计算器">?</a></span></label>
-        <div class="col-sm-10">
-          <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
-        </div>
-      </div>
-
-      <div class="row title">
-        <div class="col">
-          <h2>任务列表</h2>
-        </div>
-      </div>
-      <hr>
-      <div class="row">
-        <div class="col-lg-6 col-md-12">
-          <div class="row">
-            <label class="col-form-label col-md-3">名称筛选</label>
-            <div class="input-group col-md-9">
-              <input type="text" class="form-control" v-model="taskNameFilter" placeholder="名称 筛选/搜索">
+            <p>1. 所有账号执行签到，纯签到只需移动端参数即可！</p>
+            <p>2. 仅第一个账号执行转存，请自行确认顺序。<b>最好是手机验证码<a target="_blank" href="https://pan.quark.cn/">登录</a>，CK比较完整！</b>如需签到参数附在CK后面。</p>
+            <div v-for="(value, index) in formData.cookie" :key="index" class="input-group mb-2">
+              <input type="text" v-model="formData.cookie[index]" class="form-control" placeholder="打开 pan.quark.com 按 F12 抓取">
               <div class="input-group-append">
-                <button type="button" class="btn btn-outline-secondary" @click="clearData('taskNameFilter')"><i class="bi bi-x-lg"></i></button>
+                <button type="button" class="btn btn-outline-danger" @click="removeCookie(index)">-</button>
               </div>
             </div>
-          </div>
-        </div>
-        <div class="col-lg-6 col-md-12">
-          <div class="row">
-            <label class="col-form-label col-md-3">路径筛选</label>
-            <div class="input-group col-md-9">
-              <select class="form-control" v-model="taskDirSelected">
-                <option v-for="(dir, index) in taskDirs" :value="dir" v-html="dir"></option>
-              </select>
+
+            <div class="row title">
+              <div class="col">
+                <h2 style="display: inline-block;"><i class="bi bi-bell"></i> 通知</h2>
+                <span class="badge badge-pill badge-light">
+                  <a href="https://github.com/Cp0204/quark-auto-save/wiki/通知推送服务配置" target="_blank" title="通知推送服务配置">?</a>
+                </span>
+              </div>
+              <div class="col text-right">
+                <button type="button" class="btn btn-outline-primary mb-3" @click="addPush()">+</button>
+              </div>
+            </div>
+            <div v-for="(value, key) in formData.push_config" :key="key" class="input-group mb-2">
+              <div class="input-group-prepend">
+                <span class="input-group-text" v-html="key"></span>
+              </div>
+              <div class="input-group-prepend" v-if="(key == 'DEER_KEY' || key == 'PUSH_KEY')">
+                <a type="button" class="btn btn-warning" target="_blank" href="https://sct.ftqq.com/r/13249" title="Server酱推荐计划"><i class="bi bi-award"></i></a>
+              </div>
+              <input type="text" v-model="formData.push_config[key]" class="form-control">
               <div class="input-group-append">
-                <button type="button" class="btn btn-outline-secondary" @click="clearData('taskDirSelected')"><i class="bi bi-x-lg"></i></button>
+                <button type="button" class="btn btn-outline-danger" @click="removePush(key)">-</button>
+              </div>
+            </div>
+
+            <div class="row title">
+              <div class="col">
+                <h2><i class="bi bi-clock"></i> 定时规则</h2>
+              </div>
+            </div>
+            <div class="mt-2 form-group row">
+              <label class="col-sm-2 col-form-label">Crontab <span class="badge badge-pill badge-light"><a target="_blank" href="https://tool.lu/crontab/" title="CRON时间计算器">?</a></span></label>
+              <div class="col-sm-10">
+                <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
+              </div>
+            </div>
+
+            <div class="row title" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length">
+              <div class="col">
+                <h2 style="display: inline-block;"><i class="bi bi-plug"></i> 插件</h2>
+                <span class="badge badge-pill badge-light">
+                  <a href="https://github.com/Cp0204/quark-auto-save/wiki/插件配置" target="_blank" title="插件配置">?</a>
+                </span>
+              </div>
+            </div>
+            <div v-for="(plugin, pluginName) in getAvailablePlugins(formData.plugins)" :key="pluginName">
+              <div class="form-group row mb-0" style="display:flex; align-items:center;">
+                <div class="col-9" data-toggle="collapse" :data-target="'#collapse_'+pluginName" aria-expanded="true" :aria-controls="'collapse_'+pluginName">
+                  <div class="btn btn-block text-left">
+                    <i class="bi bi-caret-right-fill"></i> <span v-html="`${pluginName}`"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="collapse" :id="'collapse_'+pluginName" style="padding-left:2em">
+                <div v-for="(value, key) in plugin" :key="key" class="form-group row">
+                  <label class="col-sm-2 col-form-label">{{ key }}</label>
+                  <div class="col-sm-10">
+                    <input type="text" v-model="formData.plugins[pluginName][key]" class="form-control">
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
-      <div v-for="(task, index) in formData.tasklist" :key="index" class="task mb-3">
-        <template v-if="(taskDirSelected == '' || getParentDirectory(task.savepath) == taskDirSelected) && task.taskname.includes(taskNameFilter)">
-          <hr>
-          <div class="form-group row" style="display:flex; align-items:center">
-            <div class="col-9" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="true" :aria-controls="'collapse_'+index">
-              <div class="btn btn-block text-left">
-                <i class="bi bi-caret-right-fill"></i> #<span v-html="`${index+1}: ${task.taskname}`"></span>
+
+          <div v-if="activeTab === 'tasklist'">
+            <div class="row title">
+              <div class="col">
+                <h2>任务列表</h2>
               </div>
             </div>
-            <div class="col-3 text-right">
-              <button class="btn btn-warning" v-if="task.shareurl_ban" :title="task.shareurl_ban" disabled><i class="bi bi-exclamation-triangle-fill"></i></button>
-              <button type="button" class="btn btn-outline-primary" @click="runScriptNow(index)" title="运行此任务" v-else><i class="bi bi-play-fill"></i></button>
-              <button type="button" class="btn btn-outline-danger" @click="removeTask(index)" title="删除此任务"><i class="bi bi-trash3-fill"></i></button>
+            <hr>
+            <div class="row">
+              <div class="col-lg-6 col-md-12">
+                <div class="row">
+                  <label class="col-form-label col-md-3">名称筛选</label>
+                  <div class="input-group col-md-9">
+                    <input type="text" class="form-control" v-model="taskNameFilter" placeholder="名称 筛选/搜索">
+                    <div class="input-group-append">
+                      <button type="button" class="btn btn-outline-secondary" @click="clearData('taskNameFilter')"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-6 col-md-12">
+                <div class="row">
+                  <label class="col-form-label col-md-3">路径筛选</label>
+                  <div class="input-group col-md-9">
+                    <select class="form-control" v-model="taskDirSelected">
+                      <option v-for="(dir, index) in taskDirs" :value="dir" v-html="dir"></option>
+                    </select>
+                    <div class="input-group-append">
+                      <button type="button" class="btn btn-outline-secondary" @click="clearData('taskDirSelected')"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-for="(task, index) in formData.tasklist" :key="index" class="task mb-3">
+              <template v-if="(taskDirSelected == '' || getParentDirectory(task.savepath) == taskDirSelected) && task.taskname.includes(taskNameFilter)">
+                <hr>
+                <div class="form-group row" style="align-items:center">
+                  <div class="col pl-0" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="true" :aria-controls="'collapse_'+index">
+                    <div class="btn btn-block text-left">
+                      <i class="bi bi-caret-right-fill"></i> #<span v-html="`${index+1}: ${task.taskname}`"></span>
+                    </div>
+                  </div>
+                  <div class="col-auto">
+                    <button class="btn btn-warning" v-if="task.shareurl_ban" :title="task.shareurl_ban" disabled><i class="bi bi-exclamation-triangle-fill"></i></button>
+                    <button type="button" class="btn btn-outline-primary" @click="runScriptNow(index)" title="运行此任务" v-else><i class="bi bi-play-fill"></i></button>
+                    <button type="button" class="btn btn-outline-danger" @click="removeTask(index)" title="删除此任务"><i class="bi bi-trash3-fill"></i></button>
+                  </div>
+                </div>
+                <div class="collapse" :id="'collapse_'+index" style="padding-left:2em">
+                  <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="task.shareurl_ban"></div>
+                  <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">任务名称</label>
+                    <div class="col-sm-10">
+                      <div class="input-group">
+                        <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(index, task)" @input="changeTaskname(index, task)">
+                        <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.taskSuggestions.length && smart_param.index === index">
+                          <div class="text-muted text-center" style="font-size: small;">以下资源来自第三方，网络公开搜集，请自行辨识，如有侵权请联系夸克官方</div>
+                          <div v-for="suggestion in smart_param.taskSuggestions" :key="suggestion.taskname" class="dropdown-item" @click.prevent="selectSuggestion(task, suggestion)" style="cursor: pointer;">
+                            <span v-html="suggestion.verify ? '✅': '❔'"></span> {{ suggestion.taskname }}
+                            <small class="text-muted">
+                              <a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a>
+                            </small>
+                          </div>
+                        </div>
+                        <div class="input-group-append" title="深度搜索">
+                          <button class="btn btn-primary" type="button" @click="searchSuggestions(index, task.taskname)">
+                            <i v-if="smart_param.isSearching && smart_param.index === index" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
+                            <i v-else class="bi bi-search-heart"></i>
+                          </button>
+                          <div class="input-group-text" title="谷歌搜索">
+                            <a target="_blank" :href="`https://www.google.com/search?q=%22pan.quark.cn/s%22+${task.taskname}`"><i class="bi bi-google"></i></a>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">分享链接</label>
+                    <div class="col-sm-10">
+                      <div class="input-group">
+                        <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @blur="changeShareurl(task)">
+                        <div class="input-group-append" v-if="task.shareurl">
+                          <div class="input-group-text">
+                            <a target="_blank" :href="task.shareurl"><i class="bi bi-box-arrow-up-right"></i></a>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">保存路径</label>
+                    <div class="col-sm-10">
+                      <div class="input-group">
+                        <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填" @focus="focusTaskname(index, task)">
+                        <div class="input-group-append">
+                          <button class="btn btn-secondary" type="button" v-if="smart_param.savepath && smart_param.index == index && task.savepath != smart_param.origin_savepath" @click="task.savepath = smart_param.origin_savepath"><i class="
+                                                  bi bi-reply"></i></button>
+                          <button class="btn btn-outline-secondary dropdown-toggle" type="button" @click="getSavepathDirs(task.savepath)" data-toggle="dropdown" aria-expanded="false">选择</button>
+                          <div class="dropdown-menu" style="max-height: 300px; min-width: 200px; overflow-y: auto;">
+                            <a class="dropdown-item" @click.stop.prevent="selectSavepath(index,getParentDirectory(task.savepath),'..')" href="#">..</a>
+                            <span v-if="!savepaths.some(item => item.dir)" class="dropdown-item disabled">无子目录</span>
+                            <a v-for="(item, key) in savepaths" :class="{'disabled': item.fid === 0 || !item.dir}" class="dropdown-item" @click.stop.prevent="selectSavepath(index,item.fid,item.file_name)" href="#">
+                              <i class="bi" :class="item.dir ? 'bi-folder2' : 'bi-file-earmark'"></i> {{ item.file_name }}
+                              <i class="bi bi-trash3-fill text-danger" @click.stop.prevent="deleteFile(item.fid,item.file_name,item.dir)" style="position: absolute; right: 10px; pointer-events: auto;"></i>
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">保存规则</label>
+                    <div class="col-sm-10">
+                      <div class="input-group">
+                        <div class="input-group-prepend">
+                          <span class="input-group-text">正则处理</span>
+                        </div>
+                        <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex">
+                        <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
+                        <div class="input-group-append">
+                          <div class="input-group-text">
+                            <input type="checkbox" title="忽略后缀" v-model="task.ignore_extension">&nbsp;忽略后缀
+                          </div>
+                        </div>
+                      </div>
+                      <datalist id="magicRegex">
+                        <option v-for="(value, key) in formData.magic_regex" :key="key" :value="`${key}`" v-html="`${value.pattern.replace('<', '<\u200B')} → ${value.replace}`"></option>
+                      </datalist>
+                    </div>
+                  </div>
+                  <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">文件开始</label>
+                    <div class="col-sm-10">
+                      <div class="input-group">
+                        <input type="text" class="form-control" placeholder="可选" name="startfid[]" v-model="task.startfid">
+                        <div class="input-group-append" v-if="task.shareurl">
+                          <button class="btn btn-outline-secondary" type="button" @click="showShareFiles(index)">选择</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">更子目录</label>
+                    <div class="col-sm-10">
+                      <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，需更新子目录的正则式，多项以|分割，如 4k|1080p ，注意！深层嵌套目录慎用 .* ！" title="注意！深层嵌套目录逐级索引，工作强度会非常大，慎用！">
+                    </div>
+                  </div>
+                  <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">截止日期</label>
+                    <div class="col-sm-10">
+                      <input type="date" name="enddate[]" class="form-control" v-model="task.enddate" placeholder="可选">
+                    </div>
+                  </div>
+                  <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">运行星期</label>
+                    <div class="col-sm-10 col-form-label">
+                      <div class="form-check form-check-inline" title="也可用作任务总开关">
+                        <input class="form-check-input" type="checkbox" :checked="task.runweek.length === 7" @change="toggleAllWeekdays(task)" :indeterminate.prop="task.runweek.length > 0 && task.runweek.length < 7">
+                        <label class="form-check-label">全选</label>
+                      </div>
+                      <div class="form-check form-check-inline" v-for="(day, index) in weekdays" :key="index">
+                        <input class="form-check-input" type="checkbox" v-model="task.runweek" :value="index+1">
+                        <label class="form-check-label" v-html="day"></label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length">
+                    <label class="col-sm-2 col-form-label">插件选项</label>
+                    <div class="col-sm-10">
+                      <v-jsoneditor v-model="task.addition" :options="{mode:'tree'}" :plus="false" height="180px"></v-jsoneditor>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <div class="row mt-5">
+              <div class="col-sm-12 text-center">
+                <button type="button" class="btn btn-primary" @click="addTask()"><i class="bi bi-plus"></i> 增加任务</button>
+              </div>
             </div>
           </div>
-          <div class="collapse" :id="'collapse_'+index" style="padding-left:2em">
-            <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="task.shareurl_ban"></div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">任务名称</label>
-              <div class="col-sm-10">
-                <div class="input-group">
-                  <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(index, task)" @input="changeTaskname(index, task)">
-                  <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.taskSuggestions.length && smart_param.index === index">
-                    <div class="text-muted text-center" style="font-size: small;">以下资源来自第三方，网络公开搜集，请自行辨识，如有侵权请联系夸克官方</div>
-                    <div v-for="suggestion in smart_param.taskSuggestions" :key="suggestion.taskname" class="dropdown-item" @click.prevent="selectSuggestion(task, suggestion)" style="cursor: pointer;">
-                      <span v-html="suggestion.verify ? '✅': '❔'"></span> {{ suggestion.taskname }}
-                      <small class="text-muted">
-                        <a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a>
-                      </small>
-                    </div>
-                  </div>
-                  <div class="input-group-append" title="深度搜索">
-                    <button class="btn btn-primary" type="button" @click="searchSuggestions(index, task.taskname)">
-                      <i v-if="smart_param.isSearching && smart_param.index === index" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
-                      <i v-else class="bi bi-search-heart"></i>
-                    </button>
-                    <div class="input-group-text" title="谷歌搜索">
-                      <a target="_blank" :href="`https://www.google.com/search?q=%22pan.quark.cn/s%22+${task.taskname}`"><i class="bi bi-google"></i></a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">分享链接</label>
-              <div class="col-sm-10">
-                <div class="input-group">
-                  <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @blur="changeShareurl(task)">
-                  <div class="input-group-append" v-if="task.shareurl">
-                    <div class="input-group-text">
-                      <a target="_blank" :href="task.shareurl"><i class="bi bi-box-arrow-up-right"></i></a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">保存路径</label>
-              <div class="col-sm-10">
-                <div class="input-group">
-                  <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填" @focus="focusTaskname(index, task)">
-                  <div class="input-group-append">
-                    <button class="btn btn-secondary" type="button" v-if="smart_param.savepath && smart_param.index == index && task.savepath != smart_param.origin_savepath" @click="task.savepath = smart_param.origin_savepath"><i class="
-                      bi bi-reply"></i></button>
-                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" @click="getSavepathDirs(task.savepath)" data-toggle="dropdown" aria-expanded="false">选择</button>
-                    <div class="dropdown-menu" style="max-height: 300px; overflow-y: auto;">
-                      <a class="dropdown-item" @click.stop.prevent="selectSavepath(index,getParentDirectory(task.savepath),'..')" href="#">..</a>
-                      <span v-if="!savepaths.some(item => item.dir)" class="dropdown-item disabled">无子目录</span>
-                      <a v-for="(item, key) in savepaths" :class="{'disabled': item.fid === 0 || !item.dir}" class="dropdown-item" @click.stop.prevent="selectSavepath(index,item.fid,item.file_name)" href="#">
-                        <i class="bi" :class="item.dir ? 'bi-folder2' : 'bi-file-earmark'"></i> {{ item.file_name }}
-                        <i class="bi bi-trash3-fill text-danger" @click.stop.prevent="deleteFile(item.fid,item.file_name,item.dir)" style="position: absolute; right: 10px; pointer-events: auto;"></i>
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">保存规则</label>
-              <div class="col-sm-10">
-                <div class="input-group">
-                  <div class="input-group-prepend">
-                    <span class="input-group-text">正则处理</span>
-                  </div>
-                  <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex">
-                  <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
-                  <div class="input-group-append">
-                    <div class="input-group-text">
-                      <input type="checkbox" title="忽略后缀" v-model="task.ignore_extension">&nbsp;忽略后缀
-                    </div>
-                  </div>
-                </div>
-                <datalist id="magicRegex">
-                  <option v-for="(value, key) in formData.magic_regex" :key="key" :value="`${key}`" v-html="`${value.pattern.replace('<', '&lt;\u200B')} → ${value.replace}`"></option>
-                </datalist>
-              </div>
-            </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">文件开始</label>
-              <div class="col-sm-10">
-                <div class="input-group">
-                  <input type="text" class="form-control" placeholder="可选" name="startfid[]" v-model="task.startfid">
-                  <div class="input-group-append" v-if="task.shareurl">
-                    <button class="btn btn-outline-secondary" type="button" @click="showShareFiles(index)">选择</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">更子目录</label>
-              <div class="col-sm-10">
-                <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，需更新子目录的正则式，多项以|分割，如 4k|1080p ，注意！深层嵌套目录慎用 .* ！" title="注意！深层嵌套目录逐级索引，工作强度会非常大，慎用！">
-              </div>
-            </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">截止日期</label>
-              <div class="col-sm-10">
-                <input type="date" name="enddate[]" class="form-control" v-model="task.enddate" placeholder="可选">
-              </div>
-            </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">运行星期</label>
-              <div class="col-sm-10 col-form-label">
-                <div class="form-check form-check-inline" title="也可用作任务总开关">
-                  <input class="form-check-input" type="checkbox" :checked="task.runweek.length === 7" @change="toggleAllWeekdays(task)" :indeterminate.prop="task.runweek.length > 0 && task.runweek.length < 7">
-                  <label class="form-check-label">全选</label>
-                </div>
-                <div class="form-check form-check-inline" v-for="(day, index) in weekdays" :key="index">
-                  <input class="form-check-input" type="checkbox" v-model="task.runweek" :value="index+1">
-                  <label class="form-check-label" v-html="day"></label>
-                </div>
-              </div>
-            </div>
-            <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length">
-              <label class="col-sm-2 col-form-label">插件选项</label>
-              <div class="col-sm-10">
-                <v-jsoneditor v-model="task.addition" :options="{mode:'tree'}" :plus="false" height="180px"></v-jsoneditor>
-              </div>
-            </div>
+
+          <div class="bottom-buttons">
+            <button class="btn btn-success" title="保存 CTRL+S"><i class="bi bi-save"></i></button>
+            <button type="button" class="btn btn-primary" title="运行 CTRL+R" @click="runScriptNow()"><i class="bi bi-play-fill"></i></button>
+            <button type="button" class="btn btn-info" @click="scrollToX(0)" @dblclick="scrollToX()" data-toggle="tooltip" data-placement="top" title="单击回顶，双击到底"><i class="bi bi-chevron-bar-up"></i></button>
           </div>
-        </template>
-      </div>
-      <div class="row mt-5">
-        <div class="col-sm-12 text-center">
-          <button type="button" class="btn btn-primary" @click="addTask()"><i class="bi bi-plus"></i> 增加任务</button>
-        </div>
-      </div>
-      <hr>
-      <div class="row">
-        <div class="col-sm-12 text-center">
-          <p>
-            <a target="_blank" href="https://github.com/Cp0204/quark-auto-save/wiki"><i class="bi bi-wechat"></i> 使用交流</a> |
-            <a target="_blank" href="https://github.com/Cp0204/quark-auto-save"><i class="bi bi-github"></i> quark-auto-save</a> <span v-html="versionTips"></span>
-          </p>
-        </div>
-      </div>
-      <div class="bottom-buttons">
-        <button class="btn btn-success" title="CTRL+S"><i class="bi bi-save"></i> 保存</button>
-        <button type="button" class="btn btn-primary" title="CTRL+R" @click="runScriptNow()"><i class="bi bi-play-fill"></i> 运行</button>
-        <button type="button" class="btn btn-info" @click="scrollToX(0)" @dblclick="scrollToX()" data-toggle="tooltip" data-placement="top" title="单击回顶，双击到底"><i class="bi bi-chevron-bar-up"></i> 回顶</button>
-        <a class="btn btn-danger" href="/logout"><i class="bi bi-box-arrow-right"></i> 退出</a>
-      </div>
-    </form>
+        </form>
+      </main>
+    </div>
 
     <!-- 模态框 运行日志 -->
     <div class="modal" tabindex="-1" id="logModal">
@@ -390,14 +392,6 @@
     </div>
   </div>
 
-  <!-- 引入 Bootstrap JS -->
-  <script src="./static/js/jquery-3.5.1.slim.min.js"></script>
-  <script src="./static/js/bootstrap.bundle.min.js"></script>
-
-  <!-- 引入 Vue.js -->
-  <script src="./static/js/vue@2.js"></script>
-  <script src="./static/js/axios.min.js"></script>
-  <script src="./static/js/v-jsoneditor.min.js"></script>
 
   <script>
     var app = new Vue({
@@ -442,6 +436,7 @@
           lastSuggestionsTime: 0,
           isSearching: false,
         },
+        activeTab: 'config',
       },
       filters: {
         ts2date: function (value) {
@@ -471,6 +466,12 @@
         });
       },
       methods: {
+        changeTab(tab) {
+          this.activeTab = tab;
+          if (window.innerWidth <= 768) {
+            $('#sidebarMenu').collapse('toggle')
+          }
+        },
         checkNewVersion() {
           this.versionTips = this.version;
           axios.get('https://api.github.com/repos/Cp0204/quark-auto-save/tags')
