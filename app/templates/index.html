@@ -51,7 +51,8 @@
           </ul>
           <div class="text-center" style="position: absolute; bottom: 32px; width: 100%; font-size: small;">
             <p><a class="" target="_blank" href="https://github.com/Cp0204/quark-auto-save/wiki"><i class="bi bi-wechat"></i> 使用交流</a></p>
-            <p><a target="_blank" href="https://github.com/Cp0204/quark-auto-save"><i class="bi bi-github"></i> quark-auto-save</a><br><span v-html="versionTips"></span></p>
+            <p><a target="_blank" href="https://github.com/Cp0204/quark-auto-save"><i class="bi bi-github"></i> quark-auto-save</a></p>
+            <p><span v-html="versionTips"></span></p>
           </div>
         </div>
       </nav>
@@ -126,13 +127,13 @@
             </div>
             <div v-for="(plugin, pluginName) in getAvailablePlugins(formData.plugins)" :key="pluginName">
               <div class="form-group row mb-0" style="display:flex; align-items:center;">
-                <div class="col-9" data-toggle="collapse" :data-target="'#collapse_'+pluginName" aria-expanded="true" :aria-controls="'collapse_'+pluginName">
+                <div data-toggle="collapse" :data-target="'#collapse_'+pluginName" aria-expanded="true" :aria-controls="'collapse_'+pluginName">
                   <div class="btn btn-block text-left">
                     <i class="bi bi-caret-right-fill"></i> <span v-html="`${pluginName}`"></span>
                   </div>
                 </div>
               </div>
-              <div class="collapse" :id="'collapse_'+pluginName" style="padding-left:2em">
+              <div class="collapse ml-3" :id="'collapse_'+pluginName">
                 <div v-for="(value, key) in plugin" :key="key" class="form-group row">
                   <label class="col-sm-2 col-form-label" v-html="key"></label>
                   <div class="col-sm-10">
@@ -191,7 +192,7 @@
                     <button type="button" class="btn btn-outline-danger" @click="removeTask(index)" title="删除此任务"><i class="bi bi-trash3-fill"></i></button>
                   </div>
                 </div>
-                <div class="collapse" :id="'collapse_'+index" style="padding-left:2em">
+                <div class="collapse ml-3" :id="'collapse_'+index">
                   <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="task.shareurl_ban"></div>
                   <div class="form-group row">
                     <label class="col-sm-2 col-form-label">任务名称</label>

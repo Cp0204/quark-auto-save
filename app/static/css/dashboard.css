@@ -3,6 +3,20 @@ body {
   padding-bottom: 110px;
 }
 
+@media (max-width: 768px) {
+  .container-fluid {
+    padding-right: 5px;
+    padding-left: 5px;
+  }
+}
+
+@media (min-width: 2000px) {
+  main {
+    padding-right: 400px !important;
+    padding-left: 400px !important;
+  }
+}
+
 .bottom-buttons {
   z-index: 99;
   position: fixed;
@@ -90,11 +104,13 @@ table.jsoneditor-tree>tbody>tr.jsoneditor-expandable:first-child {
   font-size: medium;
   color: #333;
   padding: 10px;
-  transition: background-color 0.3s ease; /* 添加过渡效果 */
+  transition: background-color 0.3s ease;
+  /* 添加过渡效果 */
 }
 
 .sidebar .nav-link:hover {
-  background-color: #e0f0ff; /* 改变背景颜色 */
+  background-color: #e0f0ff;
+  /* 改变背景颜色 */
 }
 
 .sidebar .nav-link i {
