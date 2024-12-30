@@ -10,10 +10,10 @@ body {
   }
 }
 
-@media (min-width: 2000px) {
-  main {
-    padding-right: 400px !important;
-    padding-left: 400px !important;
+@media (min-width: 1360px) {
+  .container-fluid {
+    max-width: 1360px;
+    margin: 0 auto;
   }
 }
 
