@@ -6,16 +6,17 @@ body {
 .bottom-buttons {
   z-index: 99;
   position: fixed;
-  right: 40px;
-  bottom: 40px;
+  left: 50%;
+  bottom: 20px;
   background-color: transparent;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  transform: translateX(-50%);
 }
 
 .bottom-buttons button {
   border-radius: 50%;
-  margin: 5px 0;
+  margin: 0 10px;
   width: 50px;
   height: 50px;
   display: flex;
