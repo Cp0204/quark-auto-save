@@ -218,4 +218,5 @@ class Fnos:
                         print(f"{response}")
             except Exception as e:
                 print(f"飞牛: 下载任务异常❌ {e}")
-            loop.run_until_complete(close_websocket(websocket))
+            finally:
+                loop.run_until_complete(close_websocket(websocket))
