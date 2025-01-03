@@ -88,7 +88,8 @@ docker run -d \
 
 ## 🤝 贡献者
 
-| 插件    | 说明                 | 贡献者                                  |
-| ------- | -------------------- | --------------------------------------- |
-| plex.py | 自动刷新 Plex 媒体库 | [zhazhayu](https://github.com/zhazhayu) |
-| alist_strm_gen.py | 自动生成strm | [xiaoQQya](https://github.com/xiaoQQya) |
+| 插件                | 说明            | 贡献者                                  |
+|-------------------|---------------| --------------------------------------- |
+| plex.py           | 自动刷新 Plex 媒体库 | [zhazhayu](https://github.com/zhazhayu) |
+| alist_strm_gen.py | 自动生成strm      | [xiaoQQya](https://github.com/xiaoQQya) |
+| fnos.py           | 飞牛自动下载转存资源    | [key762](https://github.com/key762) |
