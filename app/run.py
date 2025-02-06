@@ -14,6 +14,7 @@ from flask import (
 )
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from datetime import timedelta
 import subprocess
 import requests
 import hashlib
@@ -53,6 +54,7 @@ app = Flask(__name__)
 app.config["APP_VERSION"] = get_app_ver()
 app.secret_key = "ca943f6db6dd34823d36ab08d8d6f65d"
 app.config["SESSION_COOKIE_NAME"] = "QUARK_AUTO_SAVE_SESSION"
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=31)
 app.json.ensure_ascii = False
 app.json.sort_keys = False
 app.jinja_env.variable_start_string = "[["
@@ -121,6 +123,7 @@ def login():
         ):
             logging.info(f">>> 用户 {username} 登录成功")
             session["login"] = gen_md5(username + password)
+            session.permanent = True
             return redirect(url_for("index"))
         else:
             logging.info(f">>> 用户 {username} 登录失败")
