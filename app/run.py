@@ -129,6 +129,8 @@ def login():
             logging.info(f">>> 用户 {username} 登录失败")
             return render_template("login.html", message="登录失败")
 
+    if is_login():
+        return redirect(url_for("index"))
     return render_template("login.html", error=None)
 
 
