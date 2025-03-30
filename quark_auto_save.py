@@ -645,6 +645,12 @@ class Quark:
                 pwd_id, stoken, share_file_list[0]["fid"]
             )["list"]
 
+        # 应用过滤词过滤文件
+        if task.get("filterwords"):
+            filterwords_list = [word.strip() for word in task["filterwords"].split(',')]
+            share_file_list = [file for file in share_file_list if not any(word in file['file_name'] for word in filterwords_list)]
+            print(f"📑 应用过滤词：{task['filterwords']}，剩余{len(share_file_list)}个文件")
+
         # 获取目标目录文件列表
         savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
         if not self.savepath_fid.get(savepath):
