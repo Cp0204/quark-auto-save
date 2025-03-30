@@ -274,6 +274,19 @@
                       </datalist>
                     </div>
                   </div>
+
+                  <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">过滤规则</label>
+                    <div class="col-sm-10">
+                      <div class="input-group">
+                        <div class="input-group-prepend">
+                          <span class="input-group-text">过滤词汇</span>
+                        </div>
+                        <input type="text" name="filterwords[]" class="form-control" v-model="task.filterwords" placeholder="输入过滤词汇，用逗号分隔，例如：纯享,加更,超前企划">
+                      </div>
+                    </div>
+                  </div>
+
                   <div class="form-group row">
                     <label class="col-sm-2 col-form-label">文件开始</label>
                     <div class="col-sm-10">
@@ -421,6 +434,7 @@
           enddate: "",
           addition: {},
           ignore_extension: false,
+          filterwords: "",
           runweek: [1, 2, 3, 4, 5, 6, 7]
         },
         run_log: "",

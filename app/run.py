@@ -348,6 +348,26 @@ def init():
     write_json(data)
 
 
+def filter_files(files, filterwords):
+    if not filterwords:
+        return files
+    filterwords_list = [word.strip() for word in filterwords.split(',')]
+    return [file for file in files if not any(word in file['file_name'] for word in filterwords_list)]
+
+
+@app.route("/get_filtered_files")
+def get_filtered_files():
+    if not is_login():
+        return jsonify({"error": "未登录"})
+    data = read_json()
+    filterwords = request.args.get("filterwords", "")
+    account = Quark(data["cookie"][0], 0)
+    fid = request.args.get("fid", 0)
+    files = account.ls_dir(fid)
+    filtered_files = filter_files(files, filterwords)
+    return jsonify(filtered_files)
+
+
 if __name__ == "__main__":
     init()
     reload_tasks()
