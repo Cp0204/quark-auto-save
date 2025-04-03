@@ -93,11 +93,11 @@
               <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
             </div>
 
-            <div class="row title">
+            <div class="row title" title="通知推送，支持多个渠道，见Wiki">
               <div class="col">
                 <h2 style="display: inline-block;"><i class="bi bi-bell"></i> 通知</h2>
                 <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/Cp0204/quark-auto-save/wiki/通知推送服务配置" target="_blank" title="通知推送服务配置">?</a>
+                  <a href="https://github.com/Cp0204/quark-auto-save/wiki/通知推送服务配置" target="_blank">?</a>
                 </span>
               </div>
               <div class="col text-right">
@@ -117,11 +117,11 @@
               </div>
             </div>
 
-            <div class="row title" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length">
+            <div class="row title" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" title="各插件的配置选项，具体键值由插件定义，见Wiki">
               <div class="col">
                 <h2 style="display: inline-block;"><i class="bi bi-plug"></i> 插件</h2>
                 <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/Cp0204/quark-auto-save/wiki/插件配置" target="_blank" title="插件配置">?</a>
+                  <a href="https://github.com/Cp0204/quark-auto-save/wiki/插件配置" target="_blank">?</a>
                 </span>
               </div>
             </div>
@@ -143,11 +143,11 @@
               </div>
             </div>
 
-            <div class="row title">
+            <div class="row title" title="预定义的正则匹配规则，在任务列表中可直接点击使用">
               <div class="col">
                 <h2 style="display: inline-block;"><i class="bi bi-magic"></i> 魔法匹配</h2>
                 <span class="badge badge-pill badge-light">
-                  <a href="github.com/Cp0204/quark-auto-save/wiki/正则处理教程#21-魔法匹配" target="_blank" title="魔法匹配说明">?</a>
+                  <a href="github.com/Cp0204/quark-auto-save/wiki/正则处理教程#21-魔法匹配" target="_blank">?</a>
                 </span>
               </div>
               <div class="col text-right">
@@ -249,7 +249,7 @@
                       </div>
                     </div>
                   </div>
-                  <div class="form-group row">
+                  <div class="form-group row" title="支持子目录链接，Web端打开分享点入目录，复制浏览器的URL即可；支持带提取码链接，说明见Wiki">
                     <label class="col-sm-2 col-form-label">分享链接</label>
                     <div class="col-sm-10">
                       <div class="input-group">
@@ -316,7 +316,7 @@
                   <div class="form-group row" title="需匹配到各级嵌套目录名才会更新，否则子目录在第一次转存后不会更新。注意：原理是逐级索引，深层嵌套目录的场景下效率非常低，慎用 .*">
                     <label class="col-sm-2 col-form-label">更新目录</label>
                     <div class="col-sm-10">
-                      <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，需更新子目录（含各级嵌套目录）的正则表达式，多项以|分割，如 4k|1080p">
+                      <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，匹配需更新子目录（含各级嵌套目录）的正则表达式，多项以|分割，如 4k|1080p">
                     </div>
                   </div>
                   <div class="form-group row">
@@ -325,7 +325,7 @@
                       <input type="date" name="enddate[]" class="form-control" v-model="task.enddate" placeholder="可选">
                     </div>
                   </div>
-                  <div class="form-group row">
+                  <div class="form-group row" title="只在勾选的星期时才运行，在某些周更剧的场景下非常有用">
                     <label class="col-sm-2 col-form-label">运行星期</label>
                     <div class="col-sm-10 col-form-label">
                       <div class="form-check form-check-inline" title="也可用作任务总开关">
@@ -338,7 +338,7 @@
                       </div>
                     </div>
                   </div>
-                  <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length">
+                  <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" title="单个任务的插件选项，具体键值由插件定义，见Wiki">
                     <label class="col-sm-2 col-form-label">插件选项</label>
                     <div class="col-sm-10">
                       <v-jsoneditor v-model="task.addition" :options="{mode:'tree'}" :plus="false" height="180px"></v-jsoneditor>
