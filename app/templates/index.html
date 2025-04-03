@@ -142,6 +142,35 @@
                 </div>
               </div>
             </div>
+
+            <div class="row title">
+              <div class="col">
+                <h2 style="display: inline-block;"><i class="bi bi-magic"></i> 魔法匹配</h2>
+                <span class="badge badge-pill badge-light">
+                  <a href="github.com/Cp0204/quark-auto-save/wiki/正则处理教程#21-魔法匹配" target="_blank" title="魔法匹配说明">?</a>
+                </span>
+              </div>
+              <div class="col text-right">
+                <button type="button" class="btn btn-outline-primary mb-3" @click="addMagicRegex()">+</button>
+              </div>
+            </div>
+            <div v-for="(value, key) in formData.magic_regex" :key="key" class="form-group mb-2">
+              <div class="input-group">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">魔法名</span>
+                </div>
+                <input type="text" :data-oldkey="key" v-model="key" class="form-control" @change="updateMagicRegexKey($event.target.dataset.oldkey, $event.target.value)" placeholder="自定义名称">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">正则处理</span>
+                </div>
+                <input type="text" v-model="value.pattern" class="form-control" placeholder="匹配表达式">
+                <input type="text" v-model="value.replace" class="form-control" placeholder="替换表达式">
+                <div class="input-group-append">
+                  <button type="button" class="btn btn-outline-danger" @click="removeMagicRegex(key)">-</button>
+                </div>
+              </div>
+            </div>
+
           </div>
 
           <div v-if="activeTab === 'tasklist'">
@@ -775,6 +804,25 @@
           task.shareurl = suggestion.shareurl;
           this.changeShareurl(task);
           this.smart_param.showSuggestions = false;
+        },
+        addMagicRegex() {
+          const newKey = `$MAGIC_${Object.keys(this.formData.magic_regex).length + 1}`;
+          this.$set(this.formData.magic_regex, newKey, { pattern: '', replace: '' });
+        },
+        updateMagicRegexKey(oldKey, newKey) {
+          if (oldKey !== newKey) {
+            if (this.formData.magic_regex[newKey]) {
+              alert(`魔法名 [${newKey}] 已存在，请使用其他名称`);
+              return;
+            }
+            this.$set(this.formData.magic_regex, newKey, this.formData.magic_regex[oldKey]);
+            this.$delete(this.formData.magic_regex, oldKey);
+          }
+        },
+        removeMagicRegex(key) {
+          if (confirm(`确认删除魔法匹配规则 [${key}] 吗？`)) {
+            this.$delete(this.formData.magic_regex, key);
+          }
         },
       }
     });
