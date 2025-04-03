@@ -239,8 +239,7 @@
                       <div class="input-group">
                         <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填" @focus="focusTaskname(index, task)">
                         <div class="input-group-append">
-                          <button class="btn btn-secondary" type="button" v-if="smart_param.savepath && smart_param.index == index && task.savepath != smart_param.origin_savepath" @click="task.savepath = smart_param.origin_savepath"><i class="
-                                                  bi bi-reply"></i></button>
+                          <button class="btn btn-secondary" type="button" v-if="smart_param.savepath && smart_param.index == index && task.savepath != smart_param.origin_savepath" @click="task.savepath = smart_param.origin_savepath"><i class="bi bi-reply"></i></button>
                           <button class="btn btn-outline-secondary dropdown-toggle" type="button" @click="getSavepathDirs(task.savepath)" data-toggle="dropdown" aria-expanded="false">选择</button>
                           <div class="dropdown-menu" style="max-height: 300px; min-width: 200px; overflow-y: auto;">
                             <a class="dropdown-item" @click.stop.prevent="selectSavepath(index,getParentDirectory(task.savepath),'..')" href="#">..</a>
@@ -254,7 +253,7 @@
                       </div>
                     </div>
                   </div>
-                  <div class="form-group row">
+                  <div class="form-group row" title="可用作筛选，只转存匹配到的文件名的文件，留空则转存所有文件">
                     <label class="col-sm-2 col-form-label">保存规则</label>
                     <div class="col-sm-10">
                       <div class="input-group">
@@ -263,9 +262,9 @@
                         </div>
                         <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex">
                         <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
-                        <div class="input-group-append">
+                        <div class="input-group-append" title="保存时只比较文件名的部分，01.mp4 和 01.mkv 视同为同一文件，不重复转存">
                           <div class="input-group-text">
-                            <input type="checkbox" title="忽略后缀" v-model="task.ignore_extension">&nbsp;忽略后缀
+                            <input type="checkbox" v-model="task.ignore_extension">&nbsp;忽略后缀
                           </div>
                         </div>
                       </div>
@@ -274,8 +273,8 @@
                       </datalist>
                     </div>
                   </div>
-                  <div class="form-group row">
-                    <label class="col-sm-2 col-form-label">文件开始</label>
+                  <div class="form-group row" title="只转存修改日期>选中文件的文件，在容量不够或几百集动漫的场景下非常有用">
+                    <label class="col-sm-2 col-form-label">文件起始</label>
                     <div class="col-sm-10">
                       <div class="input-group">
                         <input type="text" class="form-control" placeholder="可选" name="startfid[]" v-model="task.startfid">
@@ -285,10 +284,10 @@
                       </div>
                     </div>
                   </div>
-                  <div class="form-group row">
-                    <label class="col-sm-2 col-form-label">更子目录</label>
+                  <div class="form-group row" title="需匹配到各级嵌套目录名才会更新，否则子目录在第一次转存后不会更新。注意：原理是逐级索引，深层嵌套目录的场景下效率非常低，慎用 .*">
+                    <label class="col-sm-2 col-form-label">更新目录</label>
                     <div class="col-sm-10">
-                      <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，需更新子目录的正则式，多项以|分割，如 4k|1080p ，注意！深层嵌套目录慎用 .* ！" title="注意！深层嵌套目录逐级索引，工作强度会非常大，慎用！">
+                      <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，需更新子目录（含各级嵌套目录）的正则表达式，多项以|分割，如 4k|1080p">
                     </div>
                   </div>
                   <div class="form-group row">
