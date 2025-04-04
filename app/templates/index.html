@@ -62,10 +62,10 @@
 
           <div v-if="activeTab === 'config'">
             <div class="row title">
-              <div class="col">
+              <div class="col-10">
                 <h2><i class="bi bi-cookie"></i> Cookie</h2>
               </div>
-              <div class="col text-right">
+              <div class="col-2 text-right">
                 <button type="button" class="btn btn-outline-primary mb-3" @click="addCookie()">+</button>
               </div>
             </div>
@@ -94,13 +94,13 @@
             </div>
 
             <div class="row title" title="通知推送，支持多个渠道，见Wiki">
-              <div class="col">
+              <div class="col-10">
                 <h2 style="display: inline-block;"><i class="bi bi-bell"></i> 通知</h2>
                 <span class="badge badge-pill badge-light">
                   <a href="https://github.com/Cp0204/quark-auto-save/wiki/通知推送服务配置" target="_blank">?</a>
                 </span>
               </div>
-              <div class="col text-right">
+              <div class="col-2 text-right">
                 <button type="button" class="btn btn-outline-primary mb-3" @click="addPush()">+</button>
               </div>
             </div>
@@ -144,13 +144,13 @@
             </div>
 
             <div class="row title" title="预定义的正则匹配规则，在任务列表中可直接点击使用">
-              <div class="col">
+              <div class="col-10">
                 <h2 style="display: inline-block;"><i class="bi bi-magic"></i> 魔法匹配</h2>
                 <span class="badge badge-pill badge-light">
                   <a href="https://github.com/Cp0204/quark-auto-save/wiki/正则处理教程#21-魔法匹配" target="_blank">?</a>
                 </span>
               </div>
-              <div class="col text-right">
+              <div class="col-2 text-right">
                 <button type="button" class="btn btn-outline-primary mb-3" @click="addMagicRegex()">+</button>
               </div>
             </div>
