@@ -29,6 +29,14 @@
   * `task` 是一个字典，包含任务信息。如果需要修改任务参数，返回修改后的 `task` 字典；
   * 无修改则不返回或返回 `None`。
 
+## 插件回调
+
+插件支持配置 webhook 回调事件，使用方式如下：
+
+1. 使用 `@hook_action("xxx_hook")` 装饰器修饰需要接收回调事件的方法，其中装饰器参数为回调事件类型，建议使用 `插件名称_事件类型_hook` 命名，避免不同插件之间类型重复；
+
+2. 在外部通过 `http://host:port/webhook?username=xxx&password=xxx&action=xxx_hook` 触发回调事件，支持 GET 与 POST 方法，POST 方法只支持 `application/json` 类型参数；
+
 ## 插件示例
 
 参考 [emby.py](emby.py)

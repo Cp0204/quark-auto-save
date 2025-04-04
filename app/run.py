@@ -282,6 +282,43 @@ def delete_file():
     return jsonify(response)
 
 
+def get_hook_actions(plugins):
+    hook_actions = {}
+    for _, plugin in plugins.items():
+        for name in dir(plugin):
+            method = getattr(plugin, name)
+            if callable(method) and hasattr(method, "__hook_action_name__"):
+                hook_actions[getattr(method, "__hook_action_name__")] = method
+    return hook_actions
+
+
+@app.route("/webhook", methods=["GET", "POST"])
+def webhook():
+    # 验证用户名和密码
+    data = read_json()
+    username = data["webui"]["username"]
+    password = data["webui"]["password"]
+    if (username != request.args.get("username")) or (
+        password != request.args.get("password")
+    ):
+        logging.info(f">>> 用户 {username} webhook 认证失败")
+        return jsonify({"error": "认证失败"})
+
+    try:
+        action = request.args.get("action")
+        plugins, _, _ = Config.load_plugins(data.get("plugins", {}))
+        hook_actions = get_hook_actions(plugins)
+        if action in hook_actions:
+            cookies = Config.get_cookies(data["cookie"])
+            account = Quark(cookies[0], 0) if cookies else None
+            args = request.args
+            body = request.get_json() if request.mimetype == "application/json" else {}
+            hook_actions[action](account=account, **args, **body)
+    except Exception as e:
+        logging.error(f">>> webhook 处理报错：{e}")
+    return Response(status=200)
+
+
 # 定时任务执行的函数
 def run_python(args):
     logging.info(f">>> 定时运行任务")
