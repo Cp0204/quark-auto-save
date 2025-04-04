@@ -123,10 +123,10 @@ class Config:
                 # 检查配置中是否存在该模块的配置
                 if module_name in plugins_config:
                     plugin = ServerClass(**plugins_config[module_name])
-                    plugins_available[module_name] = plugin
                 else:
                     plugin = ServerClass()
                     plugins_config[module_name] = plugin.default_config
+                plugins_available[module_name] = plugin
                 # 检查插件是否支持单独任务配置
                 if hasattr(plugin, "default_task_config"):
                     task_plugins_config[module_name] = plugin.default_task_config
