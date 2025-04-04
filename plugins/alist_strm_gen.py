@@ -11,7 +11,10 @@
 import os
 import re
 import json
+import shutil
 import requests
+
+from decorators import hook_action
 
 
 class Alist_strm_gen:
@@ -205,3 +208,68 @@ class Alist_strm_gen:
         except Exception as e:
             print(f"Alist-Strm生成: 获取Quark路径出错 {e}")
         return ""
+
+    def get_file_fid(self, path):
+        url = f"{self.url}/api/fs/get"
+        headers = {"Authorization": self.token}
+        body = {
+            "password": "",
+            "path": path
+        }
+        try:
+            response = requests.post(url, headers=headers, json=body)
+            response.raise_for_status()
+            data = response.json()
+            if data.get("code") == 200:
+                return data.get("data", {}).get("id")
+            else:
+                print(f"Alist-Strm生成: 获取文件 fid 失败❌ {data.get('message')}")
+        except Exception as e:
+            print(f"Alist-Strm生成: 获取文件 fid 出错 {e}")
+        return None
+    
+    def delete_file(self, account, fid, path):
+        account.delete([fid])
+        strm_path = os.path.join(self.strm_save_dir, path.lstrip("/"))
+        if os.path.exists(strm_path):
+            if os.path.isfile(strm_path):
+                os.remove(strm_path)
+            elif os.path.isdir(strm_path):
+                shutil.rmtree(strm_path)
+    
+        pdir = os.path.dirname(path)
+        data = self.get_file_list(pdir, True)
+        if data.get("code") == 200:
+            if data.get("data").get("total") == 0:
+                pdir_fid = self.get_file_fid(pdir)
+                self.delete_file(account, pdir_fid, pdir)
+        else:
+            print(f"Alist-Strm生成: hook 刷新父目录失败❌ {data.get('message')}")
+
+    @hook_action("alist_strm_gen_emby_library_deleted_hook")
+    def emby_library_deleted_hook(self, **kwargs):
+        account = kwargs.get("account")
+        event = kwargs.get("Event")
+        path = kwargs.get("Item", {}).get("Path")
+        if not path or not account or event != "library.deleted":
+            return
+        
+        path = path.removeprefix(self.strm_save_dir.rstrip("/"))
+        # 1. 如果 path 为 strm 文件，因为不知道媒体文件后缀故无法确定 quark 中具体的文件名称，因此通过 alist 查询其父目录文件列表通过名称匹配找到其 fid
+        fid = None
+        if path.endswith("strm"):
+            pdir, strm_file = os.path.split(path)
+            files = self.get_file_list(pdir).get("data", {}).get("content")
+            strm_name, _ = os.path.splitext(strm_file)
+            
+            for file in files:
+                file_name, _ = os.path.splitext(file.get("name"))
+                if file_name == strm_name:
+                    fid = file.get("id")
+                    break
+        # 2. 如果 path 为目录，通过 alist 查询该目录的 fid
+        else:
+            fid = self.get_file_fid(path)
+        # 3. 根据 fid 通过 quark api 删除指定文件或目录，并递归删除空的父目录
+        if fid:
+            self.delete_file(account, fid, path)

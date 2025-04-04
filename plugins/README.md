@@ -31,7 +31,7 @@
 
 ## 插件回调
 
-插件支持配置 webhook 回调事件，使用方式如下：
+插件支持配置 webhook 回调事件，可参考 [alist_strm_gen.py](alist_strm_gen.py) 类中的 `emby_library_deleted_hook` 方法，使用方式如下：
 
 1. 使用 `@hook_action("xxx_hook")` 装饰器修饰需要接收回调事件的方法，其中装饰器参数为回调事件类型，建议使用 `插件名称_事件类型_hook` 命名，避免不同插件之间类型重复；
 
