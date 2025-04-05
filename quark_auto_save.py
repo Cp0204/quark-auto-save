@@ -69,6 +69,7 @@ def add_notify(text):
 
 class Config:
     # 下载配置
+    @staticmethod
     def download_file(url, save_path):
         response = requests.get(url)
         if response.status_code == 200:
@@ -79,6 +80,7 @@ class Config:
             return False
 
     # 读取CK
+    @staticmethod
     def get_cookies(cookie_val):
         if isinstance(cookie_val, list):
             return cookie_val
@@ -90,7 +92,11 @@ class Config:
         else:
             return False
 
-    def load_plugins(plugins_config={}, plugins_dir="plugins"):
+    @staticmethod
+    def load_plugins(plugins_config=None, plugins_dir="plugins"):
+        if plugins_config is None:
+            plugins_config = {}
+        
         PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "").split(",")
         plugins_available = {}
         task_plugins_config = {}
@@ -129,6 +135,7 @@ class Config:
         print()
         return plugins_available, plugins_config, task_plugins_config
 
+    @staticmethod
     def breaking_change_update(config_data):
         if config_data.get("emby"):
             print("🔼 Update config v0.3.6.1 to 0.3.7")
