@@ -677,7 +677,7 @@ class Quark:
                 pattern, replace = task["update_subdir"], ""
             else:
                 pattern, replace = self.magic_regex_func(
-                    task["pattern"], task["replace"], task["taskname"]
+                    task.get("pattern", ""), task.get("replace", ""), task["taskname"]
                 )
             # 正则文件名匹配
             if re.search(pattern, share_file["file_name"]):
@@ -770,7 +770,7 @@ class Quark:
 
     def do_rename_task(self, task, subdir_path=""):
         pattern, replace = self.magic_regex_func(
-            task["pattern"], task["replace"], task["taskname"]
+            task.get("pattern", ""), task.get("replace", ""), task["taskname"]
         )
         if not pattern or not replace:
             return 0
@@ -895,8 +895,10 @@ def do_save(account, tasklist=[]):
             print(f"任务名称: {task['taskname']}")
             print(f"分享链接: {task['shareurl']}")
             print(f"保存路径: {task['savepath']}")
-            print(f"正则匹配: {task['pattern']}")
-            print(f"正则替换: {task['replace']}")
+            if task.get("pattern"):
+                print(f"正则匹配: {task['pattern']}")
+            if task.get("replace"):
+                print(f"正则替换: {task['replace']}")
             if task.get("enddate"):
                 print(f"任务截止: {task['enddate']}")
             if task.get("ignore_extension"):
