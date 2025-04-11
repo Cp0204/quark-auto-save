@@ -36,10 +36,6 @@ MAGIC_REGEX = {
         "pattern": r".*?(?<!\d)([Ss]\d{1,2})?([Ee]?[Pp]?[Xx]?\d{1,3})(?!\d).*?\.(mp4|mkv)",
         "replace": r"\1\2.\3",
     },
-    "$BLACK_WORD": {
-        "pattern": r"^(?!.*纯享)(?!.*加更)(?!.*超前企划)(?!.*训练室)(?!.*蒸蒸日上).*",
-        "replace": "",
-    },
 }
 
 
@@ -673,6 +669,11 @@ class Quark:
         need_save_list = []
         # 添加符合的
         for share_file in share_file_list:
+            # 检查过滤规则
+            if task.get("filter_regex") and re.search(task["filter_regex"], share_file["file_name"]):
+                print(f"跳过文件（过滤规则）：{share_file['file_name']}")
+                continue
+                
             if share_file["dir"] and task.get("update_subdir", False):
                 pattern, replace = task["update_subdir"], ""
             else:
