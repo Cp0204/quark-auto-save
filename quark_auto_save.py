@@ -671,7 +671,6 @@ class Quark:
         for share_file in share_file_list:
             # 检查过滤规则
             if task.get("filter_regex") and re.search(task["filter_regex"], share_file["file_name"]):
-                print(f"跳过文件（过滤规则）：{share_file['file_name']}")
                 continue
                 
             if share_file["dir"] and task.get("update_subdir", False):
