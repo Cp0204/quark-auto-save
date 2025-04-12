@@ -517,6 +517,7 @@
           isSearching: false,
         },
         activeTab: 'tasklist',
+        configModified: false,
       },
       filters: {
         ts2date: function (value) {
@@ -533,6 +534,12 @@
         }
       },
       watch: {
+        formData: {
+          handler(newVal, oldVal) {
+            this.configModified = true;
+          },
+          deep: true
+        }
       },
       mounted() {
         this.fetchData();
@@ -544,6 +551,10 @@
             this.smart_param.showSuggestions = false;
           }
         });
+        window.addEventListener('beforeunload', this.handleBeforeUnload);
+      },
+      beforeDestroy() {
+        window.removeEventListener('beforeunload', this.handleBeforeUnload);
       },
       methods: {
         changeTab(tab) {
@@ -599,6 +610,9 @@
                 };
               }
               this.formData = response.data;
+              setTimeout(() => {
+                this.configModified = false;
+              }, 100);
             })
             .catch(error => {
               console.error('Error fetching data:', error);
@@ -613,6 +627,13 @@
               event.preventDefault();
               this.runScriptNow();
             }
+          }
+        },
+        handleBeforeUnload(e) {
+          if (this.configModified) {
+            e.preventDefault();
+            e.returnValue = '配置已修改但未保存，确定要离开吗？';
+            return e.returnValue;
           }
         },
         saveConfig() {
@@ -778,6 +799,11 @@
             });
         },
         runScriptNow(task_index = "") {
+          if (this.configModified) {
+            if (!confirm('配置已修改但未保存，是否继续运行？')) {
+              return;
+            }
+          }
           $('#logModal').modal('toggle')
           this.modalLoading = true
           this.run_log = ''
