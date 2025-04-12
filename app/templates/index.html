@@ -269,7 +269,7 @@
                       <div class="input-group">
                         <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(index, task)" @input="changeTaskname(index, task)">
                         <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.taskSuggestions.success && smart_param.index === index">
-                          <div class="text-muted text-center" style="font-size:12px;">{{ smart_param.taskSuggestions.error ? smart_param.taskSuggestions.error : smart_param.taskSuggestions.data.length ? "以下资源来自网络公开搜索，请自行辨识，如有侵权请联系资源方" : "未搜索到资源" }}</div>
+                          <div class="text-muted text-center" style="font-size:12px;">{{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data.length ? "以下资源来自网络公开搜索，请自行辨识，如有侵权请联系资源方" : "未搜索到资源" }}</div>
                           <div v-for="suggestion in smart_param.taskSuggestions.data" :key="suggestion.taskname" class="dropdown-item" @click.prevent="selectSuggestion(task, suggestion)" style="cursor: pointer;font-size: 12px;" :title="suggestion.content">
                             <span v-html="suggestion.verify ? '✅': '❔'"></span> {{ suggestion.taskname }}
                             <small class="text-muted">

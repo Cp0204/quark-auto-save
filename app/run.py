@@ -227,8 +227,8 @@ def get_task_suggestions():
         if cs_data := config_data.get("source", {}).get("cloudsaver", {}):
             cs = CloudSaver(cs_data.get("server"))
             cs.set_auth(
-                cs_data.get("username"),
-                cs_data.get("password"),
+                cs_data.get("username", ""),
+                cs_data.get("password", ""),
                 cs_data.get("token", ""),
             )
             search = cs.auto_login_search(query)
@@ -239,7 +239,7 @@ def get_task_suggestions():
                 search_results = cs.clean_search_results(search.get("data"))
                 return jsonify({"success": True, "data": search_results})
             else:
-                return jsonify({"success": False, "error": search.get("message")})
+                return jsonify({"success": True, "message": search.get("message")})
         else:
             base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
             url = f"{base_url}/task_suggestions?q={query}&d={deep}"
