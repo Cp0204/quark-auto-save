@@ -21,7 +21,6 @@ import requests
 import hashlib
 import logging
 import base64
-import json
 import sys
 import os
 
@@ -79,16 +78,18 @@ def gen_md5(string):
     return md5.hexdigest()
 
 
-def get_api_token():
+def get_login_token():
     username = config_data["webui"]["username"]
     password = config_data["webui"]["password"]
     return gen_md5(f"token{username}{password}+-*/")[8:24]
 
 
 def is_login():
-    username = config_data["webui"]["username"]
-    password = config_data["webui"]["password"]
-    if session.get("login") == gen_md5(username + password):
+    login_token = get_login_token()
+    if (
+        session.get("token") == login_token
+        or request.args.get("token") == login_token
+    ):
         return True
     else:
         return False
@@ -115,8 +116,8 @@ def login():
             password == request.form.get("password")
         ):
             logging.info(f">>> 用户 {username} 登录成功")
-            session["login"] = gen_md5(username + password)
             session.permanent = True
+            session["token"] = get_login_token()
             return redirect(url_for("index"))
         else:
             logging.info(f">>> 用户 {username} 登录失败")
@@ -130,7 +131,7 @@ def login():
 # 退出登录
 @app.route("/logout")
 def logout():
-    session.pop("login", None)
+    session.pop("token", None)
     return redirect(url_for("login"))
 
 
@@ -148,10 +149,10 @@ def index():
 @app.route("/data")
 def get_data():
     if not is_login():
-        return redirect(url_for("login"))
+        return jsonify({"success": False, "message": "未登录"})
     data = Config.read_json(CONFIG_PATH)
     del data["webui"]
-    data["api_token"] = get_api_token()
+    data["api_token"] = get_login_token()
     data["task_plugins_config_default"] = task_plugins_config_default
     return jsonify({"success": True, "data": data})
 
@@ -161,7 +162,7 @@ def get_data():
 def update():
     global config_data
     if not is_login():
-        return "未登录"
+        return jsonify({"success": False, "message": "未登录"})
     dont_save_keys = ["task_plugins_config_default", "api_token"]
     for key, value in request.json.items():
         if key not in dont_save_keys:
@@ -180,7 +181,7 @@ def update():
 @app.route("/run_script_now", methods=["GET"])
 def run_script_now():
     if not is_login():
-        return "未登录"
+        return jsonify({"success": False, "message": "未登录"})
     task_index = request.args.get("task_index", "")
     command = [PYTHON_PATH, "-u", SCRIPT_PATH, CONFIG_PATH, task_index]
     logging.info(
@@ -219,7 +220,7 @@ def run_script_now():
 @app.route("/task_suggestions")
 def get_task_suggestions():
     if not is_login():
-        return jsonify({"error": "未登录"})
+        return jsonify({"success": False, "message": "未登录"})
     query = request.args.get("q", "").lower()
     deep = request.args.get("d", "").lower()
     try:
@@ -251,7 +252,7 @@ def get_task_suggestions():
 @app.route("/get_share_detail")
 def get_share_files():
     if not is_login():
-        return jsonify({"error": "未登录"})
+        return jsonify({"success": False, "message": "未登录"})
     shareurl = request.args.get("shareurl", "")
     account = Quark("", 0)
     pwd_id, passcode, pdir_fid = account.get_id_from_url(shareurl)
@@ -265,7 +266,7 @@ def get_share_files():
 @app.route("/get_savepath")
 def get_savepath():
     if not is_login():
-        return jsonify({"error": "未登录"})
+        return jsonify({"success": False, "message": "未登录"})
     account = Quark(config_data["cookie"][0], 0)
     if path := request.args.get("path"):
         if path == "/":
@@ -283,7 +284,7 @@ def get_savepath():
 @app.route("/delete_file", methods=["POST"])
 def delete_file():
     if not is_login():
-        return jsonify({"error": "未登录"})
+        return jsonify({"success": False, "message": "未登录"})
     account = Quark(config_data["cookie"][0], 0)
     if fid := request.json.get("fid"):
         response = account.delete([fid])
@@ -297,9 +298,8 @@ def delete_file():
 def add_task():
     global config_data
     # 验证token
-    request_token = request.args.get("token", "")
-    if request_token != get_api_token():
-        return jsonify({"success": False, "code": 1, "message": "无效的Token"}), 401
+    if not is_login():
+        return jsonify({"success": False, "code": 1, "message": "未登录"}), 401
     # 必选字段
     request_data = request.json
     required_fields = ["taskname", "shareurl", "savepath"]
