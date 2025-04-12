@@ -14,6 +14,7 @@ from flask import (
 )
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from sdk.cloudsaver import CloudSaver
 from datetime import timedelta
 import subprocess
 import requests
@@ -219,13 +220,30 @@ def run_script_now():
 def get_task_suggestions():
     if not is_login():
         return jsonify({"error": "未登录"})
-    base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
     query = request.args.get("q", "").lower()
     deep = request.args.get("d", "").lower()
-    url = f"{base_url}/task_suggestions?q={query}&d={deep}"
     try:
-        response = requests.get(url)
-        return jsonify(response.json())
+        if cs_data := config_data.get("source", {}).get("cloudsaver", {}):
+            cs = CloudSaver(cs_data.get("server"))
+            cs.set_auth(
+                cs_data.get("username"),
+                cs_data.get("password"),
+                cs_data.get("token", ""),
+            )
+            search = cs.auto_login_search(query)
+            if search.get("success"):
+                if search.get("new_token"):
+                    cs_data["token"] = search.get("new_token")
+                    Config.write_json(CONFIG_PATH, config_data)
+                search_results = cs.clean_search_results(search.get("data"))
+                return jsonify({"data": search_results})
+            else:
+                return jsonify({"error": search.get("message")})
+        else:
+            base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
+            url = f"{base_url}/task_suggestions?q={query}&d={deep}"
+            response = requests.get(url)
+            return jsonify({"data": response.json()})
     except Exception as e:
         return jsonify({"error": str(e)})
 

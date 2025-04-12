@@ -42,6 +42,7 @@ body {
 
 .title {
   margin-top: 30px;
+  margin-bottom: 10px;
 }
 
 table.jsoneditor-tree>tbody>tr.jsoneditor-expandable:first-child {
@@ -59,7 +60,7 @@ table.jsoneditor-tree>tbody>tr.jsoneditor-expandable:first-child {
 
 .task-suggestions {
   width: 100%;
-  max-height: 500px;
+  max-height: 250px;
   overflow-y: auto;
   transform: translate(0, -100%);
   top: 0;

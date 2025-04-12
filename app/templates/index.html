@@ -66,7 +66,7 @@
                 <h2><i class="bi bi-cookie"></i> Cookie</h2>
               </div>
               <div class="col-2 text-right">
-                <button type="button" class="btn btn-outline-primary mb-3" @click="addCookie()">+</button>
+                <button type="button" class="btn btn-outline-primary" @click="addCookie()">+</button>
               </div>
             </div>
             <p>1. 所有账号执行签到，纯签到只需移动端参数即可！</p>
@@ -86,7 +86,7 @@
                 </span>
               </div>
             </div>
-            <div class="input-group mt-2 mb-2">
+            <div class="input-group mb-2">
               <div class="input-group-prepend">
                 <span class="input-group-text">Crontab</span>
               </div>
@@ -101,7 +101,7 @@
                 </span>
               </div>
               <div class="col-2 text-right">
-                <button type="button" class="btn btn-outline-primary mb-3" @click="addPush()">+</button>
+                <button type="button" class="btn btn-outline-primary" @click="addPush()">+</button>
               </div>
             </div>
             <div v-for="(value, key) in formData.push_config" :key="key" class="input-group mb-2">
@@ -151,7 +151,7 @@
                 </span>
               </div>
               <div class="col-2 text-right">
-                <button type="button" class="btn btn-outline-primary mb-3" @click="addMagicRegex()">+</button>
+                <button type="button" class="btn btn-outline-primary" @click="addMagicRegex()">+</button>
               </div>
             </div>
             <div v-for="(value, key) in formData.magic_regex" :key="key" class="form-group mb-2">
@@ -171,6 +171,7 @@
               </div>
             </div>
 
+
             <div class="row title" title="API接口，用以第三方添加任务等操作，见Wiki">
               <div class="col-10">
                 <h2 style="display: inline-block;"><i class="bi bi-link-45deg"></i> API</h2>
@@ -182,6 +183,34 @@
               </div>
               <input type="text" v-model="formData.api_token" class="form-control" style="background-color:white;" disabled>
             </div>
+
+            <div class="row title" title="资源搜索服务配置，用于任务名称智能提示">
+              <div class="col-10">
+                <h2 style="display: inline-block;"><i class="bi bi-search"></i> CloudSaver</h2>
+                <span class="badge badge-pill badge-light">
+                  <a href="https://github.com/Cp0204/quark-auto-save/wiki/资源搜索服务配置" target="_blank">?</a>
+                </span>
+              </div>
+            </div>
+            <div class="form-group row">
+              <label class="col-sm-2 col-form-label">服务器</label>
+              <div class="col-sm-10">
+                <input type="text" v-model="formData.source.cloudsaver.server" class="form-control" placeholder="资源搜索服务器地址">
+              </div>
+            </div>
+            <div class="form-group row">
+              <label class="col-sm-2 col-form-label">用户名</label>
+              <div class="col-sm-10">
+                <input type="text" v-model="formData.source.cloudsaver.username" class="form-control" placeholder="用户名">
+              </div>
+            </div>
+            <div class="form-group row">
+              <label class="col-sm-2 col-form-label">密码</label>
+              <div class="col-sm-10">
+                <input type="password" v-model="formData.source.cloudsaver.password" class="form-control" placeholder="密码">
+              </div>
+            </div>
+
           </div>
 
           <div v-if="activeTab === 'tasklist'">
@@ -239,9 +268,12 @@
                     <div class="col-sm-10">
                       <div class="input-group">
                         <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(index, task)" @input="changeTaskname(index, task)">
-                        <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.taskSuggestions.length && smart_param.index === index">
-                          <div class="text-muted text-center" style="font-size: small;">以下资源来自第三方，网络公开搜集，请自行辨识，如有侵权请联系夸克官方</div>
-                          <div v-for="suggestion in smart_param.taskSuggestions" :key="suggestion.taskname" class="dropdown-item" @click.prevent="selectSuggestion(task, suggestion)" style="cursor: pointer;">
+                        <div class="dropdown-menu show task-suggestions" v-if="smart_param.taskSuggestions && smart_param.index === index">
+                          <div class="text-muted text-center" v-if="smart_param.taskSuggestions.error">
+                            资源搜索错误：{{ smart_param.taskSuggestions.error }}
+                          </div>
+                          <div v-else class="text-muted text-center" style="font-size: 9px;">以下资源来自网络公开搜索，请自行辨识，如有侵权请联系资源方</div>
+                          <div v-for="suggestion in smart_param.taskSuggestions.data" :key="suggestion.taskname" class="dropdown-item" @click.prevent="selectSuggestion(task, suggestion)" style="cursor: pointer;font-size: 12px;" :title="suggestion.content">
                             <span v-html="suggestion.verify ? '✅': '❔'"></span> {{ suggestion.taskname }}
                             <small class="text-muted">
                               <a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a>
@@ -449,7 +481,15 @@
           push_config: {},
           media_servers: {},
           tasklist: [],
-          magic_regex: {}
+          magic_regex: {},
+          source: {
+            cloudsaver: {
+              server: "",
+              username: "",
+              password: "",
+              token: ""
+            }
+          },
         },
         newTask: {
           taskname: "",
@@ -474,7 +514,7 @@
           index: null,
           savepath: "",
           origin_savepath: "",
-          taskSuggestions: [],
+          taskSuggestions: {},
           showSuggestions: false,
           lastSuggestionsTime: 0,
           isSearching: false,
@@ -548,7 +588,19 @@
                 if (!this.taskDirs.includes(parentDir))
                   this.taskDirs.push(parentDir);
               });
-              this.newTask.addition = response.data.task_plugins_config;
+              this.newTask.addition = response.data.task_plugins_config_default;
+              // 确保source配置存在
+              if (!response.data.source) {
+                response.data.source = {};
+              }
+              if (!response.data.source.cloudsaver) {
+                response.data.source.cloudsaver = {
+                  server: "",
+                  username: "",
+                  password: "",
+                  token: ""
+                };
+              }
               this.formData = response.data;
             })
             .catch(error => {
