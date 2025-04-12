@@ -268,11 +268,8 @@
                     <div class="col-sm-10">
                       <div class="input-group">
                         <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(index, task)" @input="changeTaskname(index, task)">
-                        <div class="dropdown-menu show task-suggestions" v-if="smart_param.taskSuggestions && smart_param.index === index">
-                          <div class="text-muted text-center" v-if="smart_param.taskSuggestions.error">
-                            资源搜索错误：{{ smart_param.taskSuggestions.error }}
-                          </div>
-                          <div v-else class="text-muted text-center" style="font-size: 9px;">以下资源来自网络公开搜索，请自行辨识，如有侵权请联系资源方</div>
+                        <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.taskSuggestions.success && smart_param.index === index">
+                          <div class="text-muted text-center" style="font-size:12px;">{{ smart_param.taskSuggestions.error ? smart_param.taskSuggestions.error : smart_param.taskSuggestions.data.length ? "以下资源来自网络公开搜索，请自行辨识，如有侵权请联系资源方" : "未搜索到资源" }}</div>
                           <div v-for="suggestion in smart_param.taskSuggestions.data" :key="suggestion.taskname" class="dropdown-item" @click.prevent="selectSuggestion(task, suggestion)" style="cursor: pointer;font-size: 12px;" :title="suggestion.content">
                             <span v-html="suggestion.verify ? '✅': '❔'"></span> {{ suggestion.taskname }}
                             <small class="text-muted">
@@ -848,19 +845,25 @@
           }
           this.smart_param.isSearching = true
           this.smart_param.index = index;
-          axios.get('/task_suggestions', {
-            params: {
-              q: taskname,
-              d: limit_msec == 0 ? 1 : 0
-            }
-          }).then(response => {
-            this.smart_param.taskSuggestions = response.data;
-            this.smart_param.showSuggestions = true;
-          }).catch(error => {
-            console.error('Error fetching suggestions:', error);
-          }).finally(() => {
-            this.smart_param.isSearching = false;
-          });
+          try {
+            axios.get('/task_suggestions', {
+              params: {
+                q: taskname,
+                d: limit_msec == 0 ? 1 : 0
+              }
+            }).then(response => {
+              this.smart_param.taskSuggestions = response.data;
+              this.smart_param.showSuggestions = true;
+            }).catch(error => {
+              console.error('Error fetching suggestions:', error);
+            }).finally(() => {
+              this.smart_param.isSearching = false;
+            });
+          } catch (e) {
+            this.smart_param.taskSuggestions = {
+              error: "网络异常"
+            };
+          }
         },
         selectSuggestion(task, suggestion) {
           task.taskname = suggestion.taskname;
