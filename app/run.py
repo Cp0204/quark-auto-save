@@ -236,14 +236,14 @@ def get_task_suggestions():
                     cs_data["token"] = search.get("new_token")
                     Config.write_json(CONFIG_PATH, config_data)
                 search_results = cs.clean_search_results(search.get("data"))
-                return jsonify({"data": search_results})
+                return jsonify({"success": True, "data": search_results})
             else:
-                return jsonify({"error": search.get("message")})
+                return jsonify({"success": False, "error": search.get("message")})
         else:
             base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
             url = f"{base_url}/task_suggestions?q={query}&d={deep}"
             response = requests.get(url)
-            return jsonify({"data": response.json()})
+            return jsonify({"success": True, "data": response.json()})
     except Exception as e:
         return jsonify({"error": str(e)})
 
