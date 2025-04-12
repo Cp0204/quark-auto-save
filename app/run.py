@@ -77,6 +77,12 @@ def gen_md5(string):
     return md5.hexdigest()
 
 
+def get_api_token():
+    username = read_json()["webui"]["username"]
+    password = read_json()["webui"]["password"]
+    return gen_md5(f"token{username}{password}+-*/")[8:24]
+
+
 # 读取 JSON 文件内容
 def read_json():
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -158,6 +164,7 @@ def get_data():
         return redirect(url_for("login"))
     data = read_json()
     del data["webui"]
+    data["api_token"] = get_api_token()
     data["task_plugins_config"] = task_plugins_config
     return jsonify(data)
 
@@ -280,6 +287,34 @@ def delete_file():
     else:
         response = {"error": "fid not found"}
     return jsonify(response)
+
+
+# 添加任务接口
+@app.route("/api/add_task", methods=["POST"])
+def add_task():
+    # 验证token
+    request_token = request.args.get("token", "")
+    if request_token != get_api_token():
+        return jsonify({"success": False, "code": 1, "message": "无效的Token"}), 401
+    # 必选字段
+    request_data = request.json
+    required_fields = ["taskname", "shareurl", "savepath"]
+    for field in required_fields:
+        if field not in request_data or not request_data[field]:
+            return (
+                jsonify(
+                    {"success": False, "code": 2, "message": f"缺少必要字段: {field}"}
+                ),
+                400,
+            )
+    # 添加任务
+    data = read_json()
+    data["tasklist"].append(request_data)
+    write_json(data)
+    logging.info(f">>> 通过API添加任务: {request_data['taskname']}")
+    return jsonify(
+        {"success": True, "code": 0, "message": "任务添加成功", "data": request_data}
+    )
 
 
 # 定时任务执行的函数
