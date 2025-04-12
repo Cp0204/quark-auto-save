@@ -41,6 +41,7 @@
   - [x] 支持分享链接的子目录
   - [x] 记录失效分享并跳过任务
   - [x] 支持需提取码的分享链接 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦#支持需提取码的分享链接)</sup>
+  - [x] 智能搜索资源并自动填充 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/CloudSaver搜索源)</sup>
 
 - 文件管理
   - [x] 目标目录不存在时自动新建
