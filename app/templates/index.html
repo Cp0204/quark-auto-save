@@ -171,6 +171,17 @@
               </div>
             </div>
 
+            <div class="row title" title="API接口，用以第三方添加任务等操作，见Wiki">
+              <div class="col-10">
+                <h2 style="display: inline-block;"><i class="bi bi-link-45deg"></i> API</h2>
+              </div>
+            </div>
+            <div class="input-group">
+              <div class="input-group-prepend">
+                <span class="input-group-text">Token</span>
+              </div>
+              <input type="text" v-model="formData.api_token" class="form-control" style="background-color:white;" disabled>
+            </div>
           </div>
 
           <div v-if="activeTab === 'tasklist'">
