@@ -78,6 +78,17 @@ class Config:
         else:
             return False
 
+    # 读取 JSON 文件内容
+    def read_json(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data
+
+    # 将数据写入 JSON 文件
+    def write_json(config_path, data):
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, sort_keys=False, indent=2)
+
     # 读取CK
     def get_cookies(cookie_val):
         if isinstance(cookie_val, list):
@@ -962,9 +973,8 @@ def main():
             return
     else:
         print(f"⚙️ 正从 {config_path} 文件中读取配置")
-        with open(config_path, "r", encoding="utf-8") as file:
-            CONFIG_DATA = json.load(file)
-            Config.breaking_change_update(CONFIG_DATA)
+        CONFIG_DATA = Config.read_json(config_path)
+        Config.breaking_change_update(CONFIG_DATA)
         cookie_val = CONFIG_DATA.get("cookie")
         if not CONFIG_DATA.get("magic_regex"):
             CONFIG_DATA["magic_regex"] = MAGIC_REGEX
@@ -1002,8 +1012,7 @@ def main():
         print()
     if cookie_form_file:
         # 更新配置
-        with open(config_path, "w", encoding="utf-8") as file:
-            json.dump(CONFIG_DATA, file, ensure_ascii=False, sort_keys=False, indent=2)
+        Config.write_json(config_path, CONFIG_DATA)
 
     print(f"===============程序结束===============")
     duration = datetime.now() - start_time

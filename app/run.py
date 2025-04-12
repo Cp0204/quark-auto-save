@@ -48,7 +48,8 @@ CONFIG_PATH = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
 PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "")
 DEBUG = os.environ.get("DEBUG", False)
 
-task_plugins_config = {}
+config_data = {}
+task_plugins_config_default = {}
 
 app = Flask(__name__)
 app.config["APP_VERSION"] = get_app_ver()
@@ -78,28 +79,14 @@ def gen_md5(string):
 
 
 def get_api_token():
-    username = read_json()["webui"]["username"]
-    password = read_json()["webui"]["password"]
+    username = config_data["webui"]["username"]
+    password = config_data["webui"]["password"]
     return gen_md5(f"token{username}{password}+-*/")[8:24]
 
 
-# 读取 JSON 文件内容
-def read_json():
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    return data
-
-
-# 将数据写入 JSON 文件
-def write_json(data):
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, sort_keys=False, indent=2)
-
-
 def is_login():
-    data = read_json()
-    username = data["webui"]["username"]
-    password = data["webui"]["password"]
+    username = config_data["webui"]["username"]
+    password = config_data["webui"]["password"]
     if session.get("login") == gen_md5(username + password):
         return True
     else:
@@ -120,9 +107,8 @@ def favicon():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        data = read_json()
-        username = data["webui"]["username"]
-        password = data["webui"]["password"]
+        username = config_data["webui"]["username"]
+        password = config_data["webui"]["password"]
         # 验证用户名和密码
         if (username == request.form.get("username")) and (
             password == request.form.get("password")
@@ -162,23 +148,24 @@ def index():
 def get_data():
     if not is_login():
         return redirect(url_for("login"))
-    data = read_json()
+    data = config_data.copy()
     del data["webui"]
     data["api_token"] = get_api_token()
-    data["task_plugins_config"] = task_plugins_config
+    data["task_plugins_config_default"] = task_plugins_config_default
     return jsonify(data)
 
 
 # 更新数据
 @app.route("/update", methods=["POST"])
 def update():
+    global config_data
     if not is_login():
         return "未登录"
-    data = request.json
-    data["webui"] = read_json()["webui"]
-    if "task_plugins_config" in data:
-        del data["task_plugins_config"]
-    write_json(data)
+    dont_save_keys = ["task_plugins_config_default", "api_token"]
+    for key, value in request.json.items():
+        if key not in dont_save_keys:
+            config_data.update({key: value})
+    Config.write_json(CONFIG_PATH, config_data)
     # 重新加载任务
     if reload_tasks():
         logging.info(f">>> 配置更新成功")
@@ -261,8 +248,7 @@ def get_share_files():
 def get_savepath():
     if not is_login():
         return jsonify({"error": "未登录"})
-    data = read_json()
-    account = Quark(data["cookie"][0], 0)
+    account = Quark(config_data["cookie"][0], 0)
     if path := request.args.get("path"):
         if path == "/":
             fid = 0
@@ -280,8 +266,7 @@ def get_savepath():
 def delete_file():
     if not is_login():
         return jsonify({"error": "未登录"})
-    data = read_json()
-    account = Quark(data["cookie"][0], 0)
+    account = Quark(config_data["cookie"][0], 0)
     if fid := request.json.get("fid"):
         response = account.delete([fid])
     else:
@@ -292,6 +277,7 @@ def delete_file():
 # 添加任务接口
 @app.route("/api/add_task", methods=["POST"])
 def add_task():
+    global config_data
     # 验证token
     request_token = request.args.get("token", "")
     if request_token != get_api_token():
@@ -308,9 +294,8 @@ def add_task():
                 400,
             )
     # 添加任务
-    data = read_json()
-    data["tasklist"].append(request_data)
-    write_json(data)
+    config_data["tasklist"].append(request_data)
+    Config.write_json(CONFIG_PATH, config_data)
     logging.info(f">>> 通过API添加任务: {request_data['taskname']}")
     return jsonify(
         {"success": True, "code": 0, "message": "任务添加成功", "data": request_data}
@@ -325,11 +310,8 @@ def run_python(args):
 
 # 重新加载任务
 def reload_tasks():
-    # 读取数据
-    data = read_json()
-    # 添加新任务
-    crontab = data.get("crontab")
-    if crontab:
+    # 读取定时规则
+    if crontab := config_data.get("crontab"):
         if scheduler.state == 1:
             scheduler.pause()  # 暂停调度器
         trigger = CronTrigger.from_crontab(crontab)
@@ -356,7 +338,7 @@ def reload_tasks():
 
 
 def init():
-    global task_plugins_config
+    global config_data, task_plugins_config_default
     logging.info(f">>> 初始化配置")
     # 检查配置文件是否存在
     if not os.path.exists(CONFIG_PATH):
@@ -364,23 +346,30 @@ def init():
             os.makedirs(os.path.dirname(CONFIG_PATH))
         with open("quark_config.json", "rb") as src, open(CONFIG_PATH, "wb") as dest:
             dest.write(src.read())
-    data = read_json()
-    Config.breaking_change_update(data)
+
+    # 读取配置
+    config_data = Config.read_json(CONFIG_PATH)
+    Config.breaking_change_update(config_data)
+
     # 默认管理账号
-    data["webui"] = {
+    config_data["webui"] = {
         "username": os.environ.get("WEBUI_USERNAME")
-        or data.get("webui", {}).get("username", "admin"),
+        or config_data.get("webui", {}).get("username", "admin"),
         "password": os.environ.get("WEBUI_PASSWORD")
-        or data.get("webui", {}).get("password", "admin123"),
+        or config_data.get("webui", {}).get("password", "admin123"),
     }
+
     # 默认定时规则
-    if not data.get("crontab"):
-        data["crontab"] = "0 8,18,20 * * *"
+    if not config_data.get("crontab"):
+        config_data["crontab"] = "0 8,18,20 * * *"
+
     # 初始化插件配置
-    _, plugins_config_default, task_plugins_config = Config.load_plugins()
-    plugins_config_default.update(data.get("plugins", {}))
-    data["plugins"] = plugins_config_default
-    write_json(data)
+    _, plugins_config_default, task_plugins_config_default = Config.load_plugins()
+    plugins_config_default.update(config_data.get("plugins", {}))
+    config_data["plugins"] = plugins_config_default
+
+    # 更新配置
+    Config.write_json(CONFIG_PATH, config_data)
 
 
 if __name__ == "__main__":
