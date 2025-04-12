@@ -8,6 +8,9 @@ class CloudSaver:
 
     def __init__(self, server):
         self.server = server
+        self.username = None
+        self.password = None
+        self.token = None
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json"})
 
@@ -18,6 +21,8 @@ class CloudSaver:
         self.session.headers.update({"Authorization": f"Bearer {self.token}"})
 
     def login(self):
+        if not self.username or not self.password:
+            return {"success": False, "message": "CloudSaver未设置用户名或密码"}
         try:
             url = f"{self.server}/api/user/login"
             data = {"username": self.username, "password": self.password}
@@ -46,9 +51,6 @@ class CloudSaver:
         Returns:
             list: 搜索结果列表
         """
-        if not self.token:
-            return {"success": False, "message": "CloudSaver未登录"}
-
         try:
             url = f"{self.server}/api/search"
             params = {"keyword": keyword, "lastMessageId": last_message_id}
@@ -74,16 +76,16 @@ class CloudSaver:
         if result.get("success"):
             return result
         else:
-            if result.get("message") == "无效的 token":
-                new_token = self.login()
-                if new_token.get("success"):
+            if result.get("message") == "无效的 token" or result.get("message") == "未提供 token":
+                login_result = self.login()
+                if login_result.get("success"):
                     result = self.search(keyword, last_message_id)
-                    result["new_token"] = new_token.get("token")
+                    result["new_token"] = login_result.get("token")
                     return result
                 else:
                     return {
                         "success": False,
-                        "message": new_token.get("message", "未知错误"),
+                        "message": login_result.get("message", "未知错误"),
                     }
             return {"success": False, "message": result.get("message", "未知错误")}
 
@@ -106,7 +108,9 @@ class CloudSaver:
                         clean_results.append(
                             {
                                 "shareurl": link.get("link"),
-                                "taskname": item.get("title", "").strip("名称：").replace("&amp;", "&"),
+                                "taskname": item.get("title", "")
+                                .strip("名称：")
+                                .replace("&amp;", "&"),
                                 "content": item.get("content", "")
                                 .split("描述：")[1]
                                 .split("链接：")[0]
