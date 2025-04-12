@@ -153,7 +153,7 @@ def get_data():
     del data["webui"]
     data["api_token"] = get_api_token()
     data["task_plugins_config_default"] = task_plugins_config_default
-    return jsonify(data)
+    return jsonify({"success": True, "data": data})
 
 
 # 更新数据
@@ -170,10 +170,10 @@ def update():
     # 重新加载任务
     if reload_tasks():
         logging.info(f">>> 配置更新成功")
-        return "配置更新成功"
+        return jsonify({"success": True, "message": "配置更新成功"})
     else:
         logging.info(f">>> 配置更新失败")
-        return "配置更新失败"
+        return jsonify({"success": False, "message": "配置更新失败"})
 
 
 # 处理运行脚本请求
@@ -245,7 +245,7 @@ def get_task_suggestions():
             response = requests.get(url)
             return jsonify({"success": True, "data": response.json()})
     except Exception as e:
-        return jsonify({"error": str(e)})
+        return jsonify({"success": False, "message": str(e)})
 
 
 @app.route("/get_share_detail")
@@ -257,9 +257,9 @@ def get_share_files():
     pwd_id, passcode, pdir_fid = account.get_id_from_url(shareurl)
     is_sharing, stoken = account.get_stoken(pwd_id, passcode)
     if not is_sharing:
-        return jsonify({"error": stoken})
+        return jsonify({"success": False, "data": {"error": stoken}})
     share_detail = account.get_detail(pwd_id, stoken, pdir_fid, 1)
-    return jsonify(share_detail)
+    return jsonify({"success": True, "data": share_detail})
 
 
 @app.route("/get_savepath")
@@ -273,11 +273,11 @@ def get_savepath():
         elif get_fids := account.get_fids([path]):
             fid = get_fids[0]["fid"]
         else:
-            return jsonify([])
+            return jsonify({"success": False, "message": "获取fid失败"})
     else:
         fid = request.args.get("fid", 0)
     file_list = account.ls_dir(fid)
-    return jsonify(file_list)
+    return jsonify({"success": True, "data": file_list})
 
 
 @app.route("/delete_file", methods=["POST"])
@@ -288,7 +288,7 @@ def delete_file():
     if fid := request.json.get("fid"):
         response = account.delete([fid])
     else:
-        response = {"error": "fid not found"}
+        response = {"success": False, "message": "缺失必要字段: fid"}
     return jsonify(response)
 
 
