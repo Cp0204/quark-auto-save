@@ -148,7 +148,7 @@ def index():
 def get_data():
     if not is_login():
         return redirect(url_for("login"))
-    data = config_data.copy()
+    data = Config.read_json(CONFIG_PATH)
     del data["webui"]
     data["api_token"] = get_api_token()
     data["task_plugins_config_default"] = task_plugins_config_default
