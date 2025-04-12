@@ -580,36 +580,37 @@
         fetchData() {
           axios.get('/data')
             .then(response => {
+              config_data = response.data.data
               // cookie兼容
-              if (typeof response.data.cookie === 'string')
-                response.data.cookie = [response.data.cookie];
+              if (typeof config_data.cookie === 'string')
+                config_data.cookie = [config_data.cookie];
               // 添加星期预设
-              response.data.tasklist = response.data.tasklist.map(task => {
+              config_data.tasklist = config_data.tasklist.map(task => {
                 if (!task.hasOwnProperty('runweek')) {
                   task.runweek = [1, 2, 3, 4, 5, 6, 7];
                 }
                 return task;
               });
               // 获取所有任务父目录
-              response.data.tasklist.forEach(item => {
+              config_data.tasklist.forEach(item => {
                 parentDir = this.getParentDirectory(item.savepath)
                 if (!this.taskDirs.includes(parentDir))
                   this.taskDirs.push(parentDir);
               });
-              this.newTask.addition = response.data.task_plugins_config_default;
+              this.newTask.addition = config_data.task_plugins_config_default;
               // 确保source配置存在
-              if (!response.data.source) {
-                response.data.source = {};
+              if (!config_data.source) {
+                config_data.source = {};
               }
-              if (!response.data.source.cloudsaver) {
-                response.data.source.cloudsaver = {
+              if (!config_data.source.cloudsaver) {
+                config_data.source.cloudsaver = {
                   server: "",
                   username: "",
                   password: "",
                   token: ""
                 };
               }
-              this.formData = response.data;
+              this.formData = config_data;
               setTimeout(() => {
                 this.configModified = false;
               }, 100);
@@ -639,8 +640,13 @@
         saveConfig() {
           axios.post('/update', this.formData)
             .then(response => {
-              alert(response.data);
-              console.log('Config saved successfully:', response.data);
+              if (response.data.success) {
+                this.configModified = false;
+                alert(response.data.message);
+              } else {
+                alert(response.data.message);
+              }
+              console.log('Config saved result:', response.data);
             })
             .catch(error => {
               console.error('Error saving config:', error);
@@ -723,19 +729,20 @@
           // 从分享中提取任务名
           axios.get('/get_share_detail', { params: { shareurl: task.shareurl } })
             .then(response => {
-              if (response.data.error) {
-                if (response.data.error.includes("提取码")) {
-                  const passcode = prompt("检查失败[" + response.data.error + "]，请输入提取码：");
+              share_detail = response.data.data
+              if (!response.data.success) {
+                if (share_detail.error.includes("提取码")) {
+                  const passcode = prompt("检查失败[" + share_detail.error + "]，请输入提取码：");
                   if (passcode != null) {
                     task.shareurl = task.shareurl.replace(/pan.quark.cn\/s\/(\w+)(\?pwd=\w*)*/, `pan.quark.cn/s/$1?pwd=${passcode}`);
                     this.changeShareurl(task);
                     return;
                   }
                 }
-                this.$set(task, "shareurl_ban", response.data.error);
+                this.$set(task, "shareurl_ban", share_detail.error);
               } else {
-                task.taskname = task.taskname == "" ? response.data.share.title : task.taskname;
-                task.savepath = task.savepath.replace(/TASKNAME/g, response.data.share.title);
+                task.taskname = task.taskname == "" ? share_detail.share.title : task.taskname;
+                task.savepath = task.savepath.replace(/TASKNAME/g, share_detail.share.title);
                 this.$set(task, "shareurl_ban", undefined);
               }
             })
@@ -760,7 +767,7 @@
           this.savepaths = [{ fid: 0, dir: true, file_name: "加载中..." }]
           axios.get('/get_savepath', { params: params })
             .then(response => {
-              this.savepaths = response.data
+              this.savepaths = response.data.data
             })
             .catch(error => {
               console.error('Error get_savepath:', error);
@@ -791,7 +798,7 @@
           axios.get('/get_share_detail', { params: { shareurl: this.formData.tasklist[index].shareurl } })
             .then(response => {
               this.forceTaskIndex = index
-              this.shareFiles = response.data.list;
+              this.shareFiles = response.data.data.list;
               this.modalLoading = false
             })
             .catch(error => {
