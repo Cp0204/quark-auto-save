@@ -516,8 +516,8 @@
           origin_savepath: "",
           taskSuggestions: {},
           showSuggestions: false,
-          lastSuggestionsTime: 0,
           isSearching: false,
+          searchTimer: null,
         },
         activeTab: 'tasklist',
         configModified: false,
@@ -707,7 +707,12 @@
           }
         },
         changeTaskname(index, task) {
-          this.searchSuggestions(index, task.taskname, 500);
+          if (this.smart_param.searchTimer) {
+            clearTimeout(this.smart_param.searchTimer);
+          }
+          this.smart_param.searchTimer = setTimeout(() => {
+            this.searchSuggestions(index, task.taskname, 0);
+          }, 1000);
           if (this.smart_param.savepath)
             task.savepath = this.smart_param.savepath.replace('TASKNAME', task.taskname);
         },
@@ -870,22 +875,16 @@
             task.runweek = [1, 2, 3, 4, 5, 6, 7];
           }
         },
-        searchSuggestions(index, taskname, limit_msec = 0) {
+        searchSuggestions(index, taskname, deep = 1) {
           if (taskname.length == 0)
-            return
-          if (limit_msec > 0) {
-            const now = Date.now();
-            if (now - this.smart_param.lastSuggestionsTime < limit_msec)
-              return;
-            this.smart_param.lastSuggestionsTime = now;
-          }
-          this.smart_param.isSearching = true
+            return;
+          this.smart_param.isSearching = true;
           this.smart_param.index = index;
           try {
             axios.get('/task_suggestions', {
               params: {
                 q: taskname,
-                d: limit_msec == 0 ? 1 : 0
+                d: deep
               }
             }).then(response => {
               this.smart_param.taskSuggestions = response.data;
