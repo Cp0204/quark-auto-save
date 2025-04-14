@@ -1,3 +1,4 @@
+import re
 import requests
 
 
@@ -76,7 +77,10 @@ class CloudSaver:
         if result.get("success"):
             return result
         else:
-            if result.get("message") == "无效的 token" or result.get("message") == "未提供 token":
+            if (
+                result.get("message") == "无效的 token"
+                or result.get("message") == "未提供 token"
+            ):
                 login_result = self.login()
                 if login_result.get("success"):
                     result = self.search(keyword, last_message_id)
@@ -99,26 +103,40 @@ class CloudSaver:
         Returns:
             list: 夸克网盘链接列表
         """
+        pattern_title = r"(名称|标题)[：:]?(.*)"
+        pattern_content = r"(描述|简介)[：:]?(.*)(链接|标签)"
         clean_results = []
+        link_array = []
         for channel in search_results:
             for item in channel.get("list", []):
                 cloud_links = item.get("cloudLinks", [])
                 for link in cloud_links:
                     if link.get("cloudType") == "quark":
-                        clean_results.append(
-                            {
-                                "shareurl": link.get("link"),
-                                "taskname": item.get("title", "")
-                                .strip("名称：")
-                                .replace("&amp;", "&"),
-                                "content": item.get("content", "")
-                                .split("描述：")[1]
-                                .split("链接：")[0]
-                                .replace('<mark class="highlight">', "")
-                                .replace("</mark>", ""),
-                                "tags": item.get("tags", []),
-                            }
-                        )
+                        # 清洗标题
+                        title = item.get("title", "")
+                        if match := re.search(pattern_title, title, re.DOTALL):
+                            title = match.group(2)
+                        title = title.replace("&amp;", "&").strip()
+                        # 清洗内容
+                        content = item.get("content", "")
+                        if match := re.search(pattern_content, content, re.DOTALL):
+                            content = match.group(2)
+                        content = content.replace('<mark class="highlight">', "")
+                        content = content.replace("</mark>", "")
+                        content = content.strip()
+                        # 链接去重
+                        if link.get("link") not in link_array:
+                            link_array.append(link.get("link"))
+                            clean_results.append(
+                                {
+                                    "shareurl": link.get("link"),
+                                    "taskname": title,
+                                    "content": content,
+                                    "tags": item.get("tags", []),
+                                    "channel": item.get("channel", ""),
+                                    "channel_id": item.get("channelId", ""),
+                                }
+                            )
         return clean_results
 
 
