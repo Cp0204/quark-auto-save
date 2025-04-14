@@ -46,7 +46,7 @@ PYTHON_PATH = "python3" if os.path.exists("/usr/bin/python3") else "python"
 SCRIPT_PATH = os.environ.get("SCRIPT_PATH", "./quark_auto_save.py")
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
 PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "")
-DEBUG = os.environ.get("DEBUG", False)
+DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 
 config_data = {}
 task_plugins_config_default = {}
@@ -86,10 +86,7 @@ def get_login_token():
 
 def is_login():
     login_token = get_login_token()
-    if (
-        session.get("token") == login_token
-        or request.args.get("token") == login_token
-    ):
+    if session.get("token") == login_token or request.args.get("token") == login_token:
         return True
     else:
         return False
@@ -224,7 +221,12 @@ def get_task_suggestions():
     query = request.args.get("q", "").lower()
     deep = request.args.get("d", "").lower()
     try:
-        if cs_data := config_data.get("source", {}).get("cloudsaver", {}):
+        cs_data = config_data.get("source", {}).get("cloudsaver", {})
+        if (
+            cs_data.get("server")
+            and cs_data.get("username")
+            and cs_data.get("password")
+        ):
             cs = CloudSaver(cs_data.get("server"))
             cs.set_auth(
                 cs_data.get("username", ""),
@@ -237,16 +239,16 @@ def get_task_suggestions():
                     cs_data["token"] = search.get("new_token")
                     Config.write_json(CONFIG_PATH, config_data)
                 search_results = cs.clean_search_results(search.get("data"))
-                return jsonify({"success": True, "data": search_results})
+                return jsonify({"success": True, "source": "CloudSaver", "data": search_results})
             else:
                 return jsonify({"success": True, "message": search.get("message")})
         else:
             base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
             url = f"{base_url}/task_suggestions?q={query}&d={deep}"
             response = requests.get(url)
-            return jsonify({"success": True, "data": response.json()})
+            return jsonify({"success": True, "source": "网络公开", "data": response.json()})
     except Exception as e:
-        return jsonify({"success": False, "message": str(e)})
+        return jsonify({"success": True, "message": f"error: {str(e)}"})
 
 
 @app.route("/get_share_detail")
