@@ -671,6 +671,17 @@ class Quark:
         to_pdir_fid = self.savepath_fid[savepath]
         dir_file_list = self.ls_dir(to_pdir_fid)
         # print("dir_file_list: ", dir_file_list)
+        # 清空目标文件夹
+        fid_list = [item["fid"] for item in dir_file_list]
+        if fid_list:
+            self.delete(fid_list)
+            recycle_list = self.recycle_list()
+            record_id_list = [
+                item["record_id"] for item in recycle_list if item["fid"] in fid_list
+            ]
+            self.recycle_remove(record_id_list)
+        # 重新获取目标目录文件列表
+        dir_file_list = self.ls_dir(to_pdir_fid)
 
         tree.create_node(
             savepath,
