@@ -66,6 +66,7 @@ table.jsoneditor-tree>tbody>tr.jsoneditor-expandable:first-child {
   top: 0;
   margin-top: -5px;
   border: 1px solid #007bff;
+  z-index: 1021;
 }
 
 /*
@@ -160,4 +161,8 @@ table.jsoneditor-tree>tbody>tr.jsoneditor-expandable:first-child {
 .form-control-dark:focus {
   border-color: transparent;
   box-shadow: 0 0 0 3px rgba(255, 255, 255, .25);
+}
+
+.cursor-pointer {
+  cursor: pointer
 }
