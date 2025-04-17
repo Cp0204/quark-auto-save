@@ -337,6 +337,8 @@ class Quark:
                 "_sort": "file_type:asc,updated_at:desc",
             }
             response = self._send_request("GET", url, params=querystring).json()
+            if response["code"] != 0:
+                return {"error": response["message"]}
             if response["data"]["list"]:
                 list_merge += response["data"]["list"]
                 page += 1
@@ -384,6 +386,8 @@ class Quark:
                 "_fetch_full_path": kwargs.get("fetch_full_path", 0),
             }
             response = self._send_request("GET", url, params=querystring).json()
+            if response["code"] != 0:
+                return {"error": response["message"]}
             if response["data"]["list"]:
                 file_list += response["data"]["list"]
                 page += 1
