@@ -15,6 +15,7 @@ import time
 import random
 import requests
 import importlib
+import urllib.parse
 from datetime import datetime
 
 # 兼容青龙
@@ -527,17 +528,34 @@ class Quark:
             replace = replace.replace("$TASKNAME", taskname)
         return pattern, replace
 
-    def get_id_from_url(self, url):
-        url = url.replace("https://pan.quark.cn/s/", "")
-        pattern = r"(\w+)(\?pwd=(\w+))?(#/list/share.*/(\w+))?"
-        match = re.search(pattern, url)
-        if match:
-            pwd_id = match.group(1)
-            passcode = match.group(3) if match.group(3) else ""
-            pdir_fid = match.group(5) if match.group(5) else 0
-            return pwd_id, passcode, pdir_fid
-        else:
-            return None
+    # def get_id_from_url(self, url):
+    #     url = url.replace("https://pan.quark.cn/s/", "")
+    #     pattern = r"(\w+)(\?pwd=(\w+))?(#/list/share.*/(\w+))?"
+    #     match = re.search(pattern, url)
+    #     if match:
+    #         pwd_id = match.group(1)
+    #         passcode = match.group(3) if match.group(3) else ""
+    #         pdir_fid = match.group(5) if match.group(5) else 0
+    #         return pwd_id, passcode, pdir_fid
+    #     else:
+    #         return None
+
+    def extract_url(self, url):
+        # pwd_id
+        match_id = re.search(r"/s/(\w+)", url)
+        pwd_id = match_id.group(1) if match_id else None
+        # passcode
+        match_pwd = re.search(r"pwd=(\w+)", url)
+        passcode = match_pwd.group(1) if match_pwd else ""
+        # path: fid-name
+        paths = []
+        matches = re.findall(r"/(\w{32})-?([^/]+)?", url)
+        for match in matches:
+            fid = match[0]
+            name = urllib.parse.unquote(match[1])
+            paths.append({"fid": fid, "name": name})
+        pdir_fid = paths[-1]["fid"] if matches else 0
+        return pwd_id, passcode, pdir_fid, paths
 
     def update_savepath_fid(self, tasklist):
         dir_paths = [
@@ -572,8 +590,8 @@ class Quark:
 
     def do_save_check(self, shareurl, savepath):
         try:
-            pwd_id, passcode, pdir_fid = self.get_id_from_url(shareurl)
-            is_sharing, stoken = self.get_stoken(pwd_id, passcode)
+            pwd_id, passcode, pdir_fid, _ = self.extract_url(shareurl)
+            _, stoken = self.get_stoken(pwd_id, passcode)
             share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["list"]
             fid_list = [item["fid"] for item in share_file_list]
             fid_token_list = [item["share_fid_token"] for item in share_file_list]
@@ -620,8 +638,7 @@ class Quark:
             return
 
         # 链接转换所需参数
-        pwd_id, passcode, pdir_fid = self.get_id_from_url(task["shareurl"])
-        # print("match: ", pwd_id, pdir_fid)
+        pwd_id, passcode, pdir_fid, _ = self.extract_url(task["shareurl"])
 
         # 获取stoken，同时可验证资源是否失效
         is_sharing, stoken = self.get_stoken(pwd_id, passcode)
