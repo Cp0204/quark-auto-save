@@ -239,47 +239,73 @@ def get_task_suggestions():
                     cs_data["token"] = search.get("new_token")
                     Config.write_json(CONFIG_PATH, config_data)
                 search_results = cs.clean_search_results(search.get("data"))
-                return jsonify({"success": True, "source": "CloudSaver", "data": search_results})
+                return jsonify(
+                    {"success": True, "source": "CloudSaver", "data": search_results}
+                )
             else:
                 return jsonify({"success": True, "message": search.get("message")})
         else:
             base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
             url = f"{base_url}/task_suggestions?q={query}&d={deep}"
             response = requests.get(url)
-            return jsonify({"success": True, "source": "网络公开", "data": response.json()})
+            return jsonify(
+                {"success": True, "source": "网络公开", "data": response.json()}
+            )
     except Exception as e:
         return jsonify({"success": True, "message": f"error: {str(e)}"})
 
 
 @app.route("/get_share_detail")
-def get_share_files():
+def get_share_detail():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
     shareurl = request.args.get("shareurl", "")
+    stoken = request.args.get("stoken", "")
     account = Quark("", 0)
-    pwd_id, passcode, pdir_fid = account.get_id_from_url(shareurl)
-    is_sharing, stoken = account.get_stoken(pwd_id, passcode)
-    if not is_sharing:
-        return jsonify({"success": False, "data": {"error": stoken}})
-    share_detail = account.get_detail(pwd_id, stoken, pdir_fid, 1)
+    pwd_id, passcode, pdir_fid, paths = account.extract_url(shareurl)
+    if not stoken:
+        is_sharing, stoken = account.get_stoken(pwd_id, passcode)
+        if not is_sharing:
+            return jsonify({"success": False, "data": {"error": stoken}})
+    share_detail = account.get_detail(pwd_id, stoken, pdir_fid, _fetch_share=1)
+    share_detail["paths"] = paths
+    share_detail["stoken"] = stoken
+
     return jsonify({"success": True, "data": share_detail})
 
 
-@app.route("/get_savepath")
-def get_savepath():
+@app.route("/get_savepath_detail")
+def get_savepath_detail():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
     account = Quark(config_data["cookie"][0], 0)
     if path := request.args.get("path"):
         if path == "/":
             fid = 0
-        elif get_fids := account.get_fids([path]):
-            fid = get_fids[0]["fid"]
         else:
-            return jsonify({"success": False, "message": "获取fid失败"})
+            dir_names = path.split("/")
+            if dir_names[0] == "":
+                dir_names.pop(0)
+            path_fids = []
+            current_path = ""
+            for dir_name in dir_names:
+                current_path += "/" + dir_name
+                path_fids.append(current_path)
+            if get_fids := account.get_fids(path_fids):
+                fid = get_fids[-1]["fid"]
+                paths = [
+                    {"fid": get_fid["fid"], "name": dir_name}
+                    for get_fid, dir_name in zip(get_fids, dir_names)
+                ]
+            else:
+                return jsonify({"success": False, "data": {"error": "获取fid失败"}})
     else:
         fid = request.args.get("fid", 0)
-    file_list = account.ls_dir(fid)
+        paths = []
+    file_list = {
+        "list": account.ls_dir(fid),
+        "paths": paths,
+    }
     return jsonify({"success": True, "data": file_list})
 
 

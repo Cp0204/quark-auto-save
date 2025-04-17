@@ -58,7 +58,7 @@
       </nav>
 
       <main class="col-md-9 col-lg-10 ml-sm-auto">
-        <form @submit.prevent="saveConfig">
+        <form @submit.prevent="saveConfig" @keydown.enter.prevent>
 
           <div v-if="activeTab === 'config'">
             <div class="row title">
@@ -272,8 +272,8 @@
                       <div class="input-group">
                         <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(index, task)" @input="changeTaskname(index, task)">
                         <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.taskSuggestions.success && smart_param.index === index">
-                          <div class="text-muted text-center" style="font-size:12px;">{{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data.length ? `以下资源来自 ${smart_param.taskSuggestions.source} 搜索，请自行辨识，如有侵权请联系资源方` : "未搜索到资源" }}</div>
-                          <div v-for="suggestion in smart_param.taskSuggestions.data" :key="suggestion.taskname" class="dropdown-item" @click.prevent="selectSuggestion(task, suggestion)" style="cursor: pointer;font-size: 12px;" :title="suggestion.content">
+                          <div class="dropdown-item text-muted text-center" style="font-size:12px;">{{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data.length ? `以下资源来自 ${smart_param.taskSuggestions.source} 搜索，请自行辨识，如有侵权请联系资源方` : "未搜索到资源" }}</div>
+                          <div v-for="suggestion in smart_param.taskSuggestions.data" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(index, suggestion)" style="font-size: 12px;" :title="suggestion.content">
                             <span v-html="suggestion.verify ? '✅': '❔'"></span> {{ suggestion.taskname }}
                             <small class="text-muted">
                               <a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a>
@@ -298,6 +298,7 @@
                       <div class="input-group">
                         <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @blur="changeShareurl(task)">
                         <div class="input-group-append" v-if="task.shareurl">
+                          <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;showFolderSelect(index)" title="选择文件夹"><i class="bi bi-folder"></i></button>
                           <div class="input-group-text">
                             <a target="_blank" :href="task.shareurl"><i class="bi bi-box-arrow-up-right"></i></a>
                           </div>
@@ -312,15 +313,7 @@
                         <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填" @focus="focusTaskname(index, task)">
                         <div class="input-group-append">
                           <button class="btn btn-secondary" type="button" v-if="smart_param.savepath && smart_param.index == index && task.savepath != smart_param.origin_savepath" @click="task.savepath = smart_param.origin_savepath"><i class="bi bi-reply"></i></button>
-                          <button class="btn btn-outline-secondary dropdown-toggle" type="button" @click="getSavepathDirs(task.savepath)" data-toggle="dropdown" aria-expanded="false">选择</button>
-                          <div class="dropdown-menu" style="max-height: 300px; min-width: 200px; overflow-y: auto;">
-                            <a class="dropdown-item" @click.stop.prevent="selectSavepath(index,getParentDirectory(task.savepath),'..')" href="#">..</a>
-                            <span v-if="!savepaths.some(item => item.dir)" class="dropdown-item disabled">无子目录</span>
-                            <a v-for="(item, key) in savepaths" :class="{'disabled': item.fid === 0 || !item.dir}" class="dropdown-item" @click.stop.prevent="selectSavepath(index,item.fid,item.file_name)" href="#">
-                              <i class="bi" :class="item.dir ? 'bi-folder2' : 'bi-file-earmark'"></i> {{ item.file_name }}
-                              <i class="bi bi-trash3-fill text-danger" @click.stop.prevent="deleteFile(item.fid,item.file_name,item.dir)" style="position: absolute; right: 10px; pointer-events: auto;"></i>
-                            </a>
-                          </div>
+                          <button class="btn btn-outline-secondary" type="button" @click="showSavepathSelect(index)">选择</button>
                         </div>
                       </div>
                     </div>
@@ -349,9 +342,9 @@
                     <label class="col-sm-2 col-form-label">文件起始</label>
                     <div class="col-sm-10">
                       <div class="input-group">
-                        <input type="text" class="form-control" placeholder="可选" name="startfid[]" v-model="task.startfid">
+                        <input type="text" class="form-control" placeholder="可选，只转存修改日期>此文件的文件" name="startfid[]" v-model="task.startfid">
                         <div class="input-group-append" v-if="task.shareurl">
-                          <button class="btn btn-outline-secondary" type="button" @click="showShareFiles(index)">选择</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false; showFolderSelect(index)">选择</button>
                         </div>
                       </div>
                     </div>
@@ -425,42 +418,58 @@
       </div>
     </div>
 
-    <!-- 模态框 分享文件列表 -->
-    <div class="modal" tabindex="-1" id="shareDetailModal">
-      <div class="modal-dialog modal-xl">
+    <!-- 模态框 文件选择 -->
+    <div class="modal" tabindex="-1" id="fileSelectModal">
+      <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title"><b>分享文件列表</b>
+            <h5 class="modal-title">
+              <b v-if="fileSelect.selectDir">选择{{fileSelect.selectShare ? '分享' : '保存'}}文件夹</b>
+              <b v-else>选择文件</b>
               <div v-if="modalLoading" class="spinner-border spinner-border-sm m-1" role="status"></div>
             </h5>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
               <span aria-hidden="true">&times;</span>
             </button>
           </div>
-          <div class="modal-body">
-            <div class="alert alert-warning" v-if="shareFiles.error" v-html="shareFiles.error"></div>
-            <table class="table table-hover table-sm" v-else-if="!modalLoading" title="请选择转存起始文件，将只转存修改日期>选中文件的文件">
-              <thead>
-                <tr>
-                  <!-- <th scope="col">fid</th> -->
-                  <th scope="col">文件名</th>
-                  <th scope="col">大小</th>
-                  <th scope="col">修改日期 ↓</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td colspan="4"><i class="bi bi-folder-plus"></i> 后续更新的文件...</td>
-                </tr>
-                <tr v-for="(file, key) in shareFiles" :key="key" @click="selectStartFid(file.fid)" style="cursor: pointer;">
-                  <!-- <td>{{file.fid}}</td> -->
-                  <td><i class="bi" :class="file.dir ? 'bi-folder2' : 'bi-file-earmark'"></i> {{file.file_name}}</td>
-                  <td>{{file.size | size}}</td>
-                  <td>{{file.last_update_at | ts2date}}</td>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="modal-body small">
+            <div class="alert alert-warning" v-if="fileSelect.error" v-html="fileSelect.error"></div>
+            <div v-else>
+              <!-- 面包屑导航 -->
+              <nav aria-label="breadcrumb" v-if="fileSelect.selectDir">
+                <ol class="breadcrumb">
+                  <li class="breadcrumb-item cursor-pointer" @click="navigateTo('0','/')"><i class="bi bi-house-door"></i></li>
+                  <li v-for="(item, index) in fileSelect.paths" class="breadcrumb-item">
+                    <a v-if="index != fileSelect.paths.length - 1" href="#" @click="navigateTo(item.fid, item.name)">{{ item.name }}</a>
+                    <span v-else class="text-muted">{{ item.name }}</span>
+                  </li>
+                </ol>
+              </nav>
+              <!-- 文件列表 -->
+              <table class="table table-hover table-sm">
+                <thead>
+                  <tr>
+                    <th scope="col">文件名</th>
+                    <th scope="col">大小</th>
+                    <th scope="col">修改日期 ↓</th>
+                    <th scope="col" v-if="!fileSelect.selectShare">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(file, key) in fileSelect.fileList" :key="key" @click="fileSelect.selectDir ? (file.dir ? navigateTo(file.fid, file.file_name) : null) : selectStartFid(file.fid)" :class="{'cursor-pointer': (fileSelect.selectDir && file.dir)}">
+                    <td><i class="bi" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i> {{file.file_name}}</td>
+                    <td v-if="file.dir">{{ file.include_items }}项</td>
+                    <td v-else>{{file.size | size}}</td>
+                    <td>{{file.updated_at | ts2date}}</td>
+                    <td v-if="!fileSelect.selectShare"><a @click.stop.prevent="deleteFile(file.fid, file.file_name, file.dir)">删除</a></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="modal-footer" v-if="fileSelect.selectDir">
+            <button type="button" class="btn btn-primary btn-sm" @click="selectCurrentFolder()">选择当前文件夹</button>
+            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare" @click="selectCurrentFolder(true)">选择当前文件夹+/任务名称</button>
           </div>
         </div>
       </div>
@@ -506,10 +515,7 @@
         taskDirs: [""],
         taskDirSelected: "",
         taskNameFilter: "",
-        savepaths: [],
         modalLoading: false,
-        shareFiles: [],
-        forceTaskIndex: null,
         smart_param: {
           index: null,
           savepath: "",
@@ -521,6 +527,15 @@
         },
         activeTab: 'tasklist',
         configModified: false,
+        fileSelect: {
+          index: null,
+          shareurl: "",
+          stoken: "",
+          fileList: [],
+          paths: [],
+          selectDir: true,
+          selectShare: true,
+        },
       },
       filters: {
         ts2date: function (value) {
@@ -528,11 +543,11 @@
           return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
         },
         size: function (value) {
-          if (!value) return "0B";
+          if (!value) return "";
           const unitArr = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
           const srcsize = parseFloat(value);
           const index = srcsize ? Math.floor(Math.log(srcsize) / Math.log(1024)) : 0;
-          const size = (srcsize / Math.pow(1024, index)).toFixed(2).replace(/\.?0+$/, "");
+          const size = (srcsize / Math.pow(1024, index)).toFixed(1).replace(/\.?0+$/, "");
           return size + unitArr[index];
         }
       },
@@ -761,58 +776,6 @@
         clearData(target) {
           this[target] = "";
         },
-        selectSavepath(index, fid, name) {
-          const savepath = name == ".." ? this.getParentDirectory(this.formData.tasklist[index].savepath) : `/${this.formData.tasklist[index].savepath}/${name}`.replace(/\/{2,}/g, '/')
-          Vue.set(this.formData.tasklist[index], 'savepath', savepath);
-          this.getSavepathDirs(fid);
-        },
-        getSavepathDirs(fid = 0) {
-          if (fid.includes('/')) {
-            params = { path: fid }
-          } else {
-            params = { fid: fid }
-          }
-          this.savepaths = [{ fid: 0, dir: true, file_name: "加载中..." }]
-          axios.get('/get_savepath', { params: params })
-            .then(response => {
-              this.savepaths = response.data.data
-            })
-            .catch(error => {
-              console.error('Error get_savepath:', error);
-            });
-        },
-        deleteFile(fid, fname, isDir) {
-          if (fid != "" && confirm(`确认删除${isDir ? '目录' : '文件'} [${fname}] 吗？`))
-            axios.post('/delete_file', { fid: fid })
-              .then(response => {
-                if (response.data.code == 0) {
-                  this.savepaths = this.savepaths.filter(item => item.fid != fid);
-                } else {
-                  alert('删除失败：' + response.data.message);
-                }
-              })
-              .catch(error => {
-                console.error('Error delete_file:', error);
-              });
-        },
-        selectStartFid(fid) {
-          Vue.set(this.formData.tasklist[this.forceTaskIndex], 'startfid', fid);
-          $('#shareDetailModal').modal('toggle')
-        },
-        showShareFiles(index) {
-          this.shareFiles = []
-          $('#shareDetailModal').modal('toggle')
-          this.modalLoading = true
-          axios.get('/get_share_detail', { params: { shareurl: this.formData.tasklist[index].shareurl } })
-            .then(response => {
-              this.forceTaskIndex = index
-              this.shareFiles = response.data.data.list;
-              this.modalLoading = false
-            })
-            .catch(error => {
-              console.error('Error get_share_detail:', error);
-            });
-        },
         runScriptNow(task_index = "") {
           if (this.configModified) {
             if (!confirm('配置已修改但未保存，是否继续运行？')) {
@@ -900,11 +863,9 @@
             };
           }
         },
-        selectSuggestion(task, suggestion) {
-          task.taskname = suggestion.taskname;
-          task.shareurl = suggestion.shareurl;
-          this.changeShareurl(task);
+        selectSuggestion(index, suggestion) {
           this.smart_param.showSuggestions = false;
+          this.showFolderSelect(index, suggestion.shareurl);
         },
         addMagicRegex() {
           const newKey = `$MAGIC_${Object.keys(this.formData.magic_regex).length + 1}`;
@@ -925,6 +886,133 @@
             this.$delete(this.formData.magic_regex, key);
           }
         },
+        deleteFile(fid, fname, isDir) {
+          if (fid != "" && confirm(`确认删除${isDir ? '目录' : '文件'} [${fname}] 吗？`))
+            axios.post('/delete_file', {
+              fid: fid
+            }).then(response => {
+              if (response.data.code == 0) {
+                this.fileSelect.fileList = this.fileSelect.fileList.filter(item => item.fid != fid);
+              } else {
+                alert('删除失败：' + response.data.message);
+              }
+            }).catch(error => {
+              console.error('Error /delete_file:', error);
+            });
+        },
+        getSavepathDetail(params = 0) {
+          if (params.includes('/')) {
+            params = { path: params }
+          } else {
+            params = { fid: params }
+          }
+          this.modalLoading = true;
+          axios.get('/get_savepath_detail', {
+            params: params
+          }).then(response => {
+            this.fileSelect.fileList = response.data.data.list
+            if (response.data.data.paths.length > 0) {
+              this.fileSelect.paths = response.data.data.paths
+            }
+            this.modalLoading = false;
+          }).catch(error => {
+            console.error('Error /get_savepath_detail:', error);
+            this.fileSelect = { error: "获取文件夹列表失败" };
+            this.modalLoading = false;
+          });
+        },
+        showSavepathSelect(index) {
+          this.fileSelect.selectShare = false;
+          this.fileSelect.selectDir = true;
+          this.fileSelect.error = undefined;
+          this.fileSelect.fileList = [];
+          this.fileSelect.paths = [];
+          this.fileSelect.index = index;
+          $('#fileSelectModal').modal('toggle');
+          this.getSavepathDetail(this.formData.tasklist[index].savepath);
+        },
+        getShareDetail() {
+          this.modalLoading = true;
+          axios.get('/get_share_detail', {
+            params: {
+              shareurl: this.fileSelect.shareurl,
+              stoken: this.fileSelect.stoken
+            }
+          }).then(response => {
+            if (response.data.success) {
+              this.fileSelect.fileList = response.data.data.list;
+              this.fileSelect.paths = response.data.data.paths;
+              this.fileSelect.stoken = response.data.data.stoken;
+            } else {
+              this.fileSelect.error = response.data.data.error
+            }
+            this.modalLoading = false;
+          }).catch(error => {
+            console.error('Error getting folders:', error);
+            this.fileSelect = { error: "获取文件夹列表失败" };
+            this.modalLoading = false;
+          });
+        },
+        showFolderSelect(index, shareurl = "") {
+          this.fileSelect.selectShare = true;
+          this.fileSelect.fileList = [];
+          this.fileSelect.paths = [];
+          this.fileSelect.error = undefined;
+          if (this.getShareurl(this.fileSelect.shareurl) != this.getShareurl(this.formData.tasklist[index].shareurl)) {
+            this.fileSelect.stoken = "";
+          }
+          this.fileSelect.shareurl = shareurl || this.formData.tasklist[index].shareurl;
+          this.fileSelect.index = index;
+          $('#fileSelectModal').modal('toggle');
+          this.getShareDetail();
+        },
+        navigateTo(fid, name) {
+          path = { fid: fid, name: name }
+          if (this.fileSelect.selectShare) {
+            this.fileSelect.shareurl = this.getShareurl(this.fileSelect.shareurl, path);
+            this.getShareDetail();
+          } else {
+            if (fid == "0") {
+              this.fileSelect.paths = []
+            } else {
+              index = this.fileSelect.paths.findIndex(item => item.fid === fid);
+              if (index !== -1) {
+                this.fileSelect.paths = this.fileSelect.paths.slice(0, index + 1)
+              } else {
+                this.fileSelect.paths.push({ fid: fid, name: name })
+              }
+            }
+            this.getSavepathDetail(fid);
+          }
+        },
+        selectCurrentFolder(addTaskname = false) {
+          if (this.fileSelect.selectShare) {
+            this.formData.tasklist[this.fileSelect.index].shareurl_ban = undefined;
+            this.formData.tasklist[this.fileSelect.index].shareurl = this.fileSelect.shareurl;
+          } else {
+            this.formData.tasklist[this.fileSelect.index].savepath = "/" + this.fileSelect.paths.map(item => item.name).join("/");
+            if (addTaskname) {
+              this.formData.tasklist[this.fileSelect.index].savepath += "/" + this.formData.tasklist[this.fileSelect.index].taskname
+            }
+          }
+          $('#fileSelectModal').modal('hide')
+        },
+        selectStartFid(fid) {
+          Vue.set(this.formData.tasklist[this.fileSelect.index], 'startfid', fid);
+          $('#fileSelectModal').modal('toggle')
+        },
+        getShareurl(shareurl, path = {}) {
+          if (path == {} || path.fid == 0) {
+            shareurl = shareurl.match(`.*s/[a-z0-9]+`)[0]
+          } else if (shareurl.includes(path.fid)) {
+            shareurl = shareurl.match(`.*/${path.fid}[^\/]*`)[0]
+          } else if (shareurl.includes('#/list/share')) {
+            shareurl = `${shareurl}/${path.fid}-${path.name}`
+          } else {
+            shareurl = `${shareurl}#/list/share/${path.fid}-${path.name}`
+          }
+          return shareurl;
+        }
       }
     });
   </script>
