@@ -2,7 +2,7 @@
 // @name         QAS一键推送助手
 // @namespace    https://github.com/Cp0204/quark-auto-save
 // @license      AGPL
-// @version      0.1
+// @version      0.2
 // @description  在夸克网盘分享页面添加推送到 QAS 的按钮
 // @icon         https://pan.quark.cn/favicon.ico
 // @author       Cp0204
@@ -18,13 +18,13 @@
 (function() {
     'use strict';
 
-    // 从 GM_getValue 中读取 qas_base 和 qas_token，如果不存在则提示用户设置
     let qas_base = GM_getValue('qas_base', '');
     let qas_token = GM_getValue('qas_token', '');
 
-    if (!qas_base || !qas_token) {
+    // QAS 设置弹窗函数
+    function showQASSettingDialog(callback) {
         Swal.fire({
-            title: '请设置 QAS 地址和 Token',
+            title: 'QAS 设置',
             html: `
                 <label for="qas_base">QAS 服务器</label>
                 <input id="qas_base" class="swal2-input" placeholder="例如: 192.168.1.8:5005" value="${qas_base}">
@@ -46,18 +46,39 @@
                 GM_setValue('qas_token', result.value.qas_token);
                 qas_base = result.value.qas_base;
                 qas_token = result.value.qas_token;
-                // 重新执行主逻辑
-                addQASButton();
+                if (callback) {
+                    callback(); // 执行回调函数
+                }
             }
         });
-    } else {
-        // 如果配置存在，直接执行主逻辑
-        addQASButton();
     }
 
+    // 添加 QAS 设置按钮
+    function addQASSettingButton() {
+        function waitForElement(selector, callback) {
+            const element = document.querySelector(selector);
+            if (element) {
+                callback(element);
+            } else {
+                setTimeout(() => waitForElement(selector, callback), 500);
+            }
+        }
 
+        waitForElement('.DetailLayout--client-download--FpyCkdW.ant-dropdown-trigger', (clientDownloadButton) => {
+            const qasSettingButton = document.createElement('div');
+            qasSettingButton.className = 'DetailLayout--client-download--FpyCkdW ant-dropdown-trigger'; // 使用 ant-btn 类以保持风格一致
+            qasSettingButton.innerHTML = 'QAS设置';
+
+            qasSettingButton.addEventListener('click', () => {
+                showQASSettingDialog();
+            });
+
+            clientDownloadButton.parentNode.insertBefore(qasSettingButton, clientDownloadButton.nextSibling);
+        });
+    }
+
+    // 推送到 QAS 按钮
     function addQASButton() {
-        // 等待按钮加载完成
         function waitForElement(selector, callback) {
             const element = document.querySelector(selector);
             if (element) {
@@ -79,9 +100,10 @@
             // 获取数据函数
             function getData() {
                 const currentUrl = window.location.href;
-                taskname = currentUrl.lastIndexOf('-')>0 ? decodeURIComponent(currentUrl.match(/.*\/[^-]+-(.+)$/)[1]) : document.querySelector('.author-name').textContent;
+                taskname = currentUrl.lastIndexOf('-') > 0 ? decodeURIComponent(currentUrl.match(/.*\/[^-]+-(.+)$/)[1]) : document.querySelector('.author-name').textContent;
                 shareurl = currentUrl;
-                savepath = document.querySelector('.path-name').title.replace('全部文件', '').trim(); // 去掉前面的 "全部文件" 和空格
+                let pathElement = document.querySelector('.path-name')
+                savepath = pathElement ? pathElement.title.replace('全部文件', '').trim() : "";
                 savepath += "/" + taskname
                 qasButton.title = `任务名称: ${taskname}\n分享链接: ${shareurl}\n保存路径: ${savepath}`;
             }
@@ -148,4 +170,17 @@
             saveButton.parentNode.insertBefore(qasButton, saveButton.nextSibling);
         });
     }
+
+    // 初始化
+    (function init() {
+        addQASSettingButton();
+
+        if (!qas_base || !qas_token) {
+            showQASSettingDialog(() => {
+                addQASButton(); // 在设置后添加 QAS 按钮
+            });
+        } else {
+            addQASButton(); // 如果配置存在，则直接添加 QAS 按钮
+        }
+    })(); // 立即执行初始化
 })();
