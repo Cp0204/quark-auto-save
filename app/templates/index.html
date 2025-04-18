@@ -839,8 +839,10 @@
           }
         },
         searchSuggestions(index, taskname, deep = 1) {
-          if (taskname.length == 0)
+          if (taskname.length < 2) {
+            console.log(`任务名[${taskname}]过短${taskname.length} 不进行搜索`);
             return;
+          }
           this.smart_param.isSearching = true;
           this.smart_param.index = index;
           try {
@@ -999,7 +1001,7 @@
         },
         selectStartFid(fid) {
           Vue.set(this.formData.tasklist[this.fileSelect.index], 'startfid', fid);
-          $('#fileSelectModal').modal('toggle')
+          $('#fileSelectModal').modal('hide')
         },
         getShareurl(shareurl, path = {}) {
           if (path == {} || path.fid == 0) {
