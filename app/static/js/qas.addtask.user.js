@@ -2,7 +2,7 @@
 // @name         QAS一键推送助手
 // @namespace    https://github.com/Cp0204/quark-auto-save
 // @license      AGPL
-// @version      0.2
+// @version      0.3
 // @description  在夸克网盘分享页面添加推送到 QAS 的按钮
 // @icon         https://pan.quark.cn/favicon.ico
 // @author       Cp0204
@@ -66,7 +66,7 @@
 
         waitForElement('.DetailLayout--client-download--FpyCkdW.ant-dropdown-trigger', (clientDownloadButton) => {
             const qasSettingButton = document.createElement('div');
-            qasSettingButton.className = 'DetailLayout--client-download--FpyCkdW ant-dropdown-trigger'; // 使用 ant-btn 类以保持风格一致
+            qasSettingButton.className = 'DetailLayout--client-download--FpyCkdW ant-dropdown-trigger';
             qasSettingButton.innerHTML = 'QAS设置';
 
             qasSettingButton.addEventListener('click', () => {
@@ -139,7 +139,11 @@
                             if (jsonResponse.success) {
                                 Swal.fire({
                                     title: '任务创建成功',
-                                    text: jsonResponse.message,
+                                    html: `<small>
+                                           <b>任务名称:</b> ${taskname}<br><br>
+                                           <b>保存路径:</b> ${savepath}<br><br>
+                                           <a href="http://${qas_base}" target="_blank">去 QAS 查看</a>
+                                           <small>`,
                                     icon: 'success'
                                 });
                             } else {
