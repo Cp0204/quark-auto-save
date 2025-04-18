@@ -279,6 +279,7 @@ def get_savepath_detail():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
     account = Quark(config_data["cookie"][0], 0)
+    paths = []
     if path := request.args.get("path"):
         if path == "/":
             fid = 0
@@ -300,8 +301,7 @@ def get_savepath_detail():
             else:
                 return jsonify({"success": False, "data": {"error": "获取fid失败"}})
     else:
-        fid = request.args.get("fid", 0)
-        paths = []
+        fid = request.args.get("fid", "0")
     file_list = {
         "list": account.ls_dir(fid),
         "paths": paths,
