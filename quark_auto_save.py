@@ -18,6 +18,10 @@ import importlib
 import urllib.parse
 from datetime import datetime
 
+# ========== 修改内容开始 ==========
+MAX_SAVE_FILES = 0  # 最大保存文件数量，0 为不限制保存数量
+# ========== 修改内容结束 ==========
+
 # 兼容青龙
 try:
     from treelib import Tree
@@ -407,9 +411,20 @@ class Quark:
             "__dt": int(random.uniform(1, 5) * 60 * 1000),
             "__t": datetime.now().timestamp(),
         }
+  
+        # ========== 修改内容开始 ==========
+        # 当 MAX_SAVE_FILES = 0 时，不限制保存文件数量
+        if MAX_SAVE_FILES > 0:
+            files_to_save = fid_list[:MAX_SAVE_FILES]
+            tokens_to_save = fid_token_list[:MAX_SAVE_FILES]
+        else:
+            files_to_save = fid_list
+            tokens_to_save = fid_token_list
+         # ========== 修改内容结束 ==========
+  
         payload = {
-            "fid_list": fid_list,
-            "fid_token_list": fid_token_list,
+            "fid_list": files_to_save,  # 修改为 files_to_save
+            "fid_token_list": tokens_to_save,  # 修改为 tokens_to_save
             "to_pdir_fid": to_pdir_fid,
             "pwd_id": pwd_id,
             "stoken": stoken,
@@ -763,7 +778,13 @@ class Quark:
             # 指定文件开始订阅/到达指定文件（含）结束历遍
             if share_file["fid"] == task.get("startfid", ""):
                 break
-
+        
+        # ========== 修改内容开始 ==========
+        # 当 MAX_SAVE_FILES = 0 时，不限制保存文件数量
+        if MAX_SAVE_FILES > 0:
+            need_save_list = need_save_list[:MAX_SAVE_FILES]
+        # ========== 修改内容结束 ==========
+        
         fid_list = [item["fid"] for item in need_save_list]
         fid_token_list = [item["share_fid_token"] for item in need_save_list]
         if fid_list:
@@ -905,6 +926,11 @@ def do_save(account, tasklist=[]):
     # 获取全部保存目录fid
     account.update_savepath_fid(tasklist)
 
+    # ========== 修改内容开始 ==========
+    # 初始化计数器
+    total_files_transferred = 0  # 无论 MAX_SAVE_FILES 的值如何，都初始化计数器
+    # ========== 修改内容结束 ==========
+
     def check_date(task):
         return (
             not task.get("enddate")
@@ -922,6 +948,12 @@ def do_save(account, tasklist=[]):
     for index, task in enumerate(tasklist):
         # 判断任务期限
         if check_date(task):
+            # ========== 修改内容开始 ==========
+            # 当 MAX_SAVE_FILES > 0 时，检查是否已转存超过限制
+            if MAX_SAVE_FILES > 0 and total_files_transferred >= MAX_SAVE_FILES:
+                print("⚠️ 已达到转存文件总数上限，停止转存任务")
+                break
+            # ========== 修改内容结束 ==========            
             print()
             print(f"#{index+1}------------------")
             print(f"任务名称: {task['taskname']}")
@@ -940,6 +972,13 @@ def do_save(account, tasklist=[]):
             print()
             is_new_tree = account.do_save_task(task)
             is_rename = account.do_rename_task(task)
+     
+            # ========== 修改内容开始 ==========
+            # 当 MAX_SAVE_FILES > 0 时，更新计数器
+            if MAX_SAVE_FILES > 0 and (is_new_tree or is_rename):
+                total_files_transferred += 1  # 每成功转存或重命名一个文件，计数器加1
+            # ========== 修改内容结束 ==========
+
 
             # 补充任务的插件配置
             def merge_dicts(a, b):
