@@ -632,8 +632,7 @@ class Quark:
             else:
                 return False
         except Exception as e:
-            if os.environ.get("DEBUG") == True:
-                print(f"转存测试失败: {str(e)}")
+            print(f"转存测试失败: {str(e)}")
 
     def do_save_task(self, task):
         # 判断资源失效记录
@@ -979,7 +978,13 @@ def main():
     print()
     # 读取启动参数
     config_path = sys.argv[1] if len(sys.argv) > 1 else "quark_config.json"
-    task_index = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else ""
+    # 从环境变量中获取 TASKLIST
+    tasklist_from_env = []
+    if tasklist_json := os.environ.get("TASKLIST"):
+        try:
+            tasklist_from_env = json.loads(tasklist_json)
+        except Exception as e:
+            print(f"从环境变量解析任务列表失败 {e}")
     # 检查本地文件是否存在，如果不存在就下载
     if not os.path.exists(config_path):
         if os.environ.get("QUARK_COOKIE"):
@@ -1010,7 +1015,7 @@ def main():
     accounts = [Quark(cookie, index) for index, cookie in enumerate(cookies)]
     # 签到
     print(f"===============签到任务===============")
-    if type(task_index) is int:
+    if tasklist_from_env:
         verify_account(accounts[0])
     else:
         for account in accounts:
@@ -1021,11 +1026,10 @@ def main():
     if accounts[0].is_active and cookie_form_file:
         print(f"===============转存任务===============")
         # 任务列表
-        tasklist = CONFIG_DATA.get("tasklist", [])
-        if type(task_index) is int:
-            do_save(accounts[0], [tasklist[task_index]])
+        if tasklist_from_env:
+            do_save(accounts[0], tasklist_from_env)
         else:
-            do_save(accounts[0], tasklist)
+            do_save(accounts[0], CONFIG_DATA.get("tasklist", []))
         print()
     # 通知
     if NOTIFYS:

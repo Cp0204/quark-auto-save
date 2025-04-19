@@ -1,6 +1,7 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from flask import (
+    json,
     Flask,
     url_for,
     session,
@@ -175,20 +176,22 @@ def update():
 
 
 # 处理运行脚本请求
-@app.route("/run_script_now", methods=["GET"])
+@app.route("/run_script_now", methods=["POST"])
 def run_script_now():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
-    task_index = request.args.get("task_index", "")
-    command = [PYTHON_PATH, "-u", SCRIPT_PATH, CONFIG_PATH, task_index]
+    tasklist = request.json.get("tasklist", [])
+    command = [PYTHON_PATH, "-u", SCRIPT_PATH, CONFIG_PATH]
     logging.info(
-        f">>> 手动运行任务{int(task_index)+1 if task_index.isdigit() else 'all'}"
+        f">>> 手动运行任务 [{tasklist[0].get('taskname') if len(tasklist)>0 else 'ALL'}] 开始执行..."
     )
 
     def generate_output():
         # 设置环境变量
         process_env = os.environ.copy()
         process_env["PYTHONIOENCODING"] = "utf-8"
+        if tasklist:
+            process_env["TASKLIST"] = json.dumps(tasklist, ensure_ascii=False)
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
