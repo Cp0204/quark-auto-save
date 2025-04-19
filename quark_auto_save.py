@@ -913,7 +913,7 @@ def do_save(account, tasklist=[]):
                 <= datetime.strptime(task["enddate"], "%Y-%m-%d").date()
             )
         ) and (
-            not task.get("runweek")
+            "runweek" not in task
             # 星期一为0，星期日为6
             or (datetime.today().weekday() + 1 in task.get("runweek"))
         )
