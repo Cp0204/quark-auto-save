@@ -905,7 +905,7 @@ def do_save(account, tasklist=[]):
     # 获取全部保存目录fid
     account.update_savepath_fid(tasklist)
 
-    def check_date(task):
+    def is_time(task):
         return (
             not task.get("enddate")
             or (
@@ -920,24 +920,26 @@ def do_save(account, tasklist=[]):
 
     # 执行任务
     for index, task in enumerate(tasklist):
-        # 判断任务期限
-        if check_date(task):
-            print()
-            print(f"#{index+1}------------------")
-            print(f"任务名称: {task['taskname']}")
-            print(f"分享链接: {task['shareurl']}")
-            print(f"保存路径: {task['savepath']}")
-            if task.get("pattern"):
-                print(f"正则匹配: {task['pattern']}")
-            if task.get("replace"):
-                print(f"正则替换: {task['replace']}")
-            if task.get("enddate"):
-                print(f"任务截止: {task['enddate']}")
-            if task.get("ignore_extension"):
-                print(f"忽略后缀: {task['ignore_extension']}")
-            if task.get("update_subdir"):
-                print(f"更子目录: {task['update_subdir']}")
-            print()
+        print()
+        print(f"#{index+1}------------------")
+        print(f"任务名称: {task['taskname']}")
+        print(f"分享链接: {task['shareurl']}")
+        print(f"保存路径: {task['savepath']}")
+        if task.get("pattern"):
+            print(f"正则匹配: {task['pattern']}")
+        if task.get("replace"):
+            print(f"正则替换: {task['replace']}")
+        if task.get("update_subdir"):
+            print(f"更子目录: {task['update_subdir']}")
+        if task.get("runweek") or task.get("enddate"):
+            print(
+                f"运行周期: WK{task.get("runweek",[])} ~ {task.get('enddate','forever')}"
+            )
+        print()
+        # 判断任务周期
+        if not is_time(task):
+            print(f"任务不在运行周期内，跳过")
+        else:
             is_new_tree = account.do_save_task(task)
             is_rename = account.do_rename_task(task)
 
