@@ -282,6 +282,7 @@ def get_share_detail():
             regex.get("pattern", ""),
             regex.get("replace", ""),
             regex.get("taskname", ""),
+            regex.get("magic_regex", {}),
         )
         for item in share_detail["list"]:
             file_name = item["file_name"]
