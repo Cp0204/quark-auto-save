@@ -1,6 +1,7 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from flask import (
+    json,
     Flask,
     url_for,
     session,
@@ -14,15 +15,16 @@ from flask import (
 )
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from sdk.cloudsaver import CloudSaver
 from datetime import timedelta
 import subprocess
 import requests
 import hashlib
 import logging
 import base64
-import json
 import sys
 import os
+import re
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
@@ -46,9 +48,10 @@ PYTHON_PATH = "python3" if os.path.exists("/usr/bin/python3") else "python"
 SCRIPT_PATH = os.environ.get("SCRIPT_PATH", "./quark_auto_save.py")
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
 PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "")
-DEBUG = os.environ.get("DEBUG", False)
+DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 
-task_plugins_config = {}
+config_data = {}
+task_plugins_config_default = {}
 
 app = Flask(__name__)
 app.config["APP_VERSION"] = get_app_ver()
@@ -77,24 +80,15 @@ def gen_md5(string):
     return md5.hexdigest()
 
 
-# 读取 JSON 文件内容
-def read_json():
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    return data
-
-
-# 将数据写入 JSON 文件
-def write_json(data):
-    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, sort_keys=False, indent=2)
+def get_login_token():
+    username = config_data["webui"]["username"]
+    password = config_data["webui"]["password"]
+    return gen_md5(f"token{username}{password}+-*/")[8:24]
 
 
 def is_login():
-    data = read_json()
-    username = data["webui"]["username"]
-    password = data["webui"]["password"]
-    if session.get("login") == gen_md5(username + password):
+    login_token = get_login_token()
+    if session.get("token") == login_token or request.args.get("token") == login_token:
         return True
     else:
         return False
@@ -114,16 +108,15 @@ def favicon():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        data = read_json()
-        username = data["webui"]["username"]
-        password = data["webui"]["password"]
+        username = config_data["webui"]["username"]
+        password = config_data["webui"]["password"]
         # 验证用户名和密码
         if (username == request.form.get("username")) and (
             password == request.form.get("password")
         ):
             logging.info(f">>> 用户 {username} 登录成功")
-            session["login"] = gen_md5(username + password)
             session.permanent = True
+            session["token"] = get_login_token()
             return redirect(url_for("index"))
         else:
             logging.info(f">>> 用户 {username} 登录失败")
@@ -137,7 +130,7 @@ def login():
 # 退出登录
 @app.route("/logout")
 def logout():
-    session.pop("login", None)
+    session.pop("token", None)
     return redirect(url_for("login"))
 
 
@@ -155,47 +148,51 @@ def index():
 @app.route("/data")
 def get_data():
     if not is_login():
-        return redirect(url_for("login"))
-    data = read_json()
+        return jsonify({"success": False, "message": "未登录"})
+    data = Config.read_json(CONFIG_PATH)
     del data["webui"]
-    data["task_plugins_config"] = task_plugins_config
-    return jsonify(data)
+    data["api_token"] = get_login_token()
+    data["task_plugins_config_default"] = task_plugins_config_default
+    return jsonify({"success": True, "data": data})
 
 
 # 更新数据
 @app.route("/update", methods=["POST"])
 def update():
+    global config_data
     if not is_login():
-        return "未登录"
-    data = request.json
-    data["webui"] = read_json()["webui"]
-    if "task_plugins_config" in data:
-        del data["task_plugins_config"]
-    write_json(data)
+        return jsonify({"success": False, "message": "未登录"})
+    dont_save_keys = ["task_plugins_config_default", "api_token"]
+    for key, value in request.json.items():
+        if key not in dont_save_keys:
+            config_data.update({key: value})
+    Config.write_json(CONFIG_PATH, config_data)
     # 重新加载任务
     if reload_tasks():
         logging.info(f">>> 配置更新成功")
-        return "配置更新成功"
+        return jsonify({"success": True, "message": "配置更新成功"})
     else:
         logging.info(f">>> 配置更新失败")
-        return "配置更新失败"
+        return jsonify({"success": False, "message": "配置更新失败"})
 
 
 # 处理运行脚本请求
-@app.route("/run_script_now", methods=["GET"])
+@app.route("/run_script_now", methods=["POST"])
 def run_script_now():
     if not is_login():
-        return "未登录"
-    task_index = request.args.get("task_index", "")
-    command = [PYTHON_PATH, "-u", SCRIPT_PATH, CONFIG_PATH, task_index]
+        return jsonify({"success": False, "message": "未登录"})
+    tasklist = request.json.get("tasklist", [])
+    command = [PYTHON_PATH, "-u", SCRIPT_PATH, CONFIG_PATH]
     logging.info(
-        f">>> 手动运行任务{int(task_index)+1 if task_index.isdigit() else 'all'}"
+        f">>> 手动运行任务 [{tasklist[0].get('taskname') if len(tasklist)>0 else 'ALL'}] 开始执行..."
     )
 
     def generate_output():
         # 设置环境变量
         process_env = os.environ.copy()
         process_env["PYTHONIOENCODING"] = "utf-8"
+        if tasklist:
+            process_env["TASKLIST"] = json.dumps(tasklist, ensure_ascii=False)
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
@@ -224,62 +221,168 @@ def run_script_now():
 @app.route("/task_suggestions")
 def get_task_suggestions():
     if not is_login():
-        return jsonify({"error": "未登录"})
-    base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
+        return jsonify({"success": False, "message": "未登录"})
     query = request.args.get("q", "").lower()
     deep = request.args.get("d", "").lower()
-    url = f"{base_url}/task_suggestions?q={query}&d={deep}"
     try:
-        response = requests.get(url)
-        return jsonify(response.json())
+        cs_data = config_data.get("source", {}).get("cloudsaver", {})
+        if (
+            cs_data.get("server")
+            and cs_data.get("username")
+            and cs_data.get("password")
+        ):
+            cs = CloudSaver(cs_data.get("server"))
+            cs.set_auth(
+                cs_data.get("username", ""),
+                cs_data.get("password", ""),
+                cs_data.get("token", ""),
+            )
+            search = cs.auto_login_search(query)
+            if search.get("success"):
+                if search.get("new_token"):
+                    cs_data["token"] = search.get("new_token")
+                    Config.write_json(CONFIG_PATH, config_data)
+                search_results = cs.clean_search_results(search.get("data"))
+                return jsonify(
+                    {"success": True, "source": "CloudSaver", "data": search_results}
+                )
+            else:
+                return jsonify({"success": True, "message": search.get("message")})
+        else:
+            base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
+            url = f"{base_url}/task_suggestions?q={query}&d={deep}"
+            response = requests.get(url)
+            return jsonify(
+                {"success": True, "source": "网络公开", "data": response.json()}
+            )
     except Exception as e:
-        return jsonify({"error": str(e)})
+        return jsonify({"success": True, "message": f"error: {str(e)}"})
 
 
-@app.route("/get_share_detail")
-def get_share_files():
+@app.route("/get_share_detail", methods=["POST"])
+def get_share_detail():
     if not is_login():
-        return jsonify({"error": "未登录"})
-    shareurl = request.args.get("shareurl", "")
+        return jsonify({"success": False, "message": "未登录"})
+    shareurl = request.json.get("shareurl", "")
+    stoken = request.json.get("stoken", "")
     account = Quark("", 0)
-    pwd_id, passcode, pdir_fid = account.get_id_from_url(shareurl)
-    is_sharing, stoken = account.get_stoken(pwd_id, passcode)
-    if not is_sharing:
-        return jsonify({"error": stoken})
-    share_detail = account.get_detail(pwd_id, stoken, pdir_fid, 1)
-    return jsonify(share_detail)
+    pwd_id, passcode, pdir_fid, paths = account.extract_url(shareurl)
+    if not stoken:
+        is_sharing, stoken = account.get_stoken(pwd_id, passcode)
+        if not is_sharing:
+            return jsonify({"success": False, "data": {"error": stoken}})
+    share_detail = account.get_detail(pwd_id, stoken, pdir_fid, _fetch_share=1)
+    share_detail["paths"] = paths
+    share_detail["stoken"] = stoken
+
+    # 正则命名预览
+    def preview_regex(share_detail):
+        regex = request.json.get("regex")
+        pattern, replace = account.magic_regex_func(
+            regex.get("pattern", ""),
+            regex.get("replace", ""),
+            regex.get("taskname", ""),
+            regex.get("magic_regex", {}),
+        )
+        
+        # 应用过滤词过滤
+        filterwords = request.json.get("regex", {}).get("filterwords", "")
+        if filterwords:
+            # 同时支持中英文逗号分隔
+            filterwords = filterwords.replace("，", ",")
+            filterwords_list = [word.strip() for word in filterwords.split(',')]
+            for item in share_detail["list"]:
+                # 被过滤的文件不会有file_name_re，与不匹配正则的文件显示一致
+                if any(word in item['file_name'] for word in filterwords_list):
+                    item["filtered"] = True
+            
+        # 应用正则命名
+        for item in share_detail["list"]:
+            # 只对未被过滤的文件应用正则命名
+            if not item.get("filtered") and re.search(pattern, item["file_name"]):
+                file_name = item["file_name"]
+                item["file_name_re"] = (
+                    re.sub(pattern, replace, file_name) if replace != "" else file_name
+                )
+        return share_detail
+
+    share_detail = preview_regex(share_detail)
+
+    return jsonify({"success": True, "data": share_detail})
 
 
-@app.route("/get_savepath")
-def get_savepath():
+@app.route("/get_savepath_detail")
+def get_savepath_detail():
     if not is_login():
-        return jsonify({"error": "未登录"})
-    data = read_json()
-    account = Quark(data["cookie"][0], 0)
+        return jsonify({"success": False, "message": "未登录"})
+    account = Quark(config_data["cookie"][0], 0)
+    paths = []
     if path := request.args.get("path"):
         if path == "/":
             fid = 0
-        elif get_fids := account.get_fids([path]):
-            fid = get_fids[0]["fid"]
         else:
-            return jsonify([])
+            dir_names = path.split("/")
+            if dir_names[0] == "":
+                dir_names.pop(0)
+            path_fids = []
+            current_path = ""
+            for dir_name in dir_names:
+                current_path += "/" + dir_name
+                path_fids.append(current_path)
+            if get_fids := account.get_fids(path_fids):
+                fid = get_fids[-1]["fid"]
+                paths = [
+                    {"fid": get_fid["fid"], "name": dir_name}
+                    for get_fid, dir_name in zip(get_fids, dir_names)
+                ]
+            else:
+                return jsonify({"success": False, "data": {"error": "获取fid失败"}})
     else:
-        fid = request.args.get("fid", 0)
-    file_list = account.ls_dir(fid)
-    return jsonify(file_list)
+        fid = request.args.get("fid", "0")
+    file_list = {
+        "list": account.ls_dir(fid),
+        "paths": paths,
+    }
+    return jsonify({"success": True, "data": file_list})
 
 
 @app.route("/delete_file", methods=["POST"])
 def delete_file():
     if not is_login():
-        return jsonify({"error": "未登录"})
-    data = read_json()
-    account = Quark(data["cookie"][0], 0)
+        return jsonify({"success": False, "message": "未登录"})
+    account = Quark(config_data["cookie"][0], 0)
     if fid := request.json.get("fid"):
         response = account.delete([fid])
     else:
-        response = {"error": "fid not found"}
+        response = {"success": False, "message": "缺失必要字段: fid"}
     return jsonify(response)
+
+
+# 添加任务接口
+@app.route("/api/add_task", methods=["POST"])
+def add_task():
+    global config_data
+    # 验证token
+    if not is_login():
+        return jsonify({"success": False, "code": 1, "message": "未登录"}), 401
+    # 必选字段
+    request_data = request.json
+    required_fields = ["taskname", "shareurl", "savepath"]
+    for field in required_fields:
+        if field not in request_data or not request_data[field]:
+            return (
+                jsonify(
+                    {"success": False, "code": 2, "message": f"缺少必要字段: {field}"}
+                ),
+                400,
+            )
+    # 添加任务
+    config_data["tasklist"].append(request_data)
+    Config.write_json(CONFIG_PATH, config_data)
+    logging.info(f">>> 通过API添加任务: {request_data['taskname']}")
+    return jsonify(
+        {"success": True, "code": 0, "message": "任务添加成功", "data": request_data}
+    )
 
 
 # 定时任务执行的函数
@@ -290,11 +393,8 @@ def run_python(args):
 
 # 重新加载任务
 def reload_tasks():
-    # 读取数据
-    data = read_json()
-    # 添加新任务
-    crontab = data.get("crontab")
-    if crontab:
+    # 读取定时规则
+    if crontab := config_data.get("crontab"):
         if scheduler.state == 1:
             scheduler.pause()  # 暂停调度器
         trigger = CronTrigger.from_crontab(crontab)
@@ -321,7 +421,7 @@ def reload_tasks():
 
 
 def init():
-    global task_plugins_config
+    global config_data, task_plugins_config_default
     logging.info(f">>> 初始化配置")
     # 检查配置文件是否存在
     if not os.path.exists(CONFIG_PATH):
@@ -329,43 +429,30 @@ def init():
             os.makedirs(os.path.dirname(CONFIG_PATH))
         with open("quark_config.json", "rb") as src, open(CONFIG_PATH, "wb") as dest:
             dest.write(src.read())
-    data = read_json()
-    Config.breaking_change_update(data)
+
+    # 读取配置
+    config_data = Config.read_json(CONFIG_PATH)
+    Config.breaking_change_update(config_data)
+
     # 默认管理账号
-    data["webui"] = {
+    config_data["webui"] = {
         "username": os.environ.get("WEBUI_USERNAME")
-        or data.get("webui", {}).get("username", "admin"),
+        or config_data.get("webui", {}).get("username", "admin"),
         "password": os.environ.get("WEBUI_PASSWORD")
-        or data.get("webui", {}).get("password", "admin123"),
+        or config_data.get("webui", {}).get("password", "admin123"),
     }
+
     # 默认定时规则
-    if not data.get("crontab"):
-        data["crontab"] = "0 8,18,20 * * *"
+    if not config_data.get("crontab"):
+        config_data["crontab"] = "0 8,18,20 * * *"
+
     # 初始化插件配置
-    _, plugins_config_default, task_plugins_config = Config.load_plugins()
-    plugins_config_default.update(data.get("plugins", {}))
-    data["plugins"] = plugins_config_default
-    write_json(data)
+    _, plugins_config_default, task_plugins_config_default = Config.load_plugins()
+    plugins_config_default.update(config_data.get("plugins", {}))
+    config_data["plugins"] = plugins_config_default
 
-
-def filter_files(files, filterwords):
-    if not filterwords:
-        return files
-    filterwords_list = [word.strip() for word in filterwords.split(',')]
-    return [file for file in files if not any(word in file['file_name'] for word in filterwords_list)]
-
-
-@app.route("/get_filtered_files")
-def get_filtered_files():
-    if not is_login():
-        return jsonify({"error": "未登录"})
-    data = read_json()
-    filterwords = request.args.get("filterwords", "")
-    account = Quark(data["cookie"][0], 0)
-    fid = request.args.get("fid", 0)
-    files = account.ls_dir(fid)
-    filtered_files = filter_files(files, filterwords)
-    return jsonify(filtered_files)
+    # 更新配置
+    Config.write_json(CONFIG_PATH, config_data)
 
 
 if __name__ == "__main__":
