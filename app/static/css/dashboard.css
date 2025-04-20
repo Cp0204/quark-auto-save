@@ -42,6 +42,7 @@ body {
 
 .title {
   margin-top: 30px;
+  margin-bottom: 10px;
 }
 
 table.jsoneditor-tree>tbody>tr.jsoneditor-expandable:first-child {
@@ -59,12 +60,13 @@ table.jsoneditor-tree>tbody>tr.jsoneditor-expandable:first-child {
 
 .task-suggestions {
   width: 100%;
-  max-height: 500px;
+  max-height: 250px;
   overflow-y: auto;
   transform: translate(0, -100%);
   top: 0;
   margin-top: -5px;
   border: 1px solid #007bff;
+  z-index: 1021;
 }
 
 /*
@@ -159,4 +161,8 @@ table.jsoneditor-tree>tbody>tr.jsoneditor-expandable:first-child {
 .form-control-dark:focus {
   border-color: transparent;
   box-shadow: 0 0 0 3px rgba(255, 255, 255, .25);
+}
+
+.cursor-pointer {
+  cursor: pointer
 }
