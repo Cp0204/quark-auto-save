@@ -278,33 +278,187 @@ def get_share_detail():
     # 正则命名预览
     def preview_regex(share_detail):
         regex = request.json.get("regex")
-        pattern, replace = account.magic_regex_func(
-            regex.get("pattern", ""),
-            regex.get("replace", ""),
-            regex.get("taskname", ""),
-            regex.get("magic_regex", {}),
-        )
-        
-        # 应用过滤词过滤
-        filterwords = request.json.get("regex", {}).get("filterwords", "")
-        if filterwords:
-            # 同时支持中英文逗号分隔
-            filterwords = filterwords.replace("，", ",")
-            filterwords_list = [word.strip() for word in filterwords.split(',')]
-            for item in share_detail["list"]:
-                # 被过滤的文件不会有file_name_re，与不匹配正则的文件显示一致
-                if any(word in item['file_name'] for word in filterwords_list):
-                    item["filtered"] = True
+        # 检查是否为顺序命名模式
+        if regex.get("use_sequence_naming") and regex.get("sequence_naming"):
+            # 顺序命名模式预览
+            sequence_pattern = regex.get("sequence_naming")
+            current_sequence = 1
             
-        # 应用正则命名
-        for item in share_detail["list"]:
-            # 只对未被过滤的文件应用正则命名
-            if not item.get("filtered") and re.search(pattern, item["file_name"]):
-                file_name = item["file_name"]
-                item["file_name_re"] = (
-                    re.sub(pattern, replace, file_name) if replace != "" else file_name
-                )
-        return share_detail
+            # 构建顺序命名的正则表达式
+            regex_pattern = re.escape(sequence_pattern).replace('\\{\\}', '(\\d+)')
+            
+            # 实现高级排序算法
+            def extract_sorting_value(file):
+                if file["dir"]:  # 跳过文件夹
+                    return float('inf')
+                
+                filename = file["file_name"]
+                
+                # 提取文件名，不含扩展名
+                file_name_without_ext = os.path.splitext(filename)[0]
+                
+                # 1. "第X期/集/话" 格式
+                match_chinese = re.search(r'第(\d+)[期集话]', filename)
+                episode_num = int(match_chinese.group(1)) if match_chinese else 0
+                
+                # 5. 文件名含"上中下"（优先处理，因为可能与其他格式同时存在）
+                if match_chinese:
+                    # 如果同时存在集数和上中下，则按照集数*10+位置排序
+                    if '上' in filename:
+                        return episode_num * 10 + 1
+                    elif '中' in filename:
+                        return episode_num * 10 + 2
+                    elif '下' in filename:
+                        return episode_num * 10 + 3
+                elif '上' in filename:
+                    return 1
+                elif '中' in filename:
+                    return 2
+                elif '下' in filename:
+                    return 3
+                
+                # 如果已经匹配到"第X期/集/话"格式，直接返回
+                if episode_num > 0:
+                    return episode_num * 10
+                
+                # 2.1 S01E01 格式，提取季数和集数
+                match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
+                if match_s_e:
+                    season = int(match_s_e.group(1))
+                    episode = int(match_s_e.group(2))
+                    return season * 1000 + episode
+                
+                # 2.2 E01 格式，仅提取集数
+                match_e = re.search(r'[Ee][Pp]?(\d+)', filename)
+                if match_e:
+                    return int(match_e.group(1))
+                
+                # 2.3 1x01 格式，提取季数和集数
+                match_x = re.search(r'(\d+)[Xx](\d+)', filename)
+                if match_x:
+                    season = int(match_x.group(1))
+                    episode = int(match_x.group(2))
+                    return season * 1000 + episode
+                
+                # 3. 日期格式识别（支持多种格式）
+                
+                # 3.1 完整的YYYYMMDD格式
+                match_date_compact = re.search(r'(20\d{2})(\d{2})(\d{2})', filename)
+                if match_date_compact:
+                    year = int(match_date_compact.group(1))
+                    month = int(match_date_compact.group(2))
+                    day = int(match_date_compact.group(3))
+                    return year * 10000 + month * 100 + day
+                
+                # 3.2 YYYY-MM-DD 或 YYYY.MM.DD 或 YYYY/MM/DD 格式
+                match_date_full = re.search(r'(20\d{2})[-./](\d{1,2})[-./](\d{1,2})', filename)
+                if match_date_full:
+                    year = int(match_date_full.group(1))
+                    month = int(match_date_full.group(2))
+                    day = int(match_date_full.group(3))
+                    return year * 10000 + month * 100 + day
+                
+                # 3.3 MM/DD/YYYY 或 DD/MM/YYYY 格式
+                match_date_alt = re.search(r'(\d{1,2})[-./](\d{1,2})[-./](20\d{2})', filename)
+                if match_date_alt:
+                    # 假设第一个是月，第二个是日（美式日期）
+                    month = int(match_date_alt.group(1))
+                    day = int(match_date_alt.group(2))
+                    year = int(match_date_alt.group(3))
+                    # 检查月份值，如果大于12可能是欧式日期格式（DD/MM/YYYY）
+                    if month > 12:
+                        month, day = day, month
+                    return year * 10000 + month * 100 + day
+                
+                # 3.4 MM/DD 格式（无年份），假设为当前年
+                match_date_short = re.search(r'(\d{1,2})[-./](\d{1,2})', filename)
+                if match_date_short:
+                    # 假设第一个是月，第二个是日
+                    month = int(match_date_short.group(1))
+                    day = int(match_date_short.group(2))
+                    # 检查月份值，如果大于12可能是欧式日期格式（DD/MM）
+                    if month > 12:
+                        month, day = day, month
+                    # 由于没有年份，使用一个较低的基数，确保任何有年份的日期都排在后面
+                    return month * 100 + day
+                
+                # 3.5 年期格式，如"2025年14期"
+                match_year_issue = re.search(r'(20\d{2})[年].*?(\d+)[期]', filename)
+                if match_year_issue:
+                    year = int(match_year_issue.group(1))
+                    issue = int(match_year_issue.group(2))
+                    return year * 1000 + issue
+                
+                # 4. 纯数字格式（文件名开头是纯数字）
+                match_num = re.match(r'^(\d+)', file_name_without_ext)
+                if match_num:
+                    return int(match_num.group(1))
+                
+                # 6. 默认使用更新时间
+                try:
+                    return file.get("last_update_at", 0)
+                except:
+                    return 0
+            
+            # 过滤出非目录文件，并且排除已经符合命名规则的文件
+            files_to_process = [
+                f for f in share_detail["list"] 
+                if not f["dir"] and not re.match(regex_pattern, f["file_name"])
+            ]
+            
+            # 根据提取的排序值进行排序
+            sorted_files = sorted(files_to_process, key=extract_sorting_value)
+            
+            # 应用过滤词过滤
+            filterwords = regex.get("filterwords", "")
+            if filterwords:
+                # 同时支持中英文逗号分隔
+                filterwords = filterwords.replace("，", ",")
+                filterwords_list = [word.strip() for word in filterwords.split(',')]
+                for item in sorted_files:
+                    # 被过滤的文件不会有file_name_re，与不匹配正则的文件显示一致
+                    if any(word in item['file_name'] for word in filterwords_list):
+                        item["filtered"] = True
+            
+            # 为每个文件分配序号
+            for file in sorted_files:
+                if not file.get("filtered"):
+                    # 获取文件扩展名
+                    file_ext = os.path.splitext(file["file_name"])[1]
+                    # 生成预览文件名
+                    file["file_name_re"] = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
+                    current_sequence += 1
+                    
+            return share_detail
+        else:
+            # 普通正则命名预览
+            pattern, replace = account.magic_regex_func(
+                regex.get("pattern", ""),
+                regex.get("replace", ""),
+                regex.get("taskname", ""),
+                regex.get("magic_regex", {}),
+            )
+            
+            # 应用过滤词过滤
+            filterwords = regex.get("filterwords", "")
+            if filterwords:
+                # 同时支持中英文逗号分隔
+                filterwords = filterwords.replace("，", ",")
+                filterwords_list = [word.strip() for word in filterwords.split(',')]
+                for item in share_detail["list"]:
+                    # 被过滤的文件不会有file_name_re，与不匹配正则的文件显示一致
+                    if any(word in item['file_name'] for word in filterwords_list):
+                        item["filtered"] = True
+                
+            # 应用正则命名
+            for item in share_detail["list"]:
+                # 只对未被过滤的文件应用正则命名
+                if not item.get("filtered") and re.search(pattern, item["file_name"]):
+                    file_name = item["file_name"]
+                    item["file_name_re"] = (
+                        re.sub(pattern, replace, file_name) if replace != "" else file_name
+                    )
+            return share_detail
 
     share_detail = preview_regex(share_detail)
 

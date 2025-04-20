@@ -323,10 +323,10 @@
                     <div class="col-sm-10">
                       <div class="input-group">
                         <div class="input-group-prepend">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.previewRegex=true;showShareSelect(index)" title="预览正则命名效果">正则命名</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.previewRegex=true;showShareSelect(index)" title="预览正则命名效果">{{ task.use_sequence_naming ? '顺序命名' : '正则命名' }}</button>
                         </div>
-                        <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex">
-                        <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
+                        <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式 (E{} 或 S01E{} 表示顺序命名模式)" list="magicRegex" @input="detectNamingMode(task)">
+                        <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式" :disabled="task.use_sequence_naming">
                         <div class="input-group-append" title="保存时只比较文件名的部分，01.mp4 和 01.mkv 视同为同一文件，不重复转存">
                           <div class="input-group-text">
                             <input type="checkbox" v-model="task.ignore_extension">&nbsp;忽略后缀
@@ -434,7 +434,7 @@
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">
-              <b v-if="fileSelect.previewRegex">正则命名预览</b>
+              <b v-if="fileSelect.previewRegex">{{ formData.tasklist[fileSelect.index].use_sequence_naming ? '顺序命名预览' : '正则命名预览' }}</b>
               <b v-else-if="fileSelect.selectDir">选择{{fileSelect.selectShare ? '需转存的' : '保存到的'}}文件夹</b>
               <b v-else>选择起始文件</b>
               <div v-if="modalLoading" class="spinner-border spinner-border-sm m-1" role="status"></div>
@@ -458,8 +458,13 @@
               </nav>
               <!-- 文件列表 -->
               <div class="mb-3" v-if="fileSelect.previewRegex">
-                <div><b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span></div>
-                <div><b>替换表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].replace"></span></div>
+                <div v-if="formData.tasklist[fileSelect.index].use_sequence_naming">
+                  <b>顺序命名模式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                </div>
+                <div v-else>
+                  <b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                  <b>替换表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].replace"></span>
+                </div>
               </div>
               <table class="table table-hover table-sm">
                 <thead>
@@ -532,7 +537,9 @@
           addition: {},
           ignore_extension: false,
           filterwords: "",
-          runweek: [1, 2, 3, 4, 5, 6, 7]
+          runweek: [1, 2, 3, 4, 5, 6, 7],
+          sequence_naming: "",
+          use_sequence_naming: false
         },
         run_log: "",
         taskDirs: [""],
@@ -594,6 +601,24 @@
           }
         });
         window.addEventListener('beforeunload', this.handleBeforeUnload);
+        
+        // 初始化时检查所有任务的命名模式
+        setTimeout(() => {
+          if (this.formData.tasklist && this.formData.tasklist.length > 0) {
+            this.formData.tasklist.forEach(task => {
+              // 检查现有的顺序命名设置
+              if (task.use_sequence_naming && task.sequence_naming) {
+                // 已经设置过顺序命名的，将顺序命名模式转换为匹配表达式
+                if (!task.pattern || task._pattern_backup) {
+                  task.pattern = task.sequence_naming;
+                }
+              } else {
+                // 检测是否包含顺序命名模式
+                this.detectNamingMode(task);
+              }
+            });
+          }
+        }, 500);
       },
       beforeDestroy() {
         window.removeEventListener('beforeunload', this.handleBeforeUnload);
@@ -680,6 +705,16 @@
           }
         },
         saveConfig() {
+          // 保存前处理每个任务的命名模式
+          if (this.formData.tasklist && this.formData.tasklist.length > 0) {
+            this.formData.tasklist.forEach(task => {
+              // 如果是顺序命名模式，确保sequence_naming字段已正确设置
+              if (task.use_sequence_naming && task.pattern && task.pattern.includes('{}')) {
+                task.sequence_naming = task.pattern;
+              }
+            });
+          }
+          
           axios.post('/update', this.formData)
             .then(response => {
               if (response.data.success) {
@@ -725,7 +760,18 @@
               }
             }
           }
+          
+          // 初始化新任务的命名模式相关字段
+          if (newTask.taskname) {
+            // 默认使用正则命名模式
+            newTask.pattern = ".*";  // 默认匹配所有文件
+            newTask.replace = "";    // 默认保持原文件名
+            newTask.use_sequence_naming = false;
+            newTask.sequence_naming = "";
+          }
+          
           this.formData.tasklist.push(newTask);
+          
           // 滚到最下
           setTimeout(() => {
             $('#collapse_' + (this.formData.tasklist.length - 1)).collapse('show').on('shown.bs.collapse', () => {
@@ -1007,6 +1053,8 @@
               taskname: this.formData.tasklist[this.fileSelect.index].taskname,
               filterwords: this.formData.tasklist[this.fileSelect.index].filterwords,
               magic_regex: this.formData.magic_regex,
+              use_sequence_naming: this.formData.tasklist[this.fileSelect.index].use_sequence_naming,
+              sequence_naming: this.formData.tasklist[this.fileSelect.index].sequence_naming
             }
           }).then(response => {
             if (response.data.success) {
@@ -1082,6 +1130,74 @@
             shareurl = `${shareurl}#/list/share/${path.fid}-${path.name}`
           }
           return shareurl;
+        },
+        detectNamingMode(task) {
+          // 检测是否为顺序命名模式
+          const sequencePatterns = ['E{}', 'EP{}', 'S\\d+E{}', '第{}集', '第{}话', '第{}期'];
+          let isSequenceNaming = false;
+          
+          // 保存当前值以支持撤销操作
+          const currentValue = task.pattern;
+          
+          if (task.pattern) {
+            // 检查是否包含任何顺序命名模式
+            isSequenceNaming = sequencePatterns.some(pattern => {
+              const regexPattern = pattern.replace('{}', '\\{\\}');
+              return new RegExp(regexPattern).test(task.pattern);
+            });
+            
+            // 或者用户直接输入包含{}的格式，且替换表达式为空
+            if (!isSequenceNaming && task.pattern.includes('{}') && (!task.replace || task.replace === '')) {
+              isSequenceNaming = true;
+            }
+          }
+          
+          // 处理模式切换
+          if (isSequenceNaming) {
+            // 如果当前不是顺序命名模式，则保存现有的正则表达式
+            if (!task.use_sequence_naming) {
+              task._pattern_backup = task.pattern;
+              task._replace_backup = task.replace;
+              task.use_sequence_naming = true;
+            }
+            // 设置序列命名模式
+            task.sequence_naming = task.pattern;
+          } else {
+            // 如果当前是顺序命名模式，但现在检测不到顺序命名模式
+            if (task.use_sequence_naming) {
+              // 如果用户正在删除内容（当前值为空或比上一次更短）
+              if (!currentValue || (task._lastPatternValue && currentValue.length < task._lastPatternValue.length)) {
+                // 保持当前编辑状态，不切换模式
+                task.sequence_naming = currentValue;
+                // 只有当完全删除后才切换回正则模式
+                if (!currentValue) {
+                  task.use_sequence_naming = false;
+                  if (task._pattern_backup) {
+                    task.pattern = "";
+                    task.replace = task._replace_backup || "";
+                  }
+                  task.sequence_naming = null;
+                }
+              } else if (task._pattern_backup && !task.pattern.includes('{}')) {
+                // 正常切换回正则命名模式（非删除操作）
+                task.use_sequence_naming = false;
+                task.pattern = task._pattern_backup;
+                task.replace = task._replace_backup;
+                task._sequence_backup = task.sequence_naming;
+                task.sequence_naming = null;
+              } else if (!task._pattern_backup && !task.pattern.includes('{}')) {
+                // 没有备份，但需要切换回正则模式
+                task.use_sequence_naming = false;
+                task.sequence_naming = null;
+              }
+            }
+          }
+          
+          // 保存当前值，用于下次比较
+          task._lastPatternValue = currentValue;
+          
+          // 强制Vue更新视图
+          this.$forceUpdate();
         }
       }
     });
