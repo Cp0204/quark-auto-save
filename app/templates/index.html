@@ -459,7 +459,7 @@
               <!-- 文件列表 -->
               <div class="mb-3" v-if="fileSelect.previewRegex">
                 <div v-if="formData.tasklist[fileSelect.index].use_sequence_naming">
-                  <b>顺序命名模式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                  <b>顺序命名格式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
                 </div>
                 <div v-else>
                   <b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
@@ -470,7 +470,7 @@
                 <thead>
                   <tr>
                     <th scope="col">文件名</th>
-                    <th scope="col" v-if="fileSelect.selectShare">正则命名</th>
+                    <th scope="col" v-if="fileSelect.selectShare">{{ fileSelect.index !== null && formData.tasklist[fileSelect.index] && formData.tasklist[fileSelect.index].use_sequence_naming ? '顺序命名' : '正则命名' }}</th>
                     <template v-if="!fileSelect.previewRegex">
                       <th scope="col">大小</th>
                       <th scope="col">修改日期 ↓</th>
