@@ -298,7 +298,7 @@
                       <div class="input-group">
                         <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @blur="changeShareurl(task)">
                         <div class="input-group-append" v-if="task.shareurl">
-                          <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;showShareSelect(index)" title="选择文件夹"><i class="bi bi-folder"></i></button>
+                          <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;fileSelect.previewRegex=false;showShareSelect(index)" title="选择文件夹"><i class="bi bi-folder"></i></button>
                           <div class="input-group-text">
                             <a target="_blank" :href="task.shareurl"><i class="bi bi-box-arrow-up-right"></i></a>
                           </div>
@@ -323,7 +323,7 @@
                     <div class="col-sm-10">
                       <div class="input-group">
                         <div class="input-group-prepend">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true; showShareSelect(index)" title="预览正则处理效果">正则处理</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.previewRegex=true;showShareSelect(index)" title="预览正则处理效果">正则处理</button>
                         </div>
                         <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex">
                         <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
@@ -344,7 +344,7 @@
                       <div class="input-group">
                         <input type="text" class="form-control" placeholder="可选，只转存修改日期>此文件的文件" name="startfid[]" v-model="task.startfid">
                         <div class="input-group-append" v-if="task.shareurl">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false; showShareSelect(index)">选择</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.previewRegex=false;showShareSelect(index)">选择</button>
                         </div>
                       </div>
                     </div>
@@ -424,8 +424,9 @@
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">
-              <b v-if="fileSelect.selectDir">选择{{fileSelect.selectShare ? '分享' : '保存'}}文件夹</b>
-              <b v-else>选择文件</b>
+              <b v-if="fileSelect.previewRegex">正则处理预览</b>
+              <b v-else-if="fileSelect.selectDir">选择{{fileSelect.selectShare ? '需转存的' : '保存到的'}}文件夹</b>
+              <b v-else>选择起始文件</b>
               <div v-if="modalLoading" class="spinner-border spinner-border-sm m-1" role="status"></div>
             </h5>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -446,32 +447,41 @@
                 </ol>
               </nav>
               <!-- 文件列表 -->
+              <div class="mb-3" v-if="fileSelect.previewRegex">
+                <div><b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span></div>
+                <div><b>替换表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].replace"></span></div>
+              </div>
               <table class="table table-hover table-sm">
                 <thead>
                   <tr>
                     <th scope="col">文件名</th>
                     <th scope="col" v-if="fileSelect.selectShare">正则处理</th>
-                    <th scope="col">大小</th>
-                    <th scope="col">修改日期 ↓</th>
-                    <th scope="col" v-if="!fileSelect.selectShare">操作</th>
+                    <template v-if="!fileSelect.previewRegex">
+                      <th scope="col">大小</th>
+                      <th scope="col">修改日期 ↓</th>
+                      <th scope="col" v-if="!fileSelect.selectShare">操作</th>
+                    </template>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(file, key) in fileSelect.fileList" :key="key" @click="fileSelect.selectDir ? (file.dir ? navigateTo(file.fid, file.file_name) : null) : selectStartFid(file.fid)" :class="{'cursor-pointer': fileSelect.selectDir ? file.dir : true}">
                     <td><i class="bi" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i> {{file.file_name}}</td>
-                    <td v-if="fileSelect.selectShare" :class="file.file_name_re ? 'text-success' : 'text-danger'">{{file.file_name_re || 'x'}}</td>
-                    <td v-if="file.dir">{{ file.include_items }}项</td>
-                    <td v-else>{{file.size | size}}</td>
-                    <td>{{file.updated_at | ts2date}}</td>
-                    <td v-if="!fileSelect.selectShare"><a @click.stop.prevent="deleteFile(file.fid, file.file_name, file.dir)">删除</a></td>
+                    <td v-if="fileSelect.selectShare" :class="file.file_name_re ? 'text-success' : 'text-danger'">{{file.file_name_re || '&times;'}}</td>
+                    <template v-if="!fileSelect.previewRegex">
+                      <td v-if="file.dir">{{ file.include_items }}项</td>
+                      <td v-else>{{file.size | size}}</td>
+                      <td>{{file.updated_at | ts2date}}</td>
+                      <td v-if="!fileSelect.selectShare"><a @click.stop.prevent="deleteFile(file.fid, file.file_name, file.dir)">删除</a></td>
+                    </template>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
-          <div class="modal-footer" v-if="fileSelect.selectDir">
-            <button type="button" class="btn btn-primary btn-sm" @click="selectCurrentFolder()">选择当前文件夹</button>
-            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare" @click="selectCurrentFolder(true)">选择当前文件夹+/任务名称</button>
+          <div class="modal-footer" v-if="fileSelect.selectDir && !fileSelect.previewRegex">
+            <span v-html="fileSelect.selectShare ? '转存：' : '保存到：'"></span>
+            <button type="button" class="btn btn-primary btn-sm" @click="selectCurrentFolder()">当前文件夹</button>
+            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare" @click="selectCurrentFolder(true)">当前文件夹<span class="badge badge-light" v-html="'/'+formData.tasklist[fileSelect.index].taskname"></span></button>
           </div>
         </div>
       </div>
@@ -537,6 +547,7 @@
           paths: [],
           selectDir: true,
           selectShare: true,
+          previewRegex: false,
         },
       },
       filters: {
@@ -966,6 +977,7 @@
         showSavepathSelect(index) {
           this.fileSelect.selectShare = false;
           this.fileSelect.selectDir = true;
+          this.fileSelect.previewRegex = false;
           this.fileSelect.error = undefined;
           this.fileSelect.fileList = [];
           this.fileSelect.paths = [];
