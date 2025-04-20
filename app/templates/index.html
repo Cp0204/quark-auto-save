@@ -255,19 +255,25 @@
                     </div>
                   </div>
                   <div class="form-group row">
-                    <label class="col-sm-2 col-form-label">保存规则</label>
+                    <label class="col-sm-2 col-form-label">命名方式</label>
                     <div class="col-sm-10">
-                      <div class="input-group">
+                      <div class="input-group mb-3">
                         <div class="input-group-prepend">
-                          <span class="input-group-text">正则处理</span>
+                          <button type="button" class="btn" :class="!task.use_sequence_naming ? 'btn-primary' : 'input-group-text'" @click="toggleNamingMode(task, false)">正则命名</button>
                         </div>
-                        <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex">
-                        <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
+                        <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex" :disabled="task.use_sequence_naming">
+                        <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式" :disabled="task.use_sequence_naming">
                         <div class="input-group-append">
                           <div class="input-group-text">
                             <input type="checkbox" title="忽略后缀" v-model="task.ignore_extension">&nbsp;忽略后缀
                           </div>
                         </div>
+                      </div>
+                      <div class="input-group">
+                        <div class="input-group-prepend">
+                          <button type="button" class="btn" :class="task.use_sequence_naming ? 'btn-primary' : 'input-group-text'" @click="toggleNamingMode(task, true)">顺序命名</button>
+                        </div>
+                        <input type="text" class="form-control" v-model="task.sequence_naming" :placeholder='`例如: 雁回时 - S01E{}，{}将被替换为序号，支持识别第X期/集/话、SXXEXX、纯数字序号、日期等格式排序`' :disabled="!task.use_sequence_naming">
                       </div>
                       <datalist id="magicRegex">
                         <option v-for="(value, key) in formData.magic_regex" :key="key" :value="`${key}`" v-html="`${value.pattern.replace('<', '<\u200B')} → ${value.replace}`"></option>
@@ -279,10 +285,7 @@
                     <label class="col-sm-2 col-form-label">过滤规则</label>
                     <div class="col-sm-10">
                       <div class="input-group">
-                        <div class="input-group-prepend">
-                          <span class="input-group-text">过滤词汇</span>
-                        </div>
-                        <input type="text" name="filterwords[]" class="form-control" v-model="task.filterwords" placeholder="输入过滤词汇，用逗号分隔，例如：纯享,加更,超前企划">
+                        <input type="text" name="filterwords[]" class="form-control" v-model="task.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，例如：纯享,加更,超前企划，名称包含过滤词汇的项目不会被转存">
                       </div>
                     </div>
                   </div>
@@ -435,6 +438,8 @@
           addition: {},
           ignore_extension: false,
           filterwords: "",
+          sequence_naming: "",
+          use_sequence_naming: false,
           runweek: [1, 2, 3, 4, 5, 6, 7]
         },
         run_log: "",
@@ -471,6 +476,17 @@
         }
       },
       watch: {
+        'task.use_sequence_naming': function(newVal, oldVal) {
+          if (newVal) {
+            if (!this.task.sequence_naming) {
+              this.task.sequence_naming = this.task.taskname + " - E{}";
+            }
+            this.task.pattern_disabled = true;
+          } else {
+            this.task.sequence_naming = null;
+            this.task.pattern_disabled = false;
+          }
+        }
       },
       mounted() {
         this.fetchData();
@@ -790,6 +806,32 @@
           task.shareurl = suggestion.shareurl;
           this.changeShareurl(task);
           this.smart_param.showSuggestions = false;
+        },
+        toggleNamingMode(task, use_sequence_naming) {
+          // 设置命名模式
+          task.use_sequence_naming = use_sequence_naming;
+          
+          if (use_sequence_naming) {
+            // 启用顺序命名
+            if (!task.sequence_naming) {
+              task.sequence_naming = task.taskname ? (task.taskname + " - E{}") : "E{}";
+            }
+            // 禁用正则匹配
+            task._pattern_backup = task.pattern;
+            task._replace_backup = task.replace;
+            task.pattern = "";
+            task.replace = "";
+          } else {
+            // 禁用顺序命名
+            task._sequence_backup = task.sequence_naming;
+            // 恢复正则匹配
+            if (task._pattern_backup) {
+              task.pattern = task._pattern_backup;
+              task.replace = task._replace_backup;
+            }
+          }
+          // 强制Vue更新视图
+          this.$forceUpdate();
         },
       }
     });
