@@ -24,6 +24,7 @@ import logging
 import base64
 import sys
 import os
+import re
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
@@ -258,12 +259,12 @@ def get_task_suggestions():
         return jsonify({"success": True, "message": f"error: {str(e)}"})
 
 
-@app.route("/get_share_detail")
+@app.route("/get_share_detail", methods=["POST"])
 def get_share_detail():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
-    shareurl = request.args.get("shareurl", "")
-    stoken = request.args.get("stoken", "")
+    shareurl = request.json.get("shareurl", "")
+    stoken = request.json.get("stoken", "")
     account = Quark("", 0)
     pwd_id, passcode, pdir_fid, paths = account.extract_url(shareurl)
     if not stoken:
@@ -273,6 +274,24 @@ def get_share_detail():
     share_detail = account.get_detail(pwd_id, stoken, pdir_fid, _fetch_share=1)
     share_detail["paths"] = paths
     share_detail["stoken"] = stoken
+
+    # 正则处理预览
+    def preview_regex(share_detail):
+        regex = request.json.get("regex")
+        pattern, replace = account.magic_regex_func(
+            regex.get("pattern", ""),
+            regex.get("replace", ""),
+            regex.get("taskname", ""),
+        )
+        for item in share_detail["list"]:
+            file_name = item["file_name"]
+            if re.search(pattern, item["file_name"]):
+                item["file_name_re"] = (
+                    re.sub(pattern, replace, file_name) if replace != "" else file_name
+                )
+        return share_detail
+
+    share_detail = preview_regex(share_detail)
 
     return jsonify({"success": True, "data": share_detail})
 

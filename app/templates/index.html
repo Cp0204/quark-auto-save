@@ -298,7 +298,7 @@
                       <div class="input-group">
                         <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @blur="changeShareurl(task)">
                         <div class="input-group-append" v-if="task.shareurl">
-                          <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;showFolderSelect(index)" title="选择文件夹"><i class="bi bi-folder"></i></button>
+                          <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;showShareSelect(index)" title="选择文件夹"><i class="bi bi-folder"></i></button>
                           <div class="input-group-text">
                             <a target="_blank" :href="task.shareurl"><i class="bi bi-box-arrow-up-right"></i></a>
                           </div>
@@ -323,7 +323,7 @@
                     <div class="col-sm-10">
                       <div class="input-group">
                         <div class="input-group-prepend">
-                          <span class="input-group-text">正则处理</span>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true; showShareSelect(index)" title="预览正则处理效果">正则处理</button>
                         </div>
                         <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex">
                         <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
@@ -344,7 +344,7 @@
                       <div class="input-group">
                         <input type="text" class="form-control" placeholder="可选，只转存修改日期>此文件的文件" name="startfid[]" v-model="task.startfid">
                         <div class="input-group-append" v-if="task.shareurl">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false; showFolderSelect(index)">选择</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false; showShareSelect(index)">选择</button>
                         </div>
                       </div>
                     </div>
@@ -450,14 +450,16 @@
                 <thead>
                   <tr>
                     <th scope="col">文件名</th>
+                    <th scope="col" v-if="fileSelect.selectShare">正则处理</th>
                     <th scope="col">大小</th>
                     <th scope="col">修改日期 ↓</th>
                     <th scope="col" v-if="!fileSelect.selectShare">操作</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(file, key) in fileSelect.fileList" :key="key" @click="fileSelect.selectDir ? (file.dir ? navigateTo(file.fid, file.file_name) : null) : selectStartFid(file.fid)" :class="{'cursor-pointer': (fileSelect.selectDir && file.dir)}">
+                  <tr v-for="(file, key) in fileSelect.fileList" :key="key" @click="fileSelect.selectDir ? (file.dir ? navigateTo(file.fid, file.file_name) : null) : selectStartFid(file.fid)" :class="{'cursor-pointer': fileSelect.selectDir ? file.dir : true}">
                     <td><i class="bi" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i> {{file.file_name}}</td>
+                    <td v-if="fileSelect.selectShare" :class="file.file_name_re ? 'text-success' : 'text-danger'">{{file.file_name_re || 'x'}}</td>
                     <td v-if="file.dir">{{ file.include_items }}项</td>
                     <td v-else>{{file.size | size}}</td>
                     <td>{{file.updated_at | ts2date}}</td>
@@ -905,7 +907,7 @@
         },
         selectSuggestion(index, suggestion) {
           this.smart_param.showSuggestions = false;
-          this.showFolderSelect(index, suggestion.shareurl);
+          this.showShareSelect(index, suggestion.shareurl);
         },
         addMagicRegex() {
           const newKey = `$MAGIC_${Object.keys(this.formData.magic_regex).length + 1}`;
@@ -957,7 +959,7 @@
             this.modalLoading = false;
           }).catch(error => {
             console.error('Error /get_savepath_detail:', error);
-            this.fileSelect = { error: "获取文件夹列表失败" };
+            this.fileSelect.error = "获取文件夹列表失败";
             this.modalLoading = false;
           });
         },
@@ -973,10 +975,13 @@
         },
         getShareDetail() {
           this.modalLoading = true;
-          axios.get('/get_share_detail', {
-            params: {
-              shareurl: this.fileSelect.shareurl,
-              stoken: this.fileSelect.stoken
+          axios.post('/get_share_detail', {
+            shareurl: this.fileSelect.shareurl,
+            stoken: this.fileSelect.stoken,
+            regex: {
+              pattern: this.formData.tasklist[this.fileSelect.index].pattern,
+              replace: this.formData.tasklist[this.fileSelect.index].replace,
+              taskname: this.formData.tasklist[this.fileSelect.index].taskname
             }
           }).then(response => {
             if (response.data.success) {
@@ -989,11 +994,11 @@
             this.modalLoading = false;
           }).catch(error => {
             console.error('Error getting folders:', error);
-            this.fileSelect = { error: "获取文件夹列表失败" };
+            this.fileSelect.error = "获取文件夹列表失败";
             this.modalLoading = false;
           });
         },
-        showFolderSelect(index, shareurl = "") {
+        showShareSelect(index, shareurl = null) {
           this.fileSelect.selectShare = true;
           this.fileSelect.fileList = [];
           this.fileSelect.paths = [];
