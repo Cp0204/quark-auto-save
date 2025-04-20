@@ -521,8 +521,8 @@ class Quark:
     # ↓ 操作函数
 
     # 魔法正则匹配
-    def magic_regex_func(self, pattern, replace, taskname=None):
-        magic_regex = CONFIG_DATA.get("magic_regex") or MAGIC_REGEX or {}
+    def magic_regex_func(self, pattern, replace, taskname=None, magic_regex={}):
+        magic_regex = magic_regex or CONFIG_DATA.get("magic_regex") or MAGIC_REGEX
         keyword = pattern
         if keyword in magic_regex:
             pattern = magic_regex[keyword]["pattern"]

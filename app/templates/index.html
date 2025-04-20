@@ -993,7 +993,8 @@
             regex: {
               pattern: this.formData.tasklist[this.fileSelect.index].pattern,
               replace: this.formData.tasklist[this.fileSelect.index].replace,
-              taskname: this.formData.tasklist[this.fileSelect.index].taskname
+              taskname: this.formData.tasklist[this.fileSelect.index].taskname,
+              magic_regex: this.formData.magic_regex,
             }
           }).then(response => {
             if (response.data.success) {
