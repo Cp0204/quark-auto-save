@@ -171,6 +171,23 @@
               </div>
             </div>
 
+            <!-- 剧集识别模块 -->
+            <div class="row title" title="识别文件名中的剧集编号，用于自动重命名">
+              <div class="col-10">
+                <h2 style="display: inline-block;"><i class="bi bi-list-ol"></i> 剧集识别</h2>
+                <span class="badge badge-pill badge-light">
+                  <a href="#" target="_blank" @click.prevent="alert('剧集识别说明：\n在任务配置中填写包含E[]的匹配表达式，如「剧名 - S01E[]」，将自动切换至剧集命名模式，自动识别文件名中的编号作为集编号，并替换[]部分。\n\n集编号匹配规则：\n用于识别集编号的正则表达式，多个表达式之间用竖线「|」分隔，每个表达式必须包含一个捕获组，用于提取剧集编号')">?</a>
+                </span>
+              </div>
+            </div>
+            <div class="form-group">
+              <div class="input-group">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">集编号识别规则</span>
+                </div>
+                <input type="text" class="form-control" v-model="episodePatternsText" placeholder="多个正则表达式用竖线「|」分隔，如：(\\d+)|[Ee](\\d+)|第(\\d+)集">
+              </div>
+            </div>
 
             <div class="row title" title="API接口，用以第三方添加任务等操作，见Wiki">
               <div class="col-10">
@@ -318,15 +335,17 @@
                       </div>
                     </div>
                   </div>
-                  <div class="form-group row" :title="task.use_sequence_naming ? '输入带{}占位符的重命名格式，如剧名 - S01E{}、剧名.S03E{}等，{}将被替换为集序号，目录中的文件夹会被自动过滤' : '可用作筛选，只转存匹配到的文件名的文件，留空则转存所有文件'">
+                  <div class="form-group row" :title="task.use_sequence_naming || task.use_episode_naming ? (task.use_sequence_naming ? '输入带{}占位符的重命名格式，如剧名 - S01E{}、剧名.S03E{}等，{}将被替换为集序号（按文件名和上传时间智能排序），目录中的文件夹会被自动过滤' : '输入带[]占位符的重命名格式，如剧名 - S01E[]、剧名.S03E[]等，[]将被替换为从文件名中提取的集编号，目录中的文件夹会被自动过滤') : '可用作筛选，只转存匹配到的文件名的文件，留空则转存所有文件'">
                     <label class="col-sm-2 col-form-label">保存规则</label>
                     <div class="col-sm-10">
                       <div class="input-group">
                         <div class="input-group-prepend">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.previewRegex=true;showShareSelect(index)" title="预览正则命名效果">{{ task.use_sequence_naming ? '顺序命名' : '正则命名' }}</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.previewRegex=true;showShareSelect(index)" title="预览正则命名效果">
+                            {{ task.use_sequence_naming ? '顺序命名' : (task.use_episode_naming ? '剧集命名' : '正则命名') }}
+                          </button>
                         </div>
-                        <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" :placeholder="task.use_sequence_naming ? '输入带{}占位符的重命名格式，如剧名 - S01E{}' : '匹配表达式'"  list="magicRegex" @input="detectNamingMode(task)">
-                        <input v-if="!task.use_sequence_naming" type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
+                        <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" :placeholder="task.use_sequence_naming ? '输入带{}占位符的重命名格式，如剧名 - S01E{}' : (task.use_episode_naming ? '输入带[]占位符的重命名格式，如剧名 - S01E[]' : '匹配表达式')"  list="magicRegex" @input="detectNamingMode(task)">
+                        <input v-if="!task.use_sequence_naming && !task.use_episode_naming" type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
                         <input v-else type="text" class="form-control" disabled value="" style="background-color: #e9ecef;">
                         <div class="input-group-append" title="保存时只比较文件名的部分，01.mp4 和 01.mkv 视同为同一文件，不重复转存">
                           <div class="input-group-text">
@@ -435,7 +454,7 @@
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">
-              <b v-if="fileSelect.previewRegex">{{ formData.tasklist[fileSelect.index].use_sequence_naming ? '顺序命名预览' : '正则命名预览' }}</b>
+              <b v-if="fileSelect.previewRegex">{{ formData.tasklist[fileSelect.index].use_sequence_naming ? '顺序命名预览' : (formData.tasklist[fileSelect.index].use_episode_naming ? '剧集命名预览' : '正则命名预览') }}</b>
               <b v-else-if="fileSelect.selectDir">选择{{fileSelect.selectShare ? '需转存的' : '保存到的'}}文件夹</b>
               <b v-else>选择起始文件</b>
               <div v-if="modalLoading" class="spinner-border spinner-border-sm m-1" role="status"></div>
@@ -462,6 +481,9 @@
                 <div v-if="formData.tasklist[fileSelect.index].use_sequence_naming">
                   <b>顺序命名格式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
                 </div>
+                <div v-else-if="formData.tasklist[fileSelect.index].use_episode_naming">
+                  <b>剧集命名格式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                </div>
                 <div v-else>
                   <b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
                   <b>替换表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].replace"></span>
@@ -471,7 +493,9 @@
                 <thead>
                   <tr>
                     <th scope="col">文件名</th>
-                    <th scope="col" v-if="fileSelect.selectShare">{{ fileSelect.index !== null && formData.tasklist[fileSelect.index] && formData.tasklist[fileSelect.index].use_sequence_naming ? '顺序命名' : '正则命名' }}</th>
+                    <th scope="col" v-if="fileSelect.selectShare">{{ fileSelect.index !== null && formData.tasklist[fileSelect.index] ? 
+                      (formData.tasklist[fileSelect.index].use_sequence_naming ? '顺序命名' : 
+                      (formData.tasklist[fileSelect.index].use_episode_naming ? '剧集命名' : '正则命名')) : '重命名' }}</th>
                     <template v-if="!fileSelect.previewRegex">
                       <th scope="col">大小</th>
                       <th scope="col">修改日期 ↓</th>
@@ -519,6 +543,7 @@
           media_servers: {},
           tasklist: [],
           magic_regex: {},
+          episode_patterns: [],
           source: {
             cloudsaver: {
               server: "",
@@ -540,7 +565,9 @@
           filterwords: "",
           runweek: [1, 2, 3, 4, 5, 6, 7],
           sequence_naming: "",
-          use_sequence_naming: false
+          use_sequence_naming: false,
+          episode_naming: "",
+          use_episode_naming: false
         },
         run_log: "",
         taskDirs: [""],
@@ -556,7 +583,7 @@
           isSearching: false,
           searchTimer: null,
         },
-        activeTab: 'tasklist',
+        activeTab: 'config',
         configModified: false,
         fileSelect: {
           index: null,
@@ -568,6 +595,21 @@
           selectShare: true,
           previewRegex: false,
         },
+      },
+      computed: {
+        episodePatternsText: {
+          get() {
+            if (!this.formData.episode_patterns) return '';
+            return this.formData.episode_patterns.map(p => p.regex || '').join('|');
+          },
+          set(value) {
+            // 将文本拆分为竖线分隔的表达式，每个创建一个正则对象
+            const patterns = value.split('|').filter(pattern => pattern.trim() !== '');
+            this.formData.episode_patterns = patterns.map(pattern => ({
+              regex: pattern.trim()
+            }));
+          }
+        }
       },
       filters: {
         ts2date: function (value) {
@@ -613,11 +655,35 @@
                 if (!task.pattern || task._pattern_backup) {
                   task.pattern = task.sequence_naming;
                 }
+              } else if (task.use_episode_naming && task.episode_naming) {
+                // 已经设置过剧集命名的，将剧集命名模式转换为匹配表达式
+                if (!task.pattern || task._pattern_backup) {
+                  task.pattern = task.episode_naming;
+                }
               } else {
-                // 检测是否包含顺序命名模式
+                // 检测是否包含顺序命名或剧集命名模式
                 this.detectNamingMode(task);
               }
             });
+          }
+          
+          // 如果没有剧集识别模式，添加默认模式
+          if (!this.formData.episode_patterns || this.formData.episode_patterns.length === 0) {
+            this.formData.episode_patterns = [
+              { name: 'EP_BASIC', description: '[]', regex: '(\\d+)' },
+              { name: 'EP_4K', description: '[]-4K', regex: '(\\d+)[-_\\s]*4[Kk]' },
+              { name: 'EP_HUA', description: '[]话', regex: '(\\d+)话' },
+              { name: 'EP_E', description: 'E[]', regex: '[Ee](\\d+)' },
+              { name: 'EP_EP', description: 'EP[]', regex: '[Ee][Pp](\\d+)' },
+              { name: 'EP_DIHUA', description: '第[]话', regex: '第(\\d+)话' },
+              { name: 'EP_DIJI', description: '第[]集', regex: '第(\\d+)集' },
+              { name: 'EP_DIQI', description: '第[]期', regex: '第(\\d+)期' },
+              { name: 'EP_4KSPACE', description: '[] 4K', regex: '(\\d+)\\s+4[Kk]' },
+              { name: 'EP_4KUNDER', description: '[]_4K', regex: '(\\d+)[_\\s]4[Kk]' },
+              { name: 'EP_BRACKET', description: '【[]】', regex: '【(\\d+)】' },
+              { name: 'EP_SQUAREBRACKET', description: '方括号数字', regex: '\\[(\\d+)\\]' },
+              { name: 'EP_UNDERSCORE', description: '_[]_', regex: '_?(\\d+)_' }
+            ];
           }
         }, 500);
       },
@@ -678,6 +744,10 @@
                   token: ""
                 };
               }
+              // 确保剧集识别模式存在
+              if (!config_data.episode_patterns) {
+                config_data.episode_patterns = [];
+              }
               this.formData = config_data;
               setTimeout(() => {
                 this.configModified = false;
@@ -712,6 +782,10 @@
               // 如果是顺序命名模式，确保sequence_naming字段已正确设置
               if (task.use_sequence_naming && task.pattern && task.pattern.includes('{}')) {
                 task.sequence_naming = task.pattern;
+              }
+              // 如果是剧集命名模式，确保episode_naming字段已正确设置
+              if (task.use_episode_naming && task.pattern && task.pattern.includes('[]')) {
+                task.episode_naming = task.pattern;
               }
             });
           }
@@ -1055,7 +1129,10 @@
               filterwords: this.formData.tasklist[this.fileSelect.index].filterwords,
               magic_regex: this.formData.magic_regex,
               use_sequence_naming: this.formData.tasklist[this.fileSelect.index].use_sequence_naming,
-              sequence_naming: this.formData.tasklist[this.fileSelect.index].sequence_naming
+              sequence_naming: this.formData.tasklist[this.fileSelect.index].sequence_naming,
+              use_episode_naming: this.formData.tasklist[this.fileSelect.index].use_episode_naming,
+              episode_naming: this.formData.tasklist[this.fileSelect.index].episode_naming,
+              episode_patterns: this.formData.episode_patterns
             }
           }).then(response => {
             if (response.data.success) {
@@ -1133,9 +1210,12 @@
           return shareurl;
         },
         detectNamingMode(task) {
-          // 检测是否为顺序命名模式
+          // 检测是否为顺序命名模式或剧集命名模式
           const sequencePatterns = ['E{}', 'EP{}', 'S\\d+E{}', '第{}集', '第{}话', '第{}期'];
+          const episodePatterns = ['E[]', 'EP[]', 'S\\d+E[]', '第[]集', '第[]话', '第[]期', '[]'];
+          
           let isSequenceNaming = false;
+          let isEpisodeNaming = false;
           
           // 保存当前值以支持撤销操作
           const currentValue = task.pattern;
@@ -1151,6 +1231,19 @@
             if (!isSequenceNaming && task.pattern.includes('{}') && (!task.replace || task.replace === '')) {
               isSequenceNaming = true;
             }
+            
+            // 检查是否包含任何剧集命名模式
+            if (!isSequenceNaming) {
+              isEpisodeNaming = episodePatterns.some(pattern => {
+                const regexPattern = pattern.replace('[]', '\\[\\]');
+                return new RegExp(regexPattern).test(task.pattern);
+              });
+              
+              // 或者用户直接输入包含[]的格式，且替换表达式为空
+              if (!isEpisodeNaming && task.pattern.includes('[]') && (!task.replace || task.replace === '')) {
+                isEpisodeNaming = true;
+              }
+            }
           }
           
           // 处理模式切换
@@ -1160,36 +1253,62 @@
               task._pattern_backup = task.pattern;
               task._replace_backup = task.replace;
               task.use_sequence_naming = true;
+              task.use_episode_naming = false;
             }
             // 设置序列命名模式
             task.sequence_naming = task.pattern;
+          } else if (isEpisodeNaming) {
+            // 如果当前不是剧集命名模式，则保存现有的正则表达式
+            if (!task.use_episode_naming) {
+              task._pattern_backup = task.pattern;
+              task._replace_backup = task.replace;
+              task.use_episode_naming = true;
+              task.use_sequence_naming = false;
+            }
+            // 设置剧集命名模式
+            task.episode_naming = task.pattern;
           } else {
-            // 如果当前是顺序命名模式，但现在检测不到顺序命名模式
-            if (task.use_sequence_naming) {
+            // 如果当前是顺序命名模式或剧集命名模式，但现在检测不到相应的命名模式
+            if (task.use_sequence_naming || task.use_episode_naming) {
               // 如果用户正在删除内容（当前值为空或比上一次更短）
               if (!currentValue || (task._lastPatternValue && currentValue.length < task._lastPatternValue.length)) {
                 // 保持当前编辑状态，不切换模式
-                task.sequence_naming = currentValue;
+                if (task.use_sequence_naming) {
+                  task.sequence_naming = currentValue;
+                } else if (task.use_episode_naming) {
+                  task.episode_naming = currentValue;
+                }
+                
                 // 只有当完全删除后才切换回正则模式
                 if (!currentValue) {
                   task.use_sequence_naming = false;
+                  task.use_episode_naming = false;
                   if (task._pattern_backup) {
                     task.pattern = "";
                     task.replace = task._replace_backup || "";
                   }
                   task.sequence_naming = null;
+                  task.episode_naming = null;
                 }
-              } else if (task._pattern_backup && !task.pattern.includes('{}')) {
+              } else if (task._pattern_backup && (!task.pattern.includes('{}') && !task.pattern.includes('[]'))) {
                 // 正常切换回正则命名模式（非删除操作）
                 task.use_sequence_naming = false;
+                task.use_episode_naming = false;
                 task.pattern = task._pattern_backup;
                 task.replace = task._replace_backup;
-                task._sequence_backup = task.sequence_naming;
-                task.sequence_naming = null;
-              } else if (!task._pattern_backup && !task.pattern.includes('{}')) {
+                if (task.use_sequence_naming) {
+                  task._sequence_backup = task.sequence_naming;
+                  task.sequence_naming = null;
+                } else if (task.use_episode_naming) {
+                  task._episode_backup = task.episode_naming;
+                  task.episode_naming = null;
+                }
+              } else if (!task._pattern_backup && (!task.pattern.includes('{}') && !task.pattern.includes('[]'))) {
                 // 没有备份，但需要切换回正则模式
                 task.use_sequence_naming = false;
+                task.use_episode_naming = false;
                 task.sequence_naming = null;
+                task.episode_naming = null;
               }
             }
           }
@@ -1199,6 +1318,15 @@
           
           // 强制Vue更新视图
           this.$forceUpdate();
+        },
+        // 增加剧集识别模式
+        addEpisodePattern() {
+          // 此方法保留但不再使用
+        },
+        
+        // 移除剧集识别模式
+        removeEpisodePattern(index) {
+          // 此方法保留但不再使用
         }
       }
     });

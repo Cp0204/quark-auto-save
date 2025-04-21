@@ -430,6 +430,92 @@ def get_share_detail():
                     current_sequence += 1
                     
             return share_detail
+        elif regex.get("use_episode_naming") and regex.get("episode_naming"):
+            # 剧集命名模式预览
+            episode_pattern = regex.get("episode_naming")
+            episode_patterns = regex.get("episode_patterns", [])
+            
+            # 实现序号提取函数
+            def extract_episode_number(filename):
+                # 优先匹配SxxExx格式
+                match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
+                if match_s_e:
+                    # 直接返回E后面的集数
+                    return int(match_s_e.group(2))
+                
+                # 尝试使用每个配置的正则表达式匹配文件名
+                for pattern in episode_patterns:
+                    try:
+                        pattern_regex = pattern.get("regex", "(\\d+)")
+                        match = re.search(pattern_regex, filename)
+                        if match:
+                            return int(match.group(1))
+                    except Exception as e:
+                        print(f"Error matching pattern {pattern}: {str(e)}")
+                        continue
+                return None
+            
+            # 构建剧集命名的正则表达式 (主要用于检测已命名文件)
+            if "[]" in episode_pattern:
+                regex_pattern = re.escape(episode_pattern).replace('\\[\\]', '(\\d+)')
+            else:
+                # 如果输入模式不包含[]，则使用简单匹配模式，避免正则表达式错误
+                print(f"⚠️ 剧集命名模式中没有找到 [] 占位符，将使用简单匹配")
+                regex_pattern = "^" + re.escape(episode_pattern) + "(\\d+)$"
+            
+            # 实现高级排序算法
+            def extract_sorting_value(file):
+                if file["dir"]:  # 跳过文件夹
+                    return float('inf')
+                
+                filename = file["file_name"]
+                
+                # 尝试获取剧集序号
+                episode_num = extract_episode_number(filename)
+                if episode_num is not None:
+                    return episode_num
+                
+                # 如果无法提取序号，则使用更新时间
+                try:
+                    return file.get("last_update_at", 0)
+                except:
+                    return 0
+            
+            # 过滤出非目录文件，并且排除已经符合命名规则的文件
+            files_to_process = [
+                f for f in share_detail["list"] 
+                if not f["dir"] and not re.match(regex_pattern, f["file_name"])
+            ]
+            
+            # 根据提取的排序值进行排序
+            sorted_files = sorted(files_to_process, key=extract_sorting_value)
+            
+            # 应用过滤词过滤
+            filterwords = regex.get("filterwords", "")
+            if filterwords:
+                # 同时支持中英文逗号分隔
+                filterwords = filterwords.replace("，", ",")
+                filterwords_list = [word.strip() for word in filterwords.split(',')]
+                for item in sorted_files:
+                    # 被过滤的文件不会有file_name_re，与不匹配正则的文件显示一致
+                    if any(word in item['file_name'] for word in filterwords_list):
+                        item["filtered"] = True
+            
+            # 为每个文件生成新文件名
+            for file in sorted_files:
+                if not file.get("filtered"):
+                    # 获取文件扩展名
+                    file_ext = os.path.splitext(file["file_name"])[1]
+                    # 尝试提取剧集号
+                    episode_num = extract_episode_number(file["file_name"])
+                    if episode_num is not None:
+                        # 生成预览文件名
+                        file["file_name_re"] = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                    else:
+                        # 无法提取剧集号，标记为无法处理
+                        file["file_name_re"] = "❌ 无法识别剧集号"
+                    
+            return share_detail
         else:
             # 普通正则命名预览
             pattern, replace = account.magic_regex_func(
