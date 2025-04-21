@@ -285,7 +285,11 @@ def get_share_detail():
             current_sequence = 1
             
             # 构建顺序命名的正则表达式
-            regex_pattern = re.escape(sequence_pattern).replace('\\{\\}', '(\\d+)')
+            if sequence_pattern == "{}":
+                # 对于单独的{}，使用特殊匹配
+                regex_pattern = "(\\d+)"
+            else:
+                regex_pattern = re.escape(sequence_pattern).replace('\\{\\}', '(\\d+)')
             
             # 实现高级排序算法
             def extract_sorting_value(file):
@@ -401,10 +405,22 @@ def get_share_detail():
                     return 0
             
             # 过滤出非目录文件，并且排除已经符合命名规则的文件
-            files_to_process = [
-                f for f in share_detail["list"] 
-                if not f["dir"] and not re.match(regex_pattern, f["file_name"])
-            ]
+            files_to_process = []
+            for f in share_detail["list"]:
+                if f["dir"]:
+                    continue  # 跳过文件夹
+                
+                # 检查文件是否已符合命名规则
+                if sequence_pattern == "{}":
+                    # 对于单独的{}，检查文件名是否为纯数字
+                    file_name_without_ext = os.path.splitext(f["file_name"])[0]
+                    if file_name_without_ext.isdigit():
+                        continue  # 跳过已符合命名规则的文件
+                elif re.match(regex_pattern, f["file_name"]):
+                    continue  # 跳过已符合命名规则的文件
+                
+                # 添加到待处理文件列表
+                files_to_process.append(f)
             
             # 根据提取的排序值进行排序
             sorted_files = sorted(files_to_process, key=extract_sorting_value)

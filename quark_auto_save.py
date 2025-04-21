@@ -68,6 +68,48 @@ def add_notify(text):
     return text
 
 
+# 定义一个通用的文件类型图标选择函数
+def get_file_icon(file_name, is_dir=False):
+    """根据文件扩展名返回对应的图标"""
+    # 如果是文件夹，直接返回文件夹图标
+    if is_dir:
+        return "📁"
+    
+    # 文件名转小写便于匹配
+    lower_name = file_name.lower()
+    
+    # 视频文件
+    if any(lower_name.endswith(ext) for ext in ['.mp4', '.mkv', '.avi', '.mov', '.rmvb', '.flv', '.wmv', '.m4v', '.ts']):
+        return "🎞️"
+    
+    # 图片文件
+    if any(lower_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.svg']):
+        return "🖼️"
+    
+    # 音频文件
+    if any(lower_name.endswith(ext) for ext in ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a', '.wma']):
+        return "🎵"
+    
+    # 文档文件
+    if any(lower_name.endswith(ext) for ext in ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.md', '.csv']):
+        return "📄"
+    
+    # 压缩文件
+    if any(lower_name.endswith(ext) for ext in ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2']):
+        return "📦"
+    
+    # 代码文件
+    if any(lower_name.endswith(ext) for ext in ['.py', '.js', '.html', '.css', '.java', '.c', '.cpp', '.php', '.go', '.json']):
+        return "📝"
+    
+    # 字幕文件
+    if any(lower_name.endswith(ext) for ext in ['.srt', '.ass', '.ssa', '.vtt']):
+        return "💬"
+    
+    # 默认图标（其他文件类型）
+    return ""
+
+
 class Config:
     # 下载配置
     def download_file(url, save_path):
@@ -703,7 +745,11 @@ class Quark:
             # 构建顺序命名的正则表达式
             sequence_pattern = task["sequence_naming"]
             # 将{}替换为(\d+)用于匹配
-            regex_pattern = re.escape(sequence_pattern).replace('\\{\\}', '(\\d+)')
+            if sequence_pattern == "{}":
+                # 对于单独的{}，使用特殊匹配
+                regex_pattern = "(\\d+)"
+            else:
+                regex_pattern = re.escape(sequence_pattern).replace('\\{\\}', '(\\d+)')
             task["regex_pattern"] = regex_pattern
         # 支持剧集命名模式
         elif task.get("use_episode_naming") and task.get("episode_naming"):
@@ -771,8 +817,20 @@ class Quark:
         if task.get("filterwords"):
             # 同时支持中英文逗号分隔
             filterwords = task["filterwords"].replace("，", ",")
-            filterwords_list = [word.strip() for word in filterwords.split(',')]
-            share_file_list = [file for file in share_file_list if not any(word in file['file_name'] for word in filterwords_list)]
+            filterwords_list = [word.strip().lower() for word in filterwords.split(',')]
+            
+            # 改进过滤逻辑，同时检查文件名和扩展名
+            filtered_files = []
+            for file in share_file_list:
+                file_name = file['file_name'].lower()
+                # 提取文件扩展名（不带点）
+                file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
+                
+                # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
+                if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
+                    filtered_files.append(file)
+                    
+            share_file_list = filtered_files
             print(f"📑 应用过滤词: {task['filterwords']}，剩余{len(share_file_list)}个文件")
             print()
 
@@ -818,7 +876,16 @@ class Quark:
             # 查找目录中现有的最大序号
             for dir_file in dir_file_list:
                 if not dir_file["dir"]:  # 只检查文件
-                    if matches := re.match(regex_pattern, dir_file["file_name"]):
+                    if sequence_pattern == "{}":
+                        # 对于单独的{}，直接尝试匹配整个文件名是否为数字
+                        file_name_without_ext = os.path.splitext(dir_file["file_name"])[0]
+                        if file_name_without_ext.isdigit():
+                            try:
+                                seq_num = int(file_name_without_ext)
+                                current_sequence = max(current_sequence, seq_num + 1)
+                            except (ValueError, IndexError):
+                                pass
+                    elif matches := re.match(regex_pattern, dir_file["file_name"]):
                         try:
                             seq_num = int(matches.group(1))
                             current_sequence = max(current_sequence, seq_num + 1)
@@ -879,7 +946,7 @@ class Quark:
             
             # 实现高级排序算法
             def extract_sorting_value(file):
-                if file["dir"]:  # 跳过文件夹
+                if file.get("dir", False):  # 跳过文件夹
                     return float('inf')
                 
                 filename = file["file_name"]
@@ -900,16 +967,13 @@ class Quark:
                         return episode_num * 10 + 2
                     elif '下' in filename:
                         return episode_num * 10 + 3
+                    return episode_num * 10
                 elif '上' in filename:
                     return 1
                 elif '中' in filename:
                     return 2
                 elif '下' in filename:
                     return 3
-                
-                # 如果已经匹配到"第X期/集/话"格式，直接返回
-                if episode_num > 0:
-                    return episode_num * 10
                 
                 # 2.1 S01E01 格式，提取季数和集数
                 match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
@@ -952,7 +1016,6 @@ class Quark:
                 match_date_alt = re.search(r'(\d{1,2})[-./](\d{1,2})[-./](20\d{2})', filename)
                 if match_date_alt:
                     # 假设第一个是月，第二个是日（美式日期）
-                    # 在实际应用中可能需要根据具体情况调整
                     month = int(match_date_alt.group(1))
                     day = int(match_date_alt.group(2))
                     year = int(match_date_alt.group(3))
@@ -980,22 +1043,53 @@ class Quark:
                     issue = int(match_year_issue.group(2))
                     return year * 1000 + issue
                 
+                # 3.6 日期+期数的复合格式，例如：2025-04-18 第5期上
+                match_date_episode = re.search(r'(20\d{2})[-./](\d{1,2})[-./](\d{1,2}).*?第(\d+)[期集话]', filename)
+                if match_date_episode:
+                    year = int(match_date_episode.group(1))
+                    month = int(match_date_episode.group(2))
+                    day = int(match_date_episode.group(3))
+                    episode = int(match_date_episode.group(4))
+                    date_val = year * 10000 + month * 100 + day
+                    # 将日期值作为主排序，期数为次要排序
+                    if '上' in filename:
+                        return date_val * 100 + episode * 10 + 1
+                    elif '中' in filename:
+                        return date_val * 100 + episode * 10 + 2
+                    elif '下' in filename:
+                        return date_val * 100 + episode * 10 + 3
+                    return date_val * 100 + episode * 10
+                
                 # 4. 纯数字格式（文件名开头是纯数字）
                 match_num = re.match(r'^(\d+)', file_name_without_ext)
                 if match_num:
                     return int(match_num.group(1))
                 
+                # 5. 尝试匹配文件名中的任何数字
+                any_num_match = re.search(r'(\d+)', filename)
+                if any_num_match:
+                    return int(any_num_match.group(1))
+                
                 # 6. 默认使用更新时间
-                try:
-                    return file.get("updated_at", file.get("last_update_at", 0))
-                except:
-                    return 0
+                return file.get("created_at", file.get("updated_at", file.get("last_update_at", 0)))
             
             # 过滤出非目录文件，排除已经排除掉的重复文件，然后排序
-            files_to_process = [
-                f for f in filtered_share_files 
-                if not f["dir"] and not re.match(regex_pattern, f["file_name"])
-            ]
+            files_to_process = []
+            for f in filtered_share_files:
+                if f["dir"]:
+                    continue  # 跳过文件夹
+                
+                # 检查文件是否已符合命名规则
+                if sequence_pattern == "{}":
+                    # 对于单独的{}，检查文件名是否为纯数字
+                    file_name_without_ext = os.path.splitext(f["file_name"])[0]
+                    if file_name_without_ext.isdigit():
+                        continue  # 跳过已符合命名规则的文件
+                elif re.match(regex_pattern, f["file_name"]):
+                    continue  # 跳过已符合命名规则的文件
+                
+                # 添加到待处理文件列表
+                files_to_process.append(f)
             
             # 根据提取的排序值进行排序
             sorted_files = sorted(files_to_process, key=extract_sorting_value)
@@ -1016,8 +1110,11 @@ class Quark:
                 )
                 
                 if not file_exists:
-                    # 不打印保存信息
-                    share_file["save_name"] = save_name
+                    # 设置保存文件名（单独的{}不在这里重命名，而是在do_rename_task中处理）
+                    if sequence_pattern == "{}":
+                        share_file["save_name"] = share_file["file_name"]  # 保持原文件名，稍后在do_rename_task中处理
+                    else:
+                        share_file["save_name"] = save_name
                     share_file["original_name"] = share_file["file_name"]  # 保存原文件名，用于排序
                     need_save_list.append(share_file)
                     current_sequence += 1
@@ -1145,13 +1242,7 @@ class Quark:
         fid_list = [item["fid"] for item in need_save_list]
         fid_token_list = [item["share_fid_token"] for item in need_save_list]
         if fid_list:
-            # 只在有新文件需要转存时才打印目录文件列表
-            # 移除打印目标目录信息和文件列表的代码
-            # print(f"📂 目标目录：{savepath} ({len(dir_file_list)}个文件)")
-            # for file in dir_file_list:
-            #     print(f"    {file['file_name']}")
-            # print()
-            
+            # 只在有新文件需要转存时才处理
             save_file_return = self.save_file(
                 fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken
             )
@@ -1180,13 +1271,8 @@ class Quark:
                             },
                         )
                     
-                    # 添加成功通知
-                    add_notify(f"✅《{task['taskname']}》 添加追更:\n/{task['savepath']}{subdir_path}")
-                    # 打印保存文件列表
-                    for idx, file_name in enumerate(saved_files):
-                        prefix = "├── " if idx < len(saved_files) - 1 else "└── "
-                        add_notify(f"{prefix}{file_name}")
-                    add_notify("")
+                    # 移除通知生成，由do_save函数统一处理
+                    # 顺序命名模式和剧集命名模式都不在此处生成通知
                 else:
                     err_msg = query_task_return["message"]
             else:
@@ -1205,7 +1291,12 @@ class Quark:
             # 使用顺序命名模式
             sequence_pattern = task["sequence_naming"]
             # 替换占位符为正则表达式捕获组
-            regex_pattern = re.escape(sequence_pattern).replace('\\{\\}', '(\\d+)')
+            if sequence_pattern == "{}":
+                # 对于单独的{}，使用特殊匹配
+                regex_pattern = "(\\d+)"
+            else:
+                regex_pattern = re.escape(sequence_pattern).replace('\\{\\}', '(\\d+)')
+            
             savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
             if not self.savepath_fid.get(savepath):
                 # 路径已存在，直接设置fid
@@ -1216,82 +1307,97 @@ class Quark:
             # 找出当前最大序号
             max_sequence = 0
             for dir_file in dir_file_list:
-                matches = re.match(regex_pattern, dir_file["file_name"])
-                if matches:
+                if sequence_pattern == "{}":
+                    # 对于单独的{}，直接尝试匹配整个文件名是否为数字
+                    file_name_without_ext = os.path.splitext(dir_file["file_name"])[0]
+                    if file_name_without_ext.isdigit():
+                        try:
+                            current_seq = int(file_name_without_ext)
+                            max_sequence = max(max_sequence, current_seq)
+                        except (ValueError, IndexError):
+                            pass
+                elif matches := re.match(regex_pattern, dir_file["file_name"]):
                     try:
                         current_seq = int(matches.group(1))
                         max_sequence = max(max_sequence, current_seq)
                     except (IndexError, ValueError):
                         pass
             
-            # 重命名文件
-            current_sequence = max_sequence
-            is_rename_count = 0
-            
-            # 定义自定义排序函数
-            def custom_sort(file):
-                file_name = file["file_name"]
+            # 实现高级排序算法
+            def extract_sorting_value(file):
+                if file.get("dir", False):  # 跳过文件夹
+                    return float('inf')
                 
-                # 1. 提取文件名中的数字（期数/集数等）
-                episode_num = 0
+                filename = file["file_name"]
                 
-                # 尝试匹配"第X期/集/话"格式
-                episode_match = re.search(r'第(\d+)[期集话]', file_name)
-                if episode_match:
-                    episode_num = int(episode_match.group(1))
-                    
+                # 提取文件名，不含扩展名
+                file_name_without_ext = os.path.splitext(filename)[0]
+                
+                # 1. "第X期/集/话" 格式
+                match_chinese = re.search(r'第(\d+)[期集话]', filename)
+                episode_num = int(match_chinese.group(1)) if match_chinese else 0
+                
+                # 5. 文件名含"上中下"（优先处理，因为可能与其他格式同时存在）
+                if match_chinese:
                     # 如果同时存在集数和上中下，则按照集数*10+位置排序
-                    if '上' in file_name:
-                        return (episode_num, 1, file.get("created_at", 0))
-                    elif '中' in file_name:
-                        return (episode_num, 2, file.get("created_at", 0))
-                    elif '下' in file_name:
-                        return (episode_num, 3, file.get("created_at", 0))
-                    return (episode_num, 10, file.get("created_at", 0))
+                    if '上' in filename:
+                        return episode_num * 10 + 1
+                    elif '中' in filename:
+                        return episode_num * 10 + 2
+                    elif '下' in filename:
+                        return episode_num * 10 + 3
+                    return episode_num * 10
+                elif '上' in filename:
+                    return 1
+                elif '中' in filename:
+                    return 2
+                elif '下' in filename:
+                    return 3
                 
-                # 如果文件名中包含"上中下"，优先处理
-                if '上' in file_name:
-                    return (0, 1, file.get("created_at", 0))
-                elif '中' in file_name:
-                    return (0, 2, file.get("created_at", 0))
-                elif '下' in file_name:
-                    return (0, 3, file.get("created_at", 0))
+                # 2.1 S01E01 格式，提取季数和集数
+                match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
+                if match_s_e:
+                    season = int(match_s_e.group(1))
+                    episode = int(match_s_e.group(2))
+                    return season * 1000 + episode
                 
-                # 尝试匹配常见视频格式 S01E01, E01, 1x01 等
-                if re.search(r'[Ss](\d+)[Ee](\d+)', file_name):
-                    match = re.search(r'[Ss](\d+)[Ee](\d+)', file_name)
-                    season = int(match.group(1))
-                    episode = int(match.group(2))
-                    episode_num = season * 1000 + episode  # 确保季和集的排序正确
-                elif re.search(r'[Ee][Pp]?(\d+)', file_name):
-                    match = re.search(r'[Ee][Pp]?(\d+)', file_name)
-                    episode_num = int(match.group(1))
-                elif re.search(r'(\d+)[xX](\d+)', file_name):
-                    match = re.search(r'(\d+)[xX](\d+)', file_name)
-                    season = int(match.group(1))
-                    episode = int(match.group(2))
-                    episode_num = season * 1000 + episode
+                # 2.2 E01 格式，仅提取集数
+                match_e = re.search(r'[Ee][Pp]?(\d+)', filename)
+                if match_e:
+                    return int(match_e.group(1))
+                
+                # 2.3 1x01 格式，提取季数和集数
+                match_x = re.search(r'(\d+)[Xx](\d+)', filename)
+                if match_x:
+                    season = int(match_x.group(1))
+                    episode = int(match_x.group(2))
+                    return season * 1000 + episode
+                
+                # 2.4 【XX电影网】剧名.01.mp4格式
+                match_web = re.search(r'[【\[].*?[】\]].*?[.\\-_](\d+)(?:[.\\-_]|$)', filename)
+                if match_web:
+                    return int(match_web.group(1))
                 
                 # 3. 日期格式识别（支持多种格式）
                 
                 # 3.1 完整的YYYYMMDD格式
-                match_date_compact = re.search(r'(20\d{2})(\d{2})(\d{2})', file_name)
+                match_date_compact = re.search(r'(20\d{2})(\d{2})(\d{2})', filename)
                 if match_date_compact:
                     year = int(match_date_compact.group(1))
                     month = int(match_date_compact.group(2))
                     day = int(match_date_compact.group(3))
-                    return (year * 10000 + month * 100 + day, 0, file.get("created_at", 0))
+                    return year * 10000 + month * 100 + day
                 
                 # 3.2 YYYY-MM-DD 或 YYYY.MM.DD 或 YYYY/MM/DD 格式
-                match_date_full = re.search(r'(20\d{2})[-./](\d{1,2})[-./](\d{1,2})', file_name)
+                match_date_full = re.search(r'(20\d{2})[-./](\d{1,2})[-./](\d{1,2})', filename)
                 if match_date_full:
                     year = int(match_date_full.group(1))
                     month = int(match_date_full.group(2))
                     day = int(match_date_full.group(3))
-                    return (year * 10000 + month * 100 + day, 0, file.get("created_at", 0))
+                    return year * 10000 + month * 100 + day
                 
                 # 3.3 MM/DD/YYYY 或 DD/MM/YYYY 格式
-                match_date_alt = re.search(r'(\d{1,2})[-./](\d{1,2})[-./](20\d{2})', file_name)
+                match_date_alt = re.search(r'(\d{1,2})[-./](\d{1,2})[-./](20\d{2})', filename)
                 if match_date_alt:
                     # 假设第一个是月，第二个是日（美式日期）
                     month = int(match_date_alt.group(1))
@@ -1300,10 +1406,10 @@ class Quark:
                     # 检查月份值，如果大于12可能是欧式日期格式（DD/MM/YYYY）
                     if month > 12:
                         month, day = day, month
-                    return (year * 10000 + month * 100 + day, 0, file.get("created_at", 0))
+                    return year * 10000 + month * 100 + day
                 
-                # 3.4 MM/DD 格式（无年份）
-                match_date_short = re.search(r'(\d{1,2})[-./](\d{1,2})', file_name)
+                # 3.4 MM/DD 格式（无年份），假设为当前年
+                match_date_short = re.search(r'(\d{1,2})[-./](\d{1,2})', filename)
                 if match_date_short:
                     # 假设第一个是月，第二个是日
                     month = int(match_date_short.group(1))
@@ -1311,47 +1417,124 @@ class Quark:
                     # 检查月份值，如果大于12可能是欧式日期格式（DD/MM）
                     if month > 12:
                         month, day = day, month
-                    return (month * 100 + day, 0, file.get("created_at", 0))
+                    # 由于没有年份，使用一个较低的基数，确保任何有年份的日期都排在后面
+                    return month * 100 + day
                 
                 # 3.5 年期格式，如"2025年14期"
-                match_year_issue = re.search(r'(20\d{2})[年].*?(\d+)[期]', file_name)
+                match_year_issue = re.search(r'(20\d{2})[年].*?(\d+)[期]', filename)
                 if match_year_issue:
                     year = int(match_year_issue.group(1))
                     issue = int(match_year_issue.group(2))
-                    return (year * 1000 + issue, 0, file.get("created_at", 0))
+                    return year * 1000 + issue
                 
-                # 默认使用数字排序或创建时间
-                match_num = re.match(r'^(\d+)', os.path.splitext(file_name)[0])
+                # 3.6 日期+期数的复合格式，例如：2025-04-18 第5期上
+                match_date_episode = re.search(r'(20\d{2})[-./](\d{1,2})[-./](\d{1,2}).*?第(\d+)[期集话]', filename)
+                if match_date_episode:
+                    year = int(match_date_episode.group(1))
+                    month = int(match_date_episode.group(2))
+                    day = int(match_date_episode.group(3))
+                    episode = int(match_date_episode.group(4))
+                    date_val = year * 10000 + month * 100 + day
+                    # 将日期值作为主排序，期数为次要排序
+                    if '上' in filename:
+                        return date_val * 100 + episode * 10 + 1
+                    elif '中' in filename:
+                        return date_val * 100 + episode * 10 + 2
+                    elif '下' in filename:
+                        return date_val * 100 + episode * 10 + 3
+                    return date_val * 100 + episode * 10
+                
+                # 4. 纯数字格式（文件名开头是纯数字）
+                match_num = re.match(r'^(\d+)', file_name_without_ext)
                 if match_num:
-                    return (int(match_num.group(1)), 0, file.get("created_at", 0))
+                    return int(match_num.group(1))
                 
-                # 最后按创建时间排序
-                return (0, 0, file.get("created_at", 0))
+                # 5. 尝试匹配文件名中的任何数字
+                any_num_match = re.search(r'(\d+)', filename)
+                if any_num_match:
+                    return int(any_num_match.group(1))
+                
+                # 6. 默认使用更新时间
+                return file.get("created_at", file.get("updated_at", file.get("last_update_at", 0)))
             
-            # 按自定义逻辑排序
-            sorted_files = sorted([f for f in dir_file_list if not f["dir"] and not re.match(regex_pattern, f["file_name"])], key=custom_sort)
+            # 初始化sorted_files列表，用于收集需要重命名的文件
+            sorted_files = []
             
+            # 对于单独的{}模式，增加额外检查
+            if sequence_pattern == "{}":
+                # 收集所有不是纯数字命名的文件
+                for dir_file in dir_file_list:
+                    if dir_file["dir"]:
+                        continue  # 跳过文件夹
+                    
+                    file_name_without_ext = os.path.splitext(dir_file["file_name"])[0]
+                    # 检查文件名是否为纯数字，如果是则跳过（已经命名好的）
+                    if file_name_without_ext.isdigit():
+                        continue
+                    
+                    # 添加到需要处理的文件列表
+                    sorted_files.append(dir_file)
+            else:
+                # 对于非单独{}的模式，收集所有不符合模式的文件
+                for dir_file in dir_file_list:
+                    if dir_file["dir"]:
+                        continue  # 跳过文件夹
+                    
+                    # 检查是否已符合命名模式
+                    if re.match(regex_pattern, dir_file["file_name"]):
+                        continue  # 跳过已经符合命名规则的文件
+                    
+                    # 添加到需要处理的文件列表
+                    sorted_files.append(dir_file)
+            
+            # 使用extract_sorting_value函数对所有需要处理的文件进行排序
+            sorted_files = sorted(sorted_files, key=extract_sorting_value)
+            
+            # 收集所有需要重命名的文件，并按顺序处理
+            renamed_pairs = []
+            current_sequence = max_sequence
+            
+            # 对排序好的文件应用顺序命名
             for dir_file in sorted_files:
                 current_sequence += 1
                 file_ext = os.path.splitext(dir_file["file_name"])[1]
                 save_name = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
                 
                 if save_name != dir_file["file_name"] and save_name not in dir_file_name_list:
-                    try:
-                        rename_return = self.rename(dir_file["fid"], save_name)
-                        # 防止网络问题导致的错误
-                        if isinstance(rename_return, dict) and rename_return.get("code") == 0:
-                            print(f"重命名: {dir_file['file_name']} → {save_name}")
-                            is_rename_count += 1
-                            dir_file_name_list.append(save_name)
-                        else:
-                            error_msg = rename_return.get("message", "未知错误")
-                            print(f"重命名: {dir_file['file_name']} → {save_name} 失败，{error_msg}")
-                    except Exception as e:
-                        print(f"重命名出错: {dir_file['file_name']} → {save_name}，错误：{str(e)}")
+                    # 收集重命名对，包含原始文件信息以便排序
+                    renamed_pairs.append((dir_file, save_name, current_sequence))
+                    dir_file_name_list.append(save_name)
             
-            return is_rename_count > 0
+            # 确保按照序号顺序执行重命名操作
+            renamed_pairs.sort(key=lambda x: x[2])
             
+            is_rename_count = 0
+            rename_logs = []  # 初始化重命名日志列表
+            # 执行重命名，并按顺序打印
+            for dir_file, save_name, _ in renamed_pairs:
+                try:
+                    rename_return = self.rename(dir_file["fid"], save_name)
+                    # 防止网络问题导致的错误
+                    if isinstance(rename_return, dict) and rename_return.get("code") == 0:
+                        rename_log = f"重命名: {dir_file['file_name']} → {save_name}"
+                        rename_logs.append(rename_log)
+                        # 移除直接打印的部分，由do_save负责打印
+                        # print(rename_log)
+                        is_rename_count += 1
+                    else:
+                        error_msg = rename_return.get("message", "未知错误")
+                        rename_log = f"重命名: {dir_file['file_name']} → {save_name} 失败，{error_msg}"
+                        rename_logs.append(rename_log)
+                        # 移除直接打印的部分，由do_save负责打印
+                        # print(rename_log)
+                except Exception as e:
+                    rename_log = f"重命名出错: {dir_file['file_name']} → {save_name}，错误：{str(e)}"
+                    rename_logs.append(rename_log)
+                    # 移除直接打印的部分，由do_save负责打印
+                    # print(rename_log)
+            
+            return is_rename_count > 0, rename_logs
+
         # 检查是否为剧集命名模式
         elif task.get("use_episode_naming") and task.get("episode_naming"):
             # 使用剧集命名模式
@@ -1371,7 +1554,7 @@ class Quark:
                         print(f"保存路径新建成功：{savepath}")
                     else:
                         print(f"保存路径新建失败：{mkdir_result['message']}")
-                        return False
+                        return False, []
                 else:
                     self.savepath_fid[savepath] = savepath_fids[0]["fid"]
             
@@ -1462,19 +1645,19 @@ class Quark:
                     pwd_id, passcode, pdir_fid, paths = self.extract_url(task["shareurl"])
                     if not pwd_id:
                         print(f"提取链接参数失败，请检查分享链接是否有效")
-                        return False
+                        return False, []
                     
                     # 获取分享详情
                     is_sharing, stoken = self.get_stoken(pwd_id, passcode)
                     if not is_sharing:
                         print(f"分享详情获取失败：{stoken}")
-                        return False
+                        return False, []
                     
                     # 获取分享文件列表
                     share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["list"]
                     if not share_file_list:
                         print("分享为空，文件已被分享者删除")
-                        return False
+                        return False, []
                     
                     # 预先过滤分享文件列表，去除已存在的文件
                     filtered_share_files = []
@@ -1561,15 +1744,59 @@ class Quark:
                             file_ext = os.path.splitext(share_file["file_name"])[1]
                             save_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
                             
-                            # 添加到保存列表
-                            share_file["save_name"] = save_name
-                            share_file["original_name"] = share_file["file_name"]
-                            need_save_list.append(share_file)
+                            # 检查过滤词
+                            should_filter = False
+                            if task.get("filterwords"):
+                                # 同时支持中英文逗号分隔
+                                filterwords = task["filterwords"].replace("，", ",")
+                                filterwords_list = [word.strip().lower() for word in filterwords.split(',')]
+                                
+                                # 检查原始文件名
+                                original_name_lower = share_file["file_name"].lower()
+                                if any(word in original_name_lower for word in filterwords_list):
+                                    should_filter = True
+                                
+                                # 检查目标文件名
+                                save_name_lower = save_name.lower()
+                                if any(word in save_name_lower for word in filterwords_list):
+                                    should_filter = True
+                                
+                                # 检查文件扩展名
+                                file_ext_lower = file_ext.lower().lstrip('.')
+                                if any(word == file_ext_lower for word in filterwords_list):
+                                    should_filter = True
+                            
+                            # 只处理不需要过滤的文件
+                            if not should_filter:
+                                # 添加到保存列表
+                                share_file["save_name"] = save_name
+                                share_file["original_name"] = share_file["file_name"]
+                                need_save_list.append(share_file)
                         else:
-                            # 无法提取集号，使用原文件名
-                            share_file["save_name"] = share_file["file_name"]
-                            share_file["original_name"] = share_file["file_name"]
-                            need_save_list.append(share_file)
+                            # 无法提取集号，使用原文件名（仍然检查过滤词）
+                            # 检查过滤词
+                            should_filter = False
+                            if task.get("filterwords"):
+                                # 同时支持中英文逗号分隔
+                                filterwords = task["filterwords"].replace("，", ",")
+                                filterwords_list = [word.strip().lower() for word in filterwords.split(',')]
+                                
+                                # 检查原始文件名
+                                original_name_lower = share_file["file_name"].lower()
+                                if any(word in original_name_lower for word in filterwords_list):
+                                    should_filter = True
+                                
+                                # 检查文件扩展名
+                                file_ext = os.path.splitext(share_file["file_name"])[1].lower()
+                                file_ext_lower = file_ext.lstrip('.')
+                                if any(word == file_ext_lower for word in filterwords_list):
+                                    should_filter = True
+                            
+                            # 只处理不需要过滤的文件
+                            if not should_filter:
+                                share_file["save_name"] = share_file["file_name"]
+                                share_file["original_name"] = share_file["file_name"]
+                                need_save_list.append(share_file)
                     
                     # 保存文件
                     if need_save_list:
@@ -1583,51 +1810,11 @@ class Quark:
                             query_task_return = self.query_task(task_id)
                             
                             if query_task_return["code"] == 0:
-                                # 建立目录树
-                                tree = Tree()
-                                tree.create_node(
-                                    savepath,
-                                    "root",
-                                    data={
-                                        "is_dir": True,
-                                    },
-                                )
-                                
-                                saved_files = []
-                                for index, item in enumerate(need_save_list):
-                                    icon = (
-                                        "📁"
-                                        if item["dir"] == True
-                                        else "🎞️" if item.get("obj_category") == "video" else ""
-                                    )
-                                    saved_files.append(f"{icon}{item['save_name']}")
-                                    tree.create_node(
-                                        f"{icon}{item['save_name']}",
-                                        item["fid"],
-                                        parent="root",
-                                        data={
-                                            "fid": f"{query_task_return['data']['save_as']['save_as_top_fids'][index]}",
-                                            "path": f"{savepath}/{item['save_name']}",
-                                            "is_dir": item.get("dir", False),
-                                            "original_name": item["original_name"],
-                                            "save_name": item["save_name"]
-                                        },
-                                    )
-                                
-                                # 添加成功通知
-                                add_notify(f"✅《{task['taskname']}》 添加追更:\n/{task['savepath']}{subdir_path}")
-                                # 打印保存文件列表
-                                for idx, file_name in enumerate(saved_files):
-                                    prefix = "├── " if idx < len(saved_files) - 1 else "└── "
-                                    add_notify(f"{prefix}{file_name}")
-                                add_notify("")
-                                
                                 # 进行重命名操作，确保文件按照预览名称保存
                                 time.sleep(1)  # 等待文件保存完成
                                 
                                 # 刷新目录列表以获取新保存的文件
                                 fresh_dir_file_list = self.ls_dir(self.savepath_fid[savepath])
-                                renamed_count = 0
                                 
                                 # 创建一个映射来存储原始文件名到保存项的映射
                                 original_name_to_item = {}
@@ -1638,102 +1825,122 @@ class Quark:
                                     # 同时保存完整文件名的映射
                                     original_name_to_item[saved_item["original_name"]] = saved_item
                                 
-                                # 创建一个集合来跟踪已经重命名的文件ID
-                                renamed_fids = set()
+                                # 创建一个列表来收集所有重命名操作
+                                rename_operations = []
                                 
                                 # 首先尝试使用剧集号进行智能匹配
                                 for dir_file in fresh_dir_file_list:
-                                    if dir_file["dir"] or dir_file["fid"] in renamed_fids:
+                                    if dir_file["dir"]:
                                         continue
                                         
-                                    # 从文件名中提取剧集号
-                                    episode_num = extract_episode_number(dir_file["file_name"])
-                                    if episode_num is None:
-                                        continue
+                                        # 从文件名中提取剧集号
+                                        episode_num = extract_episode_number(dir_file["file_name"])
+                                        if episode_num is None:
+                                            continue
                                         
-                                    # 查找对应的目标文件
-                                    for saved_item in need_save_list:
-                                        saved_episode_num = extract_episode_number(saved_item["original_name"])
-                                        if saved_episode_num == episode_num:
-                                            # 匹配到对应的剧集号
-                                            target_name = saved_item["save_name"]
-                                            # 确保目标名称不重复
-                                            if target_name not in [f["file_name"] for f in fresh_dir_file_list]:
-                                                rename_result = self.rename(dir_file["fid"], target_name)
-                                                if rename_result["code"] == 0:
-                                                    print(f"重命名: {dir_file['file_name']} → {target_name}")
-                                                    renamed_count += 1
-                                                    renamed_fids.add(dir_file["fid"])
+                                        # 查找对应的目标文件
+                                        for saved_item in need_save_list:
+                                            saved_episode_num = extract_episode_number(saved_item["original_name"])
+                                            if saved_episode_num == episode_num:
+                                                # 匹配到对应的剧集号
+                                                target_name = saved_item["save_name"]
+                                                # 确保目标名称不重复
+                                                if target_name not in [f["file_name"] for f in fresh_dir_file_list]:
+                                                    # 收集重命名操作而不是立即执行
+                                                    rename_operations.append((dir_file, target_name, episode_num))
                                                     break
-                                            else:
-                                                # 如果目标文件名已存在，尝试加上序号
-                                                name_base, ext = os.path.splitext(target_name)
-                                                alt_name = f"{name_base} ({episode_num}){ext}"
-                                                if alt_name not in [f["file_name"] for f in fresh_dir_file_list]:
-                                                    rename_result = self.rename(dir_file["fid"], alt_name)
-                                                    if rename_result["code"] == 0:
-                                                        print(f"重命名: {dir_file['file_name']} → {alt_name}")
-                                                        renamed_count += 1
-                                                        renamed_fids.add(dir_file["fid"])
+                                                else:
+                                                    # 如果目标文件名已存在，尝试加上序号
+                                                    name_base, ext = os.path.splitext(target_name)
+                                                    alt_name = f"{name_base} ({episode_num}){ext}"
+                                                    if alt_name not in [f["file_name"] for f in fresh_dir_file_list]:
+                                                        # 收集重命名操作而不是立即执行
+                                                        rename_operations.append((dir_file, alt_name, episode_num))
                                                         break
                                 
                                 # 对于未能通过剧集号匹配的文件，尝试使用文件名匹配
                                 for dir_file in fresh_dir_file_list:
-                                    if dir_file["dir"] or dir_file["fid"] in renamed_fids:
+                                    if dir_file["dir"]:
+                                        continue
+                                    
+                                    # 如果已经有重命名操作，跳过
+                                    if any(op[0]["fid"] == dir_file["fid"] for op in rename_operations):
                                         continue
                                     
                                     # 尝试精确匹配
                                     if dir_file["file_name"] in original_name_to_item:
                                         saved_item = original_name_to_item[dir_file["file_name"]]
                                         target_name = saved_item["save_name"]
+                                        episode_num = extract_episode_number(saved_item["original_name"]) or 9999
                                         
                                         if target_name not in [f["file_name"] for f in fresh_dir_file_list]:
-                                            rename_result = self.rename(dir_file["fid"], target_name)
-                                            if rename_result["code"] == 0:
-                                                print(f"重命名: {dir_file['file_name']} → {target_name}")
-                                                renamed_count += 1
-                                                renamed_fids.add(dir_file["fid"])
+                                            # 收集重命名操作
+                                            rename_operations.append((dir_file, target_name, episode_num))
                                         continue
                                     
                                     # 尝试模糊匹配（使用文件名前缀）
                                     dir_file_prefix = dir_file["file_name"].split(".")[0]
-                                    for prefix, saved_item in original_name_to_item.items():
+                                    for prefix, saved_item in list(original_name_to_item.items()):
                                         if prefix in dir_file_prefix or dir_file_prefix in prefix:
                                             # 找到相似的文件名
                                             target_name = saved_item["save_name"]
+                                            episode_num = extract_episode_number(saved_item["original_name"]) or 9999
                                             if target_name not in [f["file_name"] for f in fresh_dir_file_list]:
-                                                rename_result = self.rename(dir_file["fid"], target_name)
-                                                if rename_result["code"] == 0:
-                                                    print(f"重命名: {dir_file['file_name']} → {target_name}")
-                                                    renamed_count += 1
-                                                    renamed_fids.add(dir_file["fid"])
-                                                    original_name_to_item.pop(prefix, None)  # 避免重复使用
-                                                    break
+                                                # 收集重命名操作
+                                                rename_operations.append((dir_file, target_name, episode_num))
+                                                original_name_to_item.pop(prefix, None)  # 避免重复使用
+                                                break
+                                
+                                # 按剧集号排序重命名操作
+                                rename_operations.sort(key=lambda x: x[2])
+                                
+                                # 执行排序后的重命名操作，但不立即打印日志
+                                renamed_count = 0
+                                rename_logs = []  # 收集重命名日志
+                                for dir_file, target_name, _ in rename_operations:
+                                    rename_result = self.rename(dir_file["fid"], target_name)
+                                    if rename_result["code"] == 0:
+                                        # 收集日志但不打印
+                                        rename_logs.append(f"重命名: {dir_file['file_name']} → {target_name}")
+                                        renamed_count += 1
+                                        # 更新文件列表中的文件名，防止重名判断出错
+                                        for df in fresh_dir_file_list:
+                                            if df["fid"] == dir_file["fid"]:
+                                                df["file_name"] = target_name
+                                                break
+                                    else:
+                                        # 收集错误日志但不打印
+                                        rename_logs.append(f"重命名: {dir_file['file_name']} → {target_name} 失败，{rename_result['message']}")
                                 
                                 if renamed_count > 0:
                                     # print(f"✅ 成功重命名 {renamed_count} 个文件")
                                     pass
                                 
-                                return tree
+                                # 返回重命名日志和成功标志
+                                return True, rename_logs
                             else:
                                 err_msg = query_task_return["message"]
                                 add_notify(f"❌《{task['taskname']}》转存失败：{err_msg}\n")
-                                return False
+                                return False, []
                         else:
                             print(f"❌ 保存文件失败: {save_file_return['message']}")
                             add_notify(f"❌《{task['taskname']}》转存失败：{save_file_return['message']}\n")
-                            return False
+                            return False, []
                     else:
                         # print("没有需要保存的新文件")
-                        return False
+                        return False, []
                 except Exception as e:
                     print(f"处理分享链接时发生错误: {str(e)}")
                     add_notify(f"❌《{task['taskname']}》处理分享链接时发生错误: {str(e)}\n")
-                    return False
+                    return False, []
 
             # 对本地已有文件进行重命名（即使没有分享链接或处理失败也执行）
             is_rename_count = 0
             renamed_files = []
+            
+            # 使用一个列表收集所有需要重命名的操作
+            rename_operations = []
+            rename_logs = []  # 收集重命名日志
             
             # 筛选出需要重命名的文件
             for dir_file in dir_file_list:
@@ -1747,26 +1954,120 @@ class Quark:
                     if not re.match(regex_pattern, dir_file["file_name"]):
                         file_ext = os.path.splitext(dir_file["file_name"])[1]
                         new_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
-                        renamed_files.append((dir_file, new_name))
+                        rename_operations.append((dir_file, new_name, episode_num))
             
             # 按剧集号排序
-            renamed_files.sort(key=lambda x: extract_episode_number(x[0]["file_name"]) or 0)
+            rename_operations.sort(key=lambda x: x[2])
             
-            # 执行重命名
-            for dir_file, new_name in renamed_files:
+            # 执行重命名操作，但不立即打印日志
+            for dir_file, new_name, _ in rename_operations:
                 # 防止重名
                 if new_name not in [f["file_name"] for f in dir_file_list]:
                     try:
                         rename_return = self.rename(dir_file["fid"], new_name)
                         if rename_return["code"] == 0:
-                            print(f"重命名: {dir_file['file_name']} → {new_name}")
+                            # 收集日志但不打印
+                            rename_logs.append(f"重命名: {dir_file['file_name']} → {new_name}")
                             is_rename_count += 1
+                            # 更新dir_file_list中的文件名，防止后续重名判断出错
+                            for df in dir_file_list:
+                                if df["fid"] == dir_file["fid"]:
+                                    df["file_name"] = new_name
+                                    break
                         else:
-                            print(f"重命名: {dir_file['file_name']} → {new_name} 失败，{rename_return['message']}")
+                            # 收集错误日志但不打印
+                            rename_logs.append(f"重命名: {dir_file['file_name']} → {new_name} 失败，{rename_return['message']}")
                     except Exception as e:
-                        print(f"重命名出错: {dir_file['file_name']} → {new_name}，错误：{str(e)}")
+                        # 收集错误日志但不打印
+                        rename_logs.append(f"重命名出错: {dir_file['file_name']} → {new_name}，错误：{str(e)}")
             
-            return is_rename_count > 0
+            # 返回重命名日志和成功标志
+            return (is_rename_count > 0), rename_logs
+
+        # 正则模式或无特殊命名模式，直接返回空结果
+        else:
+            # 检查是否有正则模式的配置
+            pattern = task.get("pattern", "")
+            replace = task.get("replace", "")
+            
+            # 如果没有设置正则匹配模式，直接返回空结果
+            if not pattern:
+                return False, []
+            
+            # 获取魔法正则处理后的真实规则
+            pattern, replace = self.magic_regex_func(pattern, replace, task["taskname"])
+            
+            # 获取目录文件列表
+            savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
+            if not self.savepath_fid.get(savepath):
+                # 路径不存在，创建或获取fid
+                savepath_fids = self.get_fids([savepath])
+                if not savepath_fids:
+                    print(f"保存路径不存在，准备新建：{savepath}")
+                    mkdir_result = self.mkdir(savepath)
+                    if mkdir_result["code"] == 0:
+                        self.savepath_fid[savepath] = mkdir_result["data"]["fid"]
+                        print(f"保存路径新建成功：{savepath}")
+                    else:
+                        print(f"保存路径新建失败：{mkdir_result['message']}")
+                        return False, []
+                else:
+                    self.savepath_fid[savepath] = savepath_fids[0]["fid"]
+            
+            # 获取目录中的文件列表
+            dir_file_list = self.ls_dir(self.savepath_fid[savepath])
+            
+            # 使用一个列表收集所有需要重命名的操作
+            rename_operations = []
+            rename_logs = []  # 收集重命名日志
+            is_rename_count = 0
+            
+            # 遍历目录中的文件，找出符合正则条件的
+            for dir_file in dir_file_list:
+                if dir_file["dir"]:
+                    continue  # 跳过文件夹
+                
+                # 应用正则表达式
+                try:
+                    new_name = re.sub(pattern, replace, dir_file["file_name"])
+                    
+                    # 如果文件名发生变化，需要重命名
+                    if new_name != dir_file["file_name"]:
+                        rename_operations.append((dir_file, new_name))
+                except Exception as e:
+                    print(f"正则替换出错: {dir_file['file_name']}，错误：{str(e)}")
+            
+            # 按原始文件名字母顺序排序，使重命名操作有序进行
+            rename_operations.sort(key=lambda x: x[0]["file_name"])
+            
+            # 执行重命名操作，并收集日志
+            for dir_file, new_name in rename_operations:
+                # 检查是否会导致重名
+                if new_name not in [f["file_name"] for f in dir_file_list]:
+                    try:
+                        rename_return = self.rename(dir_file["fid"], new_name)
+                        if rename_return["code"] == 0:
+                            # 收集日志但不打印
+                            rename_logs.append(f"重命名: {dir_file['file_name']} → {new_name}")
+                            is_rename_count += 1
+                            # 更新dir_file_list中的文件名，防止后续重名判断出错
+                            for df in dir_file_list:
+                                if df["fid"] == dir_file["fid"]:
+                                    df["file_name"] = new_name
+                                    break
+                        else:
+                            # 收集错误日志但不打印
+                            error_msg = rename_return.get("message", "未知错误")
+                            rename_logs.append(f"重命名: {dir_file['file_name']} → {new_name} 失败，{error_msg}")
+                    except Exception as e:
+                        # 收集错误日志但不打印
+                        rename_logs.append(f"重命名出错: {dir_file['file_name']} → {new_name}，错误：{str(e)}")
+                else:
+                    # 重名警告
+                    rename_logs.append(f"重命名: {dir_file['file_name']} → {new_name} 失败，目标文件名已存在")
+            
+            # 返回重命名日志和成功标志
+            return (is_rename_count > 0), rename_logs
 
 
 def verify_account(account):
@@ -1864,7 +2165,7 @@ def do_save(account, tasklist=[]):
             print(f"剧集命名: {task['episode_naming']}")
         else:
             # 正则命名模式
-            if task.get("pattern"):
+            if task.get("pattern") is not None:  # 修改为判断是否为None，而非是否为真值
                 print(f"正则匹配: {task['pattern']}")
             if task.get("replace") is not None:  # 显示替换规则，即使为空字符串
                 print(f"正则替换: {task['replace']}")
@@ -1872,16 +2173,321 @@ def do_save(account, tasklist=[]):
             print(f"更子目录: {task['update_subdir']}")
         if task.get("runweek") or task.get("enddate"):
             print(
-                f"运行周期: WK{task.get("runweek",[])} ~ {task.get('enddate','forever')}"
+                f"运行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')}"
             )
         print()
         # 判断任务周期
         if not is_time(task):
             print(f"任务不在运行周期内，跳过")
         else:
+            # 保存之前的通知信息
+            global NOTIFYS
+            notifys_before = NOTIFYS.copy()
+            
+            # 执行保存任务
             is_new_tree = account.do_save_task(task)
-            is_rename = account.do_rename_task(task)
-
+            
+            # 检查是否需要清除重复的通知
+            # 由于在修改顺序，现在不需要特殊处理通知
+            is_special_sequence = (task.get("use_sequence_naming") and task.get("sequence_naming")) or (task.get("use_episode_naming") and task.get("episode_naming"))
+            
+            # 执行重命名任务，但收集日志而不是立即打印
+            is_rename, rename_logs = account.do_rename_task(task)
+            
+            # 添加生成文件树的功能（无论是否是顺序命名模式）
+            # 如果is_new_tree返回了Tree对象，则打印文件树
+            if is_new_tree and isinstance(is_new_tree, Tree) and is_new_tree.size() > 1:
+                # 获取所有文件（非目录）节点
+                file_nodes = [node for node in is_new_tree.all_nodes_itr() if node.data.get("is_dir") == False]
+                
+                # 计算文件数量
+                file_count = len(file_nodes)
+                
+                # 创建一个映射列表，包含需要显示的文件名
+                display_files = []
+                
+                # 按文件名排序
+                if is_special_sequence:
+                    # 如果是顺序命名模式，直接使用顺序命名模式的模板来显示
+                    sequence_pattern = task["sequence_naming"]
+                    
+                    # 对于每个文件，生成其重命名后的名称
+                    for i, node in enumerate(file_nodes):
+                        # 提取序号（从1开始）
+                        file_num = i + 1
+                        # 获取原始文件的扩展名
+                        orig_filename = node.tag.lstrip("🎞️")
+                        file_ext = os.path.splitext(orig_filename)[1]
+                        # 生成新的文件名（使用顺序命名模式）
+                        new_filename = sequence_pattern.replace("{}", f"{file_num:02d}") + file_ext
+                        # 获取适当的图标
+                        icon = get_file_icon(orig_filename, is_dir=node.data.get("is_dir", False))
+                        # 添加到显示列表
+                        display_files.append((f"{icon}{new_filename}", node))
+                    
+                    # 按数字排序
+                    display_files.sort(key=lambda x: int(os.path.splitext(x[0].lstrip("🎞️"))[0]) if os.path.splitext(x[0].lstrip("🎞️"))[0].isdigit() else float('inf'))
+                
+                elif task.get("use_episode_naming") and task.get("episode_naming"):
+                    # 剧集命名模式
+                    episode_pattern = task["episode_naming"]
+                    
+                    # 提取序号的函数
+                    def extract_episode_number(filename):
+                        # 优先匹配SxxExx格式
+                        match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
+                        if match_s_e:
+                            return int(match_s_e.group(2))
+                        
+                        # 其次匹配E01格式
+                        match_e = re.search(r'[Ee][Pp]?(\d+)', filename)
+                        if match_e:
+                            return int(match_e.group(1))
+                        
+                        # 尝试匹配更多格式
+                        patterns = [
+                            r'(\d+)',
+                            r'(\d+)[-_\s]*4[Kk]',
+                            r'(\d+)话',
+                            r'第(\d+)话',
+                            r'第(\d+)集',
+                            r'第(\d+)期',
+                            r'(\d+)\s+4[Kk]',
+                            r'(\d+)[_\s]4[Kk]',
+                            r'【(\d+)】',
+                            r'\[(\d+)\]',
+                            r'_?(\d+)_'
+                        ]
+                        
+                        for pattern_regex in patterns:
+                            try:
+                                match = re.search(pattern_regex, filename)
+                                if match:
+                                    return int(match.group(1))
+                            except:
+                                continue
+                        return None
+                    
+                    # 对于每个文件节点，生成预期的剧集命名格式
+                    for node in file_nodes:
+                        # 获取原始文件名
+                        orig_filename = node.tag.lstrip("🎞️")
+                        # 提取剧集号
+                        episode_num = extract_episode_number(orig_filename)
+                        if episode_num is not None:
+                            # 获取扩展名
+                            file_ext = os.path.splitext(orig_filename)[1]
+                            # 生成新的文件名（使用剧集命名模式）
+                            new_filename = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                            # 获取适当的图标
+                            icon = get_file_icon(orig_filename, is_dir=node.data.get("is_dir", False))
+                            # 添加到显示列表
+                            display_files.append((f"{icon}{new_filename}", node))
+                        else:
+                            # 如果无法提取剧集号，保留原始文件名
+                            orig_filename = node.tag.lstrip("🎞️")
+                            icon = get_file_icon(orig_filename, is_dir=node.data.get("is_dir", False))
+                            display_files.append((f"{icon}{orig_filename}", node))
+                    
+                    # 按剧集号排序
+                    display_files.sort(
+                        key=lambda x: extract_episode_number(x[0]) if extract_episode_number(x[0]) is not None else float('inf')
+                    )
+                
+                else:
+                    # 正则模式或其他模式：尝试显示正则替换后的文件名
+                    if task.get("pattern") and task.get("replace") is not None:
+                        # 获取正则模式
+                        pattern, replace = account.magic_regex_func(
+                            task.get("pattern", ""), task.get("replace", ""), task["taskname"]
+                        )
+                        
+                        # 对文件名应用正则替换
+                        for node in file_nodes:
+                            orig_filename = node.tag.lstrip("🎞️")
+                            try:
+                                # 应用正则表达式
+                                new_name = re.sub(pattern, replace, orig_filename)
+                                # 为文件添加图标
+                                icon = get_file_icon(orig_filename, is_dir=node.data.get("is_dir", False))
+                                display_files.append((f"{icon}{new_name}", node))
+                            except Exception as e:
+                                # 如果正则替换失败，使用原文件名
+                                icon = get_file_icon(orig_filename, is_dir=node.data.get("is_dir", False))
+                                display_files.append((f"{icon}{orig_filename}", node))
+                    else:
+                        # 使用字母顺序和原始文件名
+                        display_files = []
+                        for node in sorted(file_nodes, key=lambda node: node.tag):
+                            # 获取原始文件名（去除已有图标）
+                            orig_filename = node.tag.lstrip("🎞️")
+                            # 添加适当的图标
+                            icon = get_file_icon(orig_filename, is_dir=node.data.get("is_dir", False))
+                            display_files.append((f"{icon}{orig_filename}", node))
+                
+                # 添加成功通知
+                add_notify(f"✅《{task['taskname']}》 添加追更:")
+                add_notify(f"/{task['savepath']}")
+                
+                # 打印保存文件列表
+                for idx, (display_name, _) in enumerate(display_files):
+                    prefix = "├── " if idx < len(display_files) - 1 else "└── "
+                    add_notify(f"{prefix}{display_name}")
+                add_notify("")
+            
+            # 如果是剧集命名模式并且成功进行了重命名，单独显示排序好的文件列表
+            elif is_rename and task.get("use_episode_naming") and task.get("episode_naming"):
+                # 重新获取文件列表
+                savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}")
+                dir_file_list = account.ls_dir(account.savepath_fid[savepath])
+                
+                # 过滤出非目录的文件
+                file_nodes = [f for f in dir_file_list if not f["dir"]]
+                
+                # 计算文件数量
+                file_count = len(file_nodes)
+                
+                # 提取序号的函数
+                def extract_episode_number(filename):
+                    # 优先匹配SxxExx格式
+                    match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
+                    if match_s_e:
+                        return int(match_s_e.group(2))
+                    
+                    # 其次匹配E01格式
+                    match_e = re.search(r'[Ee][Pp]?(\d+)', filename)
+                    if match_e:
+                        return int(match_e.group(1))
+                    
+                    # 尝试匹配更多格式
+                    patterns = [
+                        r'(\d+)',
+                        r'(\d+)[-_\s]*4[Kk]',
+                        r'(\d+)话',
+                        r'第(\d+)话',
+                        r'第(\d+)集',
+                        r'第(\d+)期',
+                        r'(\d+)\s+4[Kk]',
+                        r'(\d+)[_\s]4[Kk]',
+                        r'【(\d+)】',
+                        r'\[(\d+)\]',
+                        r'_?(\d+)_'
+                    ]
+                    
+                    for pattern_regex in patterns:
+                        try:
+                            match = re.search(pattern_regex, filename)
+                            if match:
+                                return int(match.group(1))
+                        except:
+                            continue
+                    return None
+                
+                # 创建一个映射列表，包含排序后的文件
+                display_files = []
+                episode_pattern = task["episode_naming"]
+                regex_pattern = task.get("regex_pattern")
+                
+                # 找出符合剧集命名格式的文件
+                for file in file_nodes:
+                    if re.match(regex_pattern, file["file_name"]):
+                        display_files.append(file["file_name"])
+                
+                # 按剧集号排序
+                display_files.sort(
+                    key=lambda x: extract_episode_number(x) if extract_episode_number(x) is not None else float('inf')
+                )
+                
+                # 添加成功通知
+                add_notify(f"✅《{task['taskname']}》 添加追更:")
+                if file_count > 0:
+                    add_notify(f"/{task['savepath']}")
+                    
+                    # 打印文件列表
+                    for idx, file_name in enumerate(display_files):
+                        prefix = "├── " if idx < len(display_files) - 1 else "└── "
+                        file_info = file_nodes[next((i for i, f in enumerate(file_nodes) if f["file_name"] == file_name), 0)]
+                        icon = get_file_icon(file_name, is_dir=file_info.get("dir", False))
+                        add_notify(f"{prefix}{icon}{file_name}")
+                else:
+                    add_notify(f"/{task['savepath']} (空目录)")
+                add_notify("")
+            
+            # 如果是正则模式且成功重命名，显示重命名后的文件列表
+            elif is_rename and task.get("pattern") and task.get("replace") is not None:
+                # 重新获取文件列表
+                savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}")
+                dir_file_list = account.ls_dir(account.savepath_fid[savepath])
+                
+                # 过滤出非目录的文件
+                file_nodes = [f for f in dir_file_list if not f["dir"]]
+                
+                # 计算文件数量
+                file_count = len(file_nodes)
+                
+                # 获取正则模式和替换规则
+                pattern, replace = account.magic_regex_func(
+                    task.get("pattern", ""), task.get("replace", ""), task["taskname"]
+                )
+                
+                # 创建显示文件列表
+                display_files = []
+                for file in file_nodes:
+                    # 尝试应用正则替换，显示替换后的名称
+                    try:
+                        new_name = re.sub(pattern, replace, file["file_name"])
+                        # 为文件添加图标
+                        icon = get_file_icon(file["file_name"], is_dir=file.get("dir", False))
+                        display_files.append((f"{icon}{new_name}", file))
+                    except Exception as e:
+                        # 如果正则替换失败，使用原名
+                        icon = get_file_icon(file["file_name"], is_dir=file.get("dir", False))
+                        display_files.append((f"{icon}{file['file_name']}", file))
+                
+                # 按文件名排序
+                display_files.sort(key=lambda x: x[0])
+                
+                # 添加成功通知，带文件数量图标
+                add_notify(f"✅《{task['taskname']}》 添加追更:")
+                if file_count > 0:
+                    add_notify(f"/{task['savepath']}")
+                    
+                    # 打印文件列表
+                    for idx, (display_name, _) in enumerate(display_files):
+                        prefix = "├── " if idx < len(display_files) - 1 else "└── "
+                        add_notify(f"{prefix}{display_name}")
+                else:
+                    add_notify(f"/{task['savepath']} (空目录)")
+                add_notify("")
+            
+            # 现在打印重命名日志
+            if rename_logs:
+                # 对重命名日志进行排序，确保按照新文件名的顺序显示
+                sorted_rename_logs = []
+                for log in rename_logs:
+                    # 提取新文件名（格式：重命名: 旧名 → 新名）
+                    match = re.search(r'→\s+(\d+\.\w+)', log)
+                    if match:
+                        new_name = match.group(1)
+                        # 提取序号
+                        seq_match = re.match(r'(\d+)', new_name)
+                        seq_num = int(seq_match.group(1)) if seq_match else 999
+                        sorted_rename_logs.append((seq_num, log))
+                    else:
+                        # 未找到序号的日志放在最后
+                        sorted_rename_logs.append((999, log))
+                
+                # 按序号排序
+                sorted_rename_logs.sort(key=lambda x: x[0])
+                
+                # 打印排序后的日志
+                for _, log in sorted_rename_logs:
+                    print(log)
+            else:
+                # 原始逻辑：直接打印所有日志
+                for log in rename_logs:
+                    print(log)
+            
             # 补充任务的插件配置
             def merge_dicts(a, b):
                 result = a.copy()
@@ -1907,6 +2513,7 @@ def do_save(account, tasklist=[]):
                 }
             # 调用插件
             if is_new_tree or is_rename:
+                print()
                 print(f"🧩 调用插件")
                 for plugin_name, plugin in plugins.items():
                     if plugin.is_active and (is_new_tree or is_rename):
