@@ -165,12 +165,6 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 
 请参考 Wiki ：[使用技巧集锦](https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦)
 
-## 打赏
-
-如果这个项目让你受益，你可以打赏我1块钱，让我知道开源有价值。谢谢！
-
-![WeChatPay](https://cdn.jsdelivr.net/gh/Cp0204/Cp0204@main/img/wechat_pay_qrcode.png)
-
 ## 声明
 
 本程序为个人兴趣开发，开源仅供学习与交流使用。
