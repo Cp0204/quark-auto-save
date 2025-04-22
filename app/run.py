@@ -259,6 +259,37 @@ def get_task_suggestions():
         return jsonify({"success": True, "message": f"error: {str(e)}"})
 
 
+# 添加函数，与主程序保持一致
+def is_date_format(number_str):
+    """
+    判断一个纯数字字符串是否可能是日期格式
+    支持的格式：YYYYMMDD, MMDD
+    """
+    # 判断YYYYMMDD格式 (8位数字)
+    if len(number_str) == 8 and number_str.startswith('20'):
+        year = int(number_str[:4])
+        month = int(number_str[4:6])
+        day = int(number_str[6:8])
+        
+        # 简单检查月份和日期是否有效
+        if 1 <= month <= 12 and 1 <= day <= 31:
+            # 可能是日期格式
+            return True
+    
+    # 判断MMDD格式 (4位数字)
+    elif len(number_str) == 4:
+        month = int(number_str[:2])
+        day = int(number_str[2:4])
+        
+        # 简单检查月份和日期是否有效
+        if 1 <= month <= 12 and 1 <= day <= 31:
+            # 可能是日期格式
+            return True
+            
+    # 其他长度的纯数字不视为日期格式
+    return False
+
+
 @app.route("/get_share_detail", methods=["POST"])
 def get_share_detail():
     if not is_login():
@@ -415,7 +446,9 @@ def get_share_detail():
                     # 对于单独的{}，检查文件名是否为纯数字
                     file_name_without_ext = os.path.splitext(f["file_name"])[0]
                     if file_name_without_ext.isdigit():
-                        continue  # 跳过已符合命名规则的文件
+                        # 增加判断：如果是日期格式的纯数字，不视为已命名
+                        if not is_date_format(file_name_without_ext):
+                            continue  # 跳过已符合命名规则的文件
                 elif re.match(regex_pattern, f["file_name"]):
                     continue  # 跳过已符合命名规则的文件
                 
@@ -442,7 +475,11 @@ def get_share_detail():
                     # 获取文件扩展名
                     file_ext = os.path.splitext(file["file_name"])[1]
                     # 生成预览文件名
-                    file["file_name_re"] = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
+                    if sequence_pattern == "{}":
+                        # 对于单独的{}，直接使用数字序号作为文件名
+                        file["file_name_re"] = f"{current_sequence:02d}{file_ext}"
+                    else:
+                        file["file_name_re"] = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
                     current_sequence += 1
                     
             return share_detail

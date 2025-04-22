@@ -18,6 +18,43 @@ import importlib
 import urllib.parse
 from datetime import datetime
 
+# 全局变量
+VERSION = "2.9.0"
+CONFIG_PATH = "quark_config.json"
+COOKIE_PATH = "quark_cookie.txt"
+CONFIG_DATA = {}
+LOG_LIST = []
+NOTIFYS = []
+
+def is_date_format(number_str):
+    """
+    判断一个纯数字字符串是否可能是日期格式
+    支持的格式：YYYYMMDD, MMDD
+    """
+    # 判断YYYYMMDD格式 (8位数字)
+    if len(number_str) == 8 and number_str.startswith('20'):
+        year = int(number_str[:4])
+        month = int(number_str[4:6])
+        day = int(number_str[6:8])
+        
+        # 简单检查月份和日期是否有效
+        if 1 <= month <= 12 and 1 <= day <= 31:
+            # 可能是日期格式
+            return True
+    
+    # 判断MMDD格式 (4位数字)
+    elif len(number_str) == 4:
+        month = int(number_str[:2])
+        day = int(number_str[2:4])
+        
+        # 简单检查月份和日期是否有效
+        if 1 <= month <= 12 and 1 <= day <= 31:
+            # 可能是日期格式
+            return True
+            
+    # 其他长度的纯数字不视为日期格式
+    return False
+
 # 兼容青龙
 try:
     from treelib import Tree
@@ -25,11 +62,6 @@ except:
     print("正在尝试自动安装依赖...")
     os.system("pip3 install treelib &> /dev/null")
     from treelib import Tree
-
-
-CONFIG_DATA = {}
-NOTIFYS = []
-GH_PROXY = os.environ.get("GH_PROXY", "https://ghproxy.net/")
 
 
 MAGIC_REGEX = {
@@ -1084,7 +1116,9 @@ class Quark:
                     # 对于单独的{}，检查文件名是否为纯数字
                     file_name_without_ext = os.path.splitext(f["file_name"])[0]
                     if file_name_without_ext.isdigit():
-                        continue  # 跳过已符合命名规则的文件
+                        # 增加判断：如果是日期格式的纯数字，不视为已命名
+                        if not is_date_format(file_name_without_ext):
+                            continue  # 跳过已符合命名规则的文件
                 elif re.match(regex_pattern, f["file_name"]):
                     continue  # 跳过已符合命名规则的文件
                 
@@ -1304,24 +1338,31 @@ class Quark:
             dir_file_list = self.ls_dir(self.savepath_fid[savepath])
             dir_file_name_list = [item["file_name"] for item in dir_file_list]
             
+            # 判断目录是否为空（只包含非目录文件）
+            non_dir_files = [f for f in dir_file_list if not f.get("dir", False)]
+            is_empty_dir = len(non_dir_files) == 0
+            
             # 找出当前最大序号
             max_sequence = 0
-            for dir_file in dir_file_list:
-                if sequence_pattern == "{}":
-                    # 对于单独的{}，直接尝试匹配整个文件名是否为数字
-                    file_name_without_ext = os.path.splitext(dir_file["file_name"])[0]
-                    if file_name_without_ext.isdigit():
+            if not is_empty_dir:  # 只有在目录非空时才寻找最大序号
+                for dir_file in dir_file_list:
+                    if sequence_pattern == "{}":
+                        # 对于单独的{}，直接尝试匹配整个文件名是否为数字
+                        file_name_without_ext = os.path.splitext(dir_file["file_name"])[0]
+                        if file_name_without_ext.isdigit():
+                            # 增加判断：如果是日期格式的纯数字，不应被视为序号
+                            if not is_date_format(file_name_without_ext):
+                                try:
+                                    current_seq = int(file_name_without_ext)
+                                    max_sequence = max(max_sequence, current_seq)
+                                except (ValueError, IndexError):
+                                    pass
+                    elif matches := re.match(regex_pattern, dir_file["file_name"]):
                         try:
-                            current_seq = int(file_name_without_ext)
+                            current_seq = int(matches.group(1))
                             max_sequence = max(max_sequence, current_seq)
-                        except (ValueError, IndexError):
+                        except (IndexError, ValueError):
                             pass
-                elif matches := re.match(regex_pattern, dir_file["file_name"]):
-                    try:
-                        current_seq = int(matches.group(1))
-                        max_sequence = max(max_sequence, current_seq)
-                    except (IndexError, ValueError):
-                        pass
             
             # 实现高级排序算法
             def extract_sorting_value(file):
@@ -1372,11 +1413,6 @@ class Quark:
                     season = int(match_x.group(1))
                     episode = int(match_x.group(2))
                     return season * 1000 + episode
-                
-                # 2.4 【XX电影网】剧名.01.mp4格式
-                match_web = re.search(r'[【\[].*?[】\]].*?[.\\-_](\d+)(?:[.\\-_]|$)', filename)
-                if match_web:
-                    return int(match_web.group(1))
                 
                 # 3. 日期格式识别（支持多种格式）
                 
@@ -1470,7 +1506,11 @@ class Quark:
                     file_name_without_ext = os.path.splitext(dir_file["file_name"])[0]
                     # 检查文件名是否为纯数字，如果是则跳过（已经命名好的）
                     if file_name_without_ext.isdigit():
-                        continue
+                        # 增加判断：如果是日期格式的纯数字，不视为已命名
+                        if not is_date_format(file_name_without_ext):
+                            # 不是日期格式，是纯数字序号，跳过
+                            continue
+                        # 是日期格式，需要重命名，所以不跳过
                     
                     # 添加到需要处理的文件列表
                     sorted_files.append(dir_file)
@@ -1492,13 +1532,23 @@ class Quark:
             
             # 收集所有需要重命名的文件，并按顺序处理
             renamed_pairs = []
-            current_sequence = max_sequence
+            
+            # 如果没有找到有效的最大序号，从1开始命名
+            if max_sequence == 0:
+                current_sequence = 0  # 会立即加1，所以从0开始
+            else:
+                current_sequence = max_sequence
             
             # 对排序好的文件应用顺序命名
             for dir_file in sorted_files:
                 current_sequence += 1
                 file_ext = os.path.splitext(dir_file["file_name"])[1]
-                save_name = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
+                # 根据顺序命名模式生成新的文件名
+                if sequence_pattern == "{}":
+                    # 对于单独的{}，直接使用数字序号作为文件名，不再使用日期格式
+                    save_name = f"{current_sequence:02d}{file_ext}"
+                else:
+                    save_name = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
                 
                 if save_name != dir_file["file_name"] and save_name not in dir_file_name_list:
                     # 收集重命名对，包含原始文件信息以便排序
@@ -2219,7 +2269,11 @@ def do_save(account, tasklist=[]):
                         orig_filename = node.tag.lstrip("🎞️")
                         file_ext = os.path.splitext(orig_filename)[1]
                         # 生成新的文件名（使用顺序命名模式）
-                        new_filename = sequence_pattern.replace("{}", f"{file_num:02d}") + file_ext
+                        if sequence_pattern == "{}":
+                            # 对于单独的{}，直接使用数字序号作为文件名
+                            new_filename = f"{file_num:02d}{file_ext}"
+                        else:
+                            new_filename = sequence_pattern.replace("{}", f"{file_num:02d}") + file_ext
                         # 获取适当的图标
                         icon = get_file_icon(orig_filename, is_dir=node.data.get("is_dir", False))
                         # 添加到显示列表
