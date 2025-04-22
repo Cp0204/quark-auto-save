@@ -932,7 +932,7 @@ def do_save(account, tasklist=[]):
             print(f"更子目录: {task['update_subdir']}")
         if task.get("runweek") or task.get("enddate"):
             print(
-                f"运行周期: WK{task.get("runweek",[])} ~ {task.get('enddate','forever')}"
+                f"运行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')}"
             )
         print()
         # 判断任务周期
