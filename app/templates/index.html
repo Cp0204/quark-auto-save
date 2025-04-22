@@ -983,6 +983,7 @@
           this.fileSelect.paths = [];
           this.fileSelect.index = index;
           $('#fileSelectModal').modal('toggle');
+          this.formData.tasklist[index].savepath = this.formData.tasklist[index].savepath.replace(/\/+/g, "/");
           this.getSavepathDetail(this.formData.tasklist[index].savepath);
         },
         getShareDetail() {

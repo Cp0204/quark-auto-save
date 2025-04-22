@@ -304,6 +304,7 @@ def get_savepath_detail():
     account = Quark(config_data["cookie"][0], 0)
     paths = []
     if path := request.args.get("path"):
+        path = re.sub(r"/+", "/", path)
         if path == "/":
             fid = 0
         else:
