@@ -791,8 +791,10 @@
                 task.sequence_naming = task.pattern;
               }
               // 如果是剧集命名模式，确保episode_naming字段已正确设置
-              if (task.use_episode_naming && task.pattern && task.pattern.includes('[]')) {
-                task.episode_naming = task.pattern;
+              if (task.use_episode_naming && task.pattern) {
+                if (task.pattern === "[]" || task.pattern.includes('[]')) {
+                  task.episode_naming = task.pattern;
+                }
               }
             });
           }
@@ -838,7 +840,7 @@
               if (newTask.taskname) {
                 newTask.savepath = lastTask.savepath.replace(lastTask.taskname, newTask.taskname);
               } else {
-                newTask.savepath = lastTask.taskname ? lastTask.savepath.replace(lastTask.taskname, 'TASKNAME') : lastTask.savepath;
+                newTask.savepath = lastTask.savepath.replace(lastTask.taskname, 'TASKNAME') || lastTask.savepath;
               }
             }
           }
@@ -1227,29 +1229,13 @@
           // 保存当前值以支持撤销操作
           const currentValue = task.pattern;
           
-          if (task.pattern) {
-            // 检查是否包含任何顺序命名模式
-            isSequenceNaming = sequencePatterns.some(pattern => {
-              const regexPattern = pattern.replace('{}', '\\{\\}');
-              return new RegExp(regexPattern).test(task.pattern);
-            });
+          if (task.pattern !== undefined) {
+            // 检查是否包含完整的{}占位符（确保不是分开的{和}）
+            isSequenceNaming = task.pattern.includes('{}') && (!task.replace || task.replace === '');
             
-            // 或者用户直接输入包含{}的格式，且替换表达式为空
-            if (!isSequenceNaming && task.pattern.includes('{}') && (!task.replace || task.replace === '')) {
-              isSequenceNaming = true;
-            }
-            
-            // 检查是否包含任何剧集命名模式
+            // 如果不是顺序命名模式，检查是否包含完整的[]占位符或就是单独的[]
             if (!isSequenceNaming) {
-              isEpisodeNaming = episodePatterns.some(pattern => {
-                const regexPattern = pattern.replace('[]', '\\[\\]');
-                return new RegExp(regexPattern).test(task.pattern);
-              });
-              
-              // 或者用户直接输入包含[]的格式，且替换表达式为空
-              if (!isEpisodeNaming && task.pattern.includes('[]') && (!task.replace || task.replace === '')) {
-                isEpisodeNaming = true;
-              }
+              isEpisodeNaming = (task.pattern === '[]' || task.pattern.includes('[]')) && (!task.replace || task.replace === '');
             }
           }
           

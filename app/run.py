@@ -509,7 +509,10 @@ def get_share_detail():
                 return None
             
             # 构建剧集命名的正则表达式 (主要用于检测已命名文件)
-            if "[]" in episode_pattern:
+            if episode_pattern == "[]":
+                # 对于单独的[]，使用特殊匹配
+                regex_pattern = "^(\\d+)$"  # 匹配纯数字文件名
+            elif "[]" in episode_pattern:
                 regex_pattern = re.escape(episode_pattern).replace('\\[\\]', '(\\d+)')
             else:
                 # 如果输入模式不包含[]，则使用简单匹配模式，避免正则表达式错误
@@ -563,7 +566,11 @@ def get_share_detail():
                     episode_num = extract_episode_number(file["file_name"])
                     if episode_num is not None:
                         # 生成预览文件名
-                        file["file_name_re"] = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                        if episode_pattern == "[]":
+                            # 对于单独的[]，直接使用数字序号作为文件名
+                            file["file_name_re"] = f"{episode_num:02d}{file_ext}"
+                        else:
+                            file["file_name_re"] = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
                     else:
                         # 无法提取剧集号，标记为无法处理
                         file["file_name_re"] = "❌ 无法识别剧集号"
