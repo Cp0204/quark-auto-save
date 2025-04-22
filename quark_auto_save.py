@@ -244,19 +244,17 @@ class Config:
         if not config_data.get("episode_patterns"):
             print("🔼 添加剧集识别模式配置")
             config_data["episode_patterns"] = [
-                {"description": "[]", "regex": "(\\d+)"},
-                {"description": "[]-4K", "regex": "(\\d+)[-_\\s]*4[Kk]"},
-                {"description": "[]话", "regex": "(\\d+)话"},
-                {"description": "E[]", "regex": "[Ee](\\d+)"},
-                {"description": "EP[]", "regex": "[Ee][Pp](\\d+)"},
-                {"description": "第[]话", "regex": "第(\\d+)话"},
                 {"description": "第[]集", "regex": "第(\\d+)集"},
                 {"description": "第[]期", "regex": "第(\\d+)期"},
-                {"description": "[] 4K", "regex": "(\\d+)\\s+4[Kk]"},
-                {"description": "[]_4K", "regex": "(\\d+)[_\\s]4[Kk]"},
-                {"description": "【[]】", "regex": "【(\\d+)】"},
+                {"description": "第[]话", "regex": "第(\\d+)话"},
+                {"description": "[]集", "regex": "(\\d+)集"},
+                {"description": "[]期", "regex": "(\\d+)期"},
+                {"description": "[]话", "regex": "(\\d+)话"},
+                {"description": "E/EP[]", "regex": "[Ee][Pp]?(\\d+)"},
+                {"description": "[]-4K", "regex": "(\\d+)[-_\\s]*4[Kk]"},
                 {"description": "[[]", "regex": "\\[(\\d+)\\]"},
-                {"description": "_[]_", "regex": "_?(\\d+)_"}
+                {"description": "【[]】", "regex": "【(\\d+)】"},
+                {"description": "_[]_", "regex": "_?(\\d+)_?"}
             ]
 
 
@@ -986,7 +984,7 @@ class Quark:
                 # 提取文件名，不含扩展名
                 file_name_without_ext = os.path.splitext(filename)[0]
                 
-                # 1. "第X期/集/话" 格式
+                # 1. "第X期/集/话" 格式 - 保持最高优先级
                 match_chinese = re.search(r'第(\d+)[期集话]', filename)
                 episode_num = int(match_chinese.group(1)) if match_chinese else 0
                 
@@ -1007,6 +1005,11 @@ class Quark:
                 elif '下' in filename:
                     return 3
                 
+                # 1.2 "X集/期/话" 格式 - 与我们修改后的优先级一致
+                match_chinese_simple = re.search(r'(\d+)[期集话]', filename)
+                if match_chinese_simple:
+                    return int(match_chinese_simple.group(1))
+                
                 # 2.1 S01E01 格式，提取季数和集数
                 match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
                 if match_s_e:
@@ -1014,7 +1017,7 @@ class Quark:
                     episode = int(match_s_e.group(2))
                     return season * 1000 + episode
                 
-                # 2.2 E01 格式，仅提取集数
+                # 2.2 E01/EP01 格式，仅提取集数
                 match_e = re.search(r'[Ee][Pp]?(\d+)', filename)
                 if match_e:
                     return int(match_e.group(1))
@@ -1025,6 +1028,26 @@ class Quark:
                     season = int(match_x.group(1))
                     episode = int(match_x.group(2))
                     return season * 1000 + episode
+                
+                # 2.4 数字后接4K格式
+                match_4k = re.search(r'(\d+)[-_\s]*4[Kk]', filename)
+                if match_4k:
+                    return int(match_4k.group(1))
+                
+                # 2.5 方括号包围的数字
+                match_bracket = re.search(r'\[(\d+)\]', filename)
+                if match_bracket:
+                    return int(match_bracket.group(1))
+                
+                # 2.6 中括号包围的数字
+                match_cn_bracket = re.search(r'【(\d+)】', filename)
+                if match_cn_bracket:
+                    return int(match_cn_bracket.group(1))
+                
+                # 2.7 下划线包围的数字
+                match_underscore = re.search(r'_?(\d+)_', filename)
+                if match_underscore:
+                    return int(match_underscore.group(1))
                 
                 # 3. 日期格式识别（支持多种格式）
                 
@@ -1374,7 +1397,7 @@ class Quark:
                 # 提取文件名，不含扩展名
                 file_name_without_ext = os.path.splitext(filename)[0]
                 
-                # 1. "第X期/集/话" 格式
+                # 1. "第X期/集/话" 格式 - 保持最高优先级
                 match_chinese = re.search(r'第(\d+)[期集话]', filename)
                 episode_num = int(match_chinese.group(1)) if match_chinese else 0
                 
@@ -1395,6 +1418,11 @@ class Quark:
                 elif '下' in filename:
                     return 3
                 
+                # 1.2 "X集/期/话" 格式 - 与我们修改后的优先级一致
+                match_chinese_simple = re.search(r'(\d+)[期集话]', filename)
+                if match_chinese_simple:
+                    return int(match_chinese_simple.group(1))
+                
                 # 2.1 S01E01 格式，提取季数和集数
                 match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
                 if match_s_e:
@@ -1402,7 +1430,7 @@ class Quark:
                     episode = int(match_s_e.group(2))
                     return season * 1000 + episode
                 
-                # 2.2 E01 格式，仅提取集数
+                # 2.2 E01/EP01 格式，仅提取集数
                 match_e = re.search(r'[Ee][Pp]?(\d+)', filename)
                 if match_e:
                     return int(match_e.group(1))
@@ -1413,6 +1441,26 @@ class Quark:
                     season = int(match_x.group(1))
                     episode = int(match_x.group(2))
                     return season * 1000 + episode
+                
+                # 2.4 数字后接4K格式
+                match_4k = re.search(r'(\d+)[-_\s]*4[Kk]', filename)
+                if match_4k:
+                    return int(match_4k.group(1))
+                
+                # 2.5 方括号包围的数字
+                match_bracket = re.search(r'\[(\d+)\]', filename)
+                if match_bracket:
+                    return int(match_bracket.group(1))
+                
+                # 2.6 中括号包围的数字
+                match_cn_bracket = re.search(r'【(\d+)】', filename)
+                if match_cn_bracket:
+                    return int(match_cn_bracket.group(1))
+                
+                # 2.7 下划线包围的数字
+                match_underscore = re.search(r'_?(\d+)_', filename)
+                if match_underscore:
+                    return int(match_underscore.group(1))
                 
                 # 3. 日期格式识别（支持多种格式）
                 
@@ -1642,17 +1690,17 @@ class Quark:
                 
                 # 尝试匹配更多格式
                 default_patterns = [
-                    r'(\d+)',
-                    r'(\d+)[-_\s]*4[Kk]',
-                    r'(\d+)话',
-                    r'第(\d+)话',
                     r'第(\d+)集',
                     r'第(\d+)期',
-                    r'(\d+)\s+4[Kk]',
-                    r'(\d+)[_\s]4[Kk]',
-                    r'【(\d+)】',
+                    r'第(\d+)话',
+                    r'(\d+)集',
+                    r'(\d+)期',
+                    r'(\d+)话',
+                    r'[Ee][Pp]?(\d+)',
+                    r'(\d+)[-_\s]*4[Kk]',
                     r'\[(\d+)\]',
-                    r'_?(\d+)_'
+                    r'【(\d+)】',
+                    r'_?(\d+)_?'
                 ]
                 
                 # 如果配置了自定义规则，优先使用
@@ -1770,13 +1818,13 @@ class Quark:
                             season = int(match_s_e.group(1))
                             episode = int(match_s_e.group(2))
                             return (season * 1000 + episode, 0)
-                            
-                        # 其他匹配方式
+                        
+                        # 使用统一的剧集提取函数
                         episode_num = extract_episode_number(filename)
                         if episode_num is not None:
                             return (episode_num, 0)
-                            
-                        # 无法识别，使用修改时间
+                        
+                        # 无法识别，回退到修改时间排序
                         return (float('inf'), file.get("last_update_at", 0))
                         
                     # 过滤出文件并排序
@@ -2299,20 +2347,32 @@ def do_save(account, tasklist=[]):
                             return int(match_e.group(1))
                         
                         # 尝试匹配更多格式
-                        patterns = [
-                            r'(\d+)',
-                            r'(\d+)[-_\s]*4[Kk]',
-                            r'(\d+)话',
-                            r'第(\d+)话',
+                        default_patterns = [
                             r'第(\d+)集',
                             r'第(\d+)期',
-                            r'(\d+)\s+4[Kk]',
-                            r'(\d+)[_\s]4[Kk]',
-                            r'【(\d+)】',
+                            r'第(\d+)话',
+                            r'(\d+)集',
+                            r'(\d+)期',
+                            r'(\d+)话',
+                            r'[Ee][Pp]?(\d+)',
+                            r'(\d+)[-_\s]*4[Kk]',
                             r'\[(\d+)\]',
-                            r'_?(\d+)_'
+                            r'【(\d+)】',
+                            r'_?(\d+)_?'
                         ]
                         
+                        # 如果配置了自定义规则，优先使用
+                        if "config_data" in task and isinstance(task["config_data"].get("episode_patterns"), list) and task["config_data"]["episode_patterns"]:
+                            patterns = [p.get("regex", "(\\d+)") for p in task["config_data"]["episode_patterns"]]
+                        else:
+                            # 尝试从全局配置获取
+                            global CONFIG_DATA
+                            if isinstance(CONFIG_DATA.get("episode_patterns"), list) and CONFIG_DATA["episode_patterns"]:
+                                patterns = [p.get("regex", "(\\d+)") for p in CONFIG_DATA["episode_patterns"]]
+                            else:
+                                patterns = default_patterns
+                        
+                        # 尝试使用每个正则表达式匹配文件名
                         for pattern_regex in patterns:
                             try:
                                 match = re.search(pattern_regex, filename)
@@ -2414,20 +2474,32 @@ def do_save(account, tasklist=[]):
                         return int(match_e.group(1))
                     
                     # 尝试匹配更多格式
-                    patterns = [
-                        r'(\d+)',
-                        r'(\d+)[-_\s]*4[Kk]',
-                        r'(\d+)话',
-                        r'第(\d+)话',
+                    default_patterns = [
                         r'第(\d+)集',
                         r'第(\d+)期',
-                        r'(\d+)\s+4[Kk]',
-                        r'(\d+)[_\s]4[Kk]',
-                        r'【(\d+)】',
+                        r'第(\d+)话',
+                        r'(\d+)集',
+                        r'(\d+)期',
+                        r'(\d+)话',
+                        r'[Ee][Pp]?(\d+)',
+                        r'(\d+)[-_\s]*4[Kk]',
                         r'\[(\d+)\]',
-                        r'_?(\d+)_'
+                        r'【(\d+)】',
+                        r'_?(\d+)_?'
                     ]
                     
+                    # 如果配置了自定义规则，优先使用
+                    if "config_data" in task and isinstance(task["config_data"].get("episode_patterns"), list) and task["config_data"]["episode_patterns"]:
+                        patterns = [p.get("regex", "(\\d+)") for p in task["config_data"]["episode_patterns"]]
+                    else:
+                        # 尝试从全局配置获取
+                        global CONFIG_DATA
+                        if isinstance(CONFIG_DATA.get("episode_patterns"), list) and CONFIG_DATA["episode_patterns"]:
+                            patterns = [p.get("regex", "(\\d+)") for p in CONFIG_DATA["episode_patterns"]]
+                        else:
+                            patterns = default_patterns
+                    
+                    # 尝试使用每个正则表达式匹配文件名
                     for pattern_regex in patterns:
                         try:
                             match = re.search(pattern_regex, filename)

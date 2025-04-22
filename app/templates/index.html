@@ -176,7 +176,7 @@
               <div class="col-10">
                 <h2 style="display: inline-block;"><i class="bi bi-list-ol"></i> 剧集识别</h2>
                 <span class="badge badge-pill badge-light">
-                  <a href="#" target="_blank" @click.prevent="alert('剧集识别说明：\n在任务配置中填写包含E[]的匹配表达式，如「剧名 - S01E[]」，将自动切换至剧集命名模式，自动识别文件名中的编号作为集编号，并替换[]部分。\n\n集编号匹配规则：\n用于识别集编号的正则表达式，多个表达式之间用竖线「|」分隔，每个表达式必须包含一个捕获组，用于提取剧集编号')">?</a>
+                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/正则处理教程#25-剧集命名" target="_blank">?</a>
                 </span>
               </div>
             </div>
@@ -185,7 +185,7 @@
                 <div class="input-group-prepend">
                   <span class="input-group-text">集编号识别规则</span>
                 </div>
-                <input type="text" class="form-control" v-model="episodePatternsText" placeholder="多个正则表达式用竖线「|」分隔，如：(\\d+)|[Ee](\\d+)|第(\\d+)集">
+                <input type="text" class="form-control" v-model="episodePatternsText" placeholder="输入用于识别集编号的正则表达式，多个表达式用竖线「|」分隔，如：第(\d+)集|[Ee][Pp]?(\d+)|(\d+)[-_\\s]*4[Kk]">
               </div>
             </div>
 
@@ -677,19 +677,17 @@
           // 如果没有剧集识别模式，添加默认模式
           if (!this.formData.episode_patterns || this.formData.episode_patterns.length === 0) {
             this.formData.episode_patterns = [
-              { name: 'EP_BASIC', description: '[]', regex: '(\\d+)' },
-              { name: 'EP_4K', description: '[]-4K', regex: '(\\d+)[-_\\s]*4[Kk]' },
-              { name: 'EP_HUA', description: '[]话', regex: '(\\d+)话' },
-              { name: 'EP_E', description: 'E[]', regex: '[Ee](\\d+)' },
-              { name: 'EP_EP', description: 'EP[]', regex: '[Ee][Pp](\\d+)' },
-              { name: 'EP_DIHUA', description: '第[]话', regex: '第(\\d+)话' },
               { name: 'EP_DIJI', description: '第[]集', regex: '第(\\d+)集' },
               { name: 'EP_DIQI', description: '第[]期', regex: '第(\\d+)期' },
-              { name: 'EP_4KSPACE', description: '[] 4K', regex: '(\\d+)\\s+4[Kk]' },
-              { name: 'EP_4KUNDER', description: '[]_4K', regex: '(\\d+)[_\\s]4[Kk]' },
-              { name: 'EP_BRACKET', description: '【[]】', regex: '【(\\d+)】' },
+              { name: 'EP_DIHUA', description: '第[]话', regex: '第(\\d+)话' },
+              { name: 'EP_JI', description: '[]集', regex: '(\\d+)集' },
+              { name: 'EP_QI', description: '[]期', regex: '(\\d+)期' },
+              { name: 'EP_HUA', description: '[]话', regex: '(\\d+)话' },
+              { name: 'EP_E_EP', description: 'E/EP[]', regex: '[Ee][Pp]?(\\d+)' },
+              { name: 'EP_4K', description: '[]-4K', regex: '(\\d+)[-_\\s]*4[Kk]' },
               { name: 'EP_SQUAREBRACKET', description: '方括号数字', regex: '\\[(\\d+)\\]' },
-              { name: 'EP_UNDERSCORE', description: '_[]_', regex: '_?(\\d+)_' }
+              { name: 'EP_BRACKET', description: '【[]】', regex: '【(\\d+)】' },
+              { name: 'EP_UNDERSCORE', description: '_[]_', regex: '_?(\\d+)_?' }
             ];
           }
         }, 500);
@@ -1220,8 +1218,8 @@
         },
         detectNamingMode(task) {
           // 检测是否为顺序命名模式或剧集命名模式
-          const sequencePatterns = ['{}', 'E{}', 'EP{}', 'S\\d+E{}', '第{}集', '第{}话', '第{}期'];
-          const episodePatterns = ['[]', 'E[]', 'EP[]', 'S\\d+E[]', '第[]集', '第[]话', '第[]期'];
+          const sequencePatterns = ['第{}集', '第{}期', '第{}话', '{}集', '{}期', '{}话', 'E{}', 'EP{}', 'S\\d+E{}', '[{}]', '【{}】', '_{}_'];
+          const episodePatterns = ['第{% raw %}[]{% endraw %}集', '第{% raw %}[]{% endraw %}期', '第{% raw %}[]{% endraw %}话', '{% raw %}[]{% endraw %}集', '{% raw %}[]{% endraw %}期', '{% raw %}[]{% endraw %}话', 'E{% raw %}[]{% endraw %}', 'EP{% raw %}[]{% endraw %}', 'S\\d+E{% raw %}[]{% endraw %}', '[{% raw %}[]{% endraw %}', '【{% raw %}[]{% endraw %}】', '_{% raw %}[]{% endraw %}_'];
           
           let isSequenceNaming = false;
           let isEpisodeNaming = false;
