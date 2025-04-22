@@ -636,6 +636,13 @@
       mounted() {
         this.fetchData();
         this.checkNewVersion();
+        
+        // 从本地存储中恢复之前的标签页状态
+        const savedTab = localStorage.getItem('quarkAutoSave_activeTab');
+        if (savedTab) {
+          this.activeTab = savedTab;
+        }
+        
         $('[data-toggle="tooltip"]').tooltip();
         document.addEventListener('keydown', this.handleKeyDown);
         document.addEventListener('click', (e) => {
@@ -693,6 +700,8 @@
       methods: {
         changeTab(tab) {
           this.activeTab = tab;
+          // 在本地存储中保存当前标签页状态
+          localStorage.setItem('quarkAutoSave_activeTab', tab);
           if (window.innerWidth <= 768) {
             $('#sidebarMenu').collapse('toggle')
           }
@@ -1211,8 +1220,8 @@
         },
         detectNamingMode(task) {
           // 检测是否为顺序命名模式或剧集命名模式
-          const sequencePatterns = ['E{}', 'EP{}', 'S\\d+E{}', '第{}集', '第{}话', '第{}期'];
-          const episodePatterns = ['E[]', 'EP[]', 'S\\d+E[]', '第[]集', '第[]话', '第[]期', '[]'];
+          const sequencePatterns = ['{}', 'E{}', 'EP{}', 'S\\d+E{}', '第{}集', '第{}话', '第{}期'];
+          const episodePatterns = ['[]', 'E[]', 'EP[]', 'S\\d+E[]', '第[]集', '第[]话', '第[]期'];
           
           let isSequenceNaming = false;
           let isEpisodeNaming = false;
