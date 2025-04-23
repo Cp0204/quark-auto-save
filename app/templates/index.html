@@ -49,10 +49,10 @@
               </a>
             </li>
           </ul>
-          <div class="text-center" style="position: absolute; bottom: 32px; width: 100%; font-size: small;">
-            <p><a class="" target="_blank" href="https://github.com/Cp0204/quark-auto-save/wiki"><i class="bi bi-wechat"></i> 使用交流</a></p>
-            <p><a target="_blank" href="https://github.com/Cp0204/quark-auto-save"><i class="bi bi-github"></i> quark-auto-save</a></p>
-            <p><span v-html="versionTips"></span></p>
+          <div class="text-center" style="position: absolute; bottom: 25px; width: 100%; font-size: small;">
+            <p style="margin-bottom: -3px;"><a target="_blank" href="https://github.com/x1ao4/quark-auto-save-x"><i class="bi bi-github" style="font-size: 1.5rem;"></i></a></p>
+            <p style="margin-bottom: 0;"><a target="_blank" href="https://github.com/x1ao4/quark-auto-save-x/wiki" style="font-size: 0.9rem;">quark-auto-save-x</a></p>
+            <p style="margin-bottom: 0;"><a target="_blank" href="https://github.com/x1ao4/quark-auto-save-x/releases" style="font-size: 0.9rem;"><span v-html="versionTips"></span></a></p>
           </div>
         </div>
       </nav>
@@ -705,10 +705,10 @@
           }
         },
         checkNewVersion() {
-          this.versionTips = this.version;
-          axios.get('https://api.github.com/repos/Cp0204/quark-auto-save/tags')
+          this.versionTips = this.version.replace('v', '');
+          axios.get('https://api.github.com/repos/x1ao4/quark-auto-save-x/tags')
             .then(response => {
-              latestVersion = response.data[0].name;
+              latestVersion = response.data[0].name.replace('v', '');
               console.log(`检查版本：当前 ${this.version} 最新 ${latestVersion}`);
               if (latestVersion != this.version) {
                 this.versionTips += ` <sup><span class="badge badge-pill badge-danger">${latestVersion}</span></sup>`;
