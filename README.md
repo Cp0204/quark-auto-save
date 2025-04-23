@@ -1,35 +1,10 @@
-<div align="center">
-
-![quark-logo](img/icon.png)
-
 # 夸克网盘自动转存
 
 夸克网盘签到、自动转存、命名整理、发推送提醒和刷新媒体库一条龙。
-
 对于一些持续更新的资源，隔段时间去转存十分麻烦。
-
 定期执行本脚本自动转存、文件名整理，配合 Alist, rclone, Emby 可达到自动追更的效果。🥳
 
-
-[![wiki][wiki-image]][wiki-url] [![github releases][gitHub-releases-image]][github-url] [![docker pulls][docker-pulls-image]][docker-url] [![docker image size][docker-image-size-image]][docker-url]
-
-[wiki-image]: https://img.shields.io/badge/wiki-Documents-green?logo=github
-[gitHub-releases-image]: https://img.shields.io/github/v/release/Cp0204/quark-auto-save?logo=github
-[docker-pulls-image]: https://img.shields.io/docker/pulls/cp0204/quark-auto-save?logo=docker&&logoColor=white
-[docker-image-size-image]: https://img.shields.io/docker/image-size/cp0204/quark-auto-save?logo=docker&&logoColor=white
-[github-url]: https://github.com/Cp0204/quark-auto-save
-[docker-url]: https://hub.docker.com/r/cp0204/quark-auto-save
-[wiki-url]: https://github.com/Cp0204/quark-auto-save/wiki
-
-![run_log](img/run_log.png)
-
-</div>
-
-> [!CAUTION]
-> ⛔️⛔️⛔️ 注意！资源不会每时每刻更新，**严禁设定过高的定时运行频率！** 以免账号风控和给夸克服务器造成不必要的压力。雪山崩塌，每一片雪花都有责任！
-
-> [!NOTE]
-> 因不想当客服处理各种使用咨询，即日起 Issues 关闭，如果你发现了 bug 、有好的想法或功能建议，欢迎通过 PR 和我对话，谢谢！
+⛔️⛔️⛔️ 注意！资源不会每时每刻更新，**严禁设定过高的定时运行频率！** 以免账号风控和给夸克服务器造成不必要的压力。雪山崩塌，每一片雪花都有责任！
 
 ## 功能
 
@@ -113,12 +88,6 @@ services:
 | `WEBUI_PASSWORD` | `admin123` | 管理密码 |
 | `PLUGIN_FLAGS`   |            | 插件标志，如 `-emby,-aria2` 禁用某些插件 |
 
-#### 一键更新
-
-```shell
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtower -cR quark-auto-save
-```
-
 <details open>
 <summary>WebUI 预览</summary>
 
@@ -166,7 +135,5 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 请参考 Wiki ：[使用技巧集锦](https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦)
 
 ## 声明
-
 本程序为个人兴趣开发，开源仅供学习与交流使用。
-
 程序没有任何破解行为，只是对于夸克已有的API进行封装，所有数据来自于夸克官方API，本人不对网盘内容负责、不对夸克官方API未来可能的改动导致的后果负责。
