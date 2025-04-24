@@ -1,13 +1,20 @@
 # 夸克网盘自动转存
+本项目是在 [Cp0204/quark-auto-save:0.5.3.1](https://github.com/Cp0204/quark-auto-save) 的基础上修改而来的（感谢 [Cp0204](https://github.com/Cp0204)），我增加了几个功能，新增功能的代码都是通过 AI 完成的，不保证功能的稳定性。主要的新增功能如下（[详见](https://github.com/x1ao4/quark-auto-save-x/wiki)）：
+
+- **过滤项目**：通过在 `过滤规则` 里设置过滤词来过滤不需要转存的文件或文件夹。
+- **顺序命名**：通过使用包含 `{}` 的表达式（如 `乘风2025 - S06E{}`）自动切换为 `顺序命名` 模式，该模式将通过文件名与上传时间等信息对文件进行智能排序，然后按顺序对每个文件的 `{}` 赋予序号，实现顺序命名。
+- **剧集命名**：通过使用包含 `[]` 的表达式（如 `黑镜 - S06E[]`）自动切换为 `剧集命名` 模式，该模式将从原始文件名中提取剧集编号，然后把提取的编号代入对应文件名的 `[]` 中，实现自动按剧集编号命名。
+- **自动切换命名模式**：默认的命名模式依然为 `正则命名` 模式，现在会通过用户输入的 `匹配表达式` 自动实时判断和切换对应的模式。
+
+本项目修改后的版本为个人需求定制版，代码是通过 AI 完成的，未经过充分测试（能发现的 BUG 我基本解决了，但可能存在未发现的 BUG），我会在后续的使用中继续完善功能。若你要使用本项目，请知晓本人不是程序员，我无法保证本项目的稳定性，如果你在使用过程中发现了 BUG，可以在 Issues 中提交，但不保证每个 BUG 都能被修复，请谨慎使用。
 
 夸克网盘签到、自动转存、命名整理、发推送提醒和刷新媒体库一条龙。
 对于一些持续更新的资源，隔段时间去转存十分麻烦。
-定期执行本脚本自动转存、文件名整理，配合 Alist, rclone, Emby 可达到自动追更的效果。🥳
+定期执行本脚本自动转存、文件名整理，配合 Alist、rclone、Emby 可达到自动追更的效果。🥳
 
-⛔️⛔️⛔️ 注意！资源不会每时每刻更新，**严禁设定过高的定时运行频率！** 以免账号风控和给夸克服务器造成不必要的压力。雪山崩塌，每一片雪花都有责任！
+注意！资源不会每时每刻更新，**严禁设定过高的定时运行频率！** 以免账号风控和给夸克服务器造成不必要的压力。
 
 ## 功能
-
 - 部署方式
   - [x] 兼容青龙
   - [x] 支持 Docker 独立部署，WebUI 配置
@@ -15,8 +22,8 @@
 - 分享链接
   - [x] 支持分享链接的子目录
   - [x] 记录失效分享并跳过任务
-  - [x] 支持需提取码的分享链接 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦#支持需提取码的分享链接)</sup>
-  - [x] 智能搜索资源并自动填充 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/CloudSaver搜索源)</sup>
+  - [x] 支持需提取码的分享链接 <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/使用技巧集锦#支持需提取码的分享链接)</sup>
+  - [x] 智能搜索资源并自动填充 <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/CloudSaver搜索源)</sup>
 
 - 文件管理
   - [x] 目标目录不存在时自动新建
@@ -36,104 +43,84 @@
   - [x] **媒体库模块化，用户可很方便地[开发自己的媒体库hook模块](./plugins)**
 
 - 其它
-  - [x] 每日签到领空间 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦#每日签到领空间)</sup>
-  - [x] 支持多个通知推送渠道 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/通知推送服务配置)</sup>
+  - [x] 每日签到领空间 <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/使用技巧集锦#每日签到领空间)</sup>
+  - [x] 支持多个通知推送渠道 <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/通知推送服务配置)</sup>
   - [x] 支持多账号（多账号签到，仅首账号转存）
 
 ## 部署
-
 ### Docker 部署
 
 Docker 部署提供 WebUI 管理配置，图形化配置已能满足绝大多数需求。部署命令：
 
 ```shell
 docker run -d \
-  --name quark-auto-save \
+  --name quark-auto-save-x \
   -p 5005:5005 \
-  -e WEBUI_USERNAME=admin \
-  -e WEBUI_PASSWORD=admin123 \
-  -v ./quark-auto-save/config:/app/config \
-  -v ./quark-auto-save/media:/media \ # 可选，模块alist_strm_gen生成strm使用
-  --network bridge \
+  -e WEBUI_USERNAME=自定义用户名 \
+  -e WEBUI_PASSWORD=自定义密码 \
+  -v /自定义配置文件的存储目录/quark-auto-save-x/config:/app/config \
+  -v /自定义生成文件的存储目录:/media \  # 可选，插件 alist_strm_gen 生成 strm 使用
   --restart unless-stopped \
-  cp0204/quark-auto-save:latest
-  # registry.cn-shenzhen.aliyuncs.com/cp0204/quark-auto-save:latest # 国内镜像地址
+  x1ao4/quark-auto-save-x:latest
 ```
 
 docker-compose.yml
 
 ```yaml
-name: quark-auto-save
+version: "3.3"
 services:
-  quark-auto-save:
-    image: cp0204/quark-auto-save:latest
-    container_name: quark-auto-save
-    network_mode: bridge
+  quark-auto-save-x:
+    image: x1ao4/quark-auto-save-x:latest
+    container_name: quark-auto-save-x
     ports:
       - 5005:5005
-    restart: unless-stopped
     environment:
-      WEBUI_USERNAME: "admin"
-      WEBUI_PASSWORD: "admin123"
+      WEBUI_USERNAME: 自定义用户名
+      WEBUI_PASSWORD: 自定义密码
     volumes:
-      - ./quark-auto-save/config:/app/config
-      - ./quark-auto-save/media:/media
+      - /自定义配置文件的存储目录/quark-auto-save-x/config:/app/config
+      - /自定义生成文件的存储目录:/media  # 可选，插件 alist_strm_gen 生成 strm 使用
+    restart: unless-stopped
+networks: {}
 ```
 
 管理地址：http://yourhost:5005
 
-| 环境变量         | 默认       | 备注     |
-| ---------------- | ---------- | -------- |
-| `WEBUI_USERNAME` | `admin`    | 管理账号 |
-| `WEBUI_PASSWORD` | `admin123` | 管理密码 |
-| `PLUGIN_FLAGS`   |            | 插件标志，如 `-emby,-aria2` 禁用某些插件 |
-
-<details open>
-<summary>WebUI 预览</summary>
-
-![screenshot_webui](img/screenshot_webui-1.png)
-
-![screenshot_webui](img/screenshot_webui-2.png)
-
-</details>
+| 环境变量         | 说明     |
+| ---------------- | -------- |
+| `WEBUI_USERNAME` | 用户名 |
+| `WEBUI_PASSWORD` | 密码 |
+| `PLUGIN_FLAGS`   | 插件标志，如使用 `-emby,-aria2` 来禁用某些插件 |
 
 ### 青龙部署
-
 程序也支持以青龙定时任务的方式运行，但该方式无法使用 WebUI 管理任务，需手动修改配置文件。
 
-青龙部署说明已转移到 Wiki ：[青龙部署教程](https://github.com/Cp0204/quark-auto-save/wiki/部署教程#青龙部署)
+青龙部署说明已转移到 Wiki ：[青龙部署教程](https://github.com/x1ao4/quark-auto-save-x/wiki/部署教程#青龙部署)
 
 ## 使用说明
-
 ### 正则整理示例
 
-| pattern                                | replace      | 效果                                                                   |
-| -------------------------------------- | ------------ | ---------------------------------------------------------------------- |
-| `.*`                                   |              | 无脑转存所有文件，不整理                                               |
-| `\.mp4$`                               |              | 转存所有 `.mp4` 后缀的文件                                             |
-| `^【电影TT】花好月圆(\d+)\.(mp4\|mkv)` | `\1.\2`      | 【电影TT】花好月圆01.mp4 → 01.mp4<br>【电影TT】花好月圆02.mkv → 02.mkv |
-| `^(\d+)\.mp4`                          | `S02E\1.mp4` | 01.mp4 → S02E01.mp4<br>02.mp4 → S02E02.mp4                             |
-| `$TV`                                  |              | [魔法匹配](#魔法匹配)剧集文件                                          |
+| 匹配表达式                                | 替换表达式                | 效果                                                                   |
+| -------------------------------------- | ---------------------- | ---------------------------------------------------------------------- |
+| `.*`                                   |                        | 无脑转存所有文件，不整理                                               |
+| `\.mp4$`                               |                        | 转存所有 `.mp4` 后缀的文件                                             |
+| `^【电影TT】花好月圆(\d+)\.(mp4\|mkv)` | `\1.\2`                | 【电影TT】花好月圆01.mp4 → 01.mp4<br>【电影TT】花好月圆02.mkv → 02.mkv |
+| `^(\d+)\.mp4`                          | `S02E\1.mp4`           | 01.mp4 → S02E01.mp4<br>02.mp4 → S02E02.mp4                             |
+| `$TV`                                  |                        | “魔法匹配”剧集文件                                                     |
 | `^(\d+)\.mp4`                          | `$TASKNAME.S02E\1.mp4` | 01.mp4 → 任务名.S02E01.mp4                                             |
+| `乘风2025 - S06E{}`                     |                        | 按照文件顺序命名，`{}` 会被代入序号，新增项目序号在已存在的最大序号的基础上递增  |
+| `黑镜 - S07E[]`                         |                        | 自动识别文件名中的集编号，`[]` 会被代入从文件名中自动提取的集编号               |
 
-> [!TIP]
->
-> **魔法匹配**：当任务 `pattern` 值为 `$开头` 且 `replace` 留空时，实际将调用程序预设的正则表达式。
->
-> 如 `$TV` 可适配和自动整理市面上90%分享剧集的文件名格式，具体实现见代码，欢迎贡献规则。
-
-更多正则使用说明：[正则处理教程](https://github.com/Cp0204/quark-auto-save/wiki/正则处理教程)
+更多正则使用说明：[正则处理教程](https://github.com/x1ao4/quark-auto-save-x/wiki/正则处理教程)
 
 ### 刷新媒体库
-
-在有新转存时，可触发完成相应功能，如自动刷新媒体库、生成 .strm 文件等。配置指南：[插件配置](https://github.com/Cp0204/quark-auto-save/wiki/插件配置)
+在有新转存时，可触发完成相应功能，如自动刷新媒体库、生成 .strm 文件等。配置指南：[插件配置](https://github.com/x1ao4/quark-auto-save-x/wiki/插件配置)
 
 媒体库模块以插件的方式的集成，如果你有兴趣请参考[插件开发指南](https://github.com/Cp0204/quark-auto-save/tree/main/plugins)。
 
 ### 更多使用技巧
-
-请参考 Wiki ：[使用技巧集锦](https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦)
+请参考 Wiki ：[使用技巧集锦](https://github.com/x1ao4/quark-auto-save-x/wiki/使用技巧集锦)
 
 ## 声明
 本程序为个人兴趣开发，开源仅供学习与交流使用。
-程序没有任何破解行为，只是对于夸克已有的API进行封装，所有数据来自于夸克官方API，本人不对网盘内容负责、不对夸克官方API未来可能的改动导致的后果负责。
+程序没有任何破解行为，只是对于夸克已有的 API 进行封装，所有数据来自于夸克官方 API，本人不对网盘内容负责、不对夸克官方 API 未来可能的改动导致的后果负责。
