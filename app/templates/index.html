@@ -479,10 +479,10 @@
               <!-- 文件列表 -->
               <div class="mb-3" v-if="fileSelect.previewRegex">
                 <div v-if="formData.tasklist[fileSelect.index].use_sequence_naming">
-                  <b>顺序命名格式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                  <b>顺序命名表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
                 </div>
                 <div v-else-if="formData.tasklist[fileSelect.index].use_episode_naming">
-                  <b>剧集命名格式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                  <b>剧集命名表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
                 </div>
                 <div v-else>
                   <div style="margin-bottom: 0;">

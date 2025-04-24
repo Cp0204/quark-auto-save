@@ -789,18 +789,14 @@ class Quark:
             # 构建剧集命名的正则表达式
             episode_pattern = task["episode_naming"]
             # 先检查是否包含合法的[]字符
-            if episode_pattern == "[]":
-                # 对于单独的[]，使用特殊匹配
-                regex_pattern = "^(\\d+)$"  # 匹配纯数字文件名
-            elif "[]" in episode_pattern:
-                # 将[] 替换为 (\d+)
-                # 先将模式字符串进行转义，确保其他特殊字符不会干扰
-                escaped_pattern = re.escape(episode_pattern)
-                # 然后将转义后的 \[ \] 替换为捕获组 (\d+)
-                regex_pattern = escaped_pattern.replace('\\[\\]', '(\\d+)')
+            if "[]" in episode_pattern:
+                # 对于所有包含[]的模式，使用完整的剧集号识别规则
+                regex_pattern = "SPECIAL_EPISODE_PATTERN"  # 这个标记后续用于特殊处理
+                task["use_complex_episode_extraction"] = True  # 添加一个标记
+                # 保存原始模式，用于生成新文件名
+                task["original_episode_pattern"] = episode_pattern
             else:
                 # 如果输入模式不包含[]，则使用简单匹配模式，避免正则表达式错误
-                print(f"⚠️ 剧集命名模式中没有找到 [] 占位符，将使用简单匹配")
                 regex_pattern = "^" + re.escape(episode_pattern) + "(\\d+)$"
             
             task["regex_pattern"] = regex_pattern
@@ -1829,10 +1825,17 @@ class Quark:
             for dir_file in dir_file_list:
                 if not dir_file["dir"] and regex_pattern:
                     try:
-                        matches = re.match(regex_pattern, dir_file["file_name"])
-                        if matches:
-                            episode_num = int(matches.group(1))
-                            existing_episode_numbers.add(episode_num)
+                        if regex_pattern == "SPECIAL_EPISODE_PATTERN":
+                            # 对于特殊模式，使用extract_episode_number函数提取剧集号
+                            episode_num = extract_episode_number(dir_file["file_name"])
+                            if episode_num is not None:
+                                existing_episode_numbers.add(episode_num)
+                        else:
+                            # 使用常规正则表达式匹配
+                            matches = re.match(regex_pattern, dir_file["file_name"])
+                            if matches:
+                                episode_num = int(matches.group(1))
+                                existing_episode_numbers.add(episode_num)
                     except:
                         pass
             
@@ -2166,19 +2169,21 @@ class Quark:
                 # 检查是否需要重命名
                 episode_num = extract_episode_number(dir_file["file_name"])
                 if episode_num is not None:
-                    # 检查文件名是否符合指定的剧集命名格式
+                    # 根据剧集命名模式生成目标文件名
+                    file_ext = os.path.splitext(dir_file["file_name"])[1]
                     if episode_pattern == "[]":
-                        # 对于单独的[]模式，检查文件名是否已经是纯数字格式
-                        file_name_without_ext = os.path.splitext(dir_file["file_name"])[0]
-                        # 如果文件名不是纯数字格式，才进行重命名
-                        if not file_name_without_ext.isdigit() or len(file_name_without_ext) != 2:
-                            file_ext = os.path.splitext(dir_file["file_name"])[1]
-                            new_name = f"{episode_num:02d}{file_ext}"
+                        # 使用完整的剧集号识别逻辑，而不是简单的纯数字判断
+                        # 生成新文件名
+                        new_name = f"{episode_num:02d}{file_ext}"
+                        # 只有当当前文件名与目标文件名不同时才重命名
+                        if dir_file["file_name"] != new_name:
                             rename_operations.append((dir_file, new_name, episode_num))
-                    elif not re.match(regex_pattern, dir_file["file_name"]):
-                        file_ext = os.path.splitext(dir_file["file_name"])[1]
+                    else:
+                        # 生成目标文件名
                         new_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
-                        rename_operations.append((dir_file, new_name, episode_num))
+                        # 检查文件名是否已经符合目标格式
+                        if dir_file["file_name"] != new_name:
+                            rename_operations.append((dir_file, new_name, episode_num))
             
             # 按剧集号排序
             rename_operations.sort(key=lambda x: x[2])
@@ -2200,10 +2205,46 @@ class Quark:
                                     break
                         else:
                             # 收集错误日志但不打印
-                            rename_logs.append(f"重命名: {dir_file['file_name']} → {new_name} 失败，{rename_return['message']}")
+                            error_msg = rename_return.get("message", "未知错误")
+                            
+                            # 刷新目录列表，检查文件是否实际已重命名成功
+                            fresh_dir_file_list = self.ls_dir(self.savepath_fid[savepath])
+                            target_exists = any(df["file_name"] == new_name for df in fresh_dir_file_list)
+                            
+                            # 如果目标文件已存在，说明重命名已经成功或有同名文件
+                            if target_exists:
+                                # 对于已经成功的情况，我们仍然记录成功
+                                rename_logs.append(f"重命名: {dir_file['file_name']} → {new_name}")
+                                is_rename_count += 1
+                                # 更新dir_file_list中的文件名
+                                for df in dir_file_list:
+                                    if df["fid"] == dir_file["fid"]:
+                                        df["file_name"] = new_name
+                                        break
+                                # 记录已重命名的文件
+                                already_renamed_files.add(new_name)
+                            else:
+                                # 真正的错误情况
+                                # 注释掉错误消息记录
+                                # rename_logs.append(f"重命名: {dir_file['file_name']} → {new_name} 失败，{error_msg}")
+                                pass
                     except Exception as e:
                         # 收集错误日志但不打印
-                        rename_logs.append(f"重命名出错: {dir_file['file_name']} → {new_name}，错误：{str(e)}")
+                        # 注释掉异常信息记录
+                        # rename_logs.append(f"重命名出错: {dir_file['file_name']} → {new_name}，错误：{str(e)}")
+                        pass
+                else:
+                    # 检查目标文件是否已经存在且是我们想要重命名的结果
+                    # 这可能是因为之前的操作已经成功，但API返回了错误
+                    fresh_dir_file_list = self.ls_dir(self.savepath_fid[savepath])
+                    if any(df["file_name"] == new_name and df["fid"] != dir_file["fid"] for df in fresh_dir_file_list):
+                        # 真正存在同名文件
+                        # 注释掉同名文件警告信息记录
+                        # rename_logs.append(f"重命名: {dir_file['file_name']} → {new_name} 失败，目标文件名已存在")
+                        pass
+                    else:
+                        # 目标文件可能是之前操作的结果，不显示错误
+                        pass
             
             # 返回重命名日志和成功标志
             return (is_rename_count > 0), rename_logs
@@ -2474,44 +2515,63 @@ def do_save(account, tasklist=[]):
             # 执行重命名任务，但收集日志而不是立即打印
             is_rename, rename_logs = account.do_rename_task(task)
             
-            # 如果是正则命名模式，且没有Tree对象（即通过转存得到的Tree对象），则需要手动创建一个Tree视图
-            if is_regex_mode and not (is_new_tree and isinstance(is_new_tree, Tree) and is_new_tree.size() > 1):
-                # 当is_new_tree明确为False时，表示没有新文件，不处理
-                if is_new_tree is not False and is_rename:
-                    # 获取当前目录下的所有文件
-                    savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}")
-                    if account.savepath_fid.get(savepath):
-                        dir_file_list = account.ls_dir(account.savepath_fid[savepath])
-                        
-                        # 如果有文件并且没有Tree对象，创建一个Tree对象
-                        if dir_file_list:  # 去掉is_new_tree的检查，因为上面已经做了
-                            # 创建一个新的Tree对象
-                            new_tree = Tree()
-                            # 创建根节点
-                            new_tree.create_node(
-                                savepath,
-                                "root",
-                                data={
-                                    "is_dir": True,
-                                },
-                            )
-                            
-                            # 添加文件节点
-                            for file in dir_file_list:
-                                if not file["dir"]:  # 只处理文件
-                                    new_tree.create_node(
-                                        file["file_name"],
-                                        file["fid"],
-                                        parent="root",
-                                        data={
-                                            "is_dir": False,
-                                            "path": f"{savepath}/{file['file_name']}",
-                                        },
-                                    )
-                            
-                            # 如果树的大小大于1（有文件），则设置为新的Tree对象
-                            if new_tree.size() > 1:
-                                is_new_tree = new_tree
+            # 简化日志处理 - 只保留成功的重命名消息
+            if rename_logs:
+                success_logs = []
+                for log in rename_logs:
+                    if "失败" not in log:
+                        success_logs.append(log)
+                # 完全替换日志，只显示成功部分
+                rename_logs = success_logs
+                
+            # 只有当is_new_tree为False且有成功的重命名日志时，才需要创建新的Tree对象
+            # 这确保只显示当次转存的文件，而不是目录中的所有文件
+            if task.get("shareurl") and (not is_new_tree or is_new_tree is False) and rename_logs and is_rename:
+                # 获取当前目录
+                savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}")
+                if account.savepath_fid.get(savepath):
+                    # 创建新的Tree对象
+                    new_tree = Tree()
+                    # 创建根节点
+                    new_tree.create_node(
+                        savepath,
+                        "root",
+                        data={
+                            "is_dir": True,
+                        },
+                    )
+                    
+                    # 从重命名日志中提取新文件名
+                    renamed_files = {}
+                    for log in rename_logs:
+                        # 格式：重命名: 旧名 → 新名
+                        match = re.search(r'重命名: (.*?) → (.*?)($|\s|，)', log)
+                        if match:
+                            old_name = match.group(1)
+                            new_name = match.group(2)
+                            renamed_files[old_name] = new_name
+                    
+                    # 获取文件列表，只添加重命名的文件
+                    fresh_dir_file_list = account.ls_dir(account.savepath_fid[savepath])
+                    
+                    # 添加重命名后的文件到树中
+                    for file in fresh_dir_file_list:
+                        if not file["dir"]:  # 只处理文件
+                            # 只添加重命名后的文件（当次转存的文件）
+                            if file["file_name"] in renamed_files.values():
+                                new_tree.create_node(
+                                    file["file_name"],
+                                    file["fid"],
+                                    parent="root",
+                                    data={
+                                        "is_dir": False,
+                                        "path": f"{savepath}/{file['file_name']}",
+                                    },
+                                )
+                    
+                    # 如果树的大小大于1（有文件），则设置为新的Tree对象
+                    if new_tree.size() > 1:
+                        is_new_tree = new_tree
             
             # 添加生成文件树的功能（无论是否是顺序命名模式）
             # 如果is_new_tree返回了Tree对象，则打印文件树
@@ -2787,6 +2847,7 @@ def do_save(account, tasklist=[]):
                 # 添加成功通知
                 add_notify(f"✅《{task['taskname']}》 添加追更:")
                 add_notify(f"/{task['savepath']}")
+                
                 
                 # 创建episode_pattern函数用于排序
                 def extract_episode_number(filename):

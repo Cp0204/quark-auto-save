@@ -329,7 +329,19 @@ def get_share_detail():
                 
                 file_name = file["file_name"]
                 
-                # 1. 首先尝试提取期数（第X期）
+                # 1. 首先尝试提取SxxExx格式（如S01E01）
+                match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', file_name)
+                if match_s_e:
+                    season = int(match_s_e.group(1))
+                    episode = int(match_s_e.group(2))
+                    return season * 1000 + episode
+                
+                # 2. 尝试提取E01/EP01格式
+                match_e = re.search(r'[Ee][Pp]?(\d+)', file_name)
+                if match_e:
+                    return int(match_e.group(1))
+                
+                # 3. 首先尝试提取期数（第X期）
                 period_match = re.search(r'第(\d+)期[上中下]', file_name)
                 if period_match:
                     period_num = int(period_match.group(1))
@@ -342,7 +354,7 @@ def get_share_detail():
                         return period_num * 3
                     return period_num * 3
                 
-                # 2. 尝试提取日期格式（YYYY-MM-DD）
+                # 4. 尝试提取日期格式（YYYY-MM-DD）
                 date_match = re.search(r'(\d{4})-(\d{2})-(\d{2})', file_name)
                 if date_match:
                     year = int(date_match.group(1))
@@ -358,19 +370,19 @@ def get_share_detail():
                         return base_value * 10 + 3
                     return base_value * 10
                 
-                # 3. 尝试提取任何数字
+                # 5. 尝试提取任何数字
                 number_match = re.search(r'(\d+)', file_name)
                 if number_match:
                     return int(number_match.group(1))
                 
-                # 4. 默认使用原文件名
+                # 6. 默认使用原文件名
                 return float('inf')
             
             # 过滤出非目录文件，并且排除已经符合命名规则的文件
             files_to_process = []
             for f in share_detail["list"]:
                 if f["dir"]:
-                    continue  # 跳过文件夹
+                    continue  # 跳过目录
                 
                 # 检查文件是否已符合命名规则
                 if sequence_pattern == "{}":
@@ -410,9 +422,10 @@ def get_share_detail():
                         # 对于单独的{}，直接使用数字序号作为文件名
                         file["file_name_re"] = f"{current_sequence:02d}{file_ext}"
                     else:
+                        # 替换所有的{}为当前序号
                         file["file_name_re"] = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
                     current_sequence += 1
-                    
+            
             return share_detail
         elif regex.get("use_episode_naming") and regex.get("episode_naming"):
             # 剧集命名模式预览
@@ -444,7 +457,16 @@ def get_share_detail():
                 # 对于单独的[]，使用特殊匹配
                 regex_pattern = "^(\\d+)$"  # 匹配纯数字文件名
             elif "[]" in episode_pattern:
-                regex_pattern = re.escape(episode_pattern).replace('\\[\\]', '(\\d+)')
+                # 特殊处理E[]、EP[]等常见格式，使用更宽松的匹配方式
+                if episode_pattern == "E[]":
+                    # 对于E[]格式，只检查文件名中是否包含形如E01的部分
+                    regex_pattern = "^E(\\d+)$"  # 只匹配纯E+数字的文件名格式
+                elif episode_pattern == "EP[]":
+                    # 对于EP[]格式，只检查文件名中是否包含形如EP01的部分
+                    regex_pattern = "^EP(\\d+)$"  # 只匹配纯EP+数字的文件名格式
+                else:
+                    # 对于其他带[]的格式，使用常规转义和替换
+                    regex_pattern = re.escape(episode_pattern).replace('\\[\\]', '(\\d+)')
             else:
                 # 如果输入模式不包含[]，则使用简单匹配模式，避免正则表达式错误
                 print(f"⚠️ 剧集命名模式中没有找到 [] 占位符，将使用简单匹配")
@@ -469,10 +491,24 @@ def get_share_detail():
                     return 0
             
             # 过滤出非目录文件，并且排除已经符合命名规则的文件
-            files_to_process = [
-                f for f in share_detail["list"] 
-                if not f["dir"] and not re.match(regex_pattern, f["file_name"])
-            ]
+            files_to_process = []
+            for f in share_detail["list"]:
+                if f["dir"]:
+                    continue  # 跳过目录
+                
+                # 检查文件是否已符合命名规则
+                if episode_pattern == "[]":
+                    # 对于单独的[]，检查文件名是否为纯数字
+                    file_name_without_ext = os.path.splitext(f["file_name"])[0]
+                    if file_name_without_ext.isdigit():
+                        # 增加判断：如果是日期格式的纯数字，不视为已命名
+                        if not is_date_format(file_name_without_ext):
+                            continue  # 跳过已符合命名规则的文件
+                elif re.match(regex_pattern, f["file_name"]):
+                    continue  # 跳过已符合命名规则的文件
+                
+                # 添加到待处理文件列表
+                files_to_process.append(f)
             
             # 根据提取的排序值进行排序
             sorted_files = sorted(files_to_process, key=extract_sorting_value)
