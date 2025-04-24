@@ -322,118 +322,49 @@ def get_share_detail():
             else:
                 regex_pattern = re.escape(sequence_pattern).replace('\\{\\}', '(\\d+)')
             
-            # 实现高级排序算法
-            def extract_sorting_value(file):
+            # 实现与实际重命名相同的排序算法
+            def extract_sort_value(file):
                 if file["dir"]:  # 跳过文件夹
                     return float('inf')
                 
-                filename = file["file_name"]
+                file_name = file["file_name"]
                 
-                # 提取文件名，不含扩展名
-                file_name_without_ext = os.path.splitext(filename)[0]
+                # 1. 首先尝试提取期数（第X期）
+                period_match = re.search(r'第(\d+)期[上中下]', file_name)
+                if period_match:
+                    period_num = int(period_match.group(1))
+                    # 根据上中下调整排序
+                    if '上' in file_name:
+                        return period_num * 3 - 2
+                    elif '中' in file_name:
+                        return period_num * 3 - 1
+                    elif '下' in file_name:
+                        return period_num * 3
+                    return period_num * 3
                 
-                # 1. "第X期/集/话" 格式
-                match_chinese = re.search(r'第(\d+)[期集话]', filename)
-                episode_num = int(match_chinese.group(1)) if match_chinese else 0
+                # 2. 尝试提取日期格式（YYYY-MM-DD）
+                date_match = re.search(r'(\d{4})-(\d{2})-(\d{2})', file_name)
+                if date_match:
+                    year = int(date_match.group(1))
+                    month = int(date_match.group(2))
+                    day = int(date_match.group(3))
+                    base_value = year * 10000 + month * 100 + day
+                    # 如果同一天有多个文件，根据"上中下"或其他标识符进行排序
+                    if '上' in file_name:
+                        return base_value * 10 + 1
+                    elif '中' in file_name:
+                        return base_value * 10 + 2
+                    elif '下' in file_name:
+                        return base_value * 10 + 3
+                    return base_value * 10
                 
-                # 5. 文件名含"上中下"（优先处理，因为可能与其他格式同时存在）
-                if match_chinese:
-                    # 如果同时存在集数和上中下，则按照集数*10+位置排序
-                    if '上' in filename:
-                        return episode_num * 10 + 1
-                    elif '中' in filename:
-                        return episode_num * 10 + 2
-                    elif '下' in filename:
-                        return episode_num * 10 + 3
-                elif '上' in filename:
-                    return 1
-                elif '中' in filename:
-                    return 2
-                elif '下' in filename:
-                    return 3
+                # 3. 尝试提取任何数字
+                number_match = re.search(r'(\d+)', file_name)
+                if number_match:
+                    return int(number_match.group(1))
                 
-                # 如果已经匹配到"第X期/集/话"格式，直接返回
-                if episode_num > 0:
-                    return episode_num * 10
-                
-                # 2.1 S01E01 格式，提取季数和集数
-                match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
-                if match_s_e:
-                    season = int(match_s_e.group(1))
-                    episode = int(match_s_e.group(2))
-                    return season * 1000 + episode
-                
-                # 2.2 E01 格式，仅提取集数
-                match_e = re.search(r'[Ee][Pp]?(\d+)', filename)
-                if match_e:
-                    return int(match_e.group(1))
-                
-                # 2.3 1x01 格式，提取季数和集数
-                match_x = re.search(r'(\d+)[Xx](\d+)', filename)
-                if match_x:
-                    season = int(match_x.group(1))
-                    episode = int(match_x.group(2))
-                    return season * 1000 + episode
-                
-                # 3. 日期格式识别（支持多种格式）
-                
-                # 3.1 完整的YYYYMMDD格式
-                match_date_compact = re.search(r'(20\d{2})(\d{2})(\d{2})', filename)
-                if match_date_compact:
-                    year = int(match_date_compact.group(1))
-                    month = int(match_date_compact.group(2))
-                    day = int(match_date_compact.group(3))
-                    return year * 10000 + month * 100 + day
-                
-                # 3.2 YYYY-MM-DD 或 YYYY.MM.DD 或 YYYY/MM/DD 格式
-                match_date_full = re.search(r'(20\d{2})[-./](\d{1,2})[-./](\d{1,2})', filename)
-                if match_date_full:
-                    year = int(match_date_full.group(1))
-                    month = int(match_date_full.group(2))
-                    day = int(match_date_full.group(3))
-                    return year * 10000 + month * 100 + day
-                
-                # 3.3 MM/DD/YYYY 或 DD/MM/YYYY 格式
-                match_date_alt = re.search(r'(\d{1,2})[-./](\d{1,2})[-./](20\d{2})', filename)
-                if match_date_alt:
-                    # 假设第一个是月，第二个是日（美式日期）
-                    month = int(match_date_alt.group(1))
-                    day = int(match_date_alt.group(2))
-                    year = int(match_date_alt.group(3))
-                    # 检查月份值，如果大于12可能是欧式日期格式（DD/MM/YYYY）
-                    if month > 12:
-                        month, day = day, month
-                    return year * 10000 + month * 100 + day
-                
-                # 3.4 MM/DD 格式（无年份），假设为当前年
-                match_date_short = re.search(r'(\d{1,2})[-./](\d{1,2})', filename)
-                if match_date_short:
-                    # 假设第一个是月，第二个是日
-                    month = int(match_date_short.group(1))
-                    day = int(match_date_short.group(2))
-                    # 检查月份值，如果大于12可能是欧式日期格式（DD/MM）
-                    if month > 12:
-                        month, day = day, month
-                    # 由于没有年份，使用一个较低的基数，确保任何有年份的日期都排在后面
-                    return month * 100 + day
-                
-                # 3.5 年期格式，如"2025年14期"
-                match_year_issue = re.search(r'(20\d{2})[年].*?(\d+)[期]', filename)
-                if match_year_issue:
-                    year = int(match_year_issue.group(1))
-                    issue = int(match_year_issue.group(2))
-                    return year * 1000 + issue
-                
-                # 4. 纯数字格式（文件名开头是纯数字）
-                match_num = re.match(r'^(\d+)', file_name_without_ext)
-                if match_num:
-                    return int(match_num.group(1))
-                
-                # 6. 默认使用更新时间
-                try:
-                    return file.get("last_update_at", 0)
-                except:
-                    return 0
+                # 4. 默认使用原文件名
+                return float('inf')
             
             # 过滤出非目录文件，并且排除已经符合命名规则的文件
             files_to_process = []
@@ -456,7 +387,7 @@ def get_share_detail():
                 files_to_process.append(f)
             
             # 根据提取的排序值进行排序
-            sorted_files = sorted(files_to_process, key=extract_sorting_value)
+            sorted_files = sorted(files_to_process, key=extract_sort_value)
             
             # 应用过滤词过滤
             filterwords = regex.get("filterwords", "")

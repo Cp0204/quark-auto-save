@@ -485,8 +485,12 @@
                   <b>剧集命名格式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
                 </div>
                 <div v-else>
-                  <b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
-                  <b>替换表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].replace"></span>
+                  <div style="margin-bottom: 0;">
+                    <b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                  </div>
+                  <div>
+                    <b>替换表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].replace"></span>
+                  </div>
                 </div>
               </div>
               <table class="table table-hover table-sm">
