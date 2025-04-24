@@ -14,8 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 ENV TZ="Asia/Shanghai"
 
 #构建版本
+ARG VERSION
 ARG BUILD_SHA
-ARG BUILD_TAG
+ARG BUILD_TAG=v${VERSION}
 ENV BUILD_SHA=$BUILD_SHA
 ENV BUILD_TAG=$BUILD_TAG
 
