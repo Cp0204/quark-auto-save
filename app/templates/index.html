@@ -448,8 +448,12 @@
               </nav>
               <!-- 文件列表 -->
               <div class="mb-3" v-if="fileSelect.previewRegex">
-                <div><b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span></div>
-                <div><b>替换表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].replace"></span></div>
+                <div><b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                  <span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].pattern }}</span>
+                </div>
+                <div><b>替换表达式：</b><span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].replace" v-html="formData.tasklist[fileSelect.index].replace"></span>
+                  <span class="badge badge-info" v-else-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].replace }}</span>
+                </div>
               </div>
               <table class="table table-hover table-sm">
                 <thead>
