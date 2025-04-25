@@ -556,7 +556,7 @@ class Quark:
         matches = re.findall(r"/(\w{32})-?([^/]+)?", url)
         for match in matches:
             fid = match[0]
-            name = urllib.parse.unquote(match[1])
+            name = urllib.parse.unquote(match[1]).replace("*101", "-")
             paths.append({"fid": fid, "name": name})
         pdir_fid = paths[-1]["fid"] if matches else 0
         return pwd_id, passcode, pdir_fid, paths

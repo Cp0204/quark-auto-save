@@ -964,7 +964,7 @@
             params: params
           }).then(response => {
             this.fileSelect.fileList = response.data.data.list
-            if (response.data.data.paths.length > 0) {
+            if (response.data.data.paths?.length > 0) {
               this.fileSelect.paths = response.data.data.paths
             }
             this.modalLoading = false;
@@ -1026,9 +1026,9 @@
           this.getShareDetail();
         },
         navigateTo(fid, name) {
-          path = { fid: fid, name: name }
+          dir = { fid: fid, name: name }
           if (this.fileSelect.selectShare) {
-            this.fileSelect.shareurl = this.getShareurl(this.fileSelect.shareurl, path);
+            this.fileSelect.shareurl = this.getShareurl(this.fileSelect.shareurl, dir);
             this.getShareDetail();
           } else {
             if (fid == "0") {
@@ -1060,15 +1060,15 @@
           Vue.set(this.formData.tasklist[this.fileSelect.index], 'startfid', fid);
           $('#fileSelectModal').modal('hide')
         },
-        getShareurl(shareurl, path = {}) {
-          if (path == {} || path.fid == 0) {
-            shareurl = shareurl.match(`.*s/[a-z0-9]+`)[0]
-          } else if (shareurl.includes(path.fid)) {
-            shareurl = shareurl.match(`.*/${path.fid}[^\/]*`)[0]
+        getShareurl(shareurl, dir = {}) {
+          if (dir == {} || dir.fid == 0) {
+            shareurl = shareurl.match(`.*s/[a-z0-9]+(\\?pwd=[^#]+)?`)[0]
+          } else if (shareurl.includes(dir.fid)) {
+            shareurl = shareurl.match(`.*/${dir.fid}[^/]*`)[0]
           } else if (shareurl.includes('#/list/share')) {
-            shareurl = `${shareurl}/${path.fid}-${path.name}`
+            shareurl = `${shareurl}/${dir.fid}-${dir.name?.replace('-', '*101')}`
           } else {
-            shareurl = `${shareurl}#/list/share/${path.fid}-${path.name}`
+            shareurl = `${shareurl}#/list/share/${dir.fid}-${dir.name?.replace('-', '*101')}`
           }
           return shareurl;
         }
