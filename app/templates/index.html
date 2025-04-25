@@ -930,6 +930,8 @@
         },
         selectSuggestion(index, suggestion) {
           this.smart_param.showSuggestions = false;
+          this.fileSelect.selectDir = true;
+          this.fileSelect.previewRegex = false;
           this.showShareSelect(index, suggestion.shareurl);
         },
         addMagicRegex() {
@@ -1029,10 +1031,12 @@
           this.fileSelect.fileList = [];
           this.fileSelect.paths = [];
           this.fileSelect.error = undefined;
-          if (this.getShareurl(this.fileSelect.shareurl) != this.getShareurl(this.formData.tasklist[index].shareurl)) {
+          // 如果分享链接发生变化，则重置 stoken
+          const newShareurl = shareurl || this.formData.tasklist[index].shareurl
+          if (this.getShareurl(this.fileSelect.shareurl) != this.getShareurl(newShareurl)) {
             this.fileSelect.stoken = "";
           }
-          this.fileSelect.shareurl = shareurl || this.formData.tasklist[index].shareurl;
+          this.fileSelect.shareurl = newShareurl;
           this.fileSelect.index = index;
           $('#fileSelectModal').modal('toggle');
           this.getShareDetail();
