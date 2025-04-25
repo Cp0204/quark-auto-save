@@ -1215,17 +1215,42 @@ class Quark:
                             share_file["fid"],
                             f"{subdir_path}/{share_file['file_name']}",
                         )
+                        # 只有当子目录树有实际内容（大于1表示不只有根节点）时才处理
                         if subdir_tree.size(1) > 0:
-                            # 合并子目录树
-                            tree.create_node(
-                                "📁" + share_file["file_name"],
-                                share_file["fid"],
-                                parent=pdir_fid,
-                                data={
-                                    "is_dir": share_file["dir"],
-                                },
-                            )
-                            tree.merge(share_file["fid"], subdir_tree, deep=False)
+                            # 检查子目录树是否只包含文件夹而没有文件
+                            has_files = False
+                            for node in subdir_tree.all_nodes_itr():
+                                # 检查是否有非目录节点（即文件节点）
+                                if node.data and not node.data.get("is_dir", False):
+                                    has_files = True
+                                    break
+                                    
+                            # 只有当子目录包含文件时才将其合并到主树中
+                            if has_files:
+                                # 获取保存路径的最后一部分目录名
+                                save_path_basename = os.path.basename(task.get("savepath", "").rstrip("/"))
+                                
+                                # 跳过与保存路径同名的目录
+                                if share_file["file_name"] == save_path_basename:
+                                    continue
+                                
+                                # 合并子目录树
+                                tree.create_node(
+                                    "📁" + share_file["file_name"],
+                                    share_file["fid"],
+                                    parent=pdir_fid,
+                                    data={
+                                        "is_dir": share_file["dir"],
+                                    },
+                                )
+                                tree.merge(share_file["fid"], subdir_tree, deep=False)
+                                
+                                # 标记此文件夹有更新
+                                if share_file.get("has_updates") is False:
+                                    for item in need_save_list:
+                                        if item.get("fid") == share_file["fid"]:
+                                            item["has_updates"] = True
+                                            break
                 
         else:
             # 正则命名模式
@@ -1252,7 +1277,7 @@ class Quark:
             for share_file in share_file_list:
                 # 检查文件是否已存在（通过大小和扩展名）- 新增的文件查重逻辑
                 is_duplicate = False
-                if not share_file["dir"]:
+                if not share_file["dir"]:  # 文件夹不进行内容查重
                     file_size = share_file.get("size", 0)
                     file_ext = os.path.splitext(share_file["file_name"])[1].lower()
                     share_update_time = share_file.get("last_update_at", 0) or share_file.get("updated_at", 0)
@@ -1281,6 +1306,7 @@ class Quark:
                 if is_duplicate and not share_file["dir"]:
                     continue
                     
+                # 设置匹配模式：目录使用update_subdir，文件使用普通正则
                 if share_file["dir"] and task.get("update_subdir", False):
                     pattern, replace = task["update_subdir"], ""
                 else:
@@ -1342,16 +1368,23 @@ class Quark:
                                 
                         if not file_exists:
                             # 再次检查是否已经通过文件内容(大小+时间)被识别为重复
-                            if is_duplicate:
+                            if is_duplicate and not share_file["dir"]:  # 修改：只有非文件夹时才考虑重复过滤
                                 # print(f"跳过已存在的文件: {share_file['file_name']} - 通过大小和时间匹配到相同文件") 
                                 continue
                                 
                             # 不打印保存信息
                             share_file["save_name"] = save_name
                             share_file["original_name"] = share_file["file_name"]  # 保存原文件名，用于排序
+                            
+                            # 文件夹需要特殊处理，标记为has_updates=False，等待后续检查
+                            if share_file["dir"]:
+                                share_file["has_updates"] = False
+                                
                             need_save_list.append(share_file)
                         elif share_file["dir"]:
-                            # 存在并是一个文件夹
+                            # 文件夹已存在，根据是否递归处理子目录决定操作
+                            
+                            # 如果开启了子目录递归，处理子目录结构
                             if task.get("update_subdir", False):
                                 if re.search(task["update_subdir"], share_file["file_name"]):
                                     print(f"检查子文件夹: {savepath}/{share_file['file_name']}")
@@ -1362,17 +1395,42 @@ class Quark:
                                         share_file["fid"],
                                         f"{subdir_path}/{share_file['file_name']}",
                                     )
+                                    # 只有当子目录树有实际内容（大于1表示不只有根节点）时才处理
                                     if subdir_tree.size(1) > 0:
-                                        # 合并子目录树
-                                        tree.create_node(
-                                            "📁" + share_file["file_name"],
-                                            share_file["fid"],
-                                            parent=pdir_fid,
-                                            data={
-                                                "is_dir": share_file["dir"],
-                                            },
-                                        )
-                                        tree.merge(share_file["fid"], subdir_tree, deep=False)
+                                        # 检查子目录树是否只包含文件夹而没有文件
+                                        has_files = False
+                                        for node in subdir_tree.all_nodes_itr():
+                                            # 检查是否有非目录节点（即文件节点）
+                                            if node.data and not node.data.get("is_dir", False):
+                                                has_files = True
+                                                break
+                                                
+                                        # 只有当子目录包含文件时才将其合并到主树中
+                                        if has_files:
+                                            # 获取保存路径的最后一部分目录名
+                                            save_path_basename = os.path.basename(task.get("savepath", "").rstrip("/"))
+                                            
+                                            # 跳过与保存路径同名的目录
+                                            if share_file["file_name"] == save_path_basename:
+                                                continue
+                                            
+                                            # 合并子目录树
+                                            tree.create_node(
+                                                "📁" + share_file["file_name"],
+                                                share_file["fid"],
+                                                parent=pdir_fid,
+                                                data={
+                                                    "is_dir": share_file["dir"],
+                                                },
+                                            )
+                                            tree.merge(share_file["fid"], subdir_tree, deep=False)
+                                            
+                                            # 标记此文件夹有更新
+                                            if share_file.get("has_updates") is False:
+                                                for item in need_save_list:
+                                                    if item.get("fid") == share_file["fid"]:
+                                                        item["has_updates"] = True
+                                                        break
                 except Exception as e:
                     print(f"⚠️ 正则表达式错误: {str(e)}, pattern: {pattern}")
                     # 使用安全的默认值
@@ -1385,6 +1443,46 @@ class Quark:
 
         fid_list = [item["fid"] for item in need_save_list]
         fid_token_list = [item["share_fid_token"] for item in need_save_list]
+        
+        # 过滤掉没有真正内容更新的文件夹（仅在正则命名模式下）
+        if not task.get("use_sequence_naming") and not task.get("use_episode_naming") and need_save_list:
+            # 计算非目录文件数量
+            non_dir_files = [item for item in need_save_list if not item.get("dir", False)]
+            
+            # 如果有常规文件，代表有真正的更新
+            has_file_updates = len(non_dir_files) > 0
+            
+            # 检查文件夹是否标记为有更新
+            folders_with_updates = [item for item in need_save_list if item.get("dir", False) and item.get("has_updates", False) == True]
+            has_folder_updates = len(folders_with_updates) > 0
+            
+            # 获取保存路径的最后一部分目录名
+            save_path_basename = os.path.basename(task.get("savepath", "").rstrip("/"))
+            
+            # 从列表中移除没有真正更新的文件夹和与保存路径同名的目录
+            filtered_need_save_list = []
+            for item in need_save_list:
+                # 跳过与保存路径同名的目录
+                if item.get("dir", False) and item.get("save_name") == save_path_basename:
+                    continue
+                    
+                # 跳过没有更新的文件夹
+                if item.get("dir", False) and item.get("has_updates", False) == False and not has_file_updates and not has_folder_updates:
+                    continue
+                    
+                # 保留其他所有项目
+                filtered_need_save_list.append(item)
+                
+            need_save_list = filtered_need_save_list
+            
+            # 如果过滤后列表为空，直接返回树对象
+            if not need_save_list:
+                return tree
+            
+            # 更新fid列表
+            fid_list = [item["fid"] for item in need_save_list]
+            fid_token_list = [item["share_fid_token"] for item in need_save_list]
+        
         if fid_list:
             # 只在有新文件需要转存时才处理
             save_file_return = self.save_file(
@@ -1408,6 +1506,11 @@ class Quark:
                         # 如果save_name与original_name相似（如：一个是"你好，星期六 - 2025-04-05.mp4"，另一个是"20250405期.mp4"）
                         # 则只显示save_name，避免重复
                         display_name = item['save_name']
+                        
+                        # 确保只显示文件/文件夹名，而不是完整路径
+                        if "/" in display_name:
+                            # 只取路径的最后一部分作为显示名
+                            display_name = display_name.split("/")[-1]
                         
                         # 不再自动添加任务名称前缀，尊重用户选择
                         
@@ -1753,6 +1856,7 @@ class Quark:
                     self.savepath_fid[savepath] = savepath_fids[0]["fid"]
             
             dir_file_list = self.ls_dir(self.savepath_fid[savepath])
+            
             
             # 构建目标目录中所有文件的查重索引（按大小和修改时间）
             dir_files_map = {}
@@ -2696,6 +2800,31 @@ def do_save(account, tasklist=[]):
                 else:
                     # 其他模式：显示原始文件名
                     display_files = []
+                    # 获取所有节点（包括目录节点）
+                    all_nodes = [node for node in is_new_tree.all_nodes_itr()]
+                    
+                    # 获取保存路径的最后一部分目录名（如"/测试/魔法"取"魔法"）
+                    save_path_basename = os.path.basename(task.get("savepath", "").rstrip("/"))
+                    
+                    # 首先添加所有目录节点，过滤掉与保存路径同名的目录，确保目录结构完整
+                    dir_nodes = [node for node in all_nodes if node.data and node.data.get("is_dir", False) and node.identifier != "root"]
+                    for node in sorted(dir_nodes, key=lambda node: node.tag):
+                        # 获取原始文件名（去除已有图标）
+                        orig_filename = node.tag.lstrip("📁")
+                        
+                        # 确保只显示目录名，而不是完整路径
+                        if "/" in orig_filename:
+                            # 只取路径的最后一部分作为显示名
+                            orig_filename = orig_filename.split("/")[-1]
+                        
+                        # 跳过与保存路径目录名相同的目录
+                        if orig_filename == save_path_basename:
+                            continue
+                        
+                        # 添加适当的图标
+                        display_files.append((f"📁{orig_filename}", node))
+                    
+                    # 然后添加所有文件节点
                     for node in sorted(file_nodes, key=lambda node: node.tag):
                         # 获取原始文件名（去除已有图标）
                         orig_filename = node.tag.lstrip("🎞️")
