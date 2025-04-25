@@ -185,7 +185,7 @@
                 <div class="input-group-prepend">
                   <span class="input-group-text">集编号识别规则</span>
                 </div>
-                <input type="text" class="form-control" v-model="episodePatternsText" placeholder="输入用于识别集编号的正则表达式，多个表达式用竖线「|」分隔，如：第(\d+)集|[Ee][Pp]?(\d+)|(\d+)[-_\\s]*4[Kk]">
+                <input type="text" class="form-control" v-model="episodePatternsText" placeholder="输入用于识别集编号的正则表达式，支持符号如|(竖线)等正则特殊字符">
               </div>
             </div>
 
@@ -479,14 +479,18 @@
               <!-- 文件列表 -->
               <div class="mb-3" v-if="fileSelect.previewRegex">
                 <div v-if="formData.tasklist[fileSelect.index].use_sequence_naming">
-                  <b>顺序命名格式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                  <b>顺序命名表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
                 </div>
                 <div v-else-if="formData.tasklist[fileSelect.index].use_episode_naming">
-                  <b>剧集命名格式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                  <b>剧集命名表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
                 </div>
                 <div v-else>
-                  <b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
-                  <b>替换表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].replace"></span>
+                  <div style="margin-bottom: 0;">
+                    <b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                  </div>
+                  <div>
+                    <b>替换表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].replace"></span>
+                  </div>
                 </div>
               </div>
               <table class="table table-hover table-sm">
@@ -603,11 +607,11 @@
             return this.formData.episode_patterns.map(p => p.regex || '').join('|');
           },
           set(value) {
-            // 将文本拆分为竖线分隔的表达式，每个创建一个正则对象
-            const patterns = value.split('|').filter(pattern => pattern.trim() !== '');
-            this.formData.episode_patterns = patterns.map(pattern => ({
-              regex: pattern.trim()
-            }));
+            // 允许直接输入正则表达式，当用户按下Enter键或失焦时再处理
+            // 这里我们创建一个单一的正则表达式对象，而不是拆分
+            this.formData.episode_patterns = [{
+              regex: value.trim()
+            }];
           }
         }
       },
@@ -677,17 +681,7 @@
           // 如果没有剧集识别模式，添加默认模式
           if (!this.formData.episode_patterns || this.formData.episode_patterns.length === 0) {
             this.formData.episode_patterns = [
-              { name: 'EP_DIJI', description: '第[]集', regex: '第(\\d+)集' },
-              { name: 'EP_DIQI', description: '第[]期', regex: '第(\\d+)期' },
-              { name: 'EP_DIHUA', description: '第[]话', regex: '第(\\d+)话' },
-              { name: 'EP_JI', description: '[]集', regex: '(\\d+)集' },
-              { name: 'EP_QI', description: '[]期', regex: '(\\d+)期' },
-              { name: 'EP_HUA', description: '[]话', regex: '(\\d+)话' },
-              { name: 'EP_E_EP', description: 'E/EP[]', regex: '[Ee][Pp]?(\\d+)' },
-              { name: 'EP_4K', description: '[]-4K', regex: '(\\d+)[-_\\s]*4[Kk]' },
-              { name: 'EP_SQUAREBRACKET', description: '方括号数字', regex: '\\[(\\d+)\\]' },
-              { name: 'EP_BRACKET', description: '【[]】', regex: '【(\\d+)】' },
-              { name: 'EP_UNDERSCORE', description: '_[]_', regex: '_?(\\d+)_?' }
+              { regex: '第(\\d+)集|第(\\d+)期|第(\\d+)话|(\\d+)集|(\\d+)期|(\\d+)话|[Ee][Pp]?(\\d+)|(\\d+)[-_\\s]*4[Kk]|\\[(\\d+)\\]|【(\\d+)】|_?(\\d+)_?' }
             ];
           }
         }, 500);
