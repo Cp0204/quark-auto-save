@@ -763,28 +763,28 @@
             console.error("Error decodeURIComponent:", e);
           }
           // 从分享中提取任务名
-          axios.get('/get_share_detail', { params: { shareurl: task.shareurl } })
-            .then(response => {
-              share_detail = response.data.data
-              if (!response.data.success) {
-                if (share_detail.error.includes("提取码")) {
-                  const passcode = prompt("检查失败[" + share_detail.error + "]，请输入提取码：");
-                  if (passcode != null) {
-                    task.shareurl = task.shareurl.replace(/pan.quark.cn\/s\/(\w+)(\?pwd=\w*)*/, `pan.quark.cn/s/$1?pwd=${passcode}`);
-                    this.changeShareurl(task);
-                    return;
-                  }
+          axios.post('/get_share_detail', {
+            shareurl: task.shareurl
+          }).then(response => {
+            share_detail = response.data.data
+            if (!response.data.success) {
+              if (share_detail.error.includes("提取码")) {
+                const passcode = prompt("检查失败[" + share_detail.error + "]，请输入提取码：");
+                if (passcode != null) {
+                  task.shareurl = task.shareurl.replace(/pan.quark.cn\/s\/(\w+)(\?pwd=\w*)*/, `pan.quark.cn/s/$1?pwd=${passcode}`);
+                  this.changeShareurl(task);
+                  return;
                 }
-                this.$set(task, "shareurl_ban", share_detail.error);
-              } else {
-                task.taskname = task.taskname == "" ? share_detail.share.title : task.taskname;
-                task.savepath = task.savepath.replace(/TASKNAME/g, share_detail.share.title);
-                this.$set(task, "shareurl_ban", undefined);
               }
-            })
-            .catch(error => {
-              console.error('Error get_share_detail:', error);
-            });
+              this.$set(task, "shareurl_ban", share_detail.error);
+            } else {
+              task.taskname = task.taskname == "" ? share_detail.share.title : task.taskname;
+              task.savepath = task.savepath.replace(/TASKNAME/g, share_detail.share.title);
+              this.$set(task, "shareurl_ban", undefined);
+            }
+          }).catch(error => {
+            console.error('Error get_share_detail:', error);
+          });
         },
         clearData(target) {
           this[target] = "";

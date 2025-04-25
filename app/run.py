@@ -277,7 +277,7 @@ def get_share_detail():
 
     # 正则处理预览
     def preview_regex(share_detail):
-        regex = request.json.get("regex")
+        regex = request.json.get("regex", {})
         pattern, replace = account.magic_regex_func(
             regex.get("pattern", ""),
             regex.get("replace", ""),
@@ -292,7 +292,8 @@ def get_share_detail():
                 )
         return share_detail
 
-    share_detail = preview_regex(share_detail)
+    if request.json.get("regex"):
+        share_detail = preview_regex(share_detail)
 
     return jsonify({"success": True, "data": share_detail})
 
