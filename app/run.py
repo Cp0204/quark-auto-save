@@ -268,15 +268,26 @@ def get_share_detail():
     account = Quark("", 0)
     pwd_id, passcode, pdir_fid, paths = account.extract_url(shareurl)
     if not stoken:
-        is_sharing, stoken = account.get_stoken(pwd_id, passcode)
-        if not is_sharing:
-            return jsonify({"success": False, "data": {"error": stoken}})
+        get_stoken = account.get_stoken(pwd_id, passcode)
+        if get_stoken.get("status") == 200:
+            stoken = get_stoken["data"]["stoken"]
+        else:
+            return jsonify(
+                {"success": False, "data": {"error": get_stoken.get("message")}}
+            )
     share_detail = account.get_detail(pwd_id, stoken, pdir_fid, _fetch_share=1)
-    share_detail["paths"] = paths
-    share_detail["stoken"] = stoken
+
+    if share_detail.get("code") != 0:
+        return jsonify(
+            {"success": False, "data": {"error": share_detail.get("message")}}
+        )
+
+    data = share_detail["data"]
+    data["paths"] = paths
+    data["stoken"] = stoken
 
     # 正则处理预览
-    def preview_regex(share_detail):
+    def preview_regex(data):
         regex = request.json.get("regex", {})
         pattern, replace = account.magic_regex_func(
             regex.get("pattern", ""),
@@ -284,7 +295,7 @@ def get_share_detail():
             regex.get("taskname", ""),
             regex.get("magic_regex", {}),
         )
-        for item in share_detail["list"]:
+        for item in data["list"]:
             file_name = item["file_name"]
             if re.search(pattern, item["file_name"]):
                 item["file_name_re"] = (
@@ -293,9 +304,9 @@ def get_share_detail():
         return share_detail
 
     if request.json.get("regex"):
-        share_detail = preview_regex(share_detail)
+        share_detail = preview_regex(data)
 
-    return jsonify({"success": True, "data": share_detail})
+    return jsonify({"success": True, "data": data})
 
 
 @app.route("/get_savepath_detail")
@@ -328,7 +339,7 @@ def get_savepath_detail():
     else:
         fid = request.args.get("fid", "0")
     file_list = {
-        "list": account.ls_dir(fid),
+        "list": account.ls_dir(fid)["data"]["list"],
         "paths": paths,
     }
     return jsonify({"success": True, "data": file_list})
