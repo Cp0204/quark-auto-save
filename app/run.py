@@ -31,6 +31,10 @@ sys.path.insert(0, parent_dir)
 from quark_auto_save import Quark
 from quark_auto_save import Config
 
+# 添加导入全局extract_episode_number函数
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from quark_auto_save import extract_episode_number
+
 
 def get_app_ver():
     BUILD_SHA = os.environ.get("BUILD_SHA", "")
@@ -432,25 +436,9 @@ def get_share_detail():
             episode_pattern = regex.get("episode_naming")
             episode_patterns = regex.get("episode_patterns", [])
             
-            # 实现序号提取函数
-            def extract_episode_number(filename):
-                # 优先匹配SxxExx格式
-                match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
-                if match_s_e:
-                    # 直接返回E后面的集数
-                    return int(match_s_e.group(2))
-                
-                # 尝试使用每个配置的正则表达式匹配文件名
-                for pattern in episode_patterns:
-                    try:
-                        pattern_regex = pattern.get("regex", "(\\d+)")
-                        match = re.search(pattern_regex, filename)
-                        if match:
-                            return int(match.group(1))
-                    except Exception as e:
-                        print(f"Error matching pattern {pattern}: {str(e)}")
-                        continue
-                return None
+            # 调用全局的集编号提取函数
+            def extract_episode_number_local(filename):
+                return extract_episode_number(filename, episode_patterns=episode_patterns)
             
             # 构建剧集命名的正则表达式 (主要用于检测已命名文件)
             if episode_pattern == "[]":
@@ -480,7 +468,7 @@ def get_share_detail():
                 filename = file["file_name"]
                 
                 # 尝试获取剧集序号
-                episode_num = extract_episode_number(filename)
+                episode_num = extract_episode_number_local(filename)
                 if episode_num is not None:
                     return episode_num
                 
@@ -530,7 +518,7 @@ def get_share_detail():
                     # 获取文件扩展名
                     file_ext = os.path.splitext(file["file_name"])[1]
                     # 尝试提取剧集号
-                    episode_num = extract_episode_number(file["file_name"])
+                    episode_num = extract_episode_number_local(file["file_name"])
                     if episode_num is not None:
                         # 生成预览文件名
                         if episode_pattern == "[]":

@@ -18,6 +18,75 @@ import importlib
 import urllib.parse
 from datetime import datetime
 
+# 统一的剧集编号提取函数
+def extract_episode_number(filename, episode_patterns=None, config_data=None):
+    """
+    从文件名中提取剧集编号
+    
+    Args:
+        filename: 文件名
+        episode_patterns: 可选的自定义匹配模式列表
+        config_data: 可选的任务配置数据
+        
+    Returns:
+        int: 提取到的剧集号，如果无法提取则返回None
+    """
+    # 优先匹配SxxExx格式
+    match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
+    if match_s_e:
+        # 直接返回E后面的集数
+        return int(match_s_e.group(2))
+    
+    # 其次匹配E01格式
+    match_e = re.search(r'[Ee][Pp]?(\d+)', filename)
+    if match_e:
+        return int(match_e.group(1))
+    
+    # 尝试匹配更多格式
+    default_patterns = [
+        r'第(\d+)集',
+        r'第(\d+)期',
+        r'第(\d+)话',
+        r'(\d+)集',
+        r'(\d+)期',
+        r'(\d+)话',
+        r'[Ee][Pp]?(\d+)',
+        r'(\d+)[-_\s]*4[Kk]',
+        r'\[(\d+)\]',
+        r'【(\d+)】',
+        r'_?(\d+)_?'
+    ]
+    
+    patterns = None
+    
+    # 检查传入的episode_patterns参数
+    if episode_patterns:
+        patterns = [p.get("regex", "(\\d+)") for p in episode_patterns]
+    # 如果配置了task的自定义规则，优先使用
+    elif config_data and isinstance(config_data.get("episode_patterns"), list) and config_data["episode_patterns"]:
+        patterns = [p.get("regex", "(\\d+)") for p in config_data["episode_patterns"]]
+    # 尝试从全局配置获取
+    elif 'CONFIG_DATA' in globals() and isinstance(globals()['CONFIG_DATA'].get("episode_patterns"), list) and globals()['CONFIG_DATA']["episode_patterns"]:
+        patterns = [p.get("regex", "(\\d+)") for p in globals()['CONFIG_DATA']["episode_patterns"]]
+    else:
+        patterns = default_patterns
+    
+    # 尝试使用每个正则表达式匹配文件名
+    for pattern_regex in patterns:
+        try:
+            match = re.search(pattern_regex, filename)
+            if match:
+                return int(match.group(1))
+        except:
+            continue
+            
+    # 尝试其他通用提取方法 - 提取任何数字
+    num_match = re.search(r'(\d+)', filename)
+    if num_match:
+        return int(num_match.group(1))
+            
+    return None
+
 # 全局变量
 VERSION = "2.9.0"
 CONFIG_PATH = "quark_config.json"
@@ -865,15 +934,50 @@ class Quark:
             share_file_list = filtered_files
             
             # 打印过滤信息（格式保持不变）
-            # 如果是顺序命名模式或剧集命名模式，需要排除文件夹，因为它们会自动过滤掉文件夹
+            # 计算剩余文件数
             remaining_count = len(share_file_list)
+            
+            # 区分不同模式的显示逻辑：
+            # 顺序命名和剧集命名模式不处理文件夹，应该排除文件夹计数
+            # 正则命名模式会处理文件夹，但只处理符合正则表达式的文件夹
             if task.get("use_sequence_naming") or task.get("use_episode_naming"):
                 # 计算剩余的实际可用文件数（排除文件夹）
                 remaining_usable_count = len([f for f in share_file_list if not f.get("dir", False)])
-                print(f"📑 应用过滤词: {task['filterwords']}，剩余{remaining_usable_count}个文件")
+                print(f"📑 应用过滤词: {task['filterwords']}，剩余{remaining_usable_count}个项目")
             else:
-                # 正则模式下正常显示
-                print(f"📑 应用过滤词: {task['filterwords']}，剩余{remaining_count}个文件")
+                # 正则模式下，需要先检查哪些文件/文件夹会被实际转存
+                pattern, replace = "", ""
+                # 检查是否是剧集命名模式
+                if task.get("use_episode_naming") and task.get("regex_pattern"):
+                    # 使用预先准备好的正则表达式
+                    pattern = task["regex_pattern"]
+                else:
+                    # 普通正则命名模式
+                    pattern, replace = self.magic_regex_func(
+                        task.get("pattern", ""), task.get("replace", ""), task["taskname"]
+                    )
+                
+                # 确保pattern不为空，避免正则表达式错误
+                if not pattern:
+                    pattern = ".*"
+                
+                # 计算真正会被转存的项目数量，使用简化的逻辑
+                try:
+                    # 简化的计算逻辑：只检查正则表达式匹配
+                    processable_items = []
+                    for share_file in share_file_list:
+                        # 检查是否符合正则表达式
+                        if not re.search(pattern, share_file["file_name"]):
+                            continue
+                        processable_items.append(share_file)
+                    
+                    remaining_count = len(processable_items)
+                except Exception as e:
+                    # 出错时回退到简单计数方式
+                    print(f"⚠️ 计算可处理项目时出错: {str(e)}")
+                    remaining_count = len([f for f in share_file_list if re.search(pattern, f["file_name"])])
+                
+                print(f"📑 应用过滤词: {task['filterwords']}，剩余{remaining_count}个项目")
             print()
 
         # 获取目标目录文件列表
@@ -983,7 +1087,6 @@ class Quark:
                         if time_diff < 2592000 or time_ratio < 0.1:
                             # 文件已存在，跳过处理
                             is_duplicate = True
-                            # print(f"跳过已存在的文件: {share_file['file_name']} (size={file_size}, time_diff={time_diff}s, ratio={time_ratio:.2f})")
                             break
                 
                 # 只有非重复文件才进行处理
@@ -1876,53 +1979,9 @@ class Quark:
                     })
             
             # 实现序号提取函数
-            def extract_episode_number(filename):
-                # 优先匹配SxxExx格式
-                match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
-                if match_s_e:
-                    # 直接返回E后面的集数
-                    return int(match_s_e.group(2))
-                
-                # 其次匹配E01格式
-                match_e = re.search(r'[Ee][Pp]?(\d+)', filename)
-                if match_e:
-                    return int(match_e.group(1))
-                
-                # 尝试匹配更多格式
-                default_patterns = [
-                    r'第(\d+)集',
-                    r'第(\d+)期',
-                    r'第(\d+)话',
-                    r'(\d+)集',
-                    r'(\d+)期',
-                    r'(\d+)话',
-                    r'[Ee][Pp]?(\d+)',
-                    r'(\d+)[-_\s]*4[Kk]',
-                    r'\[(\d+)\]',
-                    r'【(\d+)】',
-                    r'_?(\d+)_?'
-                ]
-                
-                # 如果配置了自定义规则，优先使用
-                if "config_data" in task and isinstance(task["config_data"].get("episode_patterns"), list) and task["config_data"]["episode_patterns"]:
-                    patterns = [p.get("regex", "(\\d+)") for p in task["config_data"]["episode_patterns"]]
-                else:
-                    # 尝试从全局配置获取
-                    global CONFIG_DATA
-                    if isinstance(CONFIG_DATA.get("episode_patterns"), list) and CONFIG_DATA["episode_patterns"]:
-                        patterns = [p.get("regex", "(\\d+)") for p in CONFIG_DATA["episode_patterns"]]
-                    else:
-                        patterns = default_patterns
-                
-                # 尝试使用每个正则表达式匹配文件名
-                for pattern_regex in patterns:
-                    try:
-                        match = re.search(pattern_regex, filename)
-                        if match:
-                            return int(match.group(1))
-                    except:
-                        continue
-                return None
+            def extract_episode_number_local(filename):
+                # 使用全局的统一提取函数
+                return extract_episode_number(filename, config_data=task.get("config_data"))
                 
             # 找出已命名的文件列表，避免重复转存
             existing_episode_numbers = set()
@@ -1931,7 +1990,7 @@ class Quark:
                     try:
                         if regex_pattern == "SPECIAL_EPISODE_PATTERN":
                             # 对于特殊模式，使用extract_episode_number函数提取剧集号
-                            episode_num = extract_episode_number(dir_file["file_name"])
+                            episode_num = extract_episode_number_local(dir_file["file_name"])
                             if episode_num is not None:
                                 existing_episode_numbers.add(episode_num)
                         else:
@@ -2000,7 +2059,7 @@ class Quark:
                                     break
                         
                         # 检查剧集号是否已经存在
-                        episode_num = extract_episode_number(share_file["file_name"])
+                        episode_num = extract_episode_number_local(share_file["file_name"])
                         if episode_num is not None and episode_num in existing_episode_numbers:
                             # print(f"跳过已存在的剧集号: {episode_num} ({share_file['file_name']})")
                             is_duplicate = True
@@ -2041,7 +2100,7 @@ class Quark:
                             return (season * 1000 + episode, 0)
                         
                         # 使用统一的剧集提取函数
-                        episode_num = extract_episode_number(filename)
+                        episode_num = extract_episode_number_local(filename)
                         if episode_num is not None:
                             return (episode_num, 0)
                         
@@ -2057,7 +2116,7 @@ class Quark:
                     
                     # 生成文件名并添加到列表
                     for share_file in sorted_files:
-                        episode_num = extract_episode_number(share_file["file_name"])
+                        episode_num = extract_episode_number_local(share_file["file_name"])
                         if episode_num is not None:
                             # 生成新文件名
                             file_ext = os.path.splitext(share_file["file_name"])[1]
@@ -2157,13 +2216,13 @@ class Quark:
                                         continue
                                         
                                         # 从文件名中提取剧集号
-                                        episode_num = extract_episode_number(dir_file["file_name"])
+                                        episode_num = extract_episode_number_local(dir_file["file_name"])
                                         if episode_num is None:
                                             continue
                                         
                                         # 查找对应的目标文件
                                         for saved_item in need_save_list:
-                                            saved_episode_num = extract_episode_number(saved_item["original_name"])
+                                            saved_episode_num = extract_episode_number_local(saved_item["original_name"])
                                             if saved_episode_num == episode_num:
                                                 # 匹配到对应的剧集号
                                                 target_name = saved_item["save_name"]
@@ -2194,7 +2253,7 @@ class Quark:
                                     if dir_file["file_name"] in original_name_to_item:
                                         saved_item = original_name_to_item[dir_file["file_name"]]
                                         target_name = saved_item["save_name"]
-                                        episode_num = extract_episode_number(saved_item["original_name"]) or 9999
+                                        episode_num = extract_episode_number_local(saved_item["original_name"]) or 9999
                                         
                                         if target_name not in [f["file_name"] for f in fresh_dir_file_list]:
                                             # 收集重命名操作
@@ -2207,7 +2266,7 @@ class Quark:
                                         if prefix in dir_file_prefix or dir_file_prefix in prefix:
                                             # 找到相似的文件名
                                             target_name = saved_item["save_name"]
-                                            episode_num = extract_episode_number(saved_item["original_name"]) or 9999
+                                            episode_num = extract_episode_number_local(saved_item["original_name"]) or 9999
                                             if target_name not in [f["file_name"] for f in fresh_dir_file_list]:
                                                 # 收集重命名操作
                                                 rename_operations.append((dir_file, target_name, episode_num))
@@ -2271,7 +2330,7 @@ class Quark:
                     continue
                 
                 # 检查是否需要重命名
-                episode_num = extract_episode_number(dir_file["file_name"])
+                episode_num = extract_episode_number_local(dir_file["file_name"])
                 if episode_num is not None:
                     # 根据剧集命名模式生成目标文件名
                     file_ext = os.path.splitext(dir_file["file_name"])[1]
@@ -2757,24 +2816,9 @@ def do_save(account, tasklist=[]):
                             episode_pattern = task["episode_naming"]
                             
                             # 创建剧集号提取函数
-                            def extract_episode_number(filename):
-                                # 优先匹配SxxExx格式
-                                match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
-                                if match_s_e:
-                                    # 直接返回E后面的集数
-                                    return int(match_s_e.group(2))
-                                
-                                # 尝试使用每个配置的正则表达式匹配文件名
-                                if account.episode_patterns:
-                                    for pattern in account.episode_patterns:
-                                        try:
-                                            pattern_regex = pattern.get("regex", "(\\d+)")
-                                            match = re.search(pattern_regex, filename)
-                                            if match:
-                                                return int(match.group(1))
-                                        except Exception as e:
-                                            continue
-                                return None
+                            def extract_episode_number_local(filename):
+                                # 使用全局的统一提取函数
+                                return extract_episode_number(filename, episode_patterns=account.episode_patterns)
                             
                             # 只显示重命名的文件
                             for node in file_nodes:
@@ -2979,14 +3023,16 @@ def do_save(account, tasklist=[]):
                 
                 
                 # 创建episode_pattern函数用于排序
-                def extract_episode_number(filename):
-                    # 优先匹配SxxExx格式
-                    match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
-                    if match_s_e:
-                        return int(match_s_e.group(2))
-                    
-                    # 尝试从文件名中提取剧集号
+                def extract_episode_number_local(filename):
+                    # 使用全局的统一提取函数，但优先尝试从episode_naming模式中提取
                     episode_pattern = task["episode_naming"]
+                    
+                    # 优先尝试全局函数提取
+                    ep_num = extract_episode_number(filename)
+                    if ep_num is not None:
+                        return ep_num
+                    
+                    # 如果全局函数无法提取，尝试从episode_naming模式中提取
                     if "[]" in episode_pattern:
                         pattern_parts = episode_pattern.split("[]")
                         if len(pattern_parts) == 2:
@@ -2996,15 +3042,11 @@ def do_save(account, tasklist=[]):
                                 if number_part.isdigit():
                                     return int(number_part)
                     
-                    # 尝试其他通用提取方法
-                    num_match = re.search(r'(\d+)', filename)
-                    if num_match:
-                        return int(num_match.group(1))
-                    
+                    # 如果所有方法都失败，返回float('inf')
                     return float('inf')
                 
                 # 按剧集号排序
-                display_files.sort(key=extract_episode_number)
+                display_files.sort(key=extract_episode_number_local)
                 
                 # 打印文件列表
                 for idx, file_name in enumerate(display_files):
