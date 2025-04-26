@@ -18,7 +18,169 @@ import importlib
 import urllib.parse
 from datetime import datetime
 
-# 统一的剧集编号提取函数
+# 全局的文件排序函数
+def sort_file_by_name(file):
+    """
+    通用的文件排序函数，用于根据文件名智能排序
+    支持多种格式的日期、期数、集数等提取和排序
+    使用多级排序键，按日期、期数、上中下顺序排序
+    如果以上均无法提取，则使用文件更新时间作为最后排序依据
+    """
+    if isinstance(file, dict) and file.get("dir", False):  # 跳过文件夹
+        return (float('inf'), float('inf'), float('inf'), 0)
+    
+    # 获取文件名，支持字符串或文件对象
+    if isinstance(file, dict):
+        filename = file.get("file_name", "")
+        # 获取更新时间作为最后排序依据
+        update_time = file.get("updated_at", 0)
+    else:
+        filename = file
+        update_time = 0
+    
+    # 提取文件名，不含扩展名
+    file_name_without_ext = os.path.splitext(filename)[0]
+    
+    # 初始化排序值
+    date_value = float('inf')  # 日期键（第一级）
+    episode_value = float('inf')  # 期数/集数键（第二级）
+    segment_value = 0  # 上中下/其他细分键（第三级）
+    
+    # 1. 提取日期 - 第一级排序键
+    
+    # 1.1 YYYY-MM-DD 或 YYYY.MM.DD 或 YYYY/MM/DD 或 YYYY MM DD格式（四位年份）
+    match_date_full = re.search(r'((?:19|20)\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})', filename)
+    if match_date_full:
+        year = int(match_date_full.group(1))
+        month = int(match_date_full.group(2))
+        day = int(match_date_full.group(3))
+        date_value = year * 10000 + month * 100 + day
+    
+    # 1.2 YY-MM-DD 或 YY.MM.DD 或 YY/MM/DD 或 YY MM DD格式（两位年份）
+    if date_value == float('inf'):
+        match_yy_date = re.search(r'((?:19|20)?\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})', filename)
+        if match_yy_date and len(match_yy_date.group(1)) == 2:
+            year_str = match_yy_date.group(1)
+            # 如果是两位年份，假设20xx年
+            year = int("20" + year_str)
+            month = int(match_yy_date.group(2))
+            day = int(match_yy_date.group(3))
+            date_value = year * 10000 + month * 100 + day
+    
+    # 1.3 完整的YYYYMMDD格式（无分隔符）
+    if date_value == float('inf'):
+        match_date_compact = re.search(r'((?:19|20)\d{2})(\d{2})(\d{2})', filename)
+        if match_date_compact:
+            year = int(match_date_compact.group(1))
+            month = int(match_date_compact.group(2))
+            day = int(match_date_compact.group(3))
+            date_value = year * 10000 + month * 100 + day
+    
+    # 1.4 YYMMDD格式（两位年份，无分隔符）
+    if date_value == float('inf'):
+        match_yy_compact = re.search(r'(?<!\d)(\d{2})(\d{2})(\d{2})(?!\d)', filename)
+        if match_yy_compact:
+            year_str = match_yy_compact.group(1)
+            # 检查月份和日期的有效性
+            month = int(match_yy_compact.group(2))
+            day = int(match_yy_compact.group(3))
+            if 1 <= month <= 12 and 1 <= day <= 31:
+                # 合理的月份和日期，假设为YY-MM-DD
+                year = int("20" + year_str)
+                date_value = year * 10000 + month * 100 + day
+    
+    # 1.5 MM/DD/YYYY 或 DD/MM/YYYY 格式
+    if date_value == float('inf'):
+        match_date_alt = re.search(r'(\d{1,2})[-./\s](\d{1,2})[-./\s]((?:19|20)\d{2})', filename)
+        if match_date_alt:
+            # 假设第一个是月，第二个是日（美式日期）
+            month = int(match_date_alt.group(1))
+            day = int(match_date_alt.group(2))
+            year = int(match_date_alt.group(3))
+            # 检查月份值，如果大于12可能是欧式日期格式（DD/MM/YYYY）
+            if month > 12:
+                month, day = day, month
+            date_value = year * 10000 + month * 100 + day
+    
+    # 1.6 MM-DD 或 MM.DD 或 MM/DD 或 MM DD格式（无年份）
+    if date_value == float('inf'):
+        match_date_short = re.search(r'(?<!\d)(\d{1,2})[-./\s](\d{1,2})(?!\d)', filename)
+        if match_date_short:
+            # 假设第一个是月，第二个是日
+            month = int(match_date_short.group(1))
+            day = int(match_date_short.group(2))
+            # 检查月份值，如果大于12可能是欧式日期格式（DD/MM）
+            if month > 12:
+                month, day = day, month
+            # 由于没有年份，使用一个较低的基数，确保任何有年份的日期都排在前面
+            # 使用20000000作为基准，所以无年份日期都会排在有年份日期之后
+            date_value = 20000000 + month * 100 + day
+    
+    # 2. 提取期数/集数 - 第二级排序键
+    
+    # 2.1 "第X期/集/话" 格式
+    match_chinese = re.search(r'第(\d+)[期集话]', filename)
+    if match_chinese:
+        episode_value = int(match_chinese.group(1))
+    
+    # 2.2 "X集/期/话" 格式
+    if episode_value == float('inf'):
+        match_chinese_simple = re.search(r'(\d+)[期集话]', filename)
+        if match_chinese_simple:
+            episode_value = int(match_chinese_simple.group(1))
+    
+    # 2.3 S01E01格式
+    if episode_value == float('inf'):
+        match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
+        if match_s_e:
+            season = int(match_s_e.group(1))
+            episode = int(match_s_e.group(2))
+            # 使用季*1000+集作为期数值
+            episode_value = episode  # 只用集数作为排序键
+    
+    # 2.4 E01/EP01格式
+    if episode_value == float('inf'):
+        match_e = re.search(r'[Ee][Pp]?(\d+)', filename)
+        if match_e:
+            episode_value = int(match_e.group(1))
+    
+    # 2.5 1x01格式
+    if episode_value == float('inf'):
+        match_x = re.search(r'(\d+)[Xx](\d+)', filename)
+        if match_x:
+            episode = int(match_x.group(2))
+            episode_value = episode
+    
+    # 2.6 方括号/中括号包围的数字
+    if episode_value == float('inf'):
+        match_bracket = re.search(r'\[(\d+)\]|【(\d+)】', filename)
+        if match_bracket:
+            episode_value = int(match_bracket.group(1) if match_bracket.group(1) else match_bracket.group(2))
+    
+    # 2.7 其他数字格式（如果没有明确的期数）
+    if episode_value == float('inf'):
+        # 优先尝试纯数字文件名
+        if file_name_without_ext.isdigit():
+            episode_value = int(file_name_without_ext)
+        else:
+            # 否则尝试提取任何数字
+            any_num_match = re.search(r'(\d+)', filename)
+            if any_num_match:
+                episode_value = int(any_num_match.group(1))
+    
+    # 3. 提取上中下标记或其他细分 - 第三级排序键
+    if re.search(r'上[集期话部篇]?|[集期话部篇]上', filename):
+        segment_value = 1
+    elif re.search(r'中[集期话部篇]?|[集期话部篇]中', filename):
+        segment_value = 2
+    elif re.search(r'下[集期话部篇]?|[集期话部篇]下', filename):
+        segment_value = 3
+    
+    # 返回多级排序元组，加入更新时间作为第四级排序键
+    return (date_value, episode_value, segment_value, update_time)
+
+
+# 全局的剧集编号提取函数
 def extract_episode_number(filename, episode_patterns=None, config_data=None):
     """
     从文件名中提取剧集编号
@@ -31,14 +193,76 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
     Returns:
         int: 提取到的剧集号，如果无法提取则返回None
     """
+    # 预处理：排除文件名中可能是日期的部分，避免误识别
+    date_patterns = [
+        # YYYY-MM-DD 或 YYYY.MM.DD 或 YYYY/MM/DD 或 YYYY MM DD格式（四位年份）
+        r'((?:19|20)\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})',
+        # YY-MM-DD 或 YY.MM.DD 或 YY/MM/DD 或 YY MM DD格式（两位年份）
+        r'((?:19|20)?\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})',
+        # 完整的YYYYMMDD格式（无分隔符）
+        r'((?:19|20)\d{2})(\d{2})(\d{2})',
+        # YYMMDD格式（两位年份，无分隔符）
+        r'(?<!\d)(\d{2})(\d{2})(\d{2})(?!\d)',
+        # MM/DD/YYYY 或 DD/MM/YYYY 格式
+        r'(\d{1,2})[-./\s](\d{1,2})[-./\s]((?:19|20)\d{2})',
+        # MM-DD 或 MM.DD 或 MM/DD 或 MM DD格式（无年份）
+        r'(?<!\d)(\d{1,2})[-./\s](\d{1,2})(?!\d)',
+    ]
+    
+    # 从文件名中移除日期部分，创建一个不含日期的文件名副本用于提取剧集号
+    filename_without_dates = filename
+    for pattern in date_patterns:
+        matches = re.finditer(pattern, filename)
+        for match in matches:
+            # 检查匹配的内容是否确实是日期
+            date_str = match.group(0)
+            month = None
+            day = None
+            
+            # 根据不同模式提取月和日
+            if len(match.groups()) >= 3:
+                if re.match(r'(?:19|20)\d{2}', match.group(1)):  # 首个分组是年份
+                    month = int(match.group(2))
+                    day = int(match.group(3))
+                elif re.match(r'(?:19|20)\d{2}', match.group(3)):  # 末尾分组是年份
+                    month = int(match.group(1))
+                    day = int(match.group(2))
+                else:
+                    # 处理两位数年份的情况（如25.03.21）
+                    try:
+                        # 假设第一个是年份，第二个是月，第三个是日
+                        year = int(match.group(1))
+                        month = int(match.group(2))
+                        day = int(match.group(3))
+                        
+                        # 如果月和日在有效范围内，则这可能是一个日期
+                        if 1 <= month <= 12 and 1 <= day <= 31:
+                            pass  # 保持month和day的值
+                        else:
+                            # 尝试另一种解释：月.日.年
+                            month = int(match.group(1))
+                            day = int(match.group(2))
+                            # 检查月和日的有效性
+                            if not (1 <= month <= 12 and 1 <= day <= 31):
+                                # 仍然无效，重置month和day
+                                month = None
+                                day = None
+                    except ValueError:
+                        # 转换失败，保持month和day为None
+                        pass
+            
+            # 如果能确定月日且是有效的日期，则从文件名中删除该日期
+            if month and day and 1 <= month <= 12 and 1 <= day <= 31:
+                filename_without_dates = filename_without_dates.replace(date_str, " ")
+    
     # 优先匹配SxxExx格式
-    match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
+    match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename_without_dates)
     if match_s_e:
         # 直接返回E后面的集数
         return int(match_s_e.group(2))
     
     # 其次匹配E01格式
-    match_e = re.search(r'[Ee][Pp]?(\d+)', filename)
+    match_e = re.search(r'[Ee][Pp]?(\d+)', filename_without_dates)
     if match_e:
         return int(match_e.group(1))
     
@@ -71,19 +295,37 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
     else:
         patterns = default_patterns
     
-    # 尝试使用每个正则表达式匹配文件名
+    # 尝试使用每个正则表达式匹配文件名（使用不含日期的文件名）
     for pattern_regex in patterns:
         try:
-            match = re.search(pattern_regex, filename)
+            match = re.search(pattern_regex, filename_without_dates)
             if match:
-                return int(match.group(1))
+                episode_num = int(match.group(1))
+                
+                # 检查提取的数字是否可能是日期的一部分
+                # 如果是纯数字并且可能是日期格式，则跳过
+                if str(episode_num).isdigit() and is_date_format(str(episode_num)):
+                    continue
+                
+                return episode_num
         except:
             continue
             
-    # 尝试其他通用提取方法 - 提取任何数字
-    num_match = re.search(r'(\d+)', filename)
+    # 如果从不含日期的文件名中没有找到剧集号，尝试从原始文件名中提取
+    # 这是为了兼容某些特殊情况，但要检查提取的数字不是日期
+    file_name_without_ext = os.path.splitext(filename)[0]
+    
+    # 如果文件名是纯数字，且不是日期格式，则可能是剧集号
+    if file_name_without_ext.isdigit() and not is_date_format(file_name_without_ext):
+        return int(file_name_without_ext)
+    
+    # 最后尝试提取任何数字，但要排除日期可能性
+    num_match = re.search(r'(\d+)', filename_without_dates)
     if num_match:
-        return int(num_match.group(1))
+        episode_num = int(num_match.group(1))
+        # 检查提取的数字是否可能是日期
+        if not is_date_format(str(episode_num)):
+            return episode_num
             
     return None
 
@@ -98,7 +340,7 @@ NOTIFYS = []
 def is_date_format(number_str):
     """
     判断一个纯数字字符串是否可能是日期格式
-    支持的格式：YYYYMMDD, MMDD
+    支持的格式：YYYYMMDD, MMDD, YYMMDD
     """
     # 判断YYYYMMDD格式 (8位数字)
     if len(number_str) == 8 and number_str.startswith('20'):
@@ -107,6 +349,17 @@ def is_date_format(number_str):
         day = int(number_str[6:8])
         
         # 简单检查月份和日期是否有效
+        if 1 <= month <= 12 and 1 <= day <= 31:
+            # 可能是日期格式
+            return True
+    
+    # 判断YYMMDD格式 (6位数字)
+    elif len(number_str) == 6:
+        year_str = number_str[:2]
+        month = int(number_str[2:4])
+        day = int(number_str[4:6])
+        
+        # 检查月份和日期是否有效
         if 1 <= month <= 12 and 1 <= day <= 31:
             # 可能是日期格式
             return True
@@ -121,7 +374,7 @@ def is_date_format(number_str):
             # 可能是日期格式
             return True
             
-    # 其他长度的纯数字不视为日期格式
+    # 其他格式不视为日期格式
     return False
 
 # 兼容青龙
@@ -1099,186 +1352,18 @@ class Quark:
             
             # 实现高级排序算法
             def extract_sorting_value(file):
-                if file.get("dir", False):  # 跳过文件夹
-                    return float('inf')
-                
-                filename = file["file_name"]
-                
-                # 提取文件名，不含扩展名
-                file_name_without_ext = os.path.splitext(filename)[0]
-                
-                # 1. "第X期/集/话" 格式 - 保持最高优先级
-                match_chinese = re.search(r'第(\d+)[期集话]', filename)
-                episode_num = int(match_chinese.group(1)) if match_chinese else 0
-                
-                # 5. 文件名含"上中下"（优先处理，因为可能与其他格式同时存在）
-                if match_chinese:
-                    # 如果同时存在集数和上中下，则按照集数*10+位置排序
-                    if '上' in filename:
-                        return episode_num * 10 + 1
-                    elif '中' in filename:
-                        return episode_num * 10 + 2
-                    elif '下' in filename:
-                        return episode_num * 10 + 3
-                    return episode_num * 10
-                elif '上' in filename:
-                    return 1
-                elif '中' in filename:
-                    return 2
-                elif '下' in filename:
-                    return 3
-                
-                # 1.2 "X集/期/话" 格式 - 与我们修改后的优先级一致
-                match_chinese_simple = re.search(r'(\d+)[期集话]', filename)
-                if match_chinese_simple:
-                    return int(match_chinese_simple.group(1))
-                
-                # 2.1 S01E01 格式，提取季数和集数
-                match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
-                if match_s_e:
-                    season = int(match_s_e.group(1))
-                    episode = int(match_s_e.group(2))
-                    return season * 1000 + episode
-                
-                # 2.2 E01/EP01 格式，仅提取集数
-                match_e = re.search(r'[Ee][Pp]?(\d+)', filename)
-                if match_e:
-                    return int(match_e.group(1))
-                
-                # 2.3 1x01 格式，提取季数和集数
-                match_x = re.search(r'(\d+)[Xx](\d+)', filename)
-                if match_x:
-                    season = int(match_x.group(1))
-                    episode = int(match_x.group(2))
-                    return season * 1000 + episode
-                
-                # 2.4 数字后接4K格式
-                match_4k = re.search(r'(\d+)[-_\s]*4[Kk]', filename)
-                if match_4k:
-                    return int(match_4k.group(1))
-                
-                # 2.5 方括号包围的数字
-                match_bracket = re.search(r'\[(\d+)\]', filename)
-                if match_bracket:
-                    return int(match_bracket.group(1))
-                
-                # 2.6 中括号包围的数字
-                match_cn_bracket = re.search(r'【(\d+)】', filename)
-                if match_cn_bracket:
-                    return int(match_cn_bracket.group(1))
-                
-                # 2.7 下划线包围的数字
-                match_underscore = re.search(r'_?(\d+)_', filename)
-                if match_underscore:
-                    return int(match_underscore.group(1))
-                
-                # 3. 日期格式识别（支持多种格式）
-                
-                # 3.1 完整的YYYYMMDD格式
-                match_date_compact = re.search(r'(20\d{2})(\d{2})(\d{2})', filename)
-                if match_date_compact:
-                    year = int(match_date_compact.group(1))
-                    month = int(match_date_compact.group(2))
-                    day = int(match_date_compact.group(3))
-                    return year * 10000 + month * 100 + day
-                
-                # 3.2 YYYY-MM-DD 或 YYYY.MM.DD 或 YYYY/MM/DD 格式
-                match_date_full = re.search(r'(20\d{2})[-./](\d{1,2})[-./](\d{1,2})', filename)
-                if match_date_full:
-                    year = int(match_date_full.group(1))
-                    month = int(match_date_full.group(2))
-                    day = int(match_date_full.group(3))
-                    return year * 10000 + month * 100 + day
-                
-                # 3.3 MM/DD/YYYY 或 DD/MM/YYYY 格式
-                match_date_alt = re.search(r'(\d{1,2})[-./](\d{1,2})[-./](20\d{2})', filename)
-                if match_date_alt:
-                    # 假设第一个是月，第二个是日（美式日期）
-                    month = int(match_date_alt.group(1))
-                    day = int(match_date_alt.group(2))
-                    year = int(match_date_alt.group(3))
-                    # 检查月份值，如果大于12可能是欧式日期格式（DD/MM/YYYY）
-                    if month > 12:
-                        month, day = day, month
-                    return year * 10000 + month * 100 + day
-                
-                # 3.4 MM/DD 格式（无年份），假设为当前年
-                match_date_short = re.search(r'(\d{1,2})[-./](\d{1,2})', filename)
-                if match_date_short:
-                    # 假设第一个是月，第二个是日
-                    month = int(match_date_short.group(1))
-                    day = int(match_date_short.group(2))
-                    # 检查月份值，如果大于12可能是欧式日期格式（DD/MM）
-                    if month > 12:
-                        month, day = day, month
-                    # 由于没有年份，使用一个较低的基数，确保任何有年份的日期都排在后面
-                    return month * 100 + day
-                
-                # 3.5 年期格式，如"2025年14期"
-                match_year_issue = re.search(r'(20\d{2})[年].*?(\d+)[期]', filename)
-                if match_year_issue:
-                    year = int(match_year_issue.group(1))
-                    issue = int(match_year_issue.group(2))
-                    return year * 1000 + issue
-                
-                # 3.6 日期+期数的复合格式，例如：2025-04-18 第5期上
-                match_date_episode = re.search(r'(20\d{2})[-./](\d{1,2})[-./](\d{1,2}).*?第(\d+)[期集话]', filename)
-                if match_date_episode:
-                    year = int(match_date_episode.group(1))
-                    month = int(match_date_episode.group(2))
-                    day = int(match_date_episode.group(3))
-                    episode = int(match_date_episode.group(4))
-                    date_val = year * 10000 + month * 100 + day
-                    # 将日期值作为主排序，期数为次要排序
-                    if '上' in filename:
-                        return date_val * 100 + episode * 10 + 1
-                    elif '中' in filename:
-                        return date_val * 100 + episode * 10 + 2
-                    elif '下' in filename:
-                        return date_val * 100 + episode * 10 + 3
-                    return date_val * 100 + episode * 10
-                
-                # 4. 纯数字格式（文件名开头是纯数字）
-                match_num = re.match(r'^(\d+)', file_name_without_ext)
-                if match_num:
-                    return int(match_num.group(1))
-                
-                # 5. 尝试匹配文件名中的任何数字
-                any_num_match = re.search(r'(\d+)', filename)
-                if any_num_match:
-                    return int(any_num_match.group(1))
-                
-                # 6. 默认使用更新时间
-                return file.get("created_at", file.get("updated_at", file.get("last_update_at", 0)))
+                # 使用全局排序函数
+                sort_tuple = sort_file_by_name(file)
+                # 返回排序元组，实现多级排序
+                return sort_tuple
             
-            # 过滤出非目录文件，排除已经排除掉的重复文件，然后排序
-            files_to_process = []
-            for f in filtered_share_files:
-                if f["dir"]:
-                    continue  # 跳过文件夹
-                
-                # 检查文件是否已符合命名规则
-                if sequence_pattern == "{}":
-                    # 对于单独的{}，检查文件名是否为纯数字
-                    file_name_without_ext = os.path.splitext(f["file_name"])[0]
-                    if file_name_without_ext.isdigit():
-                        # 增加判断：如果是日期格式的纯数字，不视为已命名
-                        if not is_date_format(file_name_without_ext):
-                            continue  # 跳过已符合命名规则的文件
-                elif re.match(regex_pattern, f["file_name"]):
-                    continue  # 跳过已符合命名规则的文件
-                
-                # 添加到待处理文件列表
-                files_to_process.append(f)
-            
-            # 根据提取的排序值进行排序
-            sorted_files = sorted(files_to_process, key=extract_sorting_value)
+            # 判断是否使用单独的{}模式
             
             # 需保存的文件清单
             need_save_list = []
             
             # 为每个文件分配序号
-            for share_file in sorted_files:
+            for share_file in filtered_share_files:
                 # 获取文件扩展名
                 file_ext = os.path.splitext(share_file["file_name"])[1]
                 # 生成新文件名
@@ -1691,157 +1776,12 @@ class Quark:
             
             # 实现高级排序算法
             def extract_sorting_value(file):
-                if file.get("dir", False):  # 跳过文件夹
-                    return float('inf')
-                
-                filename = file["file_name"]
-                
-                # 提取文件名，不含扩展名
-                file_name_without_ext = os.path.splitext(filename)[0]
-                
-                # 1. "第X期/集/话" 格式 - 保持最高优先级
-                match_chinese = re.search(r'第(\d+)[期集话]', filename)
-                episode_num = int(match_chinese.group(1)) if match_chinese else 0
-                
-                # 5. 文件名含"上中下"（优先处理，因为可能与其他格式同时存在）
-                if match_chinese:
-                    # 如果同时存在集数和上中下，则按照集数*10+位置排序
-                    if '上' in filename:
-                        return episode_num * 10 + 1
-                    elif '中' in filename:
-                        return episode_num * 10 + 2
-                    elif '下' in filename:
-                        return episode_num * 10 + 3
-                    return episode_num * 10
-                elif '上' in filename:
-                    return 1
-                elif '中' in filename:
-                    return 2
-                elif '下' in filename:
-                    return 3
-                
-                # 1.2 "X集/期/话" 格式 - 与我们修改后的优先级一致
-                match_chinese_simple = re.search(r'(\d+)[期集话]', filename)
-                if match_chinese_simple:
-                    return int(match_chinese_simple.group(1))
-                
-                # 2.1 S01E01 格式，提取季数和集数
-                match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
-                if match_s_e:
-                    season = int(match_s_e.group(1))
-                    episode = int(match_s_e.group(2))
-                    return season * 1000 + episode
-                
-                # 2.2 E01/EP01 格式，仅提取集数
-                match_e = re.search(r'[Ee][Pp]?(\d+)', filename)
-                if match_e:
-                    return int(match_e.group(1))
-                
-                # 2.3 1x01 格式，提取季数和集数
-                match_x = re.search(r'(\d+)[Xx](\d+)', filename)
-                if match_x:
-                    season = int(match_x.group(1))
-                    episode = int(match_x.group(2))
-                    return season * 1000 + episode
-                
-                # 2.4 数字后接4K格式
-                match_4k = re.search(r'(\d+)[-_\s]*4[Kk]', filename)
-                if match_4k:
-                    return int(match_4k.group(1))
-                
-                # 2.5 方括号包围的数字
-                match_bracket = re.search(r'\[(\d+)\]', filename)
-                if match_bracket:
-                    return int(match_bracket.group(1))
-                
-                # 2.6 中括号包围的数字
-                match_cn_bracket = re.search(r'【(\d+)】', filename)
-                if match_cn_bracket:
-                    return int(match_cn_bracket.group(1))
-                
-                # 2.7 下划线包围的数字
-                match_underscore = re.search(r'_?(\d+)_', filename)
-                if match_underscore:
-                    return int(match_underscore.group(1))
-                
-                # 3. 日期格式识别（支持多种格式）
-                
-                # 3.1 完整的YYYYMMDD格式
-                match_date_compact = re.search(r'(20\d{2})(\d{2})(\d{2})', filename)
-                if match_date_compact:
-                    year = int(match_date_compact.group(1))
-                    month = int(match_date_compact.group(2))
-                    day = int(match_date_compact.group(3))
-                    return year * 10000 + month * 100 + day
-                
-                # 3.2 YYYY-MM-DD 或 YYYY.MM.DD 或 YYYY/MM/DD 格式
-                match_date_full = re.search(r'(20\d{2})[-./](\d{1,2})[-./](\d{1,2})', filename)
-                if match_date_full:
-                    year = int(match_date_full.group(1))
-                    month = int(match_date_full.group(2))
-                    day = int(match_date_full.group(3))
-                    return year * 10000 + month * 100 + day
-                
-                # 3.3 MM/DD/YYYY 或 DD/MM/YYYY 格式
-                match_date_alt = re.search(r'(\d{1,2})[-./](\d{1,2})[-./](20\d{2})', filename)
-                if match_date_alt:
-                    # 假设第一个是月，第二个是日（美式日期）
-                    month = int(match_date_alt.group(1))
-                    day = int(match_date_alt.group(2))
-                    year = int(match_date_alt.group(3))
-                    # 检查月份值，如果大于12可能是欧式日期格式（DD/MM/YYYY）
-                    if month > 12:
-                        month, day = day, month
-                    return year * 10000 + month * 100 + day
-                
-                # 3.4 MM/DD 格式（无年份），假设为当前年
-                match_date_short = re.search(r'(\d{1,2})[-./](\d{1,2})', filename)
-                if match_date_short:
-                    # 假设第一个是月，第二个是日
-                    month = int(match_date_short.group(1))
-                    day = int(match_date_short.group(2))
-                    # 检查月份值，如果大于12可能是欧式日期格式（DD/MM）
-                    if month > 12:
-                        month, day = day, month
-                    # 由于没有年份，使用一个较低的基数，确保任何有年份的日期都排在后面
-                    return month * 100 + day
-                
-                # 3.5 年期格式，如"2025年14期"
-                match_year_issue = re.search(r'(20\d{2})[年].*?(\d+)[期]', filename)
-                if match_year_issue:
-                    year = int(match_year_issue.group(1))
-                    issue = int(match_year_issue.group(2))
-                    return year * 1000 + issue
-                
-                # 3.6 日期+期数的复合格式，例如：2025-04-18 第5期上
-                match_date_episode = re.search(r'(20\d{2})[-./](\d{1,2})[-./](\d{1,2}).*?第(\d+)[期集话]', filename)
-                if match_date_episode:
-                    year = int(match_date_episode.group(1))
-                    month = int(match_date_episode.group(2))
-                    day = int(match_date_episode.group(3))
-                    episode = int(match_date_episode.group(4))
-                    date_val = year * 10000 + month * 100 + day
-                    # 将日期值作为主排序，期数为次要排序
-                    if '上' in filename:
-                        return date_val * 100 + episode * 10 + 1
-                    elif '中' in filename:
-                        return date_val * 100 + episode * 10 + 2
-                    elif '下' in filename:
-                        return date_val * 100 + episode * 10 + 3
-                    return date_val * 100 + episode * 10
-                
-                # 4. 纯数字格式（文件名开头是纯数字）
-                match_num = re.match(r'^(\d+)', file_name_without_ext)
-                if match_num:
-                    return int(match_num.group(1))
-                
-                # 5. 尝试匹配文件名中的任何数字
-                any_num_match = re.search(r'(\d+)', filename)
-                if any_num_match:
-                    return int(any_num_match.group(1))
-                
-                # 6. 默认使用更新时间
-                return file.get("created_at", file.get("updated_at", file.get("last_update_at", 0)))
+                # 使用全局排序函数
+                sort_tuple = sort_file_by_name(file)
+                # 返回排序元组，实现多级排序
+                return sort_tuple
+            
+            # 判断是否使用单独的{}模式
             
             # 初始化sorted_files列表，用于收集需要重命名的文件
             sorted_files = []
@@ -2492,29 +2432,8 @@ class Quark:
             
             # 修改为按日期或数字排序（复用与文件树相同的排序逻辑）
             def extract_sort_value(file_name):
-                # 尝试提取日期格式（优先YYYY-MM-DD格式）
-                date_match = re.search(r'(\d{4})[-./](\d{1,2})[-./](\d{1,2})', file_name)
-                if date_match:
-                    year = int(date_match.group(1))
-                    month = int(date_match.group(2))
-                    day = int(date_match.group(3))
-                    return year * 10000 + month * 100 + day
-                
-                # 尝试提取紧凑日期格式（YYYYMMDD）
-                compact_date_match = re.search(r'(\d{4})(\d{2})(\d{2})', file_name)
-                if compact_date_match:
-                    year = int(compact_date_match.group(1))
-                    month = int(compact_date_match.group(2))
-                    day = int(compact_date_match.group(3))
-                    return year * 10000 + month * 100 + day
-                
-                # 尝试提取任何数字
-                number_match = re.search(r'(\d+)', file_name)
-                if number_match:
-                    return int(number_match.group(1))
-                
-                # 默认使用原文件名
-                return float('inf')
+                # 使用全局排序函数
+                return sort_file_by_name(file_name)
             
             # 按目标文件名中的日期或数字进行排序，与顺序命名和剧集命名模式保持一致
             rename_operations.sort(key=lambda x: extract_sort_value(x[1]))

@@ -31,9 +31,9 @@ sys.path.insert(0, parent_dir)
 from quark_auto_save import Quark
 from quark_auto_save import Config
 
-# 添加导入全局extract_episode_number函数
+# 添加导入全局extract_episode_number和sort_file_by_name函数
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from quark_auto_save import extract_episode_number
+from quark_auto_save import extract_episode_number, sort_file_by_name
 
 
 def get_app_ver():
@@ -328,59 +328,7 @@ def get_share_detail():
             
             # 实现与实际重命名相同的排序算法
             def extract_sort_value(file):
-                if file["dir"]:  # 跳过文件夹
-                    return float('inf')
-                
-                file_name = file["file_name"]
-                
-                # 1. 首先尝试提取SxxExx格式（如S01E01）
-                match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', file_name)
-                if match_s_e:
-                    season = int(match_s_e.group(1))
-                    episode = int(match_s_e.group(2))
-                    return season * 1000 + episode
-                
-                # 2. 尝试提取E01/EP01格式
-                match_e = re.search(r'[Ee][Pp]?(\d+)', file_name)
-                if match_e:
-                    return int(match_e.group(1))
-                
-                # 3. 首先尝试提取期数（第X期）
-                period_match = re.search(r'第(\d+)期[上中下]', file_name)
-                if period_match:
-                    period_num = int(period_match.group(1))
-                    # 根据上中下调整排序
-                    if '上' in file_name:
-                        return period_num * 3 - 2
-                    elif '中' in file_name:
-                        return period_num * 3 - 1
-                    elif '下' in file_name:
-                        return period_num * 3
-                    return period_num * 3
-                
-                # 4. 尝试提取日期格式（YYYY-MM-DD）
-                date_match = re.search(r'(\d{4})-(\d{2})-(\d{2})', file_name)
-                if date_match:
-                    year = int(date_match.group(1))
-                    month = int(date_match.group(2))
-                    day = int(date_match.group(3))
-                    base_value = year * 10000 + month * 100 + day
-                    # 如果同一天有多个文件，根据"上中下"或其他标识符进行排序
-                    if '上' in file_name:
-                        return base_value * 10 + 1
-                    elif '中' in file_name:
-                        return base_value * 10 + 2
-                    elif '下' in file_name:
-                        return base_value * 10 + 3
-                    return base_value * 10
-                
-                # 5. 尝试提取任何数字
-                number_match = re.search(r'(\d+)', file_name)
-                if number_match:
-                    return int(number_match.group(1))
-                
-                # 6. 默认使用原文件名
-                return float('inf')
+                return sort_file_by_name(file)
             
             # 过滤出非目录文件，并且排除已经符合命名规则的文件
             files_to_process = []
@@ -472,11 +420,8 @@ def get_share_detail():
                 if episode_num is not None:
                     return episode_num
                 
-                # 如果无法提取序号，则使用更新时间
-                try:
-                    return file.get("last_update_at", 0)
-                except:
-                    return 0
+                # 如果无法提取剧集号，则使用通用的排序函数
+                return sort_file_by_name(file)
             
             # 过滤出非目录文件，并且排除已经符合命名规则的文件
             files_to_process = []
