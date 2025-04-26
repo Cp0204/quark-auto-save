@@ -29,13 +29,13 @@
 > ⛔️⛔️⛔️ 注意！资源不会每时每刻更新，**严禁设定过高的定时运行频率！** 以免账号风控和给夸克服务器造成不必要的压力。雪山崩塌，每一片雪花都有责任！
 
 > [!NOTE]
-> 因不想当客服处理各种使用咨询，即日起 Issues 关闭，如果你发现了 bug 、有好的想法或功能建议，欢迎通过 PR 和我对话，谢谢！
+> 开发者≠客服，开源免费≠帮你解决使用问题；本项目Wiki和已经相对完善，遇到问题请先翻阅 Issues 和 Wiki ，请勿盲目发问。
 
 ## 功能
 
 - 部署方式
-  - [x] 兼容青龙
-  - [x] 支持 Docker 独立部署，WebUI 配置
+  - [x] 可能~~兼容青龙~~
+  - [x] Docker 部署，WebUI 配置
 
 - 分享链接
   - [x] 支持分享链接的子目录
@@ -58,7 +58,7 @@
 - 媒体库整合
   - [x] 根据任务名搜索 Emby 媒体库
   - [x] 追更或整理后自动刷新 Emby 媒体库
-  - [x] **媒体库模块化，用户可很方便地[开发自己的媒体库hook模块](./plugins)**
+  - [x] 媒体库模块化，用户可很方便地[开发自己的媒体库hook模块](./plugins)
 
 - 其它
   - [x] 每日签到领空间 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦#每日签到领空间)</sup>
@@ -74,10 +74,10 @@ Docker 部署提供 WebUI 管理配置，图形化配置已能满足绝大多数
 ```shell
 docker run -d \
   --name quark-auto-save \
-  -p 5005:5005 \
+  -p 5005:5005 \ # 映射端口，:前的可以改，即部署后访问的端口，:后的不可改
   -e WEBUI_USERNAME=admin \
   -e WEBUI_PASSWORD=admin123 \
-  -v ./quark-auto-save/config:/app/config \
+  -v ./quark-auto-save/config:/app/config \ # 必须，配置持久化
   -v ./quark-auto-save/media:/media \ # 可选，模块alist_strm_gen生成strm使用
   --network bridge \
   --restart unless-stopped \
@@ -167,12 +167,14 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 
 ## 打赏
 
-如果这个项目让你受益，你可以打赏我1块钱，让我知道开源有价值。谢谢！
+如果这个项目让你受益，你可以无偿赠与我1块钱，让我知道开源有价值。谢谢！
 
 ![WeChatPay](https://cdn.jsdelivr.net/gh/Cp0204/Cp0204@main/img/wechat_pay_qrcode.png)
 
 ## 声明
 
-本程序为个人兴趣开发，开源仅供学习与交流使用。
+本项目为个人兴趣开发，旨在通过程序自动化提高网盘使用效率。
 
-程序没有任何破解行为，只是对于夸克已有的API进行封装，所有数据来自于夸克官方API，本人不对网盘内容负责、不对夸克官方API未来可能的改动导致的后果负责。
+程序没有任何破解行为，只是对于夸克已有的API进行封装，所有数据来自于夸克官方API；本人不对网盘内容负责、不对夸克官方API未来可能的变动导致的影响负责，请自行斟酌使用。
+
+开源仅供学习与交流使用，未盈利也未授权商业使用，严禁用于非法用途。
