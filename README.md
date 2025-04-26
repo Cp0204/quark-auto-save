@@ -1,4 +1,4 @@
-# 夸克网盘自动转存
+# 夸克自动转存
 本项目是在 [Cp0204/quark-auto-save:0.5.3.1](https://github.com/Cp0204/quark-auto-save) 的基础上修改而来的（感谢 [Cp0204](https://github.com/Cp0204)），我增加了几个功能，新增功能的代码都是通过 AI 完成的，不保证功能的稳定性。主要的新增功能如下（[详见](https://github.com/x1ao4/quark-auto-save-x/wiki)）：
 
 - **过滤项目**：通过在 `过滤规则` 里设置过滤词来过滤不需要转存的文件或文件夹。
