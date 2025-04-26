@@ -193,14 +193,76 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
     Returns:
         int: 提取到的剧集号，如果无法提取则返回None
     """
+    # 预处理：排除文件名中可能是日期的部分，避免误识别
+    date_patterns = [
+        # YYYY-MM-DD 或 YYYY.MM.DD 或 YYYY/MM/DD 或 YYYY MM DD格式（四位年份）
+        r'((?:19|20)\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})',
+        # YY-MM-DD 或 YY.MM.DD 或 YY/MM/DD 或 YY MM DD格式（两位年份）
+        r'((?:19|20)?\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})',
+        # 完整的YYYYMMDD格式（无分隔符）
+        r'((?:19|20)\d{2})(\d{2})(\d{2})',
+        # YYMMDD格式（两位年份，无分隔符）
+        r'(?<!\d)(\d{2})(\d{2})(\d{2})(?!\d)',
+        # MM/DD/YYYY 或 DD/MM/YYYY 格式
+        r'(\d{1,2})[-./\s](\d{1,2})[-./\s]((?:19|20)\d{2})',
+        # MM-DD 或 MM.DD 或 MM/DD 或 MM DD格式（无年份）
+        r'(?<!\d)(\d{1,2})[-./\s](\d{1,2})(?!\d)',
+    ]
+    
+    # 从文件名中移除日期部分，创建一个不含日期的文件名副本用于提取剧集号
+    filename_without_dates = filename
+    for pattern in date_patterns:
+        matches = re.finditer(pattern, filename)
+        for match in matches:
+            # 检查匹配的内容是否确实是日期
+            date_str = match.group(0)
+            month = None
+            day = None
+            
+            # 根据不同模式提取月和日
+            if len(match.groups()) >= 3:
+                if re.match(r'(?:19|20)\d{2}', match.group(1)):  # 首个分组是年份
+                    month = int(match.group(2))
+                    day = int(match.group(3))
+                elif re.match(r'(?:19|20)\d{2}', match.group(3)):  # 末尾分组是年份
+                    month = int(match.group(1))
+                    day = int(match.group(2))
+                else:
+                    # 处理两位数年份的情况（如25.03.21）
+                    try:
+                        # 假设第一个是年份，第二个是月，第三个是日
+                        year = int(match.group(1))
+                        month = int(match.group(2))
+                        day = int(match.group(3))
+                        
+                        # 如果月和日在有效范围内，则这可能是一个日期
+                        if 1 <= month <= 12 and 1 <= day <= 31:
+                            pass  # 保持month和day的值
+                        else:
+                            # 尝试另一种解释：月.日.年
+                            month = int(match.group(1))
+                            day = int(match.group(2))
+                            # 检查月和日的有效性
+                            if not (1 <= month <= 12 and 1 <= day <= 31):
+                                # 仍然无效，重置month和day
+                                month = None
+                                day = None
+                    except ValueError:
+                        # 转换失败，保持month和day为None
+                        pass
+            
+            # 如果能确定月日且是有效的日期，则从文件名中删除该日期
+            if month and day and 1 <= month <= 12 and 1 <= day <= 31:
+                filename_without_dates = filename_without_dates.replace(date_str, " ")
+    
     # 优先匹配SxxExx格式
-    match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
+    match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename_without_dates)
     if match_s_e:
         # 直接返回E后面的集数
         return int(match_s_e.group(2))
     
     # 其次匹配E01格式
-    match_e = re.search(r'[Ee][Pp]?(\d+)', filename)
+    match_e = re.search(r'[Ee][Pp]?(\d+)', filename_without_dates)
     if match_e:
         return int(match_e.group(1))
     
@@ -233,19 +295,37 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
     else:
         patterns = default_patterns
     
-    # 尝试使用每个正则表达式匹配文件名
+    # 尝试使用每个正则表达式匹配文件名（使用不含日期的文件名）
     for pattern_regex in patterns:
         try:
-            match = re.search(pattern_regex, filename)
+            match = re.search(pattern_regex, filename_without_dates)
             if match:
-                return int(match.group(1))
+                episode_num = int(match.group(1))
+                
+                # 检查提取的数字是否可能是日期的一部分
+                # 如果是纯数字并且可能是日期格式，则跳过
+                if str(episode_num).isdigit() and is_date_format(str(episode_num)):
+                    continue
+                
+                return episode_num
         except:
             continue
             
-    # 尝试其他通用提取方法 - 提取任何数字
-    num_match = re.search(r'(\d+)', filename)
+    # 如果从不含日期的文件名中没有找到剧集号，尝试从原始文件名中提取
+    # 这是为了兼容某些特殊情况，但要检查提取的数字不是日期
+    file_name_without_ext = os.path.splitext(filename)[0]
+    
+    # 如果文件名是纯数字，且不是日期格式，则可能是剧集号
+    if file_name_without_ext.isdigit() and not is_date_format(file_name_without_ext):
+        return int(file_name_without_ext)
+    
+    # 最后尝试提取任何数字，但要排除日期可能性
+    num_match = re.search(r'(\d+)', filename_without_dates)
     if num_match:
-        return int(num_match.group(1))
+        episode_num = int(num_match.group(1))
+        # 检查提取的数字是否可能是日期
+        if not is_date_format(str(episode_num)):
+            return episode_num
             
     return None
 
@@ -260,7 +340,7 @@ NOTIFYS = []
 def is_date_format(number_str):
     """
     判断一个纯数字字符串是否可能是日期格式
-    支持的格式：YYYYMMDD, MMDD
+    支持的格式：YYYYMMDD, MMDD, YYMMDD
     """
     # 判断YYYYMMDD格式 (8位数字)
     if len(number_str) == 8 and number_str.startswith('20'):
@@ -269,6 +349,17 @@ def is_date_format(number_str):
         day = int(number_str[6:8])
         
         # 简单检查月份和日期是否有效
+        if 1 <= month <= 12 and 1 <= day <= 31:
+            # 可能是日期格式
+            return True
+    
+    # 判断YYMMDD格式 (6位数字)
+    elif len(number_str) == 6:
+        year_str = number_str[:2]
+        month = int(number_str[2:4])
+        day = int(number_str[4:6])
+        
+        # 检查月份和日期是否有效
         if 1 <= month <= 12 and 1 <= day <= 31:
             # 可能是日期格式
             return True
@@ -283,7 +374,7 @@ def is_date_format(number_str):
             # 可能是日期格式
             return True
             
-    # 其他长度的纯数字不视为日期格式
+    # 其他格式不视为日期格式
     return False
 
 # 兼容青龙
