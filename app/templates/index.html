@@ -49,9 +49,17 @@
               </a>
             </li>
           </ul>
-          <div class="text-center" style="position: absolute; bottom: 32px; width: 100%; font-size: small;">
-            <p><a class="" target="_blank" href="https://github.com/Cp0204/quark-auto-save/wiki"><i class="bi bi-wechat"></i> 使用交流</a></p>
-            <p><a target="_blank" href="https://github.com/Cp0204/quark-auto-save"><i class="bi bi-github"></i> quark-auto-save</a></p>
+          <div class="nav-bottom text-center">
+            <p class="position-relative" hidden>
+              <b class="text-success"><i class="bi bi-record-circle mr-1"></i>视频教程</b>
+              <span class="position-absolute qrcode-tutorial">
+                使用夸克扫码查看<br>
+                <img src="./static/img/qrcode_tutorial.png">
+              </span>
+            </p>
+            <p><a target="_blank" href="https://github.com/Cp0204/quark-auto-save/wiki"><i class="bi bi-wechat mr-1"></i>使用交流</a></p>
+            <p><a href="./static/js/qas.addtask.user.js"><i class="bi bi-cloud-plus-fill mr-1"></i>推送任务油猴脚本</a></p>
+            <p><a target="_blank" href="https://github.com/Cp0204/quark-auto-save"><i class="bi bi-github mr-1"></i>quark-auto-save</a></p>
             <p><span v-html="versionTips"></span></p>
           </div>
         </div>
@@ -391,9 +399,9 @@
           </div>
 
           <div class="bottom-buttons">
-            <button class="btn btn-success" title="保存 CTRL+S"><i class="bi bi-floppy2-fill"></i></button>
-            <button type="button" class="btn btn-primary" title="运行 CTRL+R" @click="runScriptNow()"><i class="bi bi-play-fill"></i></button>
-            <button type="button" class="btn btn-info" @click="scrollToX(0)" @dblclick="scrollToX()" data-toggle="tooltip" data-placement="top" title="单击回顶，双击到底"><i class="bi bi-chevron-bar-up"></i></button>
+            <button class="btn btn-success" data-toggle="tooltip" data-placement="top" title="保存 CTRL+S"><i class="bi bi-floppy2-fill"></i></button>
+            <button type="button" class="btn btn-primary" data-toggle="tooltip" data-placement="top" title="运行 CTRL+R" @click="runScriptNow()"><i class="bi bi-play-fill"></i></button>
+            <button type="button" class="btn btn-info" data-toggle="tooltip" data-placement="top" title="单击回顶，双击到底" @click="scrollToX(0)" @dblclick="scrollToX()"><i class="bi bi-chevron-bar-up"></i></button>
           </div>
         </form>
       </main>
@@ -448,8 +456,12 @@
               </nav>
               <!-- 文件列表 -->
               <div class="mb-3" v-if="fileSelect.previewRegex">
-                <div><b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span></div>
-                <div><b>替换表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].replace"></span></div>
+                <div><b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                  <span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].pattern }}</span>
+                </div>
+                <div><b>替换表达式：</b><span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].replace" v-html="formData.tasklist[fileSelect.index].replace"></span>
+                  <span class="badge badge-info" v-else-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].replace }}</span>
+                </div>
               </div>
               <table class="table table-hover table-sm">
                 <thead>
@@ -601,7 +613,7 @@
               latestVersion = response.data[0].name;
               console.log(`检查版本：当前 ${this.version} 最新 ${latestVersion}`);
               if (latestVersion != this.version) {
-                this.versionTips += ` <sup><span class="badge badge-pill badge-danger">${latestVersion}</span></sup>`;
+                this.versionTips += ` <sup><span class="position-absolute badge badge-pill badge-danger">${latestVersion}</span></sup>`;
               }
             })
             .catch(error => {
@@ -763,28 +775,28 @@
             console.error("Error decodeURIComponent:", e);
           }
           // 从分享中提取任务名
-          axios.get('/get_share_detail', { params: { shareurl: task.shareurl } })
-            .then(response => {
-              share_detail = response.data.data
-              if (!response.data.success) {
-                if (share_detail.error.includes("提取码")) {
-                  const passcode = prompt("检查失败[" + share_detail.error + "]，请输入提取码：");
-                  if (passcode != null) {
-                    task.shareurl = task.shareurl.replace(/pan.quark.cn\/s\/(\w+)(\?pwd=\w*)*/, `pan.quark.cn/s/$1?pwd=${passcode}`);
-                    this.changeShareurl(task);
-                    return;
-                  }
+          axios.post('/get_share_detail', {
+            shareurl: task.shareurl
+          }).then(response => {
+            share_detail = response.data.data
+            if (!response.data.success) {
+              if (share_detail.error.includes("提取码")) {
+                const passcode = prompt("检查失败[" + share_detail.error + "]，请输入提取码：");
+                if (passcode != null) {
+                  task.shareurl = task.shareurl.replace(/pan.quark.cn\/s\/(\w+)(\?pwd=\w*)*/, `pan.quark.cn/s/$1?pwd=${passcode}`);
+                  this.changeShareurl(task);
+                  return;
                 }
-                this.$set(task, "shareurl_ban", share_detail.error);
-              } else {
-                task.taskname = task.taskname == "" ? share_detail.share.title : task.taskname;
-                task.savepath = task.savepath.replace(/TASKNAME/g, share_detail.share.title);
-                this.$set(task, "shareurl_ban", undefined);
               }
-            })
-            .catch(error => {
-              console.error('Error get_share_detail:', error);
-            });
+              this.$set(task, "shareurl_ban", share_detail.error);
+            } else {
+              task.taskname = task.taskname == "" ? share_detail.share.title : task.taskname;
+              task.savepath = task.savepath.replace(/TASKNAME/g, share_detail.share.title);
+              this.$set(task, "shareurl_ban", undefined);
+            }
+          }).catch(error => {
+            console.error('Error get_share_detail:', error);
+          });
         },
         clearData(target) {
           this[target] = "";
@@ -918,6 +930,8 @@
         },
         selectSuggestion(index, suggestion) {
           this.smart_param.showSuggestions = false;
+          this.fileSelect.selectDir = true;
+          this.fileSelect.previewRegex = false;
           this.showShareSelect(index, suggestion.shareurl);
         },
         addMagicRegex() {
@@ -964,7 +978,7 @@
             params: params
           }).then(response => {
             this.fileSelect.fileList = response.data.data.list
-            if (response.data.data.paths.length > 0) {
+            if (response.data.data.paths?.length > 0) {
               this.fileSelect.paths = response.data.data.paths
             }
             this.modalLoading = false;
@@ -983,6 +997,7 @@
           this.fileSelect.paths = [];
           this.fileSelect.index = index;
           $('#fileSelectModal').modal('toggle');
+          this.formData.tasklist[index].savepath = this.formData.tasklist[index].savepath.replace(/\/+/g, "/");
           this.getSavepathDetail(this.formData.tasklist[index].savepath);
         },
         getShareDetail() {
@@ -1016,18 +1031,20 @@
           this.fileSelect.fileList = [];
           this.fileSelect.paths = [];
           this.fileSelect.error = undefined;
-          if (this.getShareurl(this.fileSelect.shareurl) != this.getShareurl(this.formData.tasklist[index].shareurl)) {
+          // 如果分享链接发生变化，则重置 stoken
+          const newShareurl = shareurl || this.formData.tasklist[index].shareurl
+          if (this.getShareurl(this.fileSelect.shareurl) != this.getShareurl(newShareurl)) {
             this.fileSelect.stoken = "";
           }
-          this.fileSelect.shareurl = shareurl || this.formData.tasklist[index].shareurl;
+          this.fileSelect.shareurl = newShareurl;
           this.fileSelect.index = index;
           $('#fileSelectModal').modal('toggle');
           this.getShareDetail();
         },
         navigateTo(fid, name) {
-          path = { fid: fid, name: name }
+          dir = { fid: fid, name: name }
           if (this.fileSelect.selectShare) {
-            this.fileSelect.shareurl = this.getShareurl(this.fileSelect.shareurl, path);
+            this.fileSelect.shareurl = this.getShareurl(this.fileSelect.shareurl, dir);
             this.getShareDetail();
           } else {
             if (fid == "0") {
@@ -1059,15 +1076,15 @@
           Vue.set(this.formData.tasklist[this.fileSelect.index], 'startfid', fid);
           $('#fileSelectModal').modal('hide')
         },
-        getShareurl(shareurl, path = {}) {
-          if (path == {} || path.fid == 0) {
-            shareurl = shareurl.match(`.*s/[a-z0-9]+`)[0]
-          } else if (shareurl.includes(path.fid)) {
-            shareurl = shareurl.match(`.*/${path.fid}[^\/]*`)[0]
+        getShareurl(shareurl, dir = {}) {
+          if (dir == {} || dir.fid == 0) {
+            shareurl = shareurl.match(`.*s/[a-z0-9]+(\\?pwd=[^#]+)?`)[0]
+          } else if (shareurl.includes(dir.fid)) {
+            shareurl = shareurl.match(`.*/${dir.fid}[^/]*`)[0]
           } else if (shareurl.includes('#/list/share')) {
-            shareurl = `${shareurl}/${path.fid}-${path.name}`
+            shareurl = `${shareurl}/${dir.fid}-${dir.name?.replace('-', '*101')}`
           } else {
-            shareurl = `${shareurl}#/list/share/${path.fid}-${path.name}`
+            shareurl = `${shareurl}#/list/share/${dir.fid}-${dir.name?.replace('-', '*101')}`
           }
           return shareurl;
         }

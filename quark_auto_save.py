@@ -240,7 +240,9 @@ class Quark:
             print(f"_send_request error:\n{e}")
             fake_response = requests.Response()
             fake_response.status_code = 500
-            fake_response._content = b'{"status": 500, "message": "request error"}'
+            fake_response._content = (
+                b'{"status": 500, "code": 1, "message": "request error"}'
+            )
             return fake_response
 
     def init(self):
@@ -312,10 +314,7 @@ class Quark:
         response = self._send_request(
             "POST", url, json=payload, params=querystring
         ).json()
-        if response.get("status") == 200:
-            return True, response["data"]["stoken"]
-        else:
-            return False, response["message"]
+        return response
 
     def get_detail(self, pwd_id, stoken, pdir_fid, _fetch_share=0):
         list_merge = []
@@ -338,7 +337,7 @@ class Quark:
             }
             response = self._send_request("GET", url, params=querystring).json()
             if response["code"] != 0:
-                return {"error": response["message"]}
+                return response
             if response["data"]["list"]:
                 list_merge += response["data"]["list"]
                 page += 1
@@ -347,7 +346,7 @@ class Quark:
             if len(list_merge) >= response["metadata"]["_total"]:
                 break
         response["data"]["list"] = list_merge
-        return response["data"]
+        return response
 
     def get_fids(self, file_paths):
         fids = []
@@ -369,7 +368,7 @@ class Quark:
         return fids
 
     def ls_dir(self, pdir_fid, **kwargs):
-        file_list = []
+        list_merge = []
         page = 1
         while True:
             url = f"{self.BASE_URL}/1/clouddrive/file/sort"
@@ -387,15 +386,16 @@ class Quark:
             }
             response = self._send_request("GET", url, params=querystring).json()
             if response["code"] != 0:
-                return {"error": response["message"]}
+                return response
             if response["data"]["list"]:
-                file_list += response["data"]["list"]
+                list_merge += response["data"]["list"]
                 page += 1
             else:
                 break
-            if len(file_list) >= response["metadata"]["_total"]:
+            if len(list_merge) >= response["metadata"]["_total"]:
                 break
-        return file_list
+        response["data"]["list"] = list_merge
+        return response
 
     def save_file(self, fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken):
         url = f"{self.BASE_URL}/1/clouddrive/share/sharepage/save"
@@ -556,7 +556,7 @@ class Quark:
         matches = re.findall(r"/(\w{32})-?([^/]+)?", url)
         for match in matches:
             fid = match[0]
-            name = urllib.parse.unquote(match[1])
+            name = urllib.parse.unquote(match[1]).replace("*101", "-")
             paths.append({"fid": fid, "name": name})
         pdir_fid = paths[-1]["fid"] if matches else 0
         return pwd_id, passcode, pdir_fid, paths
@@ -595,8 +595,8 @@ class Quark:
     def do_save_check(self, shareurl, savepath):
         try:
             pwd_id, passcode, pdir_fid, _ = self.extract_url(shareurl)
-            _, stoken = self.get_stoken(pwd_id, passcode)
-            share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["list"]
+            stoken = self.get_stoken(pwd_id, passcode)["data"]["stoken"]
+            share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["data"]["list"]
             fid_list = [item["fid"] for item in share_file_list]
             fid_token_list = [item["share_fid_token"] for item in share_file_list]
             file_name_list = [item["file_name"] for item in share_file_list]
@@ -612,7 +612,7 @@ class Quark:
             if save_file["code"] == 41017:
                 return
             elif save_file["code"] == 0:
-                dir_file_list = self.ls_dir(to_pdir_fid)
+                dir_file_list = self.ls_dir(to_pdir_fid)["data"]["list"]
                 del_list = [
                     item["fid"]
                     for item in dir_file_list
@@ -644,10 +644,16 @@ class Quark:
         pwd_id, passcode, pdir_fid, _ = self.extract_url(task["shareurl"])
 
         # 获取stoken，同时可验证资源是否失效
-        is_sharing, stoken = self.get_stoken(pwd_id, passcode)
-        if not is_sharing:
-            add_notify(f"❌《{task['taskname']}》：{stoken}\n")
-            task["shareurl_ban"] = stoken
+        get_stoken = self.get_stoken(pwd_id, passcode)
+        if get_stoken.get("status") == 200:
+            stoken = get_stoken["data"]["stoken"]
+        elif get_stoken.get("status") == 500:
+            print(f"跳过任务：网络异常 {get_stoken.get("message")}")
+            return
+        else:
+            message = get_stoken.get("message")
+            add_notify(f"❌《{task['taskname']}》：{message}\n")
+            task["shareurl_ban"] = message
             return
         # print("stoken: ", stoken)
 
@@ -662,7 +668,7 @@ class Quark:
     def dir_check_and_save(self, task, pwd_id, stoken, pdir_fid="", subdir_path=""):
         tree = Tree()
         # 获取分享文件列表
-        share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["list"]
+        share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["data"]["list"]
         # print("share_file_list: ", share_file_list)
 
         if not share_file_list:
@@ -678,7 +684,7 @@ class Quark:
             print("🧠 该分享是一个文件夹，读取文件夹内列表")
             share_file_list = self.get_detail(
                 pwd_id, stoken, share_file_list[0]["fid"]
-            )["list"]
+            )["data"]["list"]
 
         # 获取目标目录文件列表
         savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
@@ -689,7 +695,7 @@ class Quark:
                 print(f"❌ 目录 {savepath} fid获取失败，跳过转存")
                 return tree
         to_pdir_fid = self.savepath_fid[savepath]
-        dir_file_list = self.ls_dir(to_pdir_fid)
+        dir_file_list = self.ls_dir(to_pdir_fid)["data"]["list"]
         # print("dir_file_list: ", dir_file_list)
 
         tree.create_node(
@@ -808,7 +814,7 @@ class Quark:
         savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
         if not self.savepath_fid.get(savepath):
             self.savepath_fid[savepath] = self.get_fids([savepath])[0]["fid"]
-        dir_file_list = self.ls_dir(self.savepath_fid[savepath])
+        dir_file_list = self.ls_dir(self.savepath_fid[savepath])["data"]["list"]
         dir_file_name_list = [item["file_name"] for item in dir_file_list]
         is_rename_count = 0
         for dir_file in dir_file_list:
