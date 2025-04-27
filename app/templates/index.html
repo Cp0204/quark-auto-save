@@ -699,12 +699,19 @@
           }
         },
         checkNewVersion() {
-          this.versionTips = this.version.replace('v', '');
+          // 移除本地版本中的v前缀
+          const localVersionClean = this.version.replace(/^v/i, '');
+          
+          // 显示时也去掉v前缀
+          this.versionTips = localVersionClean; 
+          
           axios.get('https://api.github.com/repos/x1ao4/quark-auto-save-x/tags')
             .then(response => {
-              latestVersion = response.data[0].name.replace('v', '');
-              console.log(`检查版本：当前 ${this.version} 最新 ${latestVersion}`);
-              if (latestVersion != this.version) {
+              const latestVersion = response.data[0].name; // GitHub的版本不带v，不需要replace
+              console.log(`检查版本：当前 ${localVersionClean} 最新 ${latestVersion}`);
+              
+              // 使用处理后的版本号进行比较
+              if (latestVersion !== localVersionClean) {
                 this.versionTips += ` <sup><span class="badge badge-pill badge-danger">${latestVersion}</span></sup>`;
               }
             })
