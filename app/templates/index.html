@@ -340,7 +340,7 @@
                     <div class="col-sm-10">
                       <div class="input-group">
                         <div class="input-group-prepend">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.previewRegex=true;showShareSelect(index)" title="预览正则命名效果">
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.previewRegex=true;showShareSelect(index)" :title="task.use_sequence_naming ? '预览顺序命名效果' : (task.use_episode_naming ? '预览剧集命名效果' : '预览正则命名效果')">
                             {{ task.use_sequence_naming ? '顺序命名' : (task.use_episode_naming ? '剧集命名' : '正则命名') }}
                           </button>
                         </div>
@@ -479,16 +479,23 @@
               <!-- 文件列表 -->
               <div class="mb-3" v-if="fileSelect.previewRegex">
                 <div v-if="formData.tasklist[fileSelect.index].use_sequence_naming">
-                  <b>顺序命名表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                  <div style="margin-bottom: 0; padding-left: 5px; display: flex; align-items: center;">
+                    <b>顺序命名表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                  </div>
+                  <div style="padding-left: 5px;">
+                    <span class="text-muted">预览结果仅供参考，新文件序号将基于网盘中已有文件的最大序号递增。若分享链接文件不完整，实际结果可能有所不同。</span>
+                  </div>
                 </div>
                 <div v-else-if="formData.tasklist[fileSelect.index].use_episode_naming">
-                  <b>剧集命名表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                  <div style="padding-left: 5px; display: flex; align-items: center;">
+                    <b>剧集命名表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                  </div>
                 </div>
                 <div v-else>
-                  <div style="margin-bottom: 0;">
+                  <div style="margin-bottom: 0; padding-left: 5px; display: flex; align-items: center;">
                     <b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
                   </div>
-                  <div>
+                  <div style="padding-left: 5px; display: flex; align-items: center;">
                     <b>替换表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].replace"></span>
                   </div>
                 </div>
@@ -496,8 +503,8 @@
               <table class="table table-hover table-sm">
                 <thead>
                   <tr>
-                    <th scope="col">文件名</th>
-                    <th scope="col" v-if="fileSelect.selectShare">{{ fileSelect.index !== null && formData.tasklist[fileSelect.index] ? 
+                    <th scope="col" style="padding-left: 5px;">文件名</th>
+                    <th scope="col" v-if="fileSelect.selectShare" style="padding-left: 5px;">{{ fileSelect.index !== null && formData.tasklist[fileSelect.index] ? 
                       (formData.tasklist[fileSelect.index].use_sequence_naming ? '顺序命名' : 
                       (formData.tasklist[fileSelect.index].use_episode_naming ? '剧集命名' : '正则命名')) : '重命名' }}</th>
                     <template v-if="!fileSelect.previewRegex">
@@ -509,8 +516,8 @@
                 </thead>
                 <tbody>
                   <tr v-for="(file, key) in fileSelect.fileList" :key="key" @click="fileSelect.selectDir ? (file.dir ? navigateTo(file.fid, file.file_name) : null) : selectStartFid(file.fid)" :class="{'cursor-pointer': fileSelect.selectDir ? file.dir : true}">
-                    <td><i class="bi" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i> {{file.file_name}}</td>
-                    <td v-if="fileSelect.selectShare" :class="file.file_name_re ? 'text-success' : 'text-danger'">{{file.file_name_re || '&times;'}}</td>
+                    <td style="padding-left: 5px;"><i class="bi" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i> {{file.file_name}}</td>
+                    <td v-if="fileSelect.selectShare" :class="file.file_name_re ? 'text-success' : 'text-danger'" style="padding-left: 5px;">{{file.file_name_re || '&times;'}}</td>
                     <template v-if="!fileSelect.previewRegex">
                       <td v-if="file.dir">{{ file.include_items }}项</td>
                       <td v-else>{{file.size | size}}</td>
