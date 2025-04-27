@@ -648,7 +648,7 @@ class Quark:
         if get_stoken.get("status") == 200:
             stoken = get_stoken["data"]["stoken"]
         elif get_stoken.get("status") == 500:
-            print(f"跳过任务：网络异常 {get_stoken.get("message")}")
+            print(f"跳过任务：网络异常 {get_stoken.get('message')}")
             return
         else:
             message = get_stoken.get("message")
