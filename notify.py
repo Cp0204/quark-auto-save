@@ -839,10 +839,10 @@ def dodo_bot(title: str, content: str) -> None:
     通过 DoDo机器人 推送消息
     """
     required_keys = [
-        'DoDo_BOTTOKEN',
-        'DoDo_BOTID',
-        'DoDo_LANDSOURCEID',
-        'DoDo_SOURCEID'
+        'DODO_BOTTOKEN',
+        'DODO_BOTID',
+        'DODO_LANDSOURCEID',
+        'DODO_SOURCEID'
     ]
     if not all(push_config.get(key) for key in required_keys):
         missing = [key for key in required_keys if not push_config.get(key)]
@@ -851,10 +851,10 @@ def dodo_bot(title: str, content: str) -> None:
     print("DoDo 服务启动")
     url="https://botopen.imdodo.com/api/v2/personal/message/send"
 
-    botID=push_config.get('DoDo_BOTID')
-    botToken=push_config.get('DoDo_BOTTOKEN')
-    islandSourceId=push_config.get('DoDo_LANDSOURCEID')
-    dodoSourceId=push_config.get('DoDo_SOURCEID')
+    botID=push_config.get('DODO_BOTID')
+    botToken=push_config.get('DODO_BOTTOKEN')
+    islandSourceId=push_config.get('DODO_LANDSOURCEID')
+    dodoSourceId=push_config.get('DODO_SOURCEID')
 
     headers = {
         'Authorization': f'Bot {botID}.{botToken}',
