@@ -132,6 +132,11 @@ push_config = {
     'WXPUSHER_APP_TOKEN': '',           # wxpusher 的 appToken 官方文档: https://wxpusher.zjiecode.com/docs/ 管理后台: https://wxpusher.zjiecode.com/admin/
     'WXPUSHER_TOPIC_IDS': '',           # wxpusher 的 主题ID，多个用英文分号;分隔 topic_ids 与 uids 至少配置一个才行
     'WXPUSHER_UIDS': '',                # wxpusher 的 用户ID，多个用英文分号;分隔 topic_ids 与 uids 至少配置一个才行
+    
+    'DODO_BOTTOKEN': '',                # DoDo机器人的token DoDo开发平台https://doker.imdodo.com/
+    'DODO_BOTID': '',                   # DoDo机器人的id
+    'DODO_LANDSOURCEID': '',            # DoDo机器人所在的群ID
+    'DODO_SOURCEID': '',                # DoDo机器人推送目标用户的ID
 }
 # fmt: on
 
@@ -829,6 +834,54 @@ def ntfy(title: str, content: str) -> None:
     else:
         print("Ntfy 推送失败！错误信息：", response.text)
 
+def dodo_bot(title: str, content: str) -> None:
+    """
+    通过 DoDo机器人 推送消息
+    """
+    required_keys = [
+        'DODO_BOTTOKEN',
+        'DODO_BOTID',
+        'DODO_LANDSOURCEID',
+        'DODO_SOURCEID'
+    ]
+    if not all(push_config.get(key) for key in required_keys):
+        missing = [key for key in required_keys if not push_config.get(key)]
+        print(f"DoDo 服务配置不完整，缺少以下参数: {', '.join(missing)}\n取消推送")
+        return
+    print("DoDo 服务启动")
+    url="https://botopen.imdodo.com/api/v2/personal/message/send"
+
+    botID=push_config.get('DODO_BOTID')
+    botToken=push_config.get('DODO_BOTTOKEN')
+    islandSourceId=push_config.get('DODO_LANDSOURCEID')
+    dodoSourceId=push_config.get('DODO_SOURCEID')
+
+    headers = {
+        'Authorization': f'Bot {botID}.{botToken}',
+        'Content-Type': 'application/json',
+        'Host': 'botopen.imdodo.com'
+    }
+    payload = json.dumps({
+        "islandSourceId": islandSourceId,
+        "dodoSourceId": dodoSourceId, 
+        "messageType": 1,
+        "messageBody": {
+            "content": f"{title}\n\n{content}"
+        }
+    })
+
+    try:
+        response = requests.post(url, headers=headers, data=payload)
+        if response.status_code == 200:
+            response = response.json()
+            if response.get("status") == 0 and response.get("message") == "success":
+                print(f'DoDo 推送成功！')
+            else:
+                print(f'DoDo 推送失败！错误信息：\n{response}')
+        else:
+            print("DoDo 推送失败！错误信息：", response.text)
+    except Exception as e:
+        print(f"DoDo 推送请求异常: {str(e)}")
 
 def wxpusher_bot(title: str, content: str) -> None:
     """
@@ -1043,6 +1096,13 @@ def add_notify_function():
         and push_config.get("CHRONOCAT_TOKEN")
     ):
         notify_function.append(chronocat)
+    if (
+        push_config.get("DODO_BOTTOKEN")
+        and push_config.get("DODO_BOTID")
+        and push_config.get("DODO_LANDSOURCEID")
+        and push_config.get("DODO_SOURCEID")
+    ):
+        notify_function.append(dodo_bot)
     if push_config.get("WEBHOOK_URL") and push_config.get("WEBHOOK_METHOD"):
         notify_function.append(custom_notify)
     if push_config.get("NTFY_TOPIC"):
