@@ -301,6 +301,9 @@ def get_share_detail():
     shareurl = request.json.get("shareurl", "")
     stoken = request.json.get("stoken", "")
     account = Quark("", 0)
+    # 设置account的必要属性
+    account.episode_patterns = request.json.get("regex", {}).get("episode_patterns", [])
+    
     pwd_id, passcode, pdir_fid, paths = account.extract_url(shareurl)
     if not stoken:
         is_sharing, stoken = account.get_stoken(pwd_id, passcode)
@@ -411,14 +414,15 @@ def get_share_detail():
             # 实现高级排序算法
             def extract_sorting_value(file):
                 if file["dir"]:  # 跳过文件夹
-                    return float('inf')
+                    return (float('inf'), 0, 0, 0)  # 返回元组以确保类型一致性
                 
                 filename = file["file_name"]
                 
                 # 尝试获取剧集序号
                 episode_num = extract_episode_number_local(filename)
                 if episode_num is not None:
-                    return episode_num
+                    # 返回元组以确保类型一致性
+                    return (0, episode_num, 0, 0)
                 
                 # 如果无法提取剧集号，则使用通用的排序函数
                 return sort_file_by_name(file)
