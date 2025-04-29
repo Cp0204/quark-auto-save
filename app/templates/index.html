@@ -335,7 +335,7 @@
                       </div>
                     </div>
                   </div>
-                  <div class="form-group row" :title="task.use_sequence_naming || task.use_episode_naming ? (task.use_sequence_naming ? '输入带{}占位符的重命名格式，如剧名 - S01E{}、剧名.S03E{}等，{}将被替换为集序号（按文件名和上传时间智能排序），目录中的文件夹会被自动过滤' : '输入带[]占位符的重命名格式，如剧名 - S01E[]、剧名.S03E[]等，[]将被替换为从文件名中提取的集编号，目录中的文件夹会被自动过滤') : '可用作筛选，只转存匹配到的文件名的文件，留空则转存所有文件'">
+                  <div class="form-group row" :title="task.use_sequence_naming || task.use_episode_naming ? (task.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}、剧名.S03E{}等，{}将被替换为集序号（按文件名和上传时间智能排序），目录中的文件夹会被自动过滤' : '输入带[]占位符的重命名格式，如：剧名 - S01E[]、剧名.S03E[]等，[]将被替换为从文件名中提取的集编号，目录中的文件夹会被自动过滤') : '可用作筛选，只转存匹配到文件名的文件，留空则转存所有文件'">
                     <label class="col-sm-2 col-form-label">保存规则</label>
                     <div class="col-sm-10">
                       <div class="input-group">
@@ -344,10 +344,10 @@
                             {{ task.use_sequence_naming ? '顺序命名' : (task.use_episode_naming ? '剧集命名' : '正则命名') }}
                           </button>
                         </div>
-                        <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" :placeholder="task.use_sequence_naming ? '输入带{}占位符的重命名格式，如剧名 - S01E{}' : (task.use_episode_naming ? '输入带[]占位符的重命名格式，如剧名 - S01E[]' : '匹配表达式')"  list="magicRegex" @input="detectNamingMode(task)">
+                        <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" :placeholder="task.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}' : (task.use_episode_naming ? '输入带[]占位符的重命名格式，如：剧名 - S01E[]' : '匹配表达式')"  list="magicRegex" @input="detectNamingMode(task)">
                         <input v-if="!task.use_sequence_naming && !task.use_episode_naming" type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
                         <input v-else type="text" class="form-control" disabled value="" style="background-color: #e9ecef;">
-                        <div class="input-group-append" title="保存时只比较文件名的部分，01.mp4 和 01.mkv 视同为同一文件，不重复转存">
+                        <div class="input-group-append" title="保存时只比较文件名的部分，01.mp4和01.mkv视同为同一文件，不重复转存">
                           <div class="input-group-text">
                             <input type="checkbox" v-model="task.ignore_extension">&nbsp;忽略后缀
                           </div>
@@ -368,21 +368,21 @@
                     </div>
                   </div>
                   
-                  <div class="form-group row" title="只转存修改日期>选中文件的文件，在容量不够或几百集动漫的场景下非常有用">
+                  <div class="form-group row" title="只转存修改日期大于选中文件的文件，请在符合筛选条件的文件中进行选择，在更换分享链接时非常有用">
                     <label class="col-sm-2 col-form-label">文件起始</label>
                     <div class="col-sm-10">
                       <div class="input-group">
-                        <input type="text" class="form-control" placeholder="可选，只转存修改日期>此文件的文件" name="startfid[]" v-model="task.startfid">
+                        <input type="text" class="form-control" placeholder="可选，只转存修改日期大于此文件的文件" name="startfid[]" v-model="task.startfid">
                         <div class="input-group-append" v-if="task.shareurl">
                           <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.previewRegex=false;showShareSelect(index)">选择</button>
                         </div>
                       </div>
                     </div>
                   </div>
-                  <div class="form-group row" title="需匹配到各级嵌套目录名才会更新，否则子目录在第一次转存后不会更新。注意：原理是逐级索引，深层嵌套目录的场景下效率非常低，慎用 .*">
+                  <div class="form-group row" title="需匹配到各级嵌套目录名才会更新，否则子目录在第一次转存后不会再更新。注意：原理是逐级索引，深层嵌套目录的场景下效率非常低，慎用.*">
                     <label class="col-sm-2 col-form-label">更新目录</label>
                     <div class="col-sm-10">
-                      <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，匹配需更新子目录（含各级嵌套目录）的正则表达式，多项以|分割，如 4k|1080p">
+                      <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，匹配需要更新的子目录（含各级嵌套目录）的正则表达式，多个目录用竖线隔开，如：4K|1080P">
                     </div>
                   </div>
                   <div class="form-group row">
@@ -391,7 +391,7 @@
                       <input type="date" name="enddate[]" class="form-control" v-model="task.enddate" placeholder="可选">
                     </div>
                   </div>
-                  <div class="form-group row" title="只在勾选的星期时才运行，在某些周更剧的场景下非常有用">
+                  <div class="form-group row" title="只在勾选的星期时才运行，对周更的内容非常有用">
                     <label class="col-sm-2 col-form-label">运行星期</label>
                     <div class="col-sm-10 col-form-label">
                       <div class="form-check form-check-inline" title="也可用作任务总开关">
