@@ -1369,10 +1369,18 @@ class Quark:
                 # 生成新文件名
                 save_name = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
                 
-                # 检查目标目录是否已存在此文件
-                file_exists = any(
-                    dir_file["file_name"] == save_name for dir_file in dir_file_list
-                )
+                # 检查目标目录是否已存在此文件，支持忽略后缀选项
+                if task.get("ignore_extension", False):
+                    # 忽略后缀模式：只比较文件名部分，不比较扩展名
+                    save_name_base = os.path.splitext(save_name)[0]
+                    file_exists = any(
+                        os.path.splitext(dir_file["file_name"])[0] == save_name_base for dir_file in dir_file_list
+                    )
+                else:
+                    # 不忽略后缀模式：完整文件名必须匹配
+                    file_exists = any(
+                        dir_file["file_name"] == save_name for dir_file in dir_file_list
+                    )
                 
                 if not file_exists:
                     # 设置保存文件名（单独的{}不在这里重命名，而是在do_rename_task中处理）
@@ -1536,30 +1544,30 @@ class Quark:
                                 # 如果原文件名已包含任务名作为前缀，保持原样
                                 save_name = share_file["file_name"]
                         
-                        # 忽略后缀
-                        if task.get("ignore_extension") and not share_file["dir"]:
-                            compare_func = lambda a, b1, b2: (
-                                os.path.splitext(a)[0] == os.path.splitext(b1)[0]
-                                or os.path.splitext(a)[0] == os.path.splitext(b2)[0]
-                            )
-                        else:
-                            compare_func = lambda a, b1, b2: (a == b1 or a == b2)
+                        # 为正则模式实现基于文件名的查重逻辑，支持忽略后缀选项
                         # 判断目标目录文件是否存在
                         file_exists = False
                         for dir_file in dir_file_list:
-                            if compare_func(
-                                dir_file["file_name"], share_file["file_name"], save_name
-                            ):
-                                file_exists = True
-                                # print(f"跳过已存在的文件: {dir_file['file_name']} - 与源文件或保存文件同名")
-                                break
-                                
-                        if not file_exists:
-                            # 再次检查是否已经通过文件内容(大小+时间)被识别为重复
-                            if is_duplicate and not share_file["dir"]:  # 修改：只有非文件夹时才考虑重复过滤
-                                # print(f"跳过已存在的文件: {share_file['file_name']} - 通过大小和时间匹配到相同文件") 
+                            if dir_file["dir"]:
                                 continue
                                 
+                            if task.get("ignore_extension", False):
+                                # 忽略后缀：只比较文件名部分，不管扩展名
+                                original_name_base = os.path.splitext(share_file["file_name"])[0]
+                                renamed_name_base = os.path.splitext(save_name)[0]
+                                existing_name_base = os.path.splitext(dir_file["file_name"])[0]
+                                
+                                # 如果原文件名或重命名后文件名与目标目录中文件名相同（忽略后缀），则视为已存在
+                                if existing_name_base == original_name_base or existing_name_base == renamed_name_base:
+                                    file_exists = True
+                                    break
+                            else:
+                                # 不忽略后缀：文件名和扩展名都要一致才视为同一个文件
+                                if dir_file["file_name"] == share_file["file_name"] or dir_file["file_name"] == save_name:
+                                    file_exists = True
+                                    break
+                                
+                        if not file_exists:
                             # 不打印保存信息
                             share_file["save_name"] = save_name
                             share_file["original_name"] = share_file["file_name"]  # 保存原文件名，用于排序
@@ -1972,50 +1980,51 @@ class Quark:
                                 filtered_share_files.append(share_file)
                             continue
                             
-                        # 检查文件是否已存在（基于大小和修改时间）
-                        file_size = share_file.get("size", 0)
-                        file_ext = os.path.splitext(share_file["file_name"])[1].lower()
-                        share_update_time = share_file.get("last_update_at", 0) or share_file.get("updated_at", 0)
-                        
-                        key = f"{file_size}_{file_ext}"
+                        # 从共享文件中提取剧集号
+                        episode_num = extract_episode_number_local(share_file["file_name"])
                         is_duplicate = False
                         
-                        if key in dir_files_map:
-                            for existing_file in dir_files_map[key]:
-                                existing_update_time = existing_file.get("updated_at", 0)
-                                
-                                # 防止除零错误
-                                if existing_update_time == 0:
-                                    continue
-                                
-                                # 如果修改时间相近（30天内）或者差距不大（10%以内），认为是同一个文件
-                                time_diff = abs(share_update_time - existing_update_time)
-                                time_ratio = abs(1 - (share_update_time / existing_update_time)) if existing_update_time else 1
-                                
-                                if time_diff < 2592000 or time_ratio < 0.1:
-                                    # 文件已存在，跳过处理
-                                    is_duplicate = True
-                                    # print(f"跳过已存在的文件: {share_file['file_name']} (size={file_size}, time_diff={time_diff}s, ratio={time_ratio:.2f})")
-                                    break
-                        
-                        # 检查剧集号是否已经存在
-                        episode_num = extract_episode_number_local(share_file["file_name"])
-                        if episode_num is not None and episode_num in existing_episode_numbers:
-                            # print(f"跳过已存在的剧集号: {episode_num} ({share_file['file_name']})")
-                            is_duplicate = True
-                        
-                        # 生成预期的目标文件名并检查是否已存在
-                        if episode_num is not None and not is_duplicate:
-                            file_ext = os.path.splitext(share_file["file_name"])[1]
-                            if episode_pattern == "[]":
-                                # 对于单独的[]，直接使用数字序号作为文件名
-                                expected_name = f"{episode_num:02d}{file_ext}"
+                        # 通过文件名判断是否已存在（新的查重逻辑）
+                        if not is_duplicate:
+                            # 如果没有重命名，判断原文件名是否已存在
+                            original_name = share_file["file_name"]
+                            # 如果有剧集号，判断重命名后的文件名是否已存在
+                            file_ext = os.path.splitext(original_name)[1]
+                            
+                            # 构建可能的新文件名
+                            if episode_num is not None:
+                                if episode_pattern == "[]":
+                                    new_name = f"{episode_num:02d}{file_ext}"
+                                else:
+                                    new_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
                             else:
-                                expected_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
-                            # 检查目标文件名是否存在于目录中
-                            if any(dir_file["file_name"] == expected_name for dir_file in dir_file_list):
-                                # print(f"跳过已存在的文件名: {expected_name}")
-                                is_duplicate = True
+                                new_name = None
+                            
+                            # 根据是否忽略后缀进行检查
+                            if task.get("ignore_extension", False):
+                                # 忽略后缀模式：只比较文件名，不比较扩展名
+                                original_name_base = os.path.splitext(original_name)[0]
+                                
+                                # 检查原文件名是否存在
+                                exists_original = any(os.path.splitext(dir_file["file_name"])[0] == original_name_base for dir_file in dir_file_list)
+                                
+                                # 如果有新文件名，检查新文件名是否存在
+                                exists_new = False
+                                if new_name:
+                                    new_name_base = os.path.splitext(new_name)[0]
+                                    exists_new = any(os.path.splitext(dir_file["file_name"])[0] == new_name_base for dir_file in dir_file_list)
+                                
+                                is_duplicate = exists_original or exists_new
+                            else:
+                                # 不忽略后缀模式：文件名和扩展名都要一致
+                                exists_original = any(dir_file["file_name"] == original_name for dir_file in dir_file_list)
+                                
+                                # 如果有新文件名，检查新文件名是否存在
+                                exists_new = False
+                                if new_name:
+                                    exists_new = any(dir_file["file_name"] == new_name for dir_file in dir_file_list)
+                                
+                                is_duplicate = exists_original or exists_new
                         
                         # 只处理非重复文件
                         if not is_duplicate:
