@@ -1404,8 +1404,24 @@ class Quark:
                 if share_file["dir"] and task.get("update_subdir", False):
                     if re.search(task["update_subdir"], share_file["file_name"]):
                         print(f"检查子文件夹: {savepath}/{share_file['file_name']}")
+                        
+                        # 创建一个子任务对象，保留原任务的属性，但专门用于子目录处理
+                        subdir_task = task.copy()
+                        # 确保子目录也可以使用忽略后缀功能
+                        
+                        # 将子目录任务设置为正则命名模式
+                        # 如果原任务没有设置pattern，或者使用的是顺序/剧集命名，确保有基本的pattern
+                        if (not subdir_task.get("pattern") or 
+                            subdir_task.get("use_sequence_naming") or 
+                            subdir_task.get("use_episode_naming")):
+                            subdir_task["pattern"] = ".*"
+                            subdir_task["replace"] = ""
+                            # 取消顺序命名和剧集命名模式，强制使用正则模式
+                            subdir_task["use_sequence_naming"] = False
+                            subdir_task["use_episode_naming"] = False
+                        
                         subdir_tree = self.dir_check_and_save(
-                            task,
+                            subdir_task,
                             pwd_id,
                             stoken,
                             share_file["fid"],
@@ -1474,30 +1490,58 @@ class Quark:
                 # 检查文件是否已存在（通过大小和扩展名）- 新增的文件查重逻辑
                 is_duplicate = False
                 if not share_file["dir"]:  # 文件夹不进行内容查重
-                    file_size = share_file.get("size", 0)
-                    file_ext = os.path.splitext(share_file["file_name"])[1].lower()
-                    share_update_time = share_file.get("last_update_at", 0) or share_file.get("updated_at", 0)
+                    # 新的查重逻辑：优先使用文件名查重，支持忽略后缀
+                    original_file_name = share_file["file_name"]
+                    original_name_base = os.path.splitext(original_file_name)[0]
                     
-                    # 检查是否已存在相同大小和扩展名的文件
-                    key = f"{file_size}_{file_ext}"
-                    if key in dir_files_map:
-                        for existing_file in dir_files_map[key]:
-                            existing_update_time = existing_file.get("updated_at", 0)
+                    # 判断是否用正则替换后的文件名
+                    if task.get("pattern") and task.get("replace") is not None:
+                        pattern, replace = self.magic_regex_func(
+                            task.get("pattern", ""), task.get("replace", ""), task.get("taskname", "")
+                        )
+                        # 确保pattern不为空，避免正则表达式错误
+                        if pattern:
+                            try:
+                                # 尝试应用正则替换
+                                if re.search(pattern, original_file_name):
+                                    renamed_file = re.sub(pattern, replace, original_file_name)
+                                    renamed_base = os.path.splitext(renamed_file)[0]
+                                else:
+                                    renamed_file = None
+                                    renamed_base = None
+                            except Exception:
+                                # 正则出错时使用原文件名
+                                renamed_file = None
+                                renamed_base = None
+                        else:
+                            renamed_file = None
+                            renamed_base = None
+                    else:
+                        renamed_file = None
+                        renamed_base = None
+                    
+                    # 查重逻辑，同时考虑原文件名和重命名后的文件名
+                    for dir_file in dir_file_list:
+                        if dir_file["dir"]:
+                            continue
+                        
+                        if task.get("ignore_extension", False):
+                            # 忽略后缀：只比较文件名部分，不管扩展名
+                            existing_name_base = os.path.splitext(dir_file["file_name"])[0]
                             
-                            # 防止除零错误
-                            if existing_update_time == 0:
-                                continue
-                                
-                            # 如果修改时间相近（30天内）或者差距不大（10%以内），认为是同一个文件
-                            time_diff = abs(share_update_time - existing_update_time)
-                            time_ratio = abs(1 - (share_update_time / existing_update_time)) if existing_update_time else 1
-                            
-                            if time_diff < 2592000 or time_ratio < 0.1:
-                                # 文件已存在，跳过处理
+                            # 如果原文件名或重命名后文件名与目标目录中文件名相同（忽略后缀），则视为已存在
+                            if (existing_name_base == original_name_base or 
+                                (renamed_file and existing_name_base == renamed_base)):
                                 is_duplicate = True
-                                # print(f"跳过已存在的文件: {share_file['file_name']} (size={file_size}, time_diff={time_diff}s, ratio={time_ratio:.2f})")
                                 break
-                
+                        else:
+                            # 不忽略后缀：文件名和扩展名都要一致才视为同一个文件
+                            if (dir_file["file_name"] == original_file_name or 
+                                (renamed_file and dir_file["file_name"] == renamed_file)):
+                                is_duplicate = True
+                                break
+                    
+
                 # 如果文件已经存在并且不是目录，跳过后续处理
                 if is_duplicate and not share_file["dir"]:
                     continue
@@ -1584,8 +1628,18 @@ class Quark:
                             if task.get("update_subdir", False):
                                 if re.search(task["update_subdir"], share_file["file_name"]):
                                     print(f"检查子文件夹: {savepath}/{share_file['file_name']}")
+                                    
+                                    # 创建一个子任务对象，保留原任务的属性，但专门用于子目录处理
+                                    subdir_task = task.copy()
+                                    # 确保子目录也可以使用忽略后缀功能
+                                    
+                                    # 如果原任务没有设置pattern，确保有基本的pattern
+                                    if not subdir_task.get("pattern"):
+                                        subdir_task["pattern"] = ".*"
+                                        subdir_task["replace"] = ""
+                                    
                                     subdir_tree = self.dir_check_and_save(
-                                        task,
+                                        subdir_task,
                                         pwd_id,
                                         stoken,
                                         share_file["fid"],
@@ -1600,7 +1654,7 @@ class Quark:
                                             if node.data and not node.data.get("is_dir", False):
                                                 has_files = True
                                                 break
-                                                
+                                        
                                         # 只有当子目录包含文件时才将其合并到主树中
                                         if has_files:
                                             # 获取保存路径的最后一部分目录名
@@ -2580,7 +2634,7 @@ def do_save(account, tasklist=[]):
             if task.get("replace") is not None:  # 显示替换规则，即使为空字符串
                 print(f"正则替换: {task['replace']}")
         if task.get("update_subdir"):
-            print(f"更子目录: {task['update_subdir']}")
+            print(f"更新目录: {task['update_subdir']}")
         if task.get("runweek") or task.get("enddate"):
             print(
                 f"运行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')}"

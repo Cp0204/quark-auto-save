@@ -372,7 +372,7 @@
                     <label class="col-sm-2 col-form-label">文件起始</label>
                     <div class="col-sm-10">
                       <div class="input-group">
-                        <input type="text" class="form-control" placeholder="可选，只转存修改日期大于此文件的文件" name="startfid[]" v-model="task.startfid">
+                        <input type="text" class="form-control" placeholder="可选，只转存修改日期大于此文件的文件，请在符合筛选条件的文件中进行选择" name="startfid[]" v-model="task.startfid">
                         <div class="input-group-append" v-if="task.shareurl">
                           <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.previewRegex=false;showShareSelect(index)">选择</button>
                         </div>
