@@ -853,7 +853,7 @@
                     this.fetchData();
                     return;
                   }
-                  this.run_log += eventData + '\n';
+                  this.run_log += eventData.replace('<', '<\u200B') + '\n';
                   // 在更新 run_log 后将滚动条滚动到底部
                   this.$nextTick(() => {
                     const modalBody = document.querySelector('.modal-body');
