@@ -28,8 +28,7 @@ import re
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
-from quark_auto_save import Quark
-from quark_auto_save import Config
+from quark_auto_save import Quark, Config, MagicRename
 
 
 def get_app_ver():
@@ -288,23 +287,43 @@ def get_share_detail():
 
     # 正则处理预览
     def preview_regex(data):
-        regex = request.json.get("regex", {})
-        pattern, replace = account.magic_regex_func(
-            regex.get("pattern", ""),
-            regex.get("replace", ""),
-            regex.get("taskname", ""),
-            regex.get("magic_regex", {}),
-        )
-        for item in data["list"]:
-            file_name = item["file_name"]
-            if re.search(pattern, item["file_name"]):
-                item["file_name_re"] = (
-                    re.sub(pattern, replace, file_name) if replace != "" else file_name
-                )
-        return share_detail
+        task = request.json.get("task", {})
+        magic_regex = request.json.get("magic_regex", {})
+        mr = MagicRename(magic_regex)
+        mr.set_taskname(task.get("taskname", ""))
+        account = Quark(config_data["cookie"][0], 0)
+        get_fids = account.get_fids([task.get("savepath", "")])
+        if get_fids:
+            savepath_fid = get_fids[0]["fid"]
+            dir_file_list = account.ls_dir(savepath_fid)["data"]["list"]
+            dir_filename_list = [dir_file["file_name"] for dir_file in dir_file_list]
+        else:
+            dir_filename_list = []
 
-    if request.json.get("regex"):
-        share_detail = preview_regex(data)
+        for share_file in data["list"]:
+            if share_file["dir"] and task.get("update_subdir", False):
+                pattern, replace = task["update_subdir"], ""
+            else:
+                pattern, replace = mr.magic_regex_conv(
+                    task.get("pattern", ""), task.get("replace", "")
+                )
+            if re.search(pattern, share_file["file_name"]):
+                file_name_re = mr.sub(pattern, replace, share_file["file_name"])
+                if file_name_saved := mr.is_exists(
+                    file_name_re,
+                    dir_filename_list,
+                    request.json.get("ignore_extension"),
+                ):
+                    share_file["file_name_saved"] = file_name_saved
+                else:
+                    share_file["file_name_re"] = file_name_re
+
+        if re.search(r"\{I+\}", replace):
+            mr.set_dir_filename_list(dir_filename_list, replace)
+            mr.sort_file_list(data["list"])
+
+    if request.json.get("task"):
+        preview_regex(data)
 
     return jsonify({"success": True, "data": data})
 
