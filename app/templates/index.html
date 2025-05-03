@@ -444,6 +444,15 @@
           <div class="modal-body small">
             <div class="alert alert-warning" v-if="fileSelect.error" v-html="fileSelect.error"></div>
             <div v-else>
+              <!-- 正则处理表达式 -->
+              <div class="mb-3" v-if="fileSelect.previewRegex">
+                <div><b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                  <span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].pattern }}</span>
+                </div>
+                <div><b>替换表达式：</b><span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].replace" v-html="formData.tasklist[fileSelect.index].replace"></span>
+                  <span class="badge badge-info" v-else-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].replace }}</span>
+                </div>
+              </div>
               <!-- 面包屑导航 -->
               <nav aria-label="breadcrumb" v-if="fileSelect.selectDir">
                 <ol class="breadcrumb">
@@ -455,14 +464,6 @@
                 </ol>
               </nav>
               <!-- 文件列表 -->
-              <div class="mb-3" v-if="fileSelect.previewRegex">
-                <div><b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
-                  <span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].pattern }}</span>
-                </div>
-                <div><b>替换表达式：</b><span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].replace" v-html="formData.tasklist[fileSelect.index].replace"></span>
-                  <span class="badge badge-info" v-else-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].replace }}</span>
-                </div>
-              </div>
               <table class="table table-hover table-sm">
                 <thead>
                   <tr>
@@ -477,8 +478,8 @@
                 </thead>
                 <tbody>
                   <tr v-for="(file, key) in fileSelect.fileList" :key="key" @click="fileSelect.selectDir ? (file.dir ? navigateTo(file.fid, file.file_name) : null) : selectStartFid(file.fid)" :class="{'cursor-pointer': fileSelect.selectDir ? file.dir : true}">
-                    <td><i class="bi" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i> {{file.file_name}}</td>
-                    <td v-if="fileSelect.selectShare" :class="file.file_name_re ? 'text-success' : 'text-danger'">{{file.file_name_re || '&times;'}}</td>
+                    <td><i class="bi mr-1" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i>{{file.file_name}}</td>
+                    <td v-if="fileSelect.selectShare" :class="file.file_name_re ? 'text-success' : file.file_name_saved ? 'text-muted' : 'text-danger'">{{file.file_name_re || file.file_name_saved || '&times;'}}</td>
                     <template v-if="!fileSelect.previewRegex">
                       <td v-if="file.dir">{{ file.include_items }}项</td>
                       <td v-else>{{file.size | size}}</td>
@@ -1005,12 +1006,8 @@
           axios.post('/get_share_detail', {
             shareurl: this.fileSelect.shareurl,
             stoken: this.fileSelect.stoken,
-            regex: {
-              pattern: this.formData.tasklist[this.fileSelect.index].pattern,
-              replace: this.formData.tasklist[this.fileSelect.index].replace,
-              taskname: this.formData.tasklist[this.fileSelect.index].taskname,
-              magic_regex: this.formData.magic_regex,
-            }
+            task: this.formData.tasklist[this.fileSelect.index],
+            magic_regex: this.formData.magic_regex,
           }).then(response => {
             if (response.data.success) {
               this.fileSelect.fileList = response.data.data.list;
