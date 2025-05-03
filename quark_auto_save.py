@@ -2471,7 +2471,8 @@ class Quark:
                                     rename_result = self.rename(dir_file["fid"], target_name)
                                     if rename_result["code"] == 0:
                                         # 收集日志但不打印
-                                        rename_logs.append(f"重命名: {dir_file['file_name']} → {target_name}")
+                                        log_message = f"重命名: {dir_file['file_name']} → {target_name}"
+                                        rename_logs.append(log_message)
                                         renamed_count += 1
                                         # 更新文件列表中的文件名，防止重名判断出错
                                         for df in fresh_dir_file_list:
@@ -2480,11 +2481,8 @@ class Quark:
                                                 break
                                     else:
                                         # 收集错误日志但不打印
-                                        rename_logs.append(f"重命名: {dir_file['file_name']} → {target_name} 失败，{rename_result['message']}")
-                                
-                                if renamed_count > 0:
-                                    # print(f"✅ 成功重命名 {renamed_count} 个文件")
-                                    pass
+                                        error_log = f"重命名: {dir_file['file_name']} → {target_name} 失败，{rename_result['message']}"
+                                        rename_logs.append(error_log)
                                 
                                 # 返回重命名日志和成功标志
                                 return True, rename_logs
@@ -2695,7 +2693,8 @@ class Quark:
                         rename_return = self.rename(dir_file["fid"], new_name)
                         if rename_return["code"] == 0:
                             # 收集日志但不打印
-                            rename_logs.append(f"重命名: {dir_file['file_name']} → {new_name}")
+                            log_message = f"重命名: {dir_file['file_name']} → {new_name}"
+                            rename_logs.append(log_message)
                             is_rename_count += 1
                             # 更新dir_file_list中的文件名，防止后续重名判断出错
                             for df in dir_file_list:
@@ -2707,13 +2706,16 @@ class Quark:
                         else:
                             # 收集错误日志但不打印
                             error_msg = rename_return.get("message", "未知错误")
-                            rename_logs.append(f"重命名: {dir_file['file_name']} → {new_name} 失败，{error_msg}")
+                            error_log = f"重命名: {dir_file['file_name']} → {new_name} 失败，{error_msg}"
+                            rename_logs.append(error_log)
                     except Exception as e:
                         # 收集错误日志但不打印
-                        rename_logs.append(f"重命名出错: {dir_file['file_name']} → {new_name}，错误：{str(e)}")
+                        error_log = f"重命名出错: {dir_file['file_name']} → {new_name}，错误：{str(e)}"
+                        rename_logs.append(error_log)
                 else:
-                    # 重名警告
-                    rename_logs.append(f"重命名: {dir_file['file_name']} → {new_name} 失败，目标文件名已存在")
+                    # 重名警告但不打印
+                    warning_log = f"重命名: {dir_file['file_name']} → {new_name} 失败，目标文件名已存在"
+                    rename_logs.append(warning_log)
             
             # 返回重命名日志和成功标志
             return (is_rename_count > 0), rename_logs
@@ -3683,32 +3685,7 @@ def do_save(account, tasklist=[]):
                         add_notify("")
                         
                     # 处理重命名日志，避免显示不必要的路径信息
-                    if rename_logs:
-                        # 对重命名日志进行排序，确保按照新文件名的顺序显示
-                        sorted_rename_logs = []
-                        for log in rename_logs:
-                            # 提取新文件名（格式：重命名: 旧名 → 新名）
-                            match = re.search(r'→\s+(\d+\.\w+)', log)
-                            if match:
-                                new_name = match.group(1)
-                                # 提取序号
-                                seq_match = re.match(r'(\d+)', new_name)
-                                seq_num = int(seq_match.group(1)) if seq_match else 999
-                                sorted_rename_logs.append((seq_num, log))
-                            else:
-                                # 未找到序号的日志放在最后
-                                sorted_rename_logs.append((999, log))
-                        
-                        # 按序号排序
-                        sorted_rename_logs.sort(key=lambda x: x[0])
-                        
-                        # 打印排序后的日志
-                        for _, log in sorted_rename_logs:
-                            print(log)
-                    else:
-                        # 原始逻辑：直接打印所有日志
-                        for log in rename_logs:
-                            print(log)
+                    # 注意：重命名日志将在文件树显示后统一处理和打印
                 
                 add_notify("")
             
@@ -3904,9 +3881,43 @@ def do_save(account, tasklist=[]):
                     add_notify(f"{prefix}{icon}{file_name}")
                 add_notify("")
             
-            # 现在打印重命名日志
-            # 注意：这些日志可能已在前面的文件树展示中打印过，这里不再重复打印
-            # 因为已处理过的文件已显示在文件树中，这里不需要再次打印
+            # 打印重命名日志（文件树之后）
+            if rename_logs:
+                # 对剧集命名模式和其他模式统一处理重命名日志
+                # 按剧集号/顺序号排序重命名日志
+                sorted_rename_logs = []
+                
+                for log in rename_logs:
+                    # 提取新文件名（格式：重命名: 旧名 → 新名）
+                    match = re.search(r'→\s+(.+?)($|\s|，)', log)
+                    if match:
+                        new_name = match.group(1)
+                        # 尝试提取序号
+                        # 先尝试从文件名中提取序号
+                        seq_match = re.search(r'[SE](\d+)|(\d+)[.集期话]', new_name)
+                        if seq_match:
+                            # 提取序号（SE格式或数字+集/期/话）
+                            seq_num = int(seq_match.group(1) or seq_match.group(2))
+                            sorted_rename_logs.append((seq_num, log))
+                        else:
+                            # 尝试直接从文件名开头提取数字
+                            seq_match = re.match(r'(\d+)', new_name)
+                            if seq_match:
+                                seq_num = int(seq_match.group(1))
+                                sorted_rename_logs.append((seq_num, log))
+                            else:
+                                # 未找到序号的日志放在最后
+                                sorted_rename_logs.append((999, log))
+                    else:
+                        # 没找到箭头的日志
+                        sorted_rename_logs.append((999, log))
+                
+                # 按序号排序
+                sorted_rename_logs.sort(key=lambda x: x[0])
+                
+                # 打印排序后的日志
+                for _, log in sorted_rename_logs:
+                    print(log)
             
             # 补充任务的插件配置
             def merge_dicts(a, b):
