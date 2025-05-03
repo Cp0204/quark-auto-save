@@ -417,6 +417,9 @@ def send_ql_notify(title, body):
 # 添加消息
 def add_notify(text):
     global NOTIFYS
+    # 防止重复添加相同的通知
+    if text in NOTIFYS:
+        return text
     NOTIFYS.append(text)
     print(text)
     return text
@@ -855,7 +858,7 @@ class Quark:
             else:
                 if retry_index == 0:
                     print(
-                        f"正在等待[{response['data']['task_title']}]执行结果",
+                        f"正在等待「{response['data']['task_title']}」执行结果",
                         end="",
                         flush=True,
                     )
@@ -1143,7 +1146,7 @@ class Quark:
             
         return tree
 
-    def dir_check_and_save(self, task, pwd_id, stoken, pdir_fid="", subdir_path=""):
+    def dir_check_and_save(self, task, pwd_id, stoken, pdir_fid="", subdir_path="", parent_dir_info=None):
         tree = Tree()
         # 获取分享文件列表
         share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["list"]
@@ -1163,6 +1166,14 @@ class Quark:
             share_file_list = self.get_detail(
                 pwd_id, stoken, share_file_list[0]["fid"]
             )["list"]
+            
+        # 添加父目录信息传递，用于确定是否在更新目录内
+        if parent_dir_info is None:
+            parent_dir_info = {
+                "in_update_dir": False,  # 标记是否在更新目录内
+                "update_dir_pattern": task.get("update_subdir", ""),  # 保存更新目录的正则表达式
+                "dir_path": []  # 保存目录路径
+            }
             
         # 应用过滤词过滤
         if task.get("filterwords"):
@@ -1257,13 +1268,15 @@ class Quark:
         to_pdir_fid = self.savepath_fid[savepath]
         dir_file_list = self.ls_dir(to_pdir_fid)
         
-        tree.create_node(
-            savepath,
-            pdir_fid,
-            data={
-                "is_dir": True,
-            },
-        )
+        # 检查根节点是否已存在
+        if not tree.contains(pdir_fid):
+            tree.create_node(
+                savepath,
+                pdir_fid,
+                data={
+                    "is_dir": True,
+                },
+            )
 
         # 处理顺序命名模式
         if task.get("use_sequence_naming") and task.get("sequence_naming"):
@@ -1312,9 +1325,8 @@ class Quark:
             filtered_share_files = []
             for share_file in share_file_list:
                 if share_file["dir"]:
-                    # 处理子目录
-                    if task.get("update_subdir") and re.search(task["update_subdir"], share_file["file_name"]):
-                        filtered_share_files.append(share_file)
+                    # 不再直接添加目录到filtered_share_files
+                    # 目录处理会在后续专门的循环中进行
                     continue
                     
                 file_size = share_file.get("size", 0)
@@ -1369,10 +1381,18 @@ class Quark:
                 # 生成新文件名
                 save_name = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
                 
-                # 检查目标目录是否已存在此文件
-                file_exists = any(
-                    dir_file["file_name"] == save_name for dir_file in dir_file_list
-                )
+                # 检查目标目录是否已存在此文件，支持忽略后缀选项
+                if task.get("ignore_extension", False):
+                    # 忽略后缀模式：只比较文件名部分，不比较扩展名
+                    save_name_base = os.path.splitext(save_name)[0]
+                    file_exists = any(
+                        os.path.splitext(dir_file["file_name"])[0] == save_name_base for dir_file in dir_file_list
+                    )
+                else:
+                    # 不忽略后缀模式：完整文件名必须匹配
+                    file_exists = any(
+                        dir_file["file_name"] == save_name for dir_file in dir_file_list
+                    )
                 
                 if not file_exists:
                     # 设置保存文件名（单独的{}不在这里重命名，而是在do_rename_task中处理）
@@ -1394,14 +1414,49 @@ class Quark:
             # 处理子文件夹
             for share_file in share_file_list:
                 if share_file["dir"] and task.get("update_subdir", False):
-                    if re.search(task["update_subdir"], share_file["file_name"]):
-                        print(f"检查子文件夹: {savepath}/{share_file['file_name']}")
+                    # 确定是否处理此目录：
+                    # 1. 如果当前在更新目录内，则处理所有子目录
+                    # 2. 如果不在更新目录内，只处理符合更新目录规则的子目录
+                    if (parent_dir_info and parent_dir_info.get("in_update_dir", False)) or re.search(task["update_subdir"], share_file["file_name"]):
+                        # print(f"检查子目录: {savepath}/{share_file['file_name']}")
+                        
+                        # 创建一个子任务对象，保留原任务的属性，但专门用于子目录处理
+                        subdir_task = task.copy()
+                        # 确保子目录也可以使用忽略后缀功能
+                        
+                        # 将子目录任务设置为正则命名模式
+                        # 如果原任务没有设置pattern，或者使用的是顺序/剧集命名，确保有基本的pattern
+                        if (not subdir_task.get("pattern") or 
+                            subdir_task.get("use_sequence_naming") or 
+                            subdir_task.get("use_episode_naming")):
+                            subdir_task["pattern"] = ".*"
+                            subdir_task["replace"] = ""
+                            # 取消顺序命名和剧集命名模式，强制使用正则模式
+                            subdir_task["use_sequence_naming"] = False
+                            subdir_task["use_episode_naming"] = False
+                            
+                        # 更新子目录的parent_dir_info，跟踪目录路径和更新状态
+                        current_parent_info = parent_dir_info.copy() if parent_dir_info else {
+                            "in_update_dir": False,
+                            "update_dir_pattern": task.get("update_subdir", ""),
+                            "dir_path": []
+                        }
+                        
+                        # 如果当前文件夹符合更新目录规则，标记为在更新目录内
+                        if re.search(task["update_subdir"], share_file["file_name"]):
+                            current_parent_info["in_update_dir"] = True
+                            
+                        # 添加当前目录到路径
+                        current_parent_info["dir_path"] = current_parent_info["dir_path"].copy() if "dir_path" in current_parent_info else []
+                        current_parent_info["dir_path"].append(share_file["file_name"])
+                        
                         subdir_tree = self.dir_check_and_save(
-                            task,
+                            subdir_task,
                             pwd_id,
                             stoken,
                             share_file["fid"],
                             f"{subdir_path}/{share_file['file_name']}",
+                            current_parent_info
                         )
                         # 只有当子目录树有实际内容（大于1表示不只有根节点）时才处理
                         if subdir_tree.size(1) > 0:
@@ -1434,11 +1489,30 @@ class Quark:
                                 tree.merge(share_file["fid"], subdir_tree, deep=False)
                                 
                                 # 标记此文件夹有更新
-                                if share_file.get("has_updates") is False:
-                                    for item in need_save_list:
-                                        if item.get("fid") == share_file["fid"]:
-                                            item["has_updates"] = True
+                                # 检查文件夹是否已添加到need_save_list
+                                folder_in_list = False
+                                for item in need_save_list:
+                                    if item.get("fid") == share_file["fid"]:
+                                        item["has_updates"] = True
+                                        folder_in_list = True
+                                        break
+                                
+                                # 如果文件夹未添加到need_save_list，需要添加
+                                if not folder_in_list and has_files:
+                                    # 检查目标目录中是否已存在同名文件夹
+                                    dir_exists = False
+                                    for dir_file in dir_file_list:
+                                        if dir_file["dir"] and dir_file["file_name"] == share_file["file_name"]:
+                                            dir_exists = True
                                             break
+                                    
+                                    # 如果存在同名文件夹，检查文件夹内是否有更新
+                                    # 如果不存在同名文件夹，或者文件夹内有更新，则添加到保存列表
+                                    if not dir_exists or has_files:
+                                        share_file["save_name"] = share_file["file_name"]
+                                        share_file["original_name"] = share_file["file_name"]
+                                        share_file["has_updates"] = True
+                                        need_save_list.append(share_file)
                 
         else:
             # 正则命名模式
@@ -1466,36 +1540,148 @@ class Quark:
                 # 检查文件是否已存在（通过大小和扩展名）- 新增的文件查重逻辑
                 is_duplicate = False
                 if not share_file["dir"]:  # 文件夹不进行内容查重
-                    file_size = share_file.get("size", 0)
-                    file_ext = os.path.splitext(share_file["file_name"])[1].lower()
-                    share_update_time = share_file.get("last_update_at", 0) or share_file.get("updated_at", 0)
+                    # 新的查重逻辑：优先使用文件名查重，支持忽略后缀
+                    original_file_name = share_file["file_name"]
+                    original_name_base = os.path.splitext(original_file_name)[0]
                     
-                    # 检查是否已存在相同大小和扩展名的文件
-                    key = f"{file_size}_{file_ext}"
-                    if key in dir_files_map:
-                        for existing_file in dir_files_map[key]:
-                            existing_update_time = existing_file.get("updated_at", 0)
+                    # 判断是否用正则替换后的文件名
+                    if task.get("pattern") and task.get("replace") is not None:
+                        pattern, replace = self.magic_regex_func(
+                            task.get("pattern", ""), task.get("replace", ""), task.get("taskname", "")
+                        )
+                        # 确保pattern不为空，避免正则表达式错误
+                        if pattern:
+                            try:
+                                # 尝试应用正则替换
+                                if re.search(pattern, original_file_name):
+                                    renamed_file = re.sub(pattern, replace, original_file_name)
+                                    renamed_base = os.path.splitext(renamed_file)[0]
+                                else:
+                                    renamed_file = None
+                                    renamed_base = None
+                            except Exception:
+                                # 正则出错时使用原文件名
+                                renamed_file = None
+                                renamed_base = None
+                        else:
+                            renamed_file = None
+                            renamed_base = None
+                    else:
+                        renamed_file = None
+                        renamed_base = None
+                    
+                    # 查重逻辑，同时考虑原文件名和重命名后的文件名
+                    for dir_file in dir_file_list:
+                        if dir_file["dir"]:
+                            continue
+                        
+                        if task.get("ignore_extension", False):
+                            # 忽略后缀：只比较文件名部分，不管扩展名
+                            existing_name_base = os.path.splitext(dir_file["file_name"])[0]
                             
-                            # 防止除零错误
-                            if existing_update_time == 0:
-                                continue
-                                
-                            # 如果修改时间相近（30天内）或者差距不大（10%以内），认为是同一个文件
-                            time_diff = abs(share_update_time - existing_update_time)
-                            time_ratio = abs(1 - (share_update_time / existing_update_time)) if existing_update_time else 1
-                            
-                            if time_diff < 2592000 or time_ratio < 0.1:
-                                # 文件已存在，跳过处理
+                            # 如果原文件名或重命名后文件名与目标目录中文件名相同（忽略后缀），则视为已存在
+                            if (existing_name_base == original_name_base or 
+                                (renamed_file and existing_name_base == renamed_base)):
                                 is_duplicate = True
-                                # print(f"跳过已存在的文件: {share_file['file_name']} (size={file_size}, time_diff={time_diff}s, ratio={time_ratio:.2f})")
                                 break
-                
+                        else:
+                            # 不忽略后缀：文件名和扩展名都要一致才视为同一个文件
+                            if (dir_file["file_name"] == original_file_name or 
+                                (renamed_file and dir_file["file_name"] == renamed_file)):
+                                is_duplicate = True
+                                break
+                    
+
                 # 如果文件已经存在并且不是目录，跳过后续处理
                 if is_duplicate and not share_file["dir"]:
                     continue
                     
                 # 设置匹配模式：目录使用update_subdir，文件使用普通正则
                 if share_file["dir"] and task.get("update_subdir", False):
+                    # 确定是否处理此目录：
+                    # 1. 如果当前在更新目录内，则处理所有子目录
+                    # 2. 如果不在更新目录内，只处理符合更新目录规则的子目录
+                    if parent_dir_info and parent_dir_info.get("in_update_dir", False):
+                        # 已经在更新目录内，处理所有子目录
+                        pass
+                    elif not re.search(task["update_subdir"], share_file["file_name"]):
+                        # 不在更新目录内，且不符合更新目录规则，跳过处理
+                        continue
+                    
+                    # 先检查目标目录中是否已存在这个子目录
+                    dir_exists = False
+                    for dir_file in dir_file_list:
+                        if dir_file["dir"] and dir_file["file_name"] == share_file["file_name"]:
+                            dir_exists = True
+                            break
+                    
+                    # 如果目标中已经存在此子目录，则直接检查子目录的内容更新，不要重复转存
+                    if dir_exists:
+                        # 子目录存在，直接递归处理其中的文件，不在主目录的处理中再转存一次
+                        # print(f"检查子目录: {savepath}/{share_file['file_name']} (已存在)")
+                        
+                        # 创建一个子任务对象，专门用于子目录处理
+                        subdir_task = task.copy()
+                        if (not subdir_task.get("pattern") or 
+                            subdir_task.get("use_sequence_naming") or 
+                            subdir_task.get("use_episode_naming")):
+                            subdir_task["pattern"] = ".*"
+                            subdir_task["replace"] = ""
+                            # 取消顺序命名和剧集命名模式，强制使用正则模式
+                            subdir_task["use_sequence_naming"] = False
+                            subdir_task["use_episode_naming"] = False
+                        
+                        # 更新子目录的parent_dir_info，跟踪目录路径和更新状态
+                        current_parent_info = parent_dir_info.copy() if parent_dir_info else {
+                            "in_update_dir": False,
+                            "update_dir_pattern": task.get("update_subdir", ""),
+                            "dir_path": []
+                        }
+                        
+                        # 如果当前文件夹符合更新目录规则，标记为在更新目录内
+                        if re.search(task["update_subdir"], share_file["file_name"]):
+                            current_parent_info["in_update_dir"] = True
+                            
+                        # 添加当前目录到路径
+                        current_parent_info["dir_path"] = current_parent_info["dir_path"].copy() if "dir_path" in current_parent_info else []
+                        current_parent_info["dir_path"].append(share_file["file_name"])
+                        
+                        # 递归处理子目录但不在need_save_list中添加目录本身
+                        subdir_tree = self.dir_check_and_save(
+                            subdir_task,
+                            pwd_id,
+                            stoken,
+                            share_file["fid"],
+                            f"{subdir_path}/{share_file['file_name']}",
+                            current_parent_info
+                        )
+                        
+                        # 如果子目录有新内容，合并到主树中
+                        if subdir_tree and subdir_tree.size() > 1:
+                            has_files = False
+                            for node in subdir_tree.all_nodes_itr():
+                                if node.data and not node.data.get("is_dir", False):
+                                    has_files = True
+                                    break
+                            
+                            if has_files:
+                                # 添加目录到树中但不添加到保存列表
+                                if not tree.contains(share_file["fid"]):
+                                    tree.create_node(
+                                        "📁" + share_file["file_name"],
+                                        share_file["fid"],
+                                        parent=pdir_fid,
+                                        data={
+                                            "is_dir": share_file["dir"],
+                                        },
+                                    )
+                                # 合并子目录树
+                                tree.merge(share_file["fid"], subdir_tree, deep=False)
+                        
+                        # 跳过后续处理，不对已存在的子目录再做转存处理
+                        continue
+                    
+                    # 目录不存在，继续正常流程
                     pattern, replace = task["update_subdir"], ""
                 else:
                     # 检查是否是剧集命名模式
@@ -1536,73 +1722,108 @@ class Quark:
                                 # 如果原文件名已包含任务名作为前缀，保持原样
                                 save_name = share_file["file_name"]
                         
-                        # 忽略后缀
-                        if task.get("ignore_extension") and not share_file["dir"]:
-                            compare_func = lambda a, b1, b2: (
-                                os.path.splitext(a)[0] == os.path.splitext(b1)[0]
-                                or os.path.splitext(a)[0] == os.path.splitext(b2)[0]
-                            )
-                        else:
-                            compare_func = lambda a, b1, b2: (a == b1 or a == b2)
+                        # 为正则模式实现基于文件名的查重逻辑，支持忽略后缀选项
                         # 判断目标目录文件是否存在
                         file_exists = False
                         for dir_file in dir_file_list:
-                            if compare_func(
-                                dir_file["file_name"], share_file["file_name"], save_name
-                            ):
-                                file_exists = True
-                                # print(f"跳过已存在的文件: {dir_file['file_name']} - 与源文件或保存文件同名")
-                                break
+                            if dir_file["dir"] and share_file["dir"]:
+                                # 如果都是目录，只要名称相同就视为已存在
+                                if dir_file["file_name"] == share_file["file_name"]:
+                                    file_exists = True
+                                    break
+                            elif not dir_file["dir"] and not share_file["dir"]:
+                                # 如果都是文件
+                                if task.get("ignore_extension", False):
+                                    # 忽略后缀：只比较文件名部分，不管扩展名
+                                    original_name_base = os.path.splitext(share_file["file_name"])[0]
+                                    renamed_name_base = os.path.splitext(save_name)[0]
+                                    existing_name_base = os.path.splitext(dir_file["file_name"])[0]
+                                    
+                                    # 如果原文件名或重命名后文件名与目标目录中文件名相同（忽略后缀），则视为已存在
+                                    if existing_name_base == original_name_base or existing_name_base == renamed_name_base:
+                                        file_exists = True
+                                        break
+                                else:
+                                    # 不忽略后缀：文件名和扩展名都要一致才视为同一个文件
+                                    if dir_file["file_name"] == share_file["file_name"] or dir_file["file_name"] == save_name:
+                                        file_exists = True
+                                        break
                                 
                         if not file_exists:
-                            # 再次检查是否已经通过文件内容(大小+时间)被识别为重复
-                            if is_duplicate and not share_file["dir"]:  # 修改：只有非文件夹时才考虑重复过滤
-                                # print(f"跳过已存在的文件: {share_file['file_name']} - 通过大小和时间匹配到相同文件") 
-                                continue
-                                
                             # 不打印保存信息
                             share_file["save_name"] = save_name
                             share_file["original_name"] = share_file["file_name"]  # 保存原文件名，用于排序
                             
                             # 文件夹需要特殊处理，标记为has_updates=False，等待后续检查
+                            # 只有在文件夹匹配update_subdir时才设置
                             if share_file["dir"]:
                                 share_file["has_updates"] = False
                                 
+                            # 将文件添加到保存列表
                             need_save_list.append(share_file)
                         elif share_file["dir"]:
                             # 文件夹已存在，根据是否递归处理子目录决定操作
                             
                             # 如果开启了子目录递归，处理子目录结构
                             if task.get("update_subdir", False):
+                                # print(f"检查子目录: {savepath}/{share_file['file_name']}")
+                                
+                                # 创建一个子任务对象，保留原任务的属性，但专门用于子目录处理
+                                subdir_task = task.copy()
+                                # 确保子目录也可以使用忽略后缀功能
+                                
+                                # 如果原任务没有设置pattern，确保有基本的pattern
+                                if not subdir_task.get("pattern"):
+                                    subdir_task["pattern"] = ".*"  # 在子目录中匹配所有文件
+                                    subdir_task["replace"] = ""
+                                
+                                # 更新子目录的parent_dir_info，跟踪目录路径和更新状态
+                                current_parent_info = parent_dir_info.copy() if parent_dir_info else {
+                                    "in_update_dir": False,
+                                    "update_dir_pattern": task.get("update_subdir", ""),
+                                    "dir_path": []
+                                }
+                                
+                                # 如果当前文件夹符合更新目录规则，标记为在更新目录内
                                 if re.search(task["update_subdir"], share_file["file_name"]):
-                                    print(f"检查子文件夹: {savepath}/{share_file['file_name']}")
-                                    subdir_tree = self.dir_check_and_save(
-                                        task,
-                                        pwd_id,
-                                        stoken,
-                                        share_file["fid"],
-                                        f"{subdir_path}/{share_file['file_name']}",
-                                    )
-                                    # 只有当子目录树有实际内容（大于1表示不只有根节点）时才处理
-                                    if subdir_tree.size(1) > 0:
-                                        # 检查子目录树是否只包含文件夹而没有文件
-                                        has_files = False
-                                        for node in subdir_tree.all_nodes_itr():
-                                            # 检查是否有非目录节点（即文件节点）
-                                            if node.data and not node.data.get("is_dir", False):
-                                                has_files = True
-                                                break
-                                                
-                                        # 只有当子目录包含文件时才将其合并到主树中
-                                        if has_files:
-                                            # 获取保存路径的最后一部分目录名
-                                            save_path_basename = os.path.basename(task.get("savepath", "").rstrip("/"))
-                                            
-                                            # 跳过与保存路径同名的目录
-                                            if share_file["file_name"] == save_path_basename:
-                                                continue
-                                            
-                                            # 合并子目录树
+                                    current_parent_info["in_update_dir"] = True
+                                    
+                                # 添加当前目录到路径
+                                current_parent_info["dir_path"] = current_parent_info["dir_path"].copy() if "dir_path" in current_parent_info else []
+                                current_parent_info["dir_path"].append(share_file["file_name"])
+                                
+                                # 递归处理子目录
+                                subdir_tree = self.dir_check_and_save(
+                                    subdir_task,
+                                    pwd_id,
+                                    stoken,
+                                    share_file["fid"],
+                                    f"{subdir_path}/{share_file['file_name']}",
+                                    current_parent_info
+                                )
+                                
+                                # 只有当子目录树有实际内容（大于1表示不只有根节点）时才处理
+                                if subdir_tree and subdir_tree.size() > 1:
+                                    # 检查子目录树是否只包含文件夹而没有文件
+                                    has_files = False
+                                    for node in subdir_tree.all_nodes_itr():
+                                        # 检查是否有非目录节点（即文件节点）
+                                        if node.data and not node.data.get("is_dir", False):
+                                            has_files = True
+                                            break
+                                    
+                                    # 只有当子目录包含文件时才将其合并到主树中
+                                    if has_files:
+                                        # 获取保存路径的最后一部分目录名
+                                        save_path_basename = os.path.basename(task.get("savepath", "").rstrip("/"))
+                                        
+                                        # 跳过与保存路径同名的目录
+                                        if share_file["file_name"] == save_path_basename:
+                                            continue
+                                        
+                                        # 添加目录到树中
+                                        # 检查节点是否已存在于树中，避免重复添加
+                                        if not tree.contains(share_file["fid"]):
                                             tree.create_node(
                                                 "📁" + share_file["file_name"],
                                                 share_file["fid"],
@@ -1611,14 +1832,38 @@ class Quark:
                                                     "is_dir": share_file["dir"],
                                                 },
                                             )
-                                            tree.merge(share_file["fid"], subdir_tree, deep=False)
+                                        # 合并子目录树
+                                        tree.merge(share_file["fid"], subdir_tree, deep=False)
+                                        
+                                        # 检查文件夹是否已添加到need_save_list
+                                        folder_in_list = False
+                                        for item in need_save_list:
+                                            if item.get("fid") == share_file["fid"]:
+                                                # 文件夹已在列表中，设置为有更新
+                                                item["has_updates"] = True
+                                                folder_in_list = True
+                                                break
+                                        
+                                        # 如果文件夹未添加到need_save_list且有文件更新，则添加
+                                        if not folder_in_list:
+                                            # 检查目标目录中是否已存在同名子目录
+                                            dir_exists = False
+                                            for dir_file in dir_file_list:
+                                                if dir_file["dir"] and dir_file["file_name"] == share_file["file_name"]:
+                                                    dir_exists = True
+                                                    break
                                             
-                                            # 标记此文件夹有更新
-                                            if share_file.get("has_updates") is False:
-                                                for item in need_save_list:
-                                                    if item.get("fid") == share_file["fid"]:
-                                                        item["has_updates"] = True
-                                                        break
+                                            # 只有当目录不存在于目标位置时，才将其添加到转存列表
+                                            if not dir_exists:
+                                                # 将父文件夹添加到保存列表，确保子目录的变化能被处理
+                                                share_file["save_name"] = share_file["file_name"]
+                                                share_file["original_name"] = share_file["file_name"]
+                                                share_file["has_updates"] = True  # 标记为有更新
+                                                need_save_list.append(share_file)
+                                                print(f"发现子目录 {share_file['file_name']} 有更新，将包含到转存列表")
+                                            else:
+                                                # 如果子目录已存在，只显示提示消息，不添加到转存列表
+                                                print(f"发现子目录 {share_file['file_name']} 有更新，将更新到已存在的文件夹中")
                 except Exception as e:
                     print(f"⚠️ 正则表达式错误: {str(e)}, pattern: {pattern}")
                     # 使用安全的默认值
@@ -1704,16 +1949,18 @@ class Quark:
                         
                         # 保存到树中
                         saved_files.append(f"{icon}{display_name}")
-                        tree.create_node(
-                            f"{icon}{display_name}",
-                            item["fid"],
-                            parent=pdir_fid,
-                            data={
-                                "fid": f"{query_task_return['data']['save_as']['save_as_top_fids'][index]}",
-                                "path": f"{savepath}/{item['save_name']}",
-                                "is_dir": item["dir"],
-                            },
-                        )
+                        # 检查节点是否已存在于树中，避免重复添加
+                        if not tree.contains(item["fid"]):
+                            tree.create_node(
+                                f"{icon}{display_name}",
+                                item["fid"],
+                                parent=pdir_fid,
+                                data={
+                                    "fid": f"{query_task_return['data']['save_as']['save_as_top_fids'][index]}",
+                                    "path": f"{savepath}/{item['save_name']}",
+                                    "is_dir": item["dir"],
+                                },
+                            )
                     
                     # 移除通知生成，由do_save函数统一处理
                     # 顺序命名模式和剧集命名模式都不在此处生成通知
@@ -1972,50 +2219,51 @@ class Quark:
                                 filtered_share_files.append(share_file)
                             continue
                             
-                        # 检查文件是否已存在（基于大小和修改时间）
-                        file_size = share_file.get("size", 0)
-                        file_ext = os.path.splitext(share_file["file_name"])[1].lower()
-                        share_update_time = share_file.get("last_update_at", 0) or share_file.get("updated_at", 0)
-                        
-                        key = f"{file_size}_{file_ext}"
+                        # 从共享文件中提取剧集号
+                        episode_num = extract_episode_number_local(share_file["file_name"])
                         is_duplicate = False
                         
-                        if key in dir_files_map:
-                            for existing_file in dir_files_map[key]:
-                                existing_update_time = existing_file.get("updated_at", 0)
-                                
-                                # 防止除零错误
-                                if existing_update_time == 0:
-                                    continue
-                                
-                                # 如果修改时间相近（30天内）或者差距不大（10%以内），认为是同一个文件
-                                time_diff = abs(share_update_time - existing_update_time)
-                                time_ratio = abs(1 - (share_update_time / existing_update_time)) if existing_update_time else 1
-                                
-                                if time_diff < 2592000 or time_ratio < 0.1:
-                                    # 文件已存在，跳过处理
-                                    is_duplicate = True
-                                    # print(f"跳过已存在的文件: {share_file['file_name']} (size={file_size}, time_diff={time_diff}s, ratio={time_ratio:.2f})")
-                                    break
-                        
-                        # 检查剧集号是否已经存在
-                        episode_num = extract_episode_number_local(share_file["file_name"])
-                        if episode_num is not None and episode_num in existing_episode_numbers:
-                            # print(f"跳过已存在的剧集号: {episode_num} ({share_file['file_name']})")
-                            is_duplicate = True
-                        
-                        # 生成预期的目标文件名并检查是否已存在
-                        if episode_num is not None and not is_duplicate:
-                            file_ext = os.path.splitext(share_file["file_name"])[1]
-                            if episode_pattern == "[]":
-                                # 对于单独的[]，直接使用数字序号作为文件名
-                                expected_name = f"{episode_num:02d}{file_ext}"
+                        # 通过文件名判断是否已存在（新的查重逻辑）
+                        if not is_duplicate:
+                            # 如果没有重命名，判断原文件名是否已存在
+                            original_name = share_file["file_name"]
+                            # 如果有剧集号，判断重命名后的文件名是否已存在
+                            file_ext = os.path.splitext(original_name)[1]
+                            
+                            # 构建可能的新文件名
+                            if episode_num is not None:
+                                if episode_pattern == "[]":
+                                    new_name = f"{episode_num:02d}{file_ext}"
+                                else:
+                                    new_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
                             else:
-                                expected_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
-                            # 检查目标文件名是否存在于目录中
-                            if any(dir_file["file_name"] == expected_name for dir_file in dir_file_list):
-                                # print(f"跳过已存在的文件名: {expected_name}")
-                                is_duplicate = True
+                                new_name = None
+                            
+                            # 根据是否忽略后缀进行检查
+                            if task.get("ignore_extension", False):
+                                # 忽略后缀模式：只比较文件名，不比较扩展名
+                                original_name_base = os.path.splitext(original_name)[0]
+                                
+                                # 检查原文件名是否存在
+                                exists_original = any(os.path.splitext(dir_file["file_name"])[0] == original_name_base for dir_file in dir_file_list)
+                                
+                                # 如果有新文件名，检查新文件名是否存在
+                                exists_new = False
+                                if new_name:
+                                    new_name_base = os.path.splitext(new_name)[0]
+                                    exists_new = any(os.path.splitext(dir_file["file_name"])[0] == new_name_base for dir_file in dir_file_list)
+                                
+                                is_duplicate = exists_original or exists_new
+                            else:
+                                # 不忽略后缀模式：文件名和扩展名都要一致
+                                exists_original = any(dir_file["file_name"] == original_name for dir_file in dir_file_list)
+                                
+                                # 如果有新文件名，检查新文件名是否存在
+                                exists_new = False
+                                if new_name:
+                                    exists_new = any(dir_file["file_name"] == new_name for dir_file in dir_file_list)
+                                
+                                is_duplicate = exists_original or exists_new
                         
                         # 只处理非重复文件
                         if not is_duplicate:
@@ -2538,6 +2786,9 @@ def do_save(account, tasklist=[]):
     print(f"转存账号: {account.nickname}")
     # 获取全部保存目录fid
     account.update_savepath_fid(tasklist)
+    
+    # 创建已发送通知跟踪集合，避免重复显示通知
+    sent_notices = set()
 
     def is_time(task):
         return (
@@ -2571,7 +2822,7 @@ def do_save(account, tasklist=[]):
             if task.get("replace") is not None:  # 显示替换规则，即使为空字符串
                 print(f"正则替换: {task['replace']}")
         if task.get("update_subdir"):
-            print(f"更子目录: {task['update_subdir']}")
+            print(f"更新目录: {task['update_subdir']}")
         if task.get("runweek") or task.get("enddate"):
             print(
                 f"运行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')}"
@@ -2596,6 +2847,71 @@ def do_save(account, tasklist=[]):
             
             # 执行重命名任务，但收集日志而不是立即打印
             is_rename, rename_logs = account.do_rename_task(task)
+            
+            # 处理子目录重命名 - 如果配置了更新目录且使用正则命名模式
+            if task.get("update_subdir") and task.get("pattern") is not None:
+                # 获取保存路径
+                savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}")
+                if account.savepath_fid.get(savepath):
+                    # 递归处理所有符合条件的子目录
+                    def process_subdirs(current_path, relative_path=""):
+                        # 获取当前目录的文件列表
+                        current_fid = account.savepath_fid.get(current_path)
+                        if not current_fid:
+                            # 尝试获取目录的fid
+                            path_fids = account.get_fids([current_path])
+                            if path_fids:
+                                current_fid = path_fids[0]["fid"]
+                                account.savepath_fid[current_path] = current_fid
+                            else:
+                                print(f"无法获取目录fid: {current_path}")
+                                return
+                        
+                        current_dir_files = account.ls_dir(current_fid)
+                        
+                        # 处理当前目录
+                        if relative_path:
+                            # 对当前目录执行重命名操作
+                            subtask = task.copy()
+                            if not subtask.get("pattern"):
+                                subtask["pattern"] = ".*"
+                                subtask["replace"] = ""
+                            
+                            subdir_is_rename, subdir_rename_logs = account.do_rename_task(subtask, relative_path)
+                            
+                            # 合并日志
+                            if subdir_is_rename and subdir_rename_logs:
+                                clean_logs = []
+                                for log in subdir_rename_logs:
+                                    if "失败" not in log:
+                                        clean_logs.append(log)
+                                
+                                rename_logs.extend(clean_logs)
+                                nonlocal is_rename
+                                is_rename = is_rename or subdir_is_rename
+                        
+                        # 找出符合更新目录规则的子目录
+                        subdirs = []
+                        for file in current_dir_files:
+                            if file["dir"]:
+                                # 如果是根目录，检查是否符合更新目录的规则
+                                if not relative_path and re.search(task["update_subdir"], file["file_name"]):
+                                    subdirs.append(file)
+                                # 如果已经在某个更新目录内，则所有子目录都需要处理
+                                elif relative_path:
+                                    subdirs.append(file)
+                        
+                        # 对每个子目录递归调用
+                        for subdir in subdirs:
+                            # 构建子目录完整路径
+                            subdir_full_path = f"{current_path}/{subdir['file_name']}"
+                            subdir_relative_path = f"{relative_path}/{subdir['file_name']}"
+                            
+                            # 递归处理子目录
+                            process_subdirs(subdir_full_path, subdir_relative_path)
+                    
+                    # 从根目录开始递归处理
+                    process_subdirs(savepath)
             
             # 简化日志处理 - 只保留成功的重命名消息
             if rename_logs:
@@ -2666,6 +2982,29 @@ def do_save(account, tasklist=[]):
                 
                 # 创建一个映射列表，包含需要显示的文件名
                 display_files = []
+                
+                # 检查是否有更新目录，并获取目录下的文件
+                update_subdir = task.get("update_subdir")
+                
+                # 如果有设置更新目录，查找对应目录下的文件
+                if update_subdir:
+                    # 检查文件树中是否有更新目录的节点
+                    update_dir_nodes = []
+                    update_subdir_files = []
+                    
+                    # 遍历所有节点，查找对应的目录节点
+                    for node in is_new_tree.all_nodes_itr():
+                        if node.data.get("is_dir", False) and node.tag.lstrip("📁") == update_subdir:
+                            update_dir_nodes.append(node)
+                    
+                    # 如果找到更新目录节点，收集其子节点
+                    if update_dir_nodes:
+                        for dir_node in update_dir_nodes:
+                            # 获取目录节点下的所有文件子节点
+                            for node in is_new_tree.all_nodes_itr():
+                                if (not node.data.get("is_dir", False) and 
+                                    node.predecessor == dir_node.identifier):
+                                    update_subdir_files.append(node)
                 
                 # 按文件名排序
                 if is_special_sequence:
@@ -2769,8 +3108,71 @@ def do_save(account, tasklist=[]):
                     # 获取保存路径的最后一部分目录名（如"/测试/魔法"取"魔法"）
                     save_path_basename = os.path.basename(task.get("savepath", "").rstrip("/"))
                     
-                    # 首先添加所有目录节点，过滤掉与保存路径同名的目录，确保目录结构完整
+                    # 创建一个保存目录结构的字典
+                    dir_structure = {"root": []}
+                    
+                    # 首先处理所有目录节点，构建目录结构
                     dir_nodes = [node for node in all_nodes if node.data and node.data.get("is_dir", False) and node.identifier != "root"]
+                    
+                    # 如果有设置更新目录但在树中没找到，尝试查找目录
+                    update_dir_node = None
+                    if update_subdir:
+                        for node in dir_nodes:
+                            name = node.tag.lstrip("📁")
+                            if name == update_subdir:
+                                update_dir_node = node
+                                break
+                        
+                        # 如果树中没有找到更新目录节点，但设置了更新目录，尝试单独处理
+                        if not update_dir_node:
+                            savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}")
+                            update_subdir_path = f"{savepath}/{update_subdir}"
+                            
+                            # 检查更新目录是否存在于账户的目录缓存中
+                            if update_subdir_path in account.savepath_fid:
+                                # 获取此目录下的文件，单独处理显示
+                                try:
+                                    update_subdir_fid = account.savepath_fid[update_subdir_path]
+                                    update_subdir_files = account.ls_dir(update_subdir_fid)
+                                    
+                                    # 如果目录存在但没有在文件树中，这可能是首次执行的情况
+                                    # 添加一个虚拟目录节点到树中
+                                    class VirtualDirNode:
+                                        def __init__(self, name, dir_id):
+                                            self.tag = f"📁{name}"
+                                            self.identifier = dir_id
+                                            self.data = {"is_dir": True}
+                                    
+                                    # 创建虚拟目录节点
+                                    update_dir_node = VirtualDirNode(update_subdir, f"virtual_{update_subdir}")
+                                    dir_nodes.append(update_dir_node)
+                                    
+                                    # 为每个文件创建虚拟节点
+                                    virtual_file_nodes = []
+                                    for file in update_subdir_files:
+                                        if not file.get("dir", False):
+                                            class VirtualFileNode:
+                                                def __init__(self, name, file_id, dir_id):
+                                                    self.tag = name
+                                                    self.identifier = file_id
+                                                    self.predecessor = dir_id
+                                                    self.data = {"is_dir": False}
+                                            
+                                            # 创建虚拟文件节点，关联到虚拟目录
+                                            virtual_node = VirtualFileNode(
+                                                file["file_name"], 
+                                                f"virtual_file_{file['fid']}", 
+                                                update_dir_node.identifier
+                                            )
+                                            virtual_file_nodes.append(virtual_node)
+                                    
+                                    # 将虚拟文件节点添加到all_nodes
+                                    if virtual_file_nodes:
+                                        all_nodes.extend(virtual_file_nodes)
+                                except Exception as e:
+                                    print(f"获取更新目录信息时出错: {str(e)}")
+                    
+                    # 恢复目录结构构建
                     for node in sorted(dir_nodes, key=lambda node: node.tag):
                         # 获取原始文件名（去除已有图标）
                         orig_filename = node.tag.lstrip("📁")
@@ -2784,56 +3186,518 @@ def do_save(account, tasklist=[]):
                         if orig_filename == save_path_basename:
                             continue
                         
-                        # 添加适当的图标
-                        display_files.append((f"📁{orig_filename}", node))
+                        # 获取父节点ID
+                        parent_id = node.predecessor if hasattr(node, 'predecessor') and node.predecessor != "root" else "root"
+                        
+                        # 确保父节点键存在于字典中
+                        if parent_id not in dir_structure:
+                            dir_structure[parent_id] = []
+                        
+                        # 添加目录节点到结构中
+                        dir_structure[parent_id].append({
+                            "id": node.identifier,
+                            "name": f"📁{orig_filename}",
+                            "is_dir": True
+                        })
+                        
+                        # 为该目录创建一个空列表，用于存放其子项
+                        dir_structure[node.identifier] = []
                     
-                    # 然后添加所有文件节点
-                    for node in sorted(file_nodes, key=lambda node: node.tag):
+                    # 然后处理所有文件节点和虚拟文件节点
+                    all_file_nodes = [node for node in all_nodes if hasattr(node, 'data') and not node.data.get("is_dir", False)]
+                    
+                    for node in sorted(all_file_nodes, key=lambda node: node.tag):
                         # 获取原始文件名（去除已有图标）
                         orig_filename = node.tag.lstrip("🎞️")
                         # 添加适当的图标
-                        icon = get_file_icon(orig_filename, is_dir=node.data.get("is_dir", False))
-                        display_files.append((f"{icon}{orig_filename}", node))
+                        icon = get_file_icon(orig_filename, is_dir=False)
+                        
+                        # 获取父节点ID
+                        parent_id = node.predecessor if hasattr(node, 'predecessor') and node.predecessor != "root" else "root"
+                        
+                        # 确保父节点键存在于字典中
+                        if parent_id not in dir_structure:
+                            dir_structure[parent_id] = []
+                        
+                        # 添加文件节点到结构中
+                        dir_structure[parent_id].append({
+                            "id": node.identifier,
+                            "name": f"{icon}{orig_filename}",
+                            "is_dir": False
+                        })
                 
                 # 添加成功通知，带文件数量图标
-                add_notify(f"✅《{task['taskname']}》 添加追更:")
-                add_notify(f"/{task['savepath']}")
+                # 这个通知会在下面的新逻辑中添加，这里注释掉
+                # add_notify(f"✅《{task['taskname']}》添加追更:")
+                # add_notify(f"/{task['savepath']}")
                 
-                # 在显示树状结构之前，定义一个本地排序函数
-                def local_sort_key(item):
-                    file_name = item[0][item[0].find("🎞️")+1:] if "🎞️" in item[0] else item[0]
-                    # 尝试提取日期格式（优先YYYY-MM-DD格式）
-                    date_match = re.search(r'(\d{4})[-./](\d{1,2})[-./](\d{1,2})', file_name)
-                    if date_match:
-                        year = int(date_match.group(1))
-                        month = int(date_match.group(2))
-                        day = int(date_match.group(3))
-                        return year * 10000 + month * 100 + day
-                    
-                    # 尝试提取紧凑日期格式（YYYYMMDD）
-                    compact_date_match = re.search(r'(\d{4})(\d{2})(\d{2})', file_name)
-                    if compact_date_match:
-                        year = int(compact_date_match.group(1))
-                        month = int(compact_date_match.group(2))
-                        day = int(compact_date_match.group(3))
-                        return year * 10000 + month * 100 + day
-                    
-                    # 尝试提取任何数字
-                    number_match = re.search(r'(\d+)', file_name)
-                    if number_match:
-                        return int(number_match.group(1))
-                    
-                    # 默认使用原文件名
-                    return float('inf')
+                # 移除调试信息
+                # 获取更新目录名称
+                update_subdir = task.get("update_subdir")
                 
-                # 对显示文件进行排序，使用本地排序函数
-                display_files = sorted(display_files, key=local_sort_key)
+                # 创建一个列表来存储所有匹配的更新目录节点及其文件
+                update_dir_nodes = []
+                files_by_dir = {}
+                # 默认根目录
+                files_by_dir["root"] = []
                 
-                # 打印保存文件列表
-                for idx, (display_name, _) in enumerate(display_files):
-                    prefix = "├── " if idx < len(display_files) - 1 else "└── "
-                    add_notify(f"{prefix}{display_name}")
+                # 查找所有匹配的更新目录节点
+                dir_nodes = [node for node in is_new_tree.all_nodes_itr() if node.data.get("is_dir") == True and node.identifier != "root"]
+                if update_subdir:
+                    for node in dir_nodes:
+                        dir_name = node.tag.lstrip("📁")
+                        # 使用正则表达式匹配目录名
+                        if re.search(update_subdir, dir_name):
+                            update_dir_nodes.append(node)
+                            # 为每个匹配的目录创建空文件列表
+                            files_by_dir[node.identifier] = []
+                
+                # 从文件的路径信息中提取父目录
+                for node in file_nodes:
+                    if hasattr(node, 'data') and node.data and 'path' in node.data:
+                        path = node.data['path']
+                        path_parts = path.strip('/').split('/')
+                        
+                        # 确定文件应该属于哪个目录
+                        if len(path_parts) > 1 and update_subdir:
+                            # 获取保存路径
+                            save_path = task.get("savepath", "").rstrip("/")
+                            save_path_parts = save_path.split("/")
+                            save_path_basename = save_path_parts[-1] if save_path_parts else ""
+                            
+                            # 去除路径中的保存路径部分，只保留相对路径
+                            # 首先查找保存路径在完整路径中的位置
+                            relative_path_start = 0
+                            for i, part in enumerate(path_parts):
+                                if i < len(path_parts) - 1 and part == save_path_basename:
+                                    relative_path_start = i + 1
+                                    break
+                            
+                            # 提取相对路径部分，不含文件名
+                            relative_path_parts = path_parts[relative_path_start:-1]
+                            
+                            # 如果没有相对路径部分（直接在根目录下的文件）
+                            if not relative_path_parts:
+                                files_by_dir["root"].append(node)
+                                continue
+                                
+                            # 检查第一级子目录是否是更新目录之一
+                            first_level_dir = relative_path_parts[0]
+                            parent_found = False
+                            
+                            for dir_node in update_dir_nodes:
+                                dir_name = dir_node.tag.lstrip("📁")
+                                # 只看第一级目录是否匹配更新目录规则
+                                if dir_name == first_level_dir:
+                                    # 文件属于此更新目录，直接添加到对应目录下
+                                    files_by_dir[dir_node.identifier].append(node)
+                                    parent_found = True
+                                    
+                                    # 为了在树显示中定位该文件，设置完整路径信息
+                                    if len(relative_path_parts) > 1:
+                                        # 如果是多级嵌套目录，设置嵌套路径标记
+                                        node.nested_path = "/".join(relative_path_parts[1:])
+                                    break
+                            
+                            if not parent_found:
+                                # 尝试检查文件的直接父目录
+                                parent_dir_name = path_parts[-2]
+                                for dir_node in update_dir_nodes:
+                                    dir_name = dir_node.tag.lstrip("📁")
+                                    if parent_dir_name == dir_name:
+                                        files_by_dir[dir_node.identifier].append(node)
+                                        parent_found = True
+                                        break
+                                
+                                if not parent_found:
+                                    # 如果没有找到匹配的父目录，将文件添加到根目录
+                                    files_by_dir["root"].append(node)
+                        else:
+                            # 文件属于根目录
+                            files_by_dir["root"].append(node)
+                    else:
+                        # 没有路径信息，默认添加到根目录
+                        files_by_dir["root"].append(node)
+                
+                # 排序函数，使用文件节点作为输入
+                def sort_nodes(nodes):
+                    return sorted(nodes, key=lambda node: sort_file_by_name(node.tag.lstrip("🎞️")))
+                
+                # 初始化最终显示文件的字典
+                final_display_files = {
+                    "root": [],
+                    "subdirs": {}
+                }
+                
+                # 创建集合来跟踪当次新增的文件和文件夹
+                current_added_files = set()
+                current_added_dirs = set()
+                
+                # 跟踪子目录和根目录是否有新增文件
+                has_update_in_root = False
+                has_update_in_subdir = False
+                
+                # 记录是否是首次执行
+                is_first_run = True
+                if task.get("last_run_time"):
+                    is_first_run = False
+                
+                # 先检查是否有新增的目录
+                for dir_node in dir_nodes:
+                    dir_name = dir_node.tag.lstrip("📁")
+                    
+                    # 检查是否是指定的更新目录
+                    if update_subdir and re.search(update_subdir, dir_name):
+                        current_added_dirs.add(dir_name)
+                        has_update_in_subdir = True
+                
+                # 检查根目录是否有新增文件
+                root_new_files = []
+                for node in files_by_dir["root"]:
+                    file_name = node.tag.lstrip("🎞️")
+                    # 判断是否为新增文件
+                    is_new_file = False
+                    
+                    # 1. 检查是否在当前转存的文件列表中
+                    if hasattr(node, 'data') and 'created_at' in node.data:
+                        current_time = int(time.time())
+                        time_threshold = 600  # 10分钟 = 600秒
+                        if current_time - node.data['created_at'] < time_threshold:
+                            is_new_file = True
+                    
+                    # 2. 节点本身是从当次转存的文件树中获取的
+                    elif hasattr(is_new_tree, 'nodes') and node.identifier in is_new_tree.nodes:
+                        is_new_file = True
+                    
+                    # 3. 首次运行任务时，视为所有文件都是新增的
+                    elif is_first_run:
+                        is_new_file = True
+                    
+                    if is_new_file:
+                        root_new_files.append(node)
+                        current_added_files.add(file_name)
+                        has_update_in_root = True
+                        
+                        # 记录到最终显示的文件列表中
+                        final_display_files["root"].append(node)
+                
+                # 创建多目录下的更新文件字典
+                subdir_new_files = {}
+                
+                # 首次运行时，记录哪些子目录是新添加的
+                new_added_dirs = set()
+                
+                # 对每个已识别的更新目录，检查是否有新文件
+                for dir_node in update_dir_nodes:
+                    dir_name = dir_node.tag.lstrip("📁")
+                    dir_id = dir_node.identifier
+                    dir_files = files_by_dir.get(dir_id, [])
+                    
+                    # 初始化该目录的新文件列表
+                    subdir_new_files[dir_id] = []
+                    
+                    # 首次运行时，记录所有符合更新目录规则的目录
+                    if is_first_run:
+                        new_added_dirs.add(dir_name)
+                        has_update_in_subdir = True
+                    
+                    # 检查该目录下的文件是否是新文件
+                    for file_node in dir_files:
+                        file_name = file_node.tag.lstrip("🎞️")
+                        # 判断是否为新增文件
+                        is_new_file = False
+                        
+                        if hasattr(file_node, 'data') and 'created_at' in file_node.data:
+                            current_time = int(time.time())
+                            time_threshold = 600  # 10分钟 = 600秒
+                            if current_time - file_node.data['created_at'] < time_threshold:
+                                is_new_file = True
+                        elif hasattr(is_new_tree, 'nodes') and file_node.identifier in is_new_tree.nodes:
+                            is_new_file = True
+                        # 首次运行任务时，视为所有文件都是新增的
+                        elif is_first_run:
+                            is_new_file = True
+                        
+                        if is_new_file:
+                            subdir_new_files[dir_id].append(file_node)
+                            current_added_files.add(file_name)
+                            has_update_in_subdir = True
+                            
+                            # 记录到最终显示的文件列表中
+                            if dir_id not in final_display_files["subdirs"]:
+                                final_display_files["subdirs"][dir_id] = []
+                            final_display_files["subdirs"][dir_id].append(file_node)
+                
+                # 如果已识别的目录中没有新增文件，尝试进一步查找符合update_subdir规则的目录
+                if update_subdir and not has_update_in_subdir:
+                    savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}")
+                    
+                    # 获取保存路径下的所有目录
+                    try:
+                        all_dirs = account.ls_dir(account.savepath_fid[savepath])
+                        
+                        # 筛选出符合更新规则的目录
+                        for dir_item in all_dirs:
+                            if dir_item.get("dir", False):
+                                dir_name = dir_item["file_name"]
+                                if re.search(update_subdir, dir_name):
+                                    # 检查该目录是否已经处理过
+                                    if not any(node.tag.lstrip("📁") == dir_name for node in update_dir_nodes):
+                                        # 获取目录的文件列表
+                                        update_subdir_path = f"{savepath}/{dir_name}"
+                                        if update_subdir_path in account.savepath_fid:
+                                            try:
+                                                update_subdir_fid = account.savepath_fid[update_subdir_path]
+                                                update_subdir_files = account.ls_dir(update_subdir_fid)
+                                                
+                                                # 创建虚拟目录节点
+                                                class VirtualDirNode:
+                                                    def __init__(self, name, dir_id):
+                                                        self.tag = f"📁{name}"
+                                                        self.identifier = dir_id
+                                                        self.data = {"is_dir": True}
+                                                
+                                                # 创建虚拟目录节点
+                                                virtual_dir_node = VirtualDirNode(dir_name, f"virtual_{dir_name}")
+                                                update_dir_nodes.append(virtual_dir_node)
+                                                
+                                                # 初始化新文件列表
+                                                subdir_new_files[virtual_dir_node.identifier] = []
+                                                
+                                                # 为每个文件创建虚拟节点
+                                                for file in update_subdir_files:
+                                                    if not file.get("dir", False):
+                                                        class VirtualFileNode:
+                                                            def __init__(self, name, file_id, dir_id):
+                                                                self.tag = name
+                                                                self.identifier = file_id
+                                                                self.predecessor = dir_id
+                                                                self.data = {"is_dir": False}
+                                                        
+                                                        # 创建虚拟文件节点，关联到虚拟目录
+                                                        virtual_node = VirtualFileNode(
+                                                            file["file_name"], 
+                                                            f"virtual_file_{file['fid']}", 
+                                                            virtual_dir_node.identifier
+                                                        )
+                                                        
+                                                        # 首次运行时，将所有文件视为新文件
+                                                        if is_first_run:
+                                                            subdir_new_files[virtual_dir_node.identifier].append(virtual_node)
+                                                            has_update_in_subdir = True
+                                            except Exception as e:
+                                                print(f"获取目录 {dir_name} 文件列表时出错: {str(e)}")
+                    except Exception as e:
+                        print(f"获取目录列表时出错: {str(e)}")
+                
+                # 对所有目录中的文件进行排序
+                for dir_id in subdir_new_files:
+                    if subdir_new_files[dir_id]:
+                        subdir_new_files[dir_id] = sort_nodes(subdir_new_files[dir_id])
+                
+                # 记录本次执行时间
+                task["last_run_time"] = int(time.time())
+                
+                # 显示文件树规则:
+                # 1. 只有根目录有更新：只显示根目录
+                # 2. 只有子目录有更新：只显示子目录
+                # 3. 根目录和子目录都有更新：显示两者
+                # 4. 都没有更新：不显示任何内容
+                
+                # 如果没有任何更新，不显示任何内容
+                if not has_update_in_root and not has_update_in_subdir:
+                    # 不添加任何通知
+                    pass
+                else:
+                    # 添加基本通知
+                    add_notify(f"✅《{task['taskname']}》添加追更:")
+                    add_notify(f"/{task['savepath']}")
+                    
+                    # 构建完整的目录树结构（支持多层级嵌套）
+                    def build_directory_tree():
+                        # 创建目录树结构
+                        dir_tree = {"root": {"dirs": {}, "files": []}}
+                        
+                        # 获取保存路径的最后一部分目录名（用于过滤）
+                        save_path = task.get("savepath", "").rstrip("/")
+                        save_path_parts = save_path.split("/")
+                        save_path_basename = save_path_parts[-1] if save_path_parts else ""
+                        
+                        # 处理所有目录节点
+                        for dir_node in update_dir_nodes:
+                            dir_id = dir_node.identifier
+                            dir_name = dir_node.tag.lstrip("📁")
+                            
+                            # 跳过与保存路径相同的目录
+                            if dir_name == save_path_basename or dir_name == save_path:
+                                continue
+                                
+                            # 如果目录名包含完整路径，检查是否与保存路径相关
+                            if "/" in dir_name:
+                                # 检查是否以路径开头
+                                if dir_name.startswith("/"):
+                                    continue
+                                
+                                # 检查是否是保存路径或其子路径
+                                path_parts = dir_name.split("/")
+                                # 跳过包含保存路径的完整路径
+                                if any(part == save_path_basename for part in path_parts):
+                                    continue
+                            
+                            # 分割路径，处理可能的多级目录
+                            path_parts = dir_name.split("/")
+                            
+                            # 从根节点开始构建路径
+                            current = dir_tree["root"]
+                            
+                            for i, part in enumerate(path_parts):
+                                # 跳过空部分和保存路径部分
+                                if not part or part == save_path_basename:
+                                    continue
+                                    
+                                if part not in current["dirs"]:
+                                    # 创建新的目录节点
+                                    current["dirs"][part] = {
+                                        "dirs": {},
+                                        "files": [],
+                                        "dir_id": dir_id if i == len(path_parts) - 1 else None
+                                    }
+                                current = current["dirs"][part]
+                            
+                            # 添加该目录的文件
+                            if dir_id in subdir_new_files:
+                                # 处理嵌套目录下的文件
+                                nested_files = []
+                                non_nested_files = []
+                                
+                                for file_node in subdir_new_files[dir_id]:
+                                    if hasattr(file_node, 'nested_path') and file_node.nested_path:
+                                        # 处理嵌套文件
+                                        nested_path_parts = file_node.nested_path.split('/')
+                                        
+                                        # 创建或获取子目录结构
+                                        sub_current = current
+                                        for i, part in enumerate(nested_path_parts):
+                                            if part not in sub_current["dirs"]:
+                                                # 创建新的子目录结构
+                                                sub_current["dirs"][part] = {
+                                                    "dirs": {},
+                                                    "files": [],
+                                                    "dir_id": None  # 虚拟目录暂时没有ID
+                                                }
+                                            sub_current = sub_current["dirs"][part]
+                                        
+                                        # 添加文件到嵌套目录
+                                        sub_current["files"].append(file_node)
+                                    else:
+                                        # 不是嵌套的文件，直接添加到当前目录
+                                        non_nested_files.append(file_node)
+                                
+                                # 设置当前目录的非嵌套文件
+                                current["files"] = non_nested_files
+                        
+                        # 添加根目录文件
+                        if has_update_in_root and final_display_files["root"]:
+                            dir_tree["root"]["files"] = final_display_files["root"]
+                        
+                        return dir_tree
+                    
+                    # 递归显示目录树
+                    def display_tree(node, prefix="", is_last=True, depth=0):
+                        # 获取目录和文件列表
+                        dirs = sorted(node["dirs"].items())
+                        files = node.get("files", [])
+                        
+                        # 根目录文件特殊处理（如果路径以"/"开头，检查是否和当前保存路径相关）
+                        save_path = task.get("savepath", "").rstrip("/")
+                        save_path_parts = save_path.split("/")
+                        save_path_basename = save_path_parts[-1] if save_path else ""
+                        
+                        # 计算总项数（目录+文件）
+                        total_items = len(dirs) + len(files)
+                        current_item = 0
+                        
+                        # 处理目录
+                        for i, (dir_name, dir_data) in enumerate(dirs):
+                            current_item += 1
+                            is_dir_last = current_item == total_items
+                            
+                            # 过滤条件：
+                            # 1. 目录名不为空
+                            # 2. 不是保存路径本身
+                            # 3. 不是以"/"开头的完整路径
+                            # 4. 不是保存路径的基本名称
+                            if (dir_name and 
+                                dir_name != save_path and
+                                not dir_name.startswith("/") and
+                                dir_name != save_path_basename):
+                                
+                                dir_prefix = prefix + ("└── " if is_dir_last else "├── ")
+                                add_notify(f"{dir_prefix}📁{dir_name}")
+                                
+                                # 计算子项的前缀，保持树形结构清晰
+                                # 第一个缩进标记使用点号，后续使用空格
+                                if prefix == "":
+                                    # 第一层缩进使用点号开头
+                                    new_prefix = "·   " if is_dir_last else "│   "
+                                else:
+                                    # 后续层级开头保持前缀不变，尾部添加新的缩进标记
+                                    if is_dir_last:
+                                        new_prefix = prefix + "    "  # 最后一项，空格缩进
+                                    else:
+                                        new_prefix = prefix + "│   "  # 非最后一项，使用竖线
+                                
+                                # 递归显示子目录
+                                display_tree(dir_data, new_prefix, is_dir_last, depth + 1)
+                        
+                        # 处理文件
+                        sorted_files = sort_nodes(files) if files else []
+                        for j, file_node in enumerate(sorted_files):
+                            current_item += 1
+                            is_file_last = current_item == total_items
+                            
+                            # 显示文件
+                            file_prefix = prefix + ("└── " if is_file_last else "├── ")
+                            file_name = file_node.tag.lstrip("🎞️")
+                            icon = get_file_icon(file_name, is_dir=False)
+                            add_notify(f"{file_prefix}{icon}{file_name}")
+                    
+                    # 构建并显示目录树
+                    if has_update_in_root or has_update_in_subdir:
+                        directory_tree = build_directory_tree()
+                        display_tree(directory_tree["root"])
+                        add_notify("")
+                        
+                    # 处理重命名日志，避免显示不必要的路径信息
+                    if rename_logs:
+                        # 对重命名日志进行排序，确保按照新文件名的顺序显示
+                        sorted_rename_logs = []
+                        for log in rename_logs:
+                            # 提取新文件名（格式：重命名: 旧名 → 新名）
+                            match = re.search(r'→\s+(\d+\.\w+)', log)
+                            if match:
+                                new_name = match.group(1)
+                                # 提取序号
+                                seq_match = re.match(r'(\d+)', new_name)
+                                seq_num = int(seq_match.group(1)) if seq_match else 999
+                                sorted_rename_logs.append((seq_num, log))
+                            else:
+                                # 未找到序号的日志放在最后
+                                sorted_rename_logs.append((999, log))
+                        
+                        # 按序号排序
+                        sorted_rename_logs.sort(key=lambda x: x[0])
+                        
+                        # 打印排序后的日志
+                        for _, log in sorted_rename_logs:
+                            print(log)
+                    else:
+                        # 原始逻辑：直接打印所有日志
+                        for log in rename_logs:
+                            print(log)
+                
                 add_notify("")
+            
             
             
             # 如果是剧集命名模式并且成功进行了重命名，单独显示排序好的文件列表
@@ -2936,9 +3800,10 @@ def do_save(account, tasklist=[]):
                     if recent_files:
                         display_files.append(recent_files[0]['file_name'])
                 
-                # 添加成功通知
-                add_notify(f"✅《{task['taskname']}》 添加追更:")
-                add_notify(f"/{task['savepath']}")
+                # 添加成功通知 - 修复问题：确保在有文件时添加通知
+                if display_files:
+                    add_notify(f"✅《{task['taskname']}》添加追更:")
+                    add_notify(f"/{task['savepath']}")
                 
                 
                 # 创建episode_pattern函数用于排序
@@ -2979,7 +3844,10 @@ def do_save(account, tasklist=[]):
                     else:
                         icon = get_file_icon(file_name, is_dir=file_info.get("dir", False))
                     add_notify(f"{prefix}{icon}{file_name}")
-                add_notify("")
+                
+                # 确保只有在有文件时才添加空行
+                if display_files:
+                    add_notify("")
             # 添加正则命名模式的文件树显示逻辑
             elif is_rename and not is_special_sequence and task.get("pattern") is not None:
                 # 重新获取文件列表
@@ -3011,7 +3879,7 @@ def do_save(account, tasklist=[]):
                     display_files = [file["file_name"] for file in file_nodes]
                 
                 # 添加成功通知
-                add_notify(f"✅《{task['taskname']}》 添加追更:")
+                add_notify(f"✅《{task['taskname']}》添加追更:")
                 add_notify(f"/{task['savepath']}")
                 
                 # 打印文件列表
@@ -3023,32 +3891,8 @@ def do_save(account, tasklist=[]):
                 add_notify("")
             
             # 现在打印重命名日志
-            if rename_logs:
-                # 对重命名日志进行排序，确保按照新文件名的顺序显示
-                sorted_rename_logs = []
-                for log in rename_logs:
-                    # 提取新文件名（格式：重命名: 旧名 → 新名）
-                    match = re.search(r'→\s+(\d+\.\w+)', log)
-                    if match:
-                        new_name = match.group(1)
-                        # 提取序号
-                        seq_match = re.match(r'(\d+)', new_name)
-                        seq_num = int(seq_match.group(1)) if seq_match else 999
-                        sorted_rename_logs.append((seq_num, log))
-                    else:
-                        # 未找到序号的日志放在最后
-                        sorted_rename_logs.append((999, log))
-                
-                # 按序号排序
-                sorted_rename_logs.sort(key=lambda x: x[0])
-                
-                # 打印排序后的日志
-                for _, log in sorted_rename_logs:
-                    print(log)
-            else:
-                # 原始逻辑：直接打印所有日志
-                for log in rename_logs:
-                    print(log)
+            # 注意：这些日志可能已在前面的文件树展示中打印过，这里不再重复打印
+            # 因为已处理过的文件已显示在文件树中，这里不需要再次打印
             
             # 补充任务的插件配置
             def merge_dicts(a, b):
@@ -3083,7 +3927,7 @@ def do_save(account, tasklist=[]):
                             plugin.run(task, account=account, tree=is_new_tree) or task
                         )
             elif is_new_tree is False:  # 明确没有新文件
-                print(f"任务完成：没有新的文件需要转存")
+                print(f"任务完成: 没有新的文件需要转存")
                 print()
     print()
 
