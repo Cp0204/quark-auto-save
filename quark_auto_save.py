@@ -3513,6 +3513,11 @@ def do_save(account, tasklist=[]):
                     add_notify(f"✅《{task['taskname']}》添加追更:")
                     add_notify(f"/{task['savepath']}")
                     
+                    # 修正首次运行时对子目录的处理 - 只有在首次运行且有新增的子目录时才显示子目录内容
+                    if has_update_in_root and has_update_in_subdir and is_first_run and len(new_added_dirs) == 0:
+                        # 虽然标记为首次运行，但没有新增子目录，不应展示子目录内容
+                        has_update_in_subdir = False
+                    
                     # 构建完整的目录树结构（支持多层级嵌套）
                     def build_directory_tree():
                         # 创建目录树结构
@@ -3613,12 +3618,21 @@ def do_save(account, tasklist=[]):
                         save_path_parts = save_path.split("/")
                         save_path_basename = save_path_parts[-1] if save_path else ""
                         
+                        # 过滤目录 - 如果只有根目录有更新，且不是首次运行或没有新增目录，则不显示子目录
+                        if depth == 0 and has_update_in_root and (not has_update_in_subdir or (is_first_run and len(new_added_dirs) == 0)):
+                            # 在根目录级别，如果只有根目录有更新，则过滤掉所有子目录
+                            dirs = []
+                        
                         # 计算总项数（目录+文件）
                         total_items = len(dirs) + len(files)
                         current_item = 0
                         
                         # 处理目录
                         for i, (dir_name, dir_data) in enumerate(dirs):
+                            # 检查目录是否在新增目录列表中或有子文件更新
+                            if is_first_run and dir_name not in new_added_dirs and len(dir_data.get("files", [])) == 0:
+                                continue
+                                
                             current_item += 1
                             is_dir_last = current_item == total_items
                             
