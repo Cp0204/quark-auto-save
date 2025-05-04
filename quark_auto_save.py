@@ -872,20 +872,27 @@ class Quark:
                 )
             # 正则文件名匹配
             if re.search(pattern, share_file["file_name"]):
-                # 替换后的文件名
-                file_name_re = mr.sub(pattern, replace, share_file["file_name"])
-                # 判断文件是否存在，处理忽略扩展名
+                # 判断原文件名是否存在，处理忽略扩展名
                 if not mr.is_exists(
-                    file_name_re,
-                    dir_filename_list,
-                    (task.get("ignore_extension") and not share_file["dir"]),
-                ) and not mr.is_exists(
                     share_file["file_name"],
                     dir_filename_list,
                     (task.get("ignore_extension") and not share_file["dir"]),
                 ):
-                    share_file["file_name_re"] = file_name_re
-                    need_save_list.append(share_file)
+                    # 文件夹不进行重命名
+                    if share_file["dir"]:
+                        share_file["file_name_re"] = share_file["file_name"]
+                        need_save_list.append(share_file)
+                    else:
+                        # 替换后的文件名
+                        file_name_re = mr.sub(pattern, replace, share_file["file_name"])
+                        # 判断替换后的文件名是否存在
+                        if not mr.is_exists(
+                            file_name_re,
+                            dir_filename_list,
+                            task.get("ignore_extension"),
+                        ):
+                            share_file["file_name_re"] = file_name_re
+                            need_save_list.append(share_file)
                 elif share_file["dir"]:
                     # 存在并是一个目录，历遍子目录
                     if task.get("update_subdir", False):

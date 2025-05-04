@@ -308,16 +308,22 @@ def get_share_detail():
                     task.get("pattern", ""), task.get("replace", "")
                 )
             if re.search(pattern, share_file["file_name"]):
-                file_name_re = mr.sub(pattern, replace, share_file["file_name"])
+                # 文件名重命名，目录不重命名
+                file_name_re = (
+                    share_file["file_name"]
+                    if share_file["dir"]
+                    else mr.sub(pattern, replace, share_file["file_name"])
+                )
                 if file_name_saved := mr.is_exists(
                     file_name_re,
                     dir_filename_list,
-                    request.json.get("ignore_extension"),
+                    (task.get("ignore_extension") and not share_file["dir"]),
                 ):
                     share_file["file_name_saved"] = file_name_saved
                 else:
                     share_file["file_name_re"] = file_name_re
 
+        # 文件列表排序
         if re.search(r"\{I+\}", replace):
             mr.set_dir_filename_list(dir_filename_list, replace)
             mr.sort_file_list(data["list"])
