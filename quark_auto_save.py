@@ -175,8 +175,9 @@ class MagicRename:
         "{EXT}": [r"(?<=\.)\w+$"],
         "{CHINESE}": [r"[\u4e00-\u9fa5]{2,}"],
         "{DATE}": [
-            r"\d{4}[\.\-/年]\d{1,2}[\.\-/月]\d{1,2}日?",
-            r"[12]\d{3}[01]?\d[0123]?\d",
+            r"(18|19|20)?\d{2}[\.\-/年]\d{1,2}[\.\-/月]\d{1,2}",
+            r"(?<!\d)[12]\d{3}[01]?\d[0123]?\d",
+            r"(?<!\d)[01]?\d[\.\-/月][0123]?\d",
         ],
         "{YEAR}": [r"(?<!\d)(18|19|20)\d{2}(?!\d)"],
         "{S}": [r"(?<=[Ss])\d{1,2}(?=[EeXx])", r"(?<=[Ss])\d{1,2}"],
@@ -185,7 +186,8 @@ class MagicRename:
             r"(?<=[Ss]\d\d[Ee])\d{1,3}",
             r"(?<=[Ee])\d{1,3}",
             r"(?<=[Ee][Pp])\d{1,3}",
-            r"\d{1,3}(?=[集期话部篇])",
+            r"(?<=第)\d{1,3}(?=[集期话部篇])",
+            r"(?<!\d)\d{1,3}(?=[集期话部篇])",
             r"(?!.*19)(?!.*20)(?<=[\._])\d{1,3}(?=[\._])",
             r"^\d{1,3}(?=\.\w+)",
             r"(?<!\d)\d{1,3}(?!\d)(?!$)",
@@ -194,6 +196,7 @@ class MagicRename:
             r"(?<=[集期话部篇第])[上中下一二三四五六七八九十]",
             r"[上中下一二三四五六七八九十]",
         ],
+        "{VER}": [r"[\u4e00-\u9fa5]+版"],
     }
 
     priority_list = [
@@ -237,17 +240,25 @@ class MagicRename:
         # 预处理替换变量
         for key, p_list in self.magic_variable.items():
             if key in replace:
+                # 正则类替换变量
                 if p_list and isinstance(p_list, list):
                     for p in p_list:
                         match = re.search(p, file_name)
                         if match:
                             # 匹配成功，替换为匹配到的值
                             value = match.group()
+                            # 日期格式处理：补全、格式化
                             if key == "{DATE}":
+                                value = "".join(
+                                    [char for char in value if char.isdigit()]
+                                )
+                                value = (
+                                    str(datetime.now().year)[: (8 - len(value))] + value
+                                )
                                 value = parser.parse(value).strftime("%Y%m%d")
                             replace = replace.replace(key, value)
                             break
-                # 非正则替换变量
+                # 非正则类替换变量
                 if key == "{TASKNAME}":
                     replace = replace.replace(key, self.magic_variable["{TASKNAME}"])
                 elif key == "{SXX}" and not match:
