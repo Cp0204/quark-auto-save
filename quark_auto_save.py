@@ -283,7 +283,11 @@ class MagicRename:
 
     def sort_file_list(self, file_list, dir_filename_list=[]):
         """文件列表统一排序，给{I+}赋值"""
-        filename_list = [f["file_name_re"] for f in file_list if f.get("file_name_re")]
+        filename_list = [
+            f["file_name_re"]
+            for f in file_list
+            if f.get("file_name_re") and not f["dir"]
+        ]
         # print(f"filename_list_before: {filename_list}")
         dir_filename_list = dir_filename_list or self.dir_filename_list
         # print(f"dir_filename_list: {dir_filename_list}")
@@ -302,11 +306,12 @@ class MagicRename:
                         file["file_name_re"],
                     )
 
-    def set_dir_filename_list(self, filename_list, replace):
+    def set_dir_file_list(self, file_list, replace):
         """设置目录文件列表"""
-        if not filename_list:
+        if not file_list:
             return
         self.dir_filename_list = []
+        filename_list = [f["file_name"] for f in file_list if not f["dir"]]
         filename_list.sort()
         if match := re.search(r"\{I+\}", replace):
             # 由替换式转换匹配式
@@ -932,7 +937,7 @@ class Quark:
                 break
 
         if re.search(r"\{I+\}", replace):
-            mr.set_dir_filename_list(dir_filename_list, replace)
+            mr.set_dir_file_list(dir_file_list, replace)
             mr.sort_file_list(need_save_list)
 
         # 转存文件
