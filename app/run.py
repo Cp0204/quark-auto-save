@@ -294,10 +294,10 @@ def get_share_detail():
         account = Quark(config_data["cookie"][0], 0)
         get_fids = account.get_fids([task.get("savepath", "")])
         if get_fids:
-            savepath_fid = get_fids[0]["fid"]
-            dir_file_list = account.ls_dir(savepath_fid)["data"]["list"]
+            dir_file_list = account.ls_dir(get_fids[0]["fid"])["data"]["list"]
             dir_filename_list = [dir_file["file_name"] for dir_file in dir_file_list]
         else:
+            dir_file_list = []
             dir_filename_list = []
 
         for share_file in data["list"]:
@@ -325,7 +325,7 @@ def get_share_detail():
 
         # 文件列表排序
         if re.search(r"\{I+\}", replace):
-            mr.set_dir_filename_list(dir_filename_list, replace)
+            mr.set_dir_file_list(dir_file_list, replace)
             mr.sort_file_list(data["list"])
 
     if request.json.get("task"):
