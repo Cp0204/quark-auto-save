@@ -46,6 +46,9 @@ class Aria2:
                 if not node.data.get("is_dir", True):
                     file_fids.append(node.data.get("fid"))
                     file_paths.append(node.data.get("path"))
+            if not file_fids:
+                print(f"Aria2下载: 没有下载任务，跳过")
+                return
             download_return, cookie = account.download(file_fids)
             file_urls = [item["download_url"] for item in download_return["data"]]
             for index, file_url in enumerate(file_urls):
