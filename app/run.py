@@ -400,6 +400,8 @@ def add_task():
                 ),
                 400,
             )
+    if not request_data.get("addition"):
+        request_data["addition"] = task_plugins_config_default
     # 添加任务
     config_data["tasklist"].append(request_data)
     Config.write_json(CONFIG_PATH, config_data)
