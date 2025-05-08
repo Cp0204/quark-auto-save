@@ -794,7 +794,7 @@ class Quark:
                     self.recycle_remove(record_id_list)
                 return save_file
             else:
-                return False
+                return []
         except Exception as e:
             print(f"转存测试失败: {str(e)}")
 
@@ -895,8 +895,8 @@ class Quark:
                     dir_filename_list,
                     (task.get("ignore_extension") and not share_file["dir"]),
                 ):
-                    # 文件夹不进行重命名
-                    if share_file["dir"]:
+                    # 文件夹、子目录文件不进行重命名
+                    if share_file["dir"] or subdir_path:
                         share_file["file_name_re"] = share_file["file_name"]
                         need_save_list.append(share_file)
                     else:
@@ -983,8 +983,9 @@ class Quark:
         for child in tree.children(node_id):
             file = child.data
             if file.get("is_dir"):
-                self.do_rename(tree, child.identifier)
-            if file.get("file_name_re") and file["file_name_re"] != file["file_name"]:
+                # self.do_rename(tree, child.identifier)
+                pass
+            elif file.get("file_name_re") and file["file_name_re"] != file["file_name"]:
                 rename_ret = self.rename(file["fid"], file["file_name_re"])
                 print(f"重命名：{file['file_name']} → {file['file_name_re']}")
                 if rename_ret["code"] != 0:
