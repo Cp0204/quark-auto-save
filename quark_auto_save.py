@@ -955,11 +955,7 @@ class Quark:
                 if query_task_return["code"] == 0:
                     # 建立目录树
                     for index, item in enumerate(need_save_list):
-                        icon = (
-                            "📁"
-                            if item["dir"] == True
-                            else "🎞️" if item["obj_category"] == "video" else ""
-                        )
+                        icon = self._get_file_icon(item)
                         tree.create_node(
                             f"{icon}{item['file_name_re']}",
                             item["fid"],
@@ -993,6 +989,19 @@ class Quark:
                 print(f"重命名：{file['file_name']} → {file['file_name_re']}")
                 if rename_ret["code"] != 0:
                     print(f"      ↑ 失败，{rename_ret['message']}")
+
+    def _get_file_icon(self, f):
+        if f.get("dir"):
+            return "📁"
+        ico_maps = {
+            "video": "🎞️",
+            "image": "🖼️",
+            "audio": "🎵",
+            "doc": "📄",
+            "archive": "📦",
+            "default": "",
+        }
+        return ico_maps.get(f.get("obj_category"), "")
 
 
 def verify_account(account):
