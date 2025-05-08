@@ -218,7 +218,7 @@ class MagicRename:
     def __init__(self, magic_regex={}, magic_variable={}):
         self.magic_regex.update(magic_regex)
         self.magic_variable.update(magic_variable)
-        self.dir_filename_list = []
+        self.dir_filename_dict = {}
 
     def set_taskname(self, taskname):
         """设置任务名称"""
@@ -281,7 +281,7 @@ class MagicRename:
                 return name.replace(keyword, f"{i:02d}")  # 替换为数字，方便排序
         return name
 
-    def sort_file_list(self, file_list, dir_filename_list=[]):
+    def sort_file_list(self, file_list, dir_filename_dict={}):
         """文件列表统一排序，给{I+}赋值"""
         filename_list = [
             f["file_name_re"]
@@ -289,20 +289,21 @@ class MagicRename:
             if f.get("file_name_re") and not f["dir"]
         ]
         # print(f"filename_list_before: {filename_list}")
-        dir_filename_list = dir_filename_list or self.dir_filename_list
+        dir_filename_dict = dir_filename_dict or self.dir_filename_dict
         # print(f"dir_filename_list: {dir_filename_list}")
         # 合并目录文件列表
-        filename_list = list(set(filename_list) | set(dir_filename_list))
+        filename_list = list(set(filename_list) | set(dir_filename_dict.values()))
         filename_list.sort(key=self._custom_sort_key)
         # print(f"filename_list_sort: {filename_list}")
         for file in file_list:
             if file.get("file_name_re"):
                 if match := re.search(r"\{I+\}", file["file_name_re"]):
+                    i = filename_list.index(file["file_name_re"]) + 1
+                    while i in dir_filename_dict.keys():
+                        i += 1
                     file["file_name_re"] = re.sub(
                         match.group(),
-                        str(filename_list.index(file["file_name_re"]) + 1).zfill(
-                            match.group().count("I")
-                        ),
+                        str(i).zfill(match.group().count("I")),
                         file["file_name_re"],
                     )
 
@@ -310,7 +311,7 @@ class MagicRename:
         """设置目录文件列表"""
         if not file_list:
             return
-        self.dir_filename_list = []
+        self.dir_filename_dict = {}
         filename_list = [f["file_name"] for f in file_list if not f["dir"]]
         filename_list.sort()
         if match := re.search(r"\{I+\}", replace):
@@ -330,7 +331,7 @@ class MagicRename:
             # 目录文件列表
             for filename in filename_list:
                 if match := re.match(pattern, filename):
-                    self.dir_filename_list.append(
+                    self.dir_filename_dict[int(match.group(2))] = (
                         match.group(1) + magic_i + match.group(3)
                     )
             # print(f"filename_list: {self.filename_list}")
