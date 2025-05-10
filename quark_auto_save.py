@@ -17,7 +17,6 @@ import requests
 import importlib
 import traceback
 import urllib.parse
-from dateutil import parser
 from datetime import datetime
 
 # 兼容青龙
@@ -237,7 +236,6 @@ class MagicRename:
                                 value = (
                                     str(datetime.now().year)[: (8 - len(value))] + value
                                 )
-                                value = parser.parse(value).strftime("%Y%m%d")
                             replace = replace.replace(key, value)
                             break
                 # 非正则类替换变量
