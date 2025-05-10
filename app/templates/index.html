@@ -446,7 +446,7 @@
             <div class="alert alert-warning" v-if="fileSelect.error" v-html="fileSelect.error"></div>
             <div v-else>
               <!-- 正则处理表达式 -->
-              <div class="mb-3" v-if="fileSelect.previewRegex">
+              <div class="mb-3" v-if="fileSelect.previewRegex && fileSelect.index<this.formData.tasklist.length">
                 <div><b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
                   <span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].pattern }}</span>
                 </div>
@@ -495,7 +495,7 @@
           <div class="modal-footer" v-if="fileSelect.selectDir && !fileSelect.previewRegex">
             <span v-html="fileSelect.selectShare ? '转存：' : '保存到：'"></span>
             <button type="button" class="btn btn-primary btn-sm" @click="selectCurrentFolder()">当前文件夹</button>
-            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare" @click="selectCurrentFolder(true)">当前文件夹<span class="badge badge-light" v-html="'/'+formData.tasklist[fileSelect.index].taskname"></span></button>
+            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare" @click="selectCurrentFolder(true)">当前文件夹<span class="badge badge-light" v-if="fileSelect.index<this.formData.tasklist.length" v-html="'/'+formData.tasklist[fileSelect.index].taskname"></span></button>
           </div>
         </div>
       </div>
