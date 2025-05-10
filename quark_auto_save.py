@@ -132,29 +132,10 @@ class Config:
         return plugins_available, plugins_config, task_plugins_config
 
     def breaking_change_update(config_data):
-        if config_data.get("emby"):
-            print("🔼 Update config v0.3.6.1 to 0.3.7")
-            config_data.setdefault("media_servers", {})["emby"] = {
-                "url": config_data["emby"]["url"],
-                "token": config_data["emby"]["apikey"],
-            }
-            del config_data["emby"]
-            for task in config_data.get("tasklist", {}):
-                task["media_id"] = task.get("emby_id", "")
-                if task.get("emby_id"):
-                    del task["emby_id"]
-        if config_data.get("media_servers"):
-            print("🔼 Update config v0.3.8 to 0.3.9")
-            config_data["plugins"] = config_data.get("media_servers")
-            del config_data["media_servers"]
-            for task in config_data.get("tasklist", {}):
-                task["addition"] = {
-                    "emby": {
-                        "media_id": task.get("media_id", ""),
-                    }
-                }
-                if task.get("media_id"):
-                    del task["media_id"]
+        # 🔼 Update config v0.5.x to 0.6.0
+        for task in config_data.get("tasklist", []):
+            if "$TASKNAME" in task.get("replace", ""):
+                task["replace"] = task["replace"].replace("$TASKNAME", "{TASKNAME}")
 
 
 class MagicRename:
@@ -1187,8 +1168,6 @@ def main():
         CONFIG_DATA = Config.read_json(config_path)
         Config.breaking_change_update(CONFIG_DATA)
         cookie_val = CONFIG_DATA.get("cookie")
-        if not CONFIG_DATA.get("magic_regex"):
-            CONFIG_DATA["magic_regex"] = MagicRename().magic_regex
         cookie_form_file = True
     # 获取cookie
     cookies = Config.get_cookies(cookie_val)

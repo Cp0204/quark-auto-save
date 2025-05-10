@@ -469,6 +469,8 @@ def init():
     # 读取配置
     config_data = Config.read_json(CONFIG_PATH)
     Config.breaking_change_update(config_data)
+    if not config_data.get("magic_regex"):
+        config_data["magic_regex"] = MagicRename().magic_regex
 
     # 默认管理账号
     config_data["webui"] = {
