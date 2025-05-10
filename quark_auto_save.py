@@ -41,7 +41,7 @@ def send_ql_notify(title, body):
 
         # 如未配置 push_config 则使用青龙环境通知设置
         if CONFIG_DATA.get("push_config"):
-            notify.push_config = CONFIG_DATA["push_config"].copy()
+            notify.push_config.update(CONFIG_DATA["push_config"])
             notify.push_config["CONSOLE"] = notify.push_config.get("CONSOLE", True)
         notify.send(title, body)
     except Exception as e:
@@ -1203,7 +1203,7 @@ def main():
     if NOTIFYS:
         notify_body = "\n".join(NOTIFYS)
         print(f"===============推送通知===============")
-        send_ql_notify("【夸克自动追更】", notify_body)
+        send_ql_notify("【夸克自动转存】", notify_body)
         print()
     if cookie_form_file:
         # 更新配置
