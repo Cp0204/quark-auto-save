@@ -274,7 +274,7 @@ def get_share_detail():
         return jsonify({"success": False, "message": "未登录"})
     shareurl = request.json.get("shareurl", "")
     stoken = request.json.get("stoken", "")
-    account = Quark("", 0)
+    account = Quark()
     pwd_id, passcode, pdir_fid, paths = account.extract_url(shareurl)
     if not stoken:
         get_stoken = account.get_stoken(pwd_id, passcode)
@@ -301,7 +301,7 @@ def get_share_detail():
         magic_regex = request.json.get("magic_regex", {})
         mr = MagicRename(magic_regex)
         mr.set_taskname(task.get("taskname", ""))
-        account = Quark(config_data["cookie"][0], 0)
+        account = Quark(config_data["cookie"][0])
         get_fids = account.get_fids([task.get("savepath", "")])
         if get_fids:
             dir_file_list = account.ls_dir(get_fids[0]["fid"])["data"]["list"]
@@ -348,7 +348,7 @@ def get_share_detail():
 def get_savepath_detail():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
-    account = Quark(config_data["cookie"][0], 0)
+    account = Quark(config_data["cookie"][0])
     paths = []
     if path := request.args.get("path"):
         path = re.sub(r"/+", "/", path)
@@ -384,7 +384,7 @@ def get_savepath_detail():
 def delete_file():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
-    account = Quark(config_data["cookie"][0], 0)
+    account = Quark(config_data["cookie"][0])
     if fid := request.json.get("fid"):
         response = account.delete([fid])
     else:

@@ -361,7 +361,7 @@ class Quark:
     BASE_URL_APP = "https://drive-m.quark.cn"
     USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) quark-cloud-drive/3.14.2 Chrome/112.0.5615.165 Electron/24.1.3.8 Safari/537.36 Channel/pckk_other_ch"
 
-    def __init__(self, cookie, index=None):
+    def __init__(self, cookie="", index=0):
         self.cookie = cookie.strip()
         self.index = index + 1
         self.is_active = False
@@ -1157,7 +1157,7 @@ def main():
         print()
         if cookies := json.loads(os.environ.get("COOKIE", "[]")):
             print(f"===============转存测试===============")
-            accounts = Quark(cookies[0], 0)
+            accounts = Quark(cookies[0])
             accounts.do_save_check("https://pan.quark.cn/s/1ed94d530d63", "/来自：分享")
             print()
         return
