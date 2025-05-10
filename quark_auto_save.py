@@ -15,6 +15,7 @@ import time
 import random
 import requests
 import importlib
+import traceback
 import urllib.parse
 from dateutil import parser
 from datetime import datetime
@@ -761,11 +762,9 @@ class Quark:
             pwd_id, passcode, pdir_fid, _ = self.extract_url(shareurl)
             stoken = self.get_stoken(pwd_id, passcode)["data"]["stoken"]
             share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["data"]["list"]
+            print(f"获取分享: {share_file_list}")
             fid_list = [item["fid"] for item in share_file_list]
             fid_token_list = [item["share_fid_token"] for item in share_file_list]
-            file_name_list = [item["file_name"] for item in share_file_list]
-            if not fid_list:
-                return
             get_fids = self.get_fids([savepath])
             to_pdir_fid = (
                 get_fids[0]["fid"] if get_fids else self.mkdir(savepath)["data"]["fid"]
@@ -773,30 +772,31 @@ class Quark:
             save_file = self.save_file(
                 fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken
             )
-            if save_file["code"] == 41017:
-                return
-            elif save_file["code"] == 0:
-                dir_file_list = self.ls_dir(to_pdir_fid)["data"]["list"]
-                del_list = [
-                    item["fid"]
-                    for item in dir_file_list
-                    if (item["file_name"] in file_name_list)
-                    and ((datetime.now().timestamp() - item["created_at"]) < 60)
-                ]
-                if del_list:
-                    self.delete(del_list)
-                    recycle_list = self.recycle_list()
-                    record_id_list = [
-                        item["record_id"]
-                        for item in recycle_list
-                        if item["fid"] in del_list
-                    ]
-                    self.recycle_remove(record_id_list)
-                return save_file
-            else:
-                return []
+            print(f"转存文件: {save_file}")
+            if save_file["code"] == 0:
+                task_id = save_file["data"]["task_id"]
+                query_task = self.query_task(task_id)
+                print(f"查询转存: {query_task}")
+                if query_task["code"] == 0:
+                    del_list = query_task["data"]["save_as"]["save_as_top_fids"]
+                    if del_list:
+                        delete_return = self.delete(del_list)
+                        print(f"删除转存: {delete_return}")
+                        recycle_list = self.recycle_list()
+                        record_id_list = [
+                            item["record_id"]
+                            for item in recycle_list
+                            if item["fid"] in del_list
+                        ]
+                        recycle_remove = self.recycle_remove(record_id_list)
+                        print(f"清理转存: {recycle_remove}")
+                        print(f"✅ 转存测试成功")
+                        return True
+            print(f"❌ 转存测试失败: 中断")
+            return False
         except Exception as e:
-            print(f"转存测试失败: {str(e)}")
+            print(f"❌ 转存测试失败: {str(e)}")
+            traceback.print_exc()
 
     def do_save_task(self, task):
         # 判断资源失效记录
@@ -1146,6 +1146,21 @@ def main():
     print()
     # 读取启动参数
     config_path = sys.argv[1] if len(sys.argv) > 1 else "quark_config.json"
+    # 推送测试
+    if os.environ.get("QUARK_TEST", "").lower() == "true":
+        print(f"===============通知测试===============")
+        CONFIG_DATA["push_config"] = json.loads(os.environ.get("PUSH_CONFIG"))
+        send_ql_notify(
+            "【夸克自动转存】",
+            f"通知测试\n\n{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        )
+        print()
+        if cookies := json.loads(os.environ.get("COOKIE", "[]")):
+            print(f"===============转存测试===============")
+            accounts = Quark(cookies[0], 0)
+            accounts.do_save_check("https://pan.quark.cn/s/1ed94d530d63", "/来自：分享")
+            print()
+        return
     # 从环境变量中获取 TASKLIST
     tasklist_from_env = []
     if tasklist_json := os.environ.get("TASKLIST"):
