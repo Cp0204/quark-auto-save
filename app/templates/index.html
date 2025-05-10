@@ -102,13 +102,14 @@
             </div>
 
             <div class="row title" title="通知推送，支持多个渠道，见Wiki">
-              <div class="col-10">
+              <div class="col-8">
                 <h2 style="display: inline-block;"><i class="bi bi-bell"></i> 通知</h2>
                 <span class="badge badge-pill badge-light">
                   <a href="https://github.com/Cp0204/quark-auto-save/wiki/通知推送服务配置" target="_blank">?</a>
                 </span>
               </div>
-              <div class="col-2 text-right">
+              <div class="col-4 text-right">
+                <button type="button" class="btn btn-outline-success" title="通知推送测试" @click="testPush()"><i class="bi bi-lightning"></i></button>
                 <button type="button" class="btn btn-outline-primary" @click="addPush()">+</button>
               </div>
             </div>
@@ -701,6 +702,9 @@
           if (this.formData.cookie[index] == "" || confirm("确认删除吗？"))
             this.formData.cookie.splice(index, 1);
         },
+        testPush() {
+          this.runScriptNow(1, true);
+        },
         addPush() {
           key = prompt("增加的键名", "");
           if (key != "" && key != null)
@@ -800,9 +804,15 @@
         clearData(target) {
           this[target] = "";
         },
-        async runScriptNow(task_index = null) {
+        async runScriptNow(task_index = null, test = false) {
           body = {};
-          if (task_index != null) {
+          if (test) {
+            body = {
+              "quark_test": true,
+              "cookie": this.formData.cookie,
+              "push_config": this.formData.push_config
+            };
+          } else if (task_index != null) {
             task = { ...this.formData.tasklist[task_index] };
             delete task.runweek;
             delete task.enddate;
@@ -836,12 +846,6 @@
             while (true) {
               const { done, value } = await reader.read();
               if (done) {
-                console.log('Stream complete.');
-                this.modalLoading = false;
-                // 运行后刷新数据
-                if (task_index == null) {
-                  this.fetchData();
-                }
                 break;
               }
               partialData += decoder.decode(value);
@@ -851,8 +855,10 @@
                   const eventData = line.substring(5).trim();
                   if (eventData === '[DONE]') {
                     this.modalLoading = false;
-                    this.fetchData();
-                    return;
+                    if (task_index == null) {
+                      this.fetchData();
+                    }
+                    break;
                   }
                   this.run_log += eventData.replace('<', '<\u200B') + '\n';
                   // 在更新 run_log 后将滚动条滚动到底部

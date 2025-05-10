@@ -192,6 +192,14 @@ def run_script_now():
         # 设置环境变量
         process_env = os.environ.copy()
         process_env["PYTHONIOENCODING"] = "utf-8"
+        if request.json.get("quark_test"):
+            process_env["QUARK_TEST"] = "true"
+            process_env["COOKIE"] = json.dumps(
+                request.json.get("cookie", []), ensure_ascii=False
+            )
+            process_env["PUSH_CONFIG"] = json.dumps(
+                request.json.get("push_config", {}), ensure_ascii=False
+            )
         if tasklist:
             process_env["TASKLIST"] = json.dumps(tasklist, ensure_ascii=False)
         process = subprocess.Popen(
