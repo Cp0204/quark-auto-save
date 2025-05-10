@@ -48,6 +48,8 @@ SCRIPT_PATH = os.environ.get("SCRIPT_PATH", "./quark_auto_save.py")
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
 PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "")
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
+HOST = os.environ.get("HOST", "0.0.0.0")
+PORT = os.environ.get("PORT", 5005)
 
 config_data = {}
 task_plugins_config_default = {}
@@ -484,4 +486,8 @@ def init():
 if __name__ == "__main__":
     init()
     reload_tasks()
-    app.run(debug=DEBUG, host="0.0.0.0", port=5005)
+    app.run(
+        debug=DEBUG,
+        host=HOST,
+        port=PORT,
+    )
