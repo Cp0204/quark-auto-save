@@ -102,13 +102,14 @@
             </div>
 
             <div class="row title" title="通知推送，支持多个渠道，见Wiki">
-              <div class="col-10">
+              <div class="col-8">
                 <h2 style="display: inline-block;"><i class="bi bi-bell"></i> 通知</h2>
                 <span class="badge badge-pill badge-light">
                   <a href="https://github.com/Cp0204/quark-auto-save/wiki/通知推送服务配置" target="_blank">?</a>
                 </span>
               </div>
-              <div class="col-2 text-right">
+              <div class="col-4 text-right">
+                <button type="button" class="btn btn-outline-success" title="通知推送测试" @click="testPush()"><i class="bi bi-lightning"></i></button>
                 <button type="button" class="btn btn-outline-primary" @click="addPush()">+</button>
               </div>
             </div>
@@ -444,6 +445,15 @@
           <div class="modal-body small">
             <div class="alert alert-warning" v-if="fileSelect.error" v-html="fileSelect.error"></div>
             <div v-else>
+              <!-- 正则处理表达式 -->
+              <div class="mb-3" v-if="fileSelect.previewRegex && fileSelect.index<this.formData.tasklist.length">
+                <div><b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                  <span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].pattern }}</span>
+                </div>
+                <div><b>替换表达式：</b><span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].replace" v-html="formData.tasklist[fileSelect.index].replace"></span>
+                  <span class="badge badge-info" v-else-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].replace }}</span>
+                </div>
+              </div>
               <!-- 面包屑导航 -->
               <nav aria-label="breadcrumb" v-if="fileSelect.selectDir">
                 <ol class="breadcrumb">
@@ -455,14 +465,6 @@
                 </ol>
               </nav>
               <!-- 文件列表 -->
-              <div class="mb-3" v-if="fileSelect.previewRegex">
-                <div><b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
-                  <span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].pattern }}</span>
-                </div>
-                <div><b>替换表达式：</b><span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].replace" v-html="formData.tasklist[fileSelect.index].replace"></span>
-                  <span class="badge badge-info" v-else-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].replace }}</span>
-                </div>
-              </div>
               <table class="table table-hover table-sm">
                 <thead>
                   <tr>
@@ -477,8 +479,8 @@
                 </thead>
                 <tbody>
                   <tr v-for="(file, key) in fileSelect.fileList" :key="key" @click="fileSelect.selectDir ? (file.dir ? navigateTo(file.fid, file.file_name) : null) : selectStartFid(file.fid)" :class="{'cursor-pointer': fileSelect.selectDir ? file.dir : true}">
-                    <td><i class="bi" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i> {{file.file_name}}</td>
-                    <td v-if="fileSelect.selectShare" :class="file.file_name_re ? 'text-success' : 'text-danger'">{{file.file_name_re || '&times;'}}</td>
+                    <td><i class="bi mr-1" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i>{{file.file_name}}</td>
+                    <td v-if="fileSelect.selectShare" :class="file.file_name_re ? 'text-success' : file.file_name_saved ? 'text-muted' : 'text-danger'">{{file.file_name_re || file.file_name_saved || '&times;'}}</td>
                     <template v-if="!fileSelect.previewRegex">
                       <td v-if="file.dir">{{ file.include_items }}项</td>
                       <td v-else>{{file.size | size}}</td>
@@ -493,7 +495,7 @@
           <div class="modal-footer" v-if="fileSelect.selectDir && !fileSelect.previewRegex">
             <span v-html="fileSelect.selectShare ? '转存：' : '保存到：'"></span>
             <button type="button" class="btn btn-primary btn-sm" @click="selectCurrentFolder()">当前文件夹</button>
-            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare" @click="selectCurrentFolder(true)">当前文件夹<span class="badge badge-light" v-html="'/'+formData.tasklist[fileSelect.index].taskname"></span></button>
+            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare" @click="selectCurrentFolder(true)">当前文件夹<span class="badge badge-light" v-if="fileSelect.index<this.formData.tasklist.length" v-html="'/'+formData.tasklist[fileSelect.index].taskname"></span></button>
           </div>
         </div>
       </div>
@@ -685,10 +687,8 @@
             .then(response => {
               if (response.data.success) {
                 this.configModified = false;
-                alert(response.data.message);
-              } else {
-                alert(response.data.message);
               }
+              alert(response.data.message);
               console.log('Config saved result:', response.data);
             })
             .catch(error => {
@@ -701,6 +701,9 @@
         removeCookie(index) {
           if (this.formData.cookie[index] == "" || confirm("确认删除吗？"))
             this.formData.cookie.splice(index, 1);
+        },
+        testPush() {
+          this.runScriptNow(1, true);
         },
         addPush() {
           key = prompt("增加的键名", "");
@@ -801,9 +804,15 @@
         clearData(target) {
           this[target] = "";
         },
-        async runScriptNow(task_index = null) {
+        async runScriptNow(task_index = null, test = false) {
           body = {};
-          if (task_index != null) {
+          if (test) {
+            body = {
+              "quark_test": true,
+              "cookie": this.formData.cookie,
+              "push_config": this.formData.push_config
+            };
+          } else if (task_index != null) {
             task = { ...this.formData.tasklist[task_index] };
             delete task.runweek;
             delete task.enddate;
@@ -837,10 +846,6 @@
             while (true) {
               const { done, value } = await reader.read();
               if (done) {
-                console.log('Stream complete.');
-                this.modalLoading = false;
-                // 运行后刷新数据
-                this.fetchData();
                 break;
               }
               partialData += decoder.decode(value);
@@ -850,10 +855,12 @@
                   const eventData = line.substring(5).trim();
                   if (eventData === '[DONE]') {
                     this.modalLoading = false;
-                    this.fetchData();
-                    return;
+                    if (task_index == null) {
+                      this.fetchData();
+                    }
+                    break;
                   }
-                  this.run_log += eventData + '\n';
+                  this.run_log += eventData.replace('<', '<\u200B') + '\n';
                   // 在更新 run_log 后将滚动条滚动到底部
                   this.$nextTick(() => {
                     const modalBody = document.querySelector('.modal-body');
@@ -1005,12 +1012,8 @@
           axios.post('/get_share_detail', {
             shareurl: this.fileSelect.shareurl,
             stoken: this.fileSelect.stoken,
-            regex: {
-              pattern: this.formData.tasklist[this.fileSelect.index].pattern,
-              replace: this.formData.tasklist[this.fileSelect.index].replace,
-              taskname: this.formData.tasklist[this.fileSelect.index].taskname,
-              magic_regex: this.formData.magic_regex,
-            }
+            task: this.formData.tasklist[this.fileSelect.index],
+            magic_regex: this.formData.magic_regex,
           }).then(response => {
             if (response.data.success) {
               this.fileSelect.fileList = response.data.data.list;

@@ -28,8 +28,7 @@ import re
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
-from quark_auto_save import Quark
-from quark_auto_save import Config
+from quark_auto_save import Quark, Config, MagicRename
 
 
 def get_app_ver():
@@ -49,6 +48,8 @@ SCRIPT_PATH = os.environ.get("SCRIPT_PATH", "./quark_auto_save.py")
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
 PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "")
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
+HOST = os.environ.get("HOST", "0.0.0.0")
+PORT = os.environ.get("PORT", 5005)
 
 config_data = {}
 task_plugins_config_default = {}
@@ -191,6 +192,14 @@ def run_script_now():
         # 设置环境变量
         process_env = os.environ.copy()
         process_env["PYTHONIOENCODING"] = "utf-8"
+        if request.json.get("quark_test"):
+            process_env["QUARK_TEST"] = "true"
+            process_env["COOKIE"] = json.dumps(
+                request.json.get("cookie", []), ensure_ascii=False
+            )
+            process_env["PUSH_CONFIG"] = json.dumps(
+                request.json.get("push_config", {}), ensure_ascii=False
+            )
         if tasklist:
             process_env["TASKLIST"] = json.dumps(tasklist, ensure_ascii=False)
         process = subprocess.Popen(
@@ -265,7 +274,7 @@ def get_share_detail():
         return jsonify({"success": False, "message": "未登录"})
     shareurl = request.json.get("shareurl", "")
     stoken = request.json.get("stoken", "")
-    account = Quark("", 0)
+    account = Quark()
     pwd_id, passcode, pdir_fid, paths = account.extract_url(shareurl)
     if not stoken:
         get_stoken = account.get_stoken(pwd_id, passcode)
@@ -288,23 +297,49 @@ def get_share_detail():
 
     # 正则处理预览
     def preview_regex(data):
-        regex = request.json.get("regex", {})
-        pattern, replace = account.magic_regex_func(
-            regex.get("pattern", ""),
-            regex.get("replace", ""),
-            regex.get("taskname", ""),
-            regex.get("magic_regex", {}),
-        )
-        for item in data["list"]:
-            file_name = item["file_name"]
-            if re.search(pattern, item["file_name"]):
-                item["file_name_re"] = (
-                    re.sub(pattern, replace, file_name) if replace != "" else file_name
-                )
-        return share_detail
+        task = request.json.get("task", {})
+        magic_regex = request.json.get("magic_regex", {})
+        mr = MagicRename(magic_regex)
+        mr.set_taskname(task.get("taskname", ""))
+        account = Quark(config_data["cookie"][0])
+        get_fids = account.get_fids([task.get("savepath", "")])
+        if get_fids:
+            dir_file_list = account.ls_dir(get_fids[0]["fid"])["data"]["list"]
+            dir_filename_list = [dir_file["file_name"] for dir_file in dir_file_list]
+        else:
+            dir_file_list = []
+            dir_filename_list = []
 
-    if request.json.get("regex"):
-        share_detail = preview_regex(data)
+        for share_file in data["list"]:
+            if share_file["dir"] and task.get("update_subdir", False):
+                pattern, replace = task["update_subdir"], ""
+            else:
+                pattern, replace = mr.magic_regex_conv(
+                    task.get("pattern", ""), task.get("replace", "")
+                )
+            if re.search(pattern, share_file["file_name"]):
+                # 文件名重命名，目录不重命名
+                file_name_re = (
+                    share_file["file_name"]
+                    if share_file["dir"]
+                    else mr.sub(pattern, replace, share_file["file_name"])
+                )
+                if file_name_saved := mr.is_exists(
+                    file_name_re,
+                    dir_filename_list,
+                    (task.get("ignore_extension") and not share_file["dir"]),
+                ):
+                    share_file["file_name_saved"] = file_name_saved
+                else:
+                    share_file["file_name_re"] = file_name_re
+
+        # 文件列表排序
+        if re.search(r"\{I+\}", replace):
+            mr.set_dir_file_list(dir_file_list, replace)
+            mr.sort_file_list(data["list"])
+
+    if request.json.get("task"):
+        preview_regex(data)
 
     return jsonify({"success": True, "data": data})
 
@@ -313,7 +348,7 @@ def get_share_detail():
 def get_savepath_detail():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
-    account = Quark(config_data["cookie"][0], 0)
+    account = Quark(config_data["cookie"][0])
     paths = []
     if path := request.args.get("path"):
         path = re.sub(r"/+", "/", path)
@@ -349,7 +384,7 @@ def get_savepath_detail():
 def delete_file():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
-    account = Quark(config_data["cookie"][0], 0)
+    account = Quark(config_data["cookie"][0])
     if fid := request.json.get("fid"):
         response = account.delete([fid])
     else:
@@ -375,6 +410,8 @@ def add_task():
                 ),
                 400,
             )
+    if not request_data.get("addition"):
+        request_data["addition"] = task_plugins_config_default
     # 添加任务
     config_data["tasklist"].append(request_data)
     Config.write_json(CONFIG_PATH, config_data)
@@ -432,6 +469,8 @@ def init():
     # 读取配置
     config_data = Config.read_json(CONFIG_PATH)
     Config.breaking_change_update(config_data)
+    if not config_data.get("magic_regex"):
+        config_data["magic_regex"] = MagicRename().magic_regex
 
     # 默认管理账号
     config_data["webui"] = {
@@ -457,4 +496,8 @@ def init():
 if __name__ == "__main__":
     init()
     reload_tasks()
-    app.run(debug=DEBUG, host="0.0.0.0", port=5005)
+    app.run(
+        debug=DEBUG,
+        host=HOST,
+        port=PORT,
+    )

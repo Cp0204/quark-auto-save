@@ -6,7 +6,7 @@
     "QUARK_SIGN_NOTIFY": true,
     "其他推送渠道//此项可删": "配置方法同青龙"
   },
-  "media_servers": {
+  "plugins": {
     "emby": {
       "url": "",
       "token": ""
@@ -20,22 +20,37 @@
     "$BLACK_WORD": {
       "pattern": "^(?!.*纯享)(?!.*加更)(?!.*超前企划)(?!.*训练室)(?!.*蒸蒸日上).*",
       "replace": ""
+    },
+    "$SHOW_PRO": {
+      "pattern": "^(?!.*纯享)(?!.*加更)(?!.*抢先)(?!.*预告).*?第\\d+期.*",
+      "replace": "{II}.{TASKNAME}.{DATE}.第{E}期{PART}.{EXT}"
+    },
+    "$TV_PRO": {
+      "pattern": "",
+      "replace": "{TASKNAME}.{SXX}E{E}.{EXT}"
     }
   },
   "tasklist": [
     {
       "taskname": "测试-魔法匹配剧集（这是一组有效分享，配置CK后可测试任务是否正常）",
       "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-夸克自动转存测试",
-      "savepath": "/夸克自动转存测试",
+      "savepath": "/夸克自动转存测试/剧集",
       "pattern": "$TV",
       "replace": "",
       "enddate": "2099-01-30",
       "update_subdir": "4k|1080p"
     },
     {
-      "taskname": "测试-广告过滤",
+      "taskname": "测试-综艺命名",
+      "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-%E5%A4%B8%E5%85%8B%E8%87%AA%E5%8A%A8%E8%BD%AC%E5%AD%98%E6%B5%8B%E8%AF%95/71df3902f42d4270a58c0eb12aa2b014-%E7%BB%BC%E8%89%BA%E5%91%BD%E5%90%8D",
+      "savepath": "/夸克自动转存测试/综艺命名",
+      "pattern": "^(?!.*纯享)(?!.*加更)(?!.*抢先)(?!.*预告).*?第\\d+期.*",
+      "replace": "{II}.{TASKNAME}.{DATE}.第{E}期{PART}.{EXT}"
+    },
+    {
+      "taskname": "测试-去广告字符",
       "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-夸克自动转存测试/680d91e490814da0927c38b432f88edc-带广告文件夹",
-      "savepath": "/夸克自动转存测试/带广告文件夹",
+      "savepath": "/夸克自动转存测试/去广告字符",
       "pattern": "【XX电影网】(.*)\\.(mp4|mkv)",
       "replace": "\\1.\\2",
       "enddate": "2099-01-30"
@@ -43,7 +58,7 @@
     {
       "taskname": "测试-超期任务",
       "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-夸克自动转存测试",
-      "savepath": "/夸克自动转存测试",
+      "savepath": "/夸克自动转存测试/不会运行",
       "pattern": "",
       "replace": "",
       "enddate": "2000-01-30",
