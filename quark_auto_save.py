@@ -323,7 +323,7 @@ class MagicRename:
             filename = os.path.splitext(filename)[0]
             filename_list = [os.path.splitext(f)[0] for f in filename_list]
         # {I+} 模式，用I通配数字序号
-        if match := re.match(r"\{I+\}", filename):
+        if match := re.search(r"\{I+\}", filename):
             magic_i = match.group()
             pattern_i = r"\d" * magic_i.count("I")
             pattern = filename.replace(magic_i, pattern_i)
