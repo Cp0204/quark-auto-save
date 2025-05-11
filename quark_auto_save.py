@@ -303,7 +303,7 @@ class MagicRename:
                 if key in pattern:
                     pattern = pattern.replace(key, "🔣")
             pattern = re.sub(r"\\[0-9]+", "🔣", pattern)  # \1 \2 \3
-            pattern = f"({re.escape(pattern).replace("🔣", ".*?").replace("🔢", f")({pattern_i})(")})"
+            pattern = f"({re.escape(pattern).replace('🔣', '.*?').replace('🔢', f')({pattern_i})(')})"
             # print(f"pattern: {pattern}")
             # 获取起始编号
             if match := re.match(pattern, filename_list[-1]):
