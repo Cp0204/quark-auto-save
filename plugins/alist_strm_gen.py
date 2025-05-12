@@ -137,7 +137,7 @@ class Alist_strm_gen:
                 if item.get("is_dir"):
                     self.check_dir(item_path)
                 else:
-                    self.generate_strm(item_path)
+                    self.generate_strm(item_path, item)
 
     def get_file_list(self, path, force_refresh=False):
         url = f"{self.url}/api/fs/list"
@@ -157,7 +157,7 @@ class Alist_strm_gen:
             print(f"📺 Alist-Strm生成: 获取文件列表出错❌ {e}")
         return {}
 
-    def generate_strm(self, file_path):
+    def generate_strm(self, file_path, file_info):
         ext = file_path.split(".")[-1]
         if ext.lower() in self.video_exts:
             strm_path = (
@@ -169,8 +169,11 @@ class Alist_strm_gen:
                 return
             if not os.path.exists(os.path.dirname(strm_path)):
                 os.makedirs(os.path.dirname(strm_path))
+            sign_param = (
+                "" if not file_info.get("sign") else f"?sign={file_info['sign']}"
+            )
             with open(strm_path, "w", encoding="utf-8") as strm_file:
-                strm_file.write(f"{self.strm_server}{file_path}")
+                strm_file.write(f"{self.strm_server}{file_path}{sign_param}")
             print(f"📺 生成STRM文件 {strm_path} 成功✅")
 
     def get_root_folder_full_path(self, cookie, pdir_fid):
