@@ -24,7 +24,7 @@ class Aria2:
     default_config = {
         "host_port": "172.17.0.1:6800",  # Aria2 RPC地址
         "secret": "",  # Aria2 RPC 密钥
-        "dir": "/Downloads",  # 下载目录，需要Aria2有权限访问
+        "dir": "/downloads",  # 下载目录，需要Aria2有权限访问
     }
     default_task_config = {
         "auto_download": False,  # 是否自动添加下载任务
