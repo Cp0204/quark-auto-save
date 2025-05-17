@@ -19,8 +19,8 @@
 
 ## 功能
 - 部署方式
-  - [x] 兼容青龙
-  - [x] 支持 Docker 独立部署，WebUI 配置
+  - [x] 支持 Docker 部署，WebUI 配置
+  - [x] 可能兼容青龙
 
 - 分享链接
   - [x] 支持分享链接的子目录
@@ -122,7 +122,7 @@ networks: {}
 ### 刷新媒体库
 在有新转存时，可触发完成相应功能，如自动刷新媒体库、生成 .strm 文件等。配置指南：[插件配置](https://github.com/x1ao4/quark-auto-save-x/wiki/插件配置)
 
-媒体库模块以插件的方式的集成，如果你有兴趣请参考[插件开发指南](https://github.com/Cp0204/quark-auto-save/tree/main/plugins)。
+媒体库模块以插件的方式的集成，如果你有兴趣请参考[插件开发指南](https://github.com/x1ao4/quark-auto-save-x/tree/x/plugins)。
 
 ### 更多使用技巧
 请参考 Wiki ：[使用技巧集锦](https://github.com/x1ao4/quark-auto-save-x/wiki/使用技巧集锦)
