@@ -501,7 +501,7 @@ class Quark:
                 "_fetch_banner": "0",
                 "_fetch_share": _fetch_share,
                 "_fetch_total": "1",
-                "_sort": "file_type:asc,updated_at:desc",
+                "_sort": "file_type:asc,file_name:desc",
             }
             response = self._send_request("GET", url, params=querystring).json()
             if response["code"] != 0:
