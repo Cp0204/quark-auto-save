@@ -1,0 +1,3720 @@
+/**
+ * main.css - 夸克自动转存 WebUI 样式文件
+ * 整合了所有 WebUI 的样式，包括 index.html、login.html 和 dashboard.css 中的样式
+ */
+
+/* --------------- 基础样式 --------------- */
+body {
+  font-size: 1rem;
+  padding-bottom: 110px;
+  color: var(--dark-text-color);
+}
+
+/* 登录页面样式 */
+body.login-page {
+  background: linear-gradient(135deg, #b2c8ff 0%, #739aff 100%);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 0;
+}
+
+/* 响应式布局调整 */
+@media (max-width: 768px) {
+  .container-fluid {
+    padding-right: 5px;
+    padding-left: 5px;
+  }
+}
+
+@media (min-width: 769px) {
+  .container-fluid {
+    padding-right: 5px;
+    padding-left: 5px;
+  }
+  /* 减少列padding */
+  .row > [class*="col-"] {
+    padding-right: 10px;  /* 默认是15px */
+    padding-left: 10px;   /* 默认是15px */
+  }
+  
+  /* 同时调整row的负margin以保持对齐 */
+  .row {
+    margin-right: -10px;
+    margin-left: -10px;
+  }
+}
+
+/* 页面宽度模式 - 窄 */
+.page-width-narrow .container-fluid {
+  max-width: 1440px !important;
+  margin: 0 auto;
+}
+
+/* 页面宽度模式 - 中 */
+.page-width-medium .container-fluid {
+  max-width: 1680px !important;
+  margin: 0 auto;
+}
+
+/* 页面宽度模式 - 宽 */
+.page-width-wide .container-fluid {
+  max-width: 2160px !important;
+  margin: 0 auto;
+}
+
+/* --------------- 通用工具类 --------------- */
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.cursor-pointer:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  padding-right: 25px;
+}
+
+.position-relative {
+  position: relative;
+}
+
+/* --------------- Toast 通知组件 --------------- */
+.toast-container-center {
+  position: fixed;
+  top: 91.5px;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9999;
+}
+
+.toast-custom {
+  min-width: 134px;
+  background-color: var(--focus-border-color);
+  box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
+  border: none;
+  border-radius: 6px;
+}
+
+.toast-body-custom {
+  text-align: center;
+  padding: 1rem 0.75rem;
+  color: #fff;
+  font-size: 0.95rem;
+}
+
+/* --------------- 底部按钮 --------------- */
+.bottom-buttons {
+  z-index: 99;
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  background-color: transparent;
+  display: flex;
+  flex-direction: row;
+  transform: translateX(-50%);
+}
+
+.bottom-buttons button {
+  border-radius: 50%;
+  margin: 0 10px;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  box-shadow: none;
+}
+
+/* --------------- 标题和内容布局 --------------- */
+.title {
+  margin-top: 30px;
+  margin-bottom: 10px;
+}
+
+/* 缩小p标签之间的行距 */
+.row.title + p {
+  margin-bottom: 2px;
+}
+
+/* --------------- 系统配置页面标题样式 --------------- */
+/* 系统配置页面标题容器样式 */
+main .row.title {
+  margin-top: 20px;
+  margin-bottom: 6.5px;
+  padding-left: 0px; /* 不使用padding，因为不能有负值 */
+  margin-left: -15px; /* 添加负边距向左移动2px */
+}
+
+/* 系统配置页面标题文字样式 */
+main .row.title h2 {
+  font-size: 1.25rem !important; /* 标题字体大小 */
+  font-weight: 500; /* 字体加粗 */
+  color: var(--dark-text-color); /* 使用统一的文本颜色变量 */
+  margin-bottom: 0;
+  margin-top: 0;
+  line-height: 1.5;
+  padding-left: 0px; /* 标题文字左内边距 */
+}
+
+/* 标题旁边的问号图标容器样式 */
+main .row.title .badge {
+  margin-left: -2px;
+  vertical-align: middle;
+  background-color: transparent !important; /* 移除背景色 */
+  padding: 0 !important; /* 移除内边距 */
+  border: none !important; /* 移除边框 */
+}
+
+/* 标题旁边的问号图标链接样式 */
+main .row.title .badge a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none !important;
+  color: inherit;
+  padding: 2px;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+/* 问号图标链接悬停状态 */
+main .row.title .badge a:hover {
+  text-decoration: none !important;
+}
+
+/* 问号图标链接悬停并聚焦状态 */
+main .row.title .badge a:hover,
+main .row.title .badge a:focus {
+  outline: none;
+}
+
+/* 标题旁边的问号图标样式 */
+main .row.title .bi-question-circle {
+  font-size: 0.9rem;
+  color: var(--focus-border-color);
+  opacity: 1;
+  position: relative;
+  top: -6.5px;
+  transition: color 0.2s, opacity 0.2s;
+}
+
+/* 问号图标悬停状态 */
+main .row.title .badge a:hover .bi-question-circle {
+  color: var(--dark-text-color);
+  opacity: 1;
+}
+
+/* 系统配置页面第一个标题的上边距特殊处理 */
+main div[v-if="activeTab === 'config'"] .row.title:first-child {
+  margin-top: 20px;
+}
+
+/* --------------- 导航栏样式 --------------- */
+.navbar-title {
+  margin-left: -2px; /* 将导航栏标题"夸克自动转存"向左移动2px */
+}
+
+/* 导航栏样式 */
+.navbar-brand {
+  padding-top: .75rem;
+  padding-bottom: .75rem;
+  background-color: rgba(0, 0, 0, .25);
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, .25);
+  height: 54px;
+  display: flex;
+  align-items: center;
+  transition: none; /* 禁用动画效果 */
+}
+
+.navbar .navbar-toggler {
+  right: 1rem;
+}
+
+.navbar .form-control {
+  padding: .75rem 1rem;
+  border-width: 0;
+  border-radius: 0;
+}
+
+.form-control-dark {
+  color: #fff;
+  background-color: rgba(255, 255, 255, .1);
+  border-color: rgba(255, 255, 255, .1);
+}
+
+.form-control-dark:focus {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* 云朵图标在不同状态下的位置调整 */
+.navbar-brand i.bi-clouds {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 5px; /* 展开状态下右移主标题夸克自动转存 */
+  position: relative;
+  right: 2px; /* 展开状态下右移云朵图标 */
+  top: 0; /* 向上移动3px修复偏移问题 */
+  transition: none; /* 禁用动画效果 */
+  font-size: 1.624rem; /* 添加云朵图标的大小设置 */
+}
+
+/* --------------- 侧边栏样式 --------------- */
+.sidebar {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 100;
+  padding: 54px 0 0;
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+  transition: none; /* 禁用动画效果 */
+  overflow-x: hidden; /* 防止水平滚动条 */
+}
+
+.sidebar-sticky {
+  position: relative;
+  top: 0;
+  height: calc(100vh - 54px);
+  padding-top: 20px; /* 侧边栏顶距 */
+  overflow-x: hidden;
+  overflow-y: auto;
+  transition: none; /* 禁用动画效果 */
+}
+
+@supports ((position: -webkit-sticky) or (position: sticky)) {
+  .sidebar-sticky {
+    position: -webkit-sticky;
+    position: sticky;
+  }
+}
+
+.sidebar .nav-link {
+  font-size: medium;
+  color: var(--dark-text-color);
+  padding: 8px 7px;
+  height: 32px; /* 侧边栏菜单项高度 */
+  line-height: 22px;
+  display: flex;
+  align-items: center;
+  transition: none; /* 禁用动画效果 */
+  white-space: nowrap; /* 防止文字换行 */
+  overflow: hidden; /* 隐藏溢出内容 */
+}
+
+/* 添加导航菜单项之间的间距 */
+.sidebar .nav-item {
+  margin-bottom: 8px; /* 增加菜单项之间的间距 */
+}
+
+.sidebar .nav-link:hover {
+  background-color: #e6f1ff; /* 导航悬停背景颜色 */
+}
+
+.sidebar .nav-link i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  margin-left: 7px;
+  width: 20px;
+  transition: none; /* 禁用动画效果 */
+  position: static; /* 保持在固定位置，不要使用相对定位 */
+}
+
+.sidebar .nav-link.active {
+  background-color: #0D53FF;
+  color: white !important;
+}
+
+.sidebar-heading {
+  font-size: .75rem;
+  text-transform: uppercase;
+}
+
+/* --------------- 侧边栏折叠样式 --------------- */
+.nav-text {
+  transition: none; /* 禁用动画效果 */
+  white-space: nowrap;
+  opacity: 1;
+}
+
+.sidebar-collapsed {
+  width: 54px !important;
+  min-width: 54px !important;
+  max-width: 54px !important;
+  flex: 0 0 54px !important;
+  overflow-x: hidden;
+  transition: none; /* 禁用动画效果 */
+}
+
+.sidebar-collapsed .nav-text {
+  opacity: 0;
+  width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.collapse-text {
+  transition: none; /* 禁用动画效果 */
+  white-space: nowrap;
+  opacity: 1;
+}
+
+.sidebar-collapsed .collapse-text {
+  opacity: 0;
+  width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar-collapsed .nav-text, 
+.sidebar-collapsed .collapse-text {
+  display: block; /* 改用opacity控制而不是display:none，避免跳动 */
+  visibility: hidden;
+  max-width: 0;
+}
+
+.sidebar-collapsed + main {
+  max-width: calc(100% - 54px) !important;
+  flex: 0 0 calc(100% - 54px) !important;
+  transition: none; /* 禁用动画效果 */
+}
+
+/* 当侧边栏折叠时调整导航标题宽度 */
+.sidebar-collapsed-navbar-brand {
+  width: 54px !important;
+  min-width: 54px !important;
+  max-width: 54px !important;
+  flex: 0 0 54px !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  justify-content: center;
+  transition: none; /* 禁用动画效果 */
+  height: 54px !important; /* 保持导航栏高度一致 */
+}
+
+.sidebar-collapsed-navbar-brand i.bi-clouds {
+  right: 0; /* 折叠状态下额外右移，总共成为0 */
+  top: 0; /* 云朵图标与展开状态保持一致高度 */
+  margin-right: 0;
+  margin-left: 0;
+}
+
+.sidebar-collapsed-navbar-brand .navbar-title {
+  display: none;
+}
+
+.sidebar-collapsed .nav-link {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+  text-align: center;
+  width: 100%;
+}
+
+.sidebar-collapsed .nav-link i {
+  margin-right: 0;
+  margin-left: 0;
+  transform: translateX(0); /* 确保图标在收起状态下没有位移 */
+}
+
+/* 底部GitHub图标在折叠状态下的调整 */
+.sidebar-collapsed .text-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 设置导航栏最大宽度为188px，超过后不再增长 */
+@media (min-width: 768px) {
+  #sidebarMenu.col-md-2,
+  .navbar-brand.col-md-2 {
+    max-width: 184px;
+    flex: 0 0 184px;
+  }
+  
+  main.col-md-10 {
+    max-width: calc(100% - 184px);
+    flex: 0 0 calc(100% - 184px);
+  }
+}
+
+/* 底部链接样式 */
+.bottom-links {
+  position: absolute;
+  bottom: 20px;
+  width: 100%;
+}
+
+.bottom-links .nav-flex-column {
+  margin-bottom: 0;
+}
+
+.bottom-links .nav-item {
+  margin-bottom: -8px;
+}
+
+.bottom-links .nav-item + .nav-item {
+  margin-top: 0; /* 底部链接项之间的间距，调整这个值可以改变两个链接之间的垂直间距 */
+}
+
+.bottom-links .nav-link {
+  color: var(--dark-text-color);
+  transition: none; /* 禁用动画效果 */
+  padding-top: 0.1rem;
+  padding-bottom: 0.1rem;
+}
+
+.bottom-links .nav-link:hover {
+  color: #0D53FF;
+  background-color: transparent;
+}
+
+/* 侧边栏折叠相关功能只在大尺寸屏幕上启用 */
+@media (max-width: 767.98px) {
+  .sidebar-collapsed {
+    width: auto !important;
+    min-width: auto !important;
+    max-width: none !important;
+    flex: auto !important;
+  }
+  
+  .sidebar-collapsed + main {
+    max-width: 100% !important;
+    flex: 0 0 100% !important;
+  }
+  
+  .sidebar-collapsed-navbar-brand {
+    width: auto !important;
+    min-width: auto !important;
+    max-width: none !important;
+    flex: auto !important;
+  }
+  
+  .sidebar-collapsed .nav-text,
+  .sidebar-collapsed .collapse-text {
+    display: block;
+    visibility: visible;
+    opacity: 1;
+    width: auto;
+    max-width: none;
+  }
+  
+  .sidebar-collapsed .nav-link {
+    justify-content: flex-start;
+    padding-left: 10px;
+    padding-right: 10px;
+    width: 100%;
+  }
+  
+  .sidebar-collapsed .nav-link i {
+    margin-right: 8px;
+    margin-left: 0;
+    width: 20px;
+  }
+  
+  /* 移动设备下底部链接的样式 */
+  .sidebar-collapsed .bottom-links .nav-text {
+    display: block;
+    visibility: visible;
+    opacity: 1;
+    width: auto;
+    max-width: none;
+  }
+  
+  .sidebar-collapsed .bottom-links .nav-link {
+    justify-content: flex-start;
+    padding-left: 10px;
+    padding-right: 10px;
+    width: 100%;
+  }
+  
+  .sidebar-collapsed .nav-item,
+  .sidebar-collapsed .bottom-links .nav-item {
+    width: 100%;
+    display: block;
+  }
+  
+  /* 确保导航栏高度足够 */
+  .navbar {
+    min-height: 54px;
+  }
+
+  .sidebar-collapsed .sidebar-sticky,
+  .sidebar-collapsed .nav.flex-column {
+    display: block;
+    align-items: initial;
+  }
+}
+
+/* --------------- 顶部操作按钮样式 --------------- */
+/* 顶部操作按钮容器 */
+.navbar-actions {
+  display: flex;
+  position: absolute;
+  height: 54px;
+  align-items: center;
+}
+
+/* 变量定义 - 颜色 */
+:root {
+  /* Bootstrap 导航栏背景色 */
+  --navbar-bg-color: #343a40;
+  /* 移动端导航栏覆盖颜色 - 黑色半透明 */
+  --navbar-mobile-overlay: rgba(0, 0, 0, 0.5);
+}
+
+/* 顶部操作按钮样式 */
+.navbar-action-btn {
+  width: 32px !important;
+  height: 32px !important;
+  padding: 6px 0 !important;
+  text-align: center !important;
+  border-radius: 6px !important;
+  background-color: transparent !important;
+  border: 1px solid #fff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-right: 8px !important;
+  color: #fff !important;
+  transition: all 0.2s !important;
+}
+
+/* 桌面端按钮的悬停状态样式 */
+@media (min-width: 768px) {
+  .navbar-action-btn:hover {
+    background-color: #fff !important;
+    color: var(--navbar-bg-color) !important;
+    border-color: #fff !important;
+  }
+  
+  /* 确保按钮内图标颜色也随之变化 */
+  .navbar-action-btn:hover i {
+    color: var(--navbar-bg-color) !important;
+  }
+}
+
+/* 移动端按钮的悬停状态样式 */
+@media (max-width: 767.98px) {
+  .navbar-action-btn:hover {
+    background-color: #fff !important;
+    color: #272b30 !important;
+    border-color: #fff !important;
+  }
+  
+  /* 确保按钮内图标颜色也随之变化 */
+  .navbar-action-btn:hover i {
+    color: #272b30 !important;
+  }
+}
+
+/* 激活和焦点状态保持默认样式 */
+.navbar-action-btn:active,
+.navbar-action-btn:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* 移动模式下的菜单按钮位置 */
+@media (max-width: 767.98px) {
+  .navbar-actions {
+    right: 52px; /* 菜单按钮宽度(32px) + 间距(8px) */
+    flex-direction: row;
+  }
+  
+  /* 确保在移动设备上隐藏页面宽度按钮 */
+  .navbar-action-btn.d-none.d-md-inline-block {
+    display: none !important;
+  }
+}
+
+/* 桌面模式下的按钮位置 */
+@media (min-width: 768px) {
+  .navbar-actions {
+    right: 12px; /* 与移动模式下保持一致的边距 */
+  }
+}
+
+/* 覆盖Bootstrap和dashboard.css中的默认样式 */
+.navbar .navbar-toggler.navbar-toggler-square {
+  border: 1px solid #fff !important;
+}
+
+/* 确保响应式类正常工作 */
+@media (min-width: 768px) {
+  button.navbar-toggler.navbar-toggler-square.position-absolute.d-md-none {
+    display: none !important;
+  }
+  .d-md-none {
+    display: none !important;
+  }
+}
+
+/* 添加移动端菜单按钮的悬停样式 */
+@media (max-width: 767.98px) {
+  .navbar-toggler-square:hover {
+    background-color: #fff !important;
+    color: #272b30 !important;
+    border-color: #fff !important;
+  }
+  
+  /* 确保按钮内图标颜色也随之变化 */
+  .navbar-toggler-square:hover i {
+    color: #272b30 !important;
+  }
+}
+
+/* 修改菜单按钮的基础样式 - 始终使用透明背景和白色图标（默认折叠状态） */
+.navbar-toggler-square {
+  width: 32px !important;
+  height: 32px !important;
+  padding: 6px 0 !important;
+  text-align: center !important;
+  border-radius: 6px !important;
+  position: absolute !important;
+  right: 20px !important; /* 右边距 */
+  background-color: transparent !important;
+  border: 1px solid #fff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.1s !important; /* 缩短过渡效果时间，使恢复更快 */
+  color: #fff !important;
+}
+
+/* 确保菜单按钮图标的基础样式 */
+.navbar-toggler-square i {
+  color: #fff !important;
+  font-size: 1.3rem;
+  position: relative;
+  top: 0.5px; /* 向下微调1px使图标居中 */
+  transition: color 0.1s !important; /* 缩短过渡效果时间，使恢复更快 */
+}
+
+/* 添加移动端菜单按钮的激活和聚焦样式 - 仅在按下时生效 */
+.navbar-toggler-square:active {
+  outline: none !important;
+  box-shadow: none !important;
+  background-color: #fff !important;
+  color: #272b30 !important;
+  border-color: #fff !important;
+}
+
+/* 确保按钮按下状态下图标颜色也随之变化 */
+.navbar-toggler-square:active i {
+  color: #272b30 !important;
+}
+
+/* 移除焦点状态的特殊样式，使其与默认状态一致 */
+.navbar-toggler-square:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* 在桌面模式下明确隐藏菜单按钮 */
+@media (min-width: 768px) {
+  .navbar-toggler-square {
+    display: none !important;
+  }
+}
+
+/* 自定义菜单按钮图标样式 */
+.menu-icon {
+  position: relative;
+  width: 20px;
+  height: 16px;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.menu-icon span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background-color: #fff;
+  border-radius: 1px;
+}
+
+/* --------------- 按钮样式 --------------- */
+/* 系统配置页面中添加和删除按钮的符号样式 */
+.config-page-btn-symbol {
+  font-size: 20px;
+  font-weight: bold;
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  position: static;
+}
+
+/* 将添加和删除按钮设为正方形 */
+.btn-outline-primary,
+.btn-outline-danger {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  text-align: center;
+  font-size: 16px;
+  line-height: 30px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 筛选按钮设为正方形 */
+.filter-btn-square {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  text-align: center;
+  font-size: 16px;
+  line-height: 30px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* X图标的样式 */
+.bi-x-lg {
+  color: var(--dark-text-color);
+  font-size: 1.05rem;
+}
+
+/* 文件夹图标样式 */
+.bi-folder {
+  color: var(--dark-text-color);
+  font-size: 0.98rem;
+}
+
+/* 恢复图标样式 */
+.bi-reply {
+  color: var(--dark-text-color);
+  font-size: 1.16rem;
+  position: relative;
+  top: -1.5px;
+}
+
+/* 调整下拉选择框的内边距，使文本与输入框占位符位置一致 */
+select.form-control {
+  padding: 0 8px !important; /* 移除右侧额外空间，图标已经用DOM实现 */
+  text-indent: 0 !important; 
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-image: none !important; /* 移除默认的背景图像 */
+}
+
+/* 下拉箭头图标样式 */
+.select-arrow {
+  font-size: 1.15rem !important; /* 稍微调小一点 */
+  right: 7.5px !important; /* 向右调整 */
+  top: calc(50% - 0.5px) !important; /* 微调上下位置，使其更精确垂直居中 */
+  transform: translateY(-50%) !important; /* 确保垂直居中 */
+}
+
+/* 确保任务筛选下拉框中的文本垂直居中显示 */
+.task-filter-select {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  height: 32px !important;
+  padding-left: 8px !important;
+  text-indent: 0 !important;
+  text-align: left !important;
+  box-sizing: border-box !important;
+  border-top-left-radius: 0 !important; /* 移除左上角圆角 */
+  border-bottom-left-radius: 0 !important; /* 移除左下角圆角 */
+}
+
+/* 为确保输入组中select元素的边角正确 */
+.input-group-prepend + div > select.form-control {
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+}
+
+/* 下拉框选项的垂直居中 */
+.task-filter-select option {
+  padding: 8px !important;
+  line-height: 1.5 !important;
+}
+
+/* 搜索图标样式 */
+.bi-search {
+  color: var(--dark-text-color);
+  font-size: 0.98rem;
+}
+
+/* 链接图标样式 */
+.bi-link-45deg {
+  color: var(--dark-text-color);
+  font-size: 1.15rem;
+}
+
+/* 谷歌图标样式 */
+.bi-google {
+  color: var(--dark-text-color);
+  font-size: 0.95rem;
+}
+
+/* 日历图标样式 */
+.bi-calendar3 {
+  color: var(--dark-text-color);
+  font-size: 0.9rem;
+}
+
+/* TMDB图标和豆瓣图标样式 */
+.tmdb-icon {
+  width: 1.07rem;
+  height: auto;     /* 保持图标等比缩放 */
+  filter: brightness(0) saturate(100%) invert(23%) sepia(0%) saturate(1%) hue-rotate(181deg) brightness(95%) contrast(86%); /* 使SVG图标颜色为var(--dark-text-color)，即#404040 */
+}
+
+.douban-icon {
+  width: 1rem;   /* 18.4px equivalent */
+  height: auto;     /* 保持图标等比缩放 */
+  filter: brightness(0) saturate(100%) invert(23%) sepia(0%) saturate(1%) hue-rotate(181deg) brightness(95%) contrast(86%); /* 使SVG图标颜色为var(--dark-text-color)，即#404040 */
+}
+
+.input-group-text:has(.tmdb-icon):hover img,
+.input-group-text:has(.douban-icon):hover img {
+  filter: brightness(0) invert(1); /* 将SVG图标转换为白色 */
+}
+
+/* 图标按钮悬停样式 */
+.btn-outline-secondary:hover .bi-x-lg,
+.btn-outline-secondary:hover .bi-folder,
+.btn-outline-secondary:hover .bi-search,
+.btn-outline-secondary:hover .bi-link-45deg,
+.btn-outline-secondary:hover .bi-google,
+.btn-outline-secondary:hover .bi-calendar3,
+.btn-outline-secondary:hover .bi-eye,
+.btn-outline-secondary:hover .bi-eye-slash,
+.btn-outline-secondary:hover .bi-reply,
+.btn-primary:hover .bi-search,
+.input-group-text:hover .bi-google,
+.input-group-text:hover .bi-link-45deg,
+.input-group-text:hover .tmdb-icon,
+.input-group-text:hover .douban-icon {
+  color: #fff;
+}
+
+/* 按钮基本样式 */
+.btn-outline-secondary {
+  border-color: var(--dark-text-color);
+  color: var(--dark-text-color);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+}
+
+/* 带图标的按钮样式（正方形） */
+.btn-outline-secondary:has(i.bi),
+.filter-btn-square,
+.input-group-append .btn:has(i.bi):not(.btn-primary),
+.input-group-prepend .btn:has(i.bi):not(.btn-primary) {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+/* 按钮悬停时的背景色 */
+.btn-outline-secondary:hover {
+  background-color: var(--dark-text-color);
+  border-color: var(--dark-text-color);
+}
+
+/* 添加按钮点击时的背景色，使其与悬停状态一致 */
+.btn-outline-secondary:active {
+  background-color: var(--dark-text-color) !important;
+  border-color: var(--dark-text-color) !important;
+  color: #fff !important;
+}
+
+/* X按钮特殊样式 */
+.btn-outline-secondary:has(.bi-x-lg) {
+  box-shadow: none !important;
+  transition: background-color 0.15s, box-shadow 0.05s;
+}
+
+.btn-outline-secondary:has(.bi-x-lg):hover {
+  box-shadow: none !important;
+}
+
+.btn-outline-secondary:has(.bi-x-lg):focus {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.btn-outline-secondary:has(.bi-x-lg):active {
+  box-shadow: none !important;
+  background-color: var(--dark-text-color) !important;
+  border-color: var(--dark-text-color) !important;
+  color: #fff !important;
+  transition: all 0.15s ease-out;
+}
+
+/* 确保X按钮点击后恢复到原始状态 */
+.btn-outline-secondary:has(.bi-x-lg):not(:hover):not(:active) {
+  background-color: transparent !important;
+  border-color: var(--dark-text-color) !important;
+  color: var(--dark-text-color) !important;
+  transition: background-color 0.15s ease-out;
+}
+
+/* 带文本的按钮样式 */
+.btn-outline-secondary:not(:has(i.bi)) {
+  padding: 0 8px;
+  height: 32px;
+}
+
+/* 确保按钮组中的按钮高度一致 */
+.input-group-append .btn,
+.input-group-prepend .btn {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 修改搜索按钮样式，与其他按钮统一 */
+.btn-primary:has(.bi-search) {
+  background-color: transparent;
+  border-color: var(--dark-text-color);
+  color: var(--dark-text-color);
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-primary:has(.bi-search):hover {
+  background-color: var(--dark-text-color);
+  border-color: var(--dark-text-color);
+}
+
+/* 修改谷歌和链接图标的容器样式 */
+.input-group-text:has(.bi-google),
+.input-group-text:has(.bi-link-45deg),
+.input-group-text:has(.tmdb-icon),
+.input-group-text:has(.douban-icon) {
+  background-color: transparent !important;
+  border-color: var(--dark-text-color) !important;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.input-group-text:has(.bi-google):hover,
+.input-group-text:has(.bi-link-45deg):hover,
+.input-group-text:has(.tmdb-icon):hover,
+.input-group-text:has(.douban-icon):hover {
+  background-color: var(--dark-text-color) !important;
+  color: #fff;
+}
+
+.input-group-text:has(.bi-google) a,
+.input-group-text:has(.bi-link-45deg) a,
+.input-group-text:has(.tmdb-icon) a,
+.input-group-text:has(.douban-icon) a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+/* 自定义表单控件样式 */
+.form-control {
+  height: 32px !important;
+  border-radius: 6px !important;
+  padding: 0 8px !important;
+  line-height: 1.5;
+  color: var(--dark-text-color);
+  border-color: var(--border-color) !important; /* 使用变量替代硬编码颜色 */
+  font-size: 0.95rem; /* 确保所有输入框字体大小一致 */
+  font-weight: normal; /* 标准字重 */
+  letter-spacing: normal; /* 标准字间距 */
+}
+
+textarea.form-control {
+  height: auto !important;
+  line-height: 1.5;
+  padding: 8px !important;
+}
+
+/* 确保输入组内的控件边角正确 */
+.input-group .form-control:not(:last-child) {
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+.input-group .form-control:not(:first-child) {
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+}
+
+/* 输入组前缀后缀样式 */
+.input-group-text {
+  height: 32px;
+  border-radius: 6px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  color: var(--dark-text-color);
+  border-color: var(--border-color) !important; /* 使用变量替代硬编码颜色 */
+  background-color: #ededf0!important; /* 修改背景色为更浅的灰色 */
+  border-width: 1px !important; /* 确保边框宽度为1px */
+}
+
+.input-group-prepend .input-group-text {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right-width: 1px !important; /* 确保右侧边框宽度为1px */
+}
+
+/* 处理正则命名标签与前一个输入框的边框重叠 */
+.input-group input + .input-group-prepend .input-group-text {
+  margin-left: -1px; /* 向左移动1px，使边框重叠 */
+}
+
+.input-group-append .input-group-text {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* 输入组内按钮样式 */
+.input-group-append .btn:first-child {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.input-group-prepend .btn:last-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* --------------- 扩展按钮样式 --------------- */
+.expand-button {
+  position: absolute;
+  right: 5px;
+  top: 10.5px; /* 恢复为固定位置 */
+  transform: none; /* 移除垂直居中的转换 */
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+  background: #fff;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  text-align: center;
+  line-height: 18px;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.2); /* 保留阴影效果 */
+  z-index: 2; /* 保留更高的层级 */
+}
+
+.position-relative:hover .expand-button {
+  opacity: 1;
+}
+
+.expanded-text {
+  white-space: normal;
+  padding: 0 0; /* 展开时的上下内边距 */
+  word-break: break-all;
+  display: block; /* 确保展开的内容是块级元素 */
+  line-height: 1.5; /* 设置合理的行高 */
+  margin-top: 4px; /* 与上方内容保持一定间距 */
+  margin-bottom: 4px; /* 添加底部边距，与表格底部分割线保持一致的距离 */
+  position: relative; /* 确保定位准确 */
+  padding-right: 25px; /* 为展开按钮预留空间 */
+}
+
+.expand-button .bi {
+  font-size: 0.7em;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+
+/* --------------- 表格样式 --------------- */
+.table-responsive {
+  overflow-x: auto;
+}
+
+.table th {
+  white-space: nowrap;
+  background-color: #f8f9fa;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* 表头样式调整 */
+.table thead th {
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-color); /* 修改底部边框为1px */
+  border-top: 1px solid var(--border-color); /* 添加上边框线 */
+  padding-top: 8px; /* 增加上内边距 */
+  padding-bottom: 8px; /* 增加下内边距 */
+  padding-left: 9px !important; /* 表头左内边距，与按钮一致 */
+  padding-right: 9px !important; /* 表头右内边距，与按钮一致 */
+  background-color: var(--button-gray-background-color); /* 表头背景色 */
+  color: var(--dark-text-color); /* 表头文字颜色 */
+}
+
+/* 表头悬停样式 */
+.table thead th.cursor-pointer:hover {
+  background-color: #f7f7fa; /* 表头悬停背景色 */
+}
+
+/* 表格单元格样式 */
+.table td {
+  vertical-align: top; /* 改为顶部对齐，避免内容居中问题 */
+  height: auto; /* 根据内容自动调整高度 */
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-top: 8px; /* 单元格上内边距 */
+  padding-bottom: 8px; /* 单元格下内边距 */
+  padding-left: 9px !important; /* 单元格左内边距，与按钮一致 */
+  padding-right: 9px !important; /* 单元格右内边距，与按钮一致 */
+  border-bottom: 1px solid var(--border-color); /* 单元格分割线颜色 */
+}
+
+/* 表格行悬停样式 */
+.table tbody tr:hover {
+  background-color: var(--button-gray-background-color); /* 行悬停背景色 */
+}
+
+/* 长文本列的特殊处理 */
+.table td.text-wrap {
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* 新增：设置表格单元格中的position-relative样式，以便正确定位内容 */
+.table td.position-relative {
+  position: relative; /* 确保相对定位生效 */
+  padding-top: 4px; /* 减少顶部内边距 */
+  padding-bottom: 4px; /* 减少底部内边距 */
+}
+
+/* 新增：调整text-truncate在表格单元格中的布局 */
+.table td .text-truncate {
+  display: block; /* 使其成为块级元素 */
+  max-width: 100%; /* 确保不超出单元格宽度 */
+  padding-right: 25px; /* 为展开按钮留出空间 */
+  padding-top: 4px; /* 与单元格顶部保持一定距离 */
+  padding-bottom: 4px; /* 与单元格底部保持一定距离 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --------------- 模态框样式 --------------- */
+.modal-dialog {
+  max-width: 800px;
+}
+
+.modal-body {
+  /* 移除max-height限制，允许内容自由扩展 */
+  /* max-height: calc(100vh - 200px); */
+  overflow-y: auto;
+}
+
+/* 修复关闭按钮在点击时显示边框的问题 */
+.close:focus,
+button.close:focus,
+.modal .close:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* --------------- 通用警告框样式 --------------- */
+.alert-warning {
+  background-color: #fff3cd;
+  border-color: #ffeeba;
+  color: #856404;
+  font-size: 0.95rem;
+  padding: 10px 12px;
+  padding-left: 11px;
+  border-radius: 6px;
+  margin-bottom: 0px;
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  border-width: 1px;
+  border-style: solid;
+  height: 35.5px;
+  min-height: 35.5px;
+}
+
+/* 任务列表中的警告框样式 */
+.task .alert-warning {
+  font-size: 0.95rem;
+  margin-top: 0;
+  margin-bottom: 8px;
+  margin-left: 3.5px; /* 添加左边距 */
+  height: 32px !important; /* 设置固定高度 */
+  min-height: 32px !important; 
+  max-height: 32px !important; /* 确保不超过指定高度 */
+  padding-top: 0 !important; /* 重置顶部内边距 */
+  padding-bottom: 0 !important; /* 重置底部内边距 */
+  display: flex !important; /* 确保flex布局 */
+  align-items: center !important; /* 确保垂直居中 */
+  justify-content: center !important; /* 水平居中内容 */
+}
+
+/* 警告框中的图标样式 */
+.alert-warning .bi-exclamation-circle {
+  margin-right: 8px;
+  font-size: 1rem;
+  color: #856404;
+}
+
+/* 任务列表中的警告按钮框样式 */
+.task .btn-warning {
+  background-color: transparent !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px !important;
+  border: 1px solid #ffc107 !important;
+}
+
+/* 任务列表中的警告按钮图标样式 */
+.task .btn-warning .bi-exclamation-circle {
+  font-size: 1.04rem;
+  color: #ffc107 !important;
+  margin-right: 0;
+}
+
+.task .btn-warning:hover {
+  background-color: #ffe8a1;
+  border-color: #ffd97e;
+  color: #856404;
+}
+
+/* 确保禁用状态的按钮样式正确 */
+.task .btn-warning:disabled {
+  background-color: #fff3cd;
+  border-color: #ffeeba;
+  color: #856404;
+  opacity: 1;
+}
+
+/* 添加定位样式以确保警告图标正确显示 */
+.task .col-auto {
+  display: flex;
+  align-items: center;
+}
+
+/* --------------- 运行日志弹窗样式 --------------- */
+/* 运行日志弹窗整体样式 */
+#logModal .modal-dialog {
+  max-width: 1080px;
+  margin: 4rem auto;
+  width: calc(100% - 1.25rem); /* 左右各保留1.5rem的最小边距 */
+}
+
+#logModal .modal-content {
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
+}
+
+/* 弹窗头部样式 */
+#logModal .modal-header {
+  background-color: #fff;
+  border-bottom: 1px solid var(--border-color);
+  padding: 11px 16px;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+}
+
+#logModal .modal-title {
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: var(--dark-text-color);
+  display: flex;
+  align-items: center;
+}
+
+#logModal .modal-title b {
+  font-weight: 500;
+}
+
+/* 弹窗关闭按钮 */
+#logModal .close {
+  font-size: 1.4rem;
+  padding: 8px;
+  margin: -8px -8px -8px auto;
+  opacity: 1;
+  color: var(--dark-text-color);
+  transition: opacity 0.15s;
+}
+
+/* 修改关闭按钮样式，使用 bi-x-lg 图标 */
+#logModal .close .bi-x-lg {
+  font-size: 1.2rem;
+  color: var(--dark-text-color);
+  opacity: 1;
+  position: relative;
+  top: 2px;
+  right: -2px; /* 向左移动2px */
+}
+
+#logModal .close:hover {
+  opacity: 1;
+  color: var(--dark-text-color);
+}
+
+/* 弹窗主体样式 */
+#logModal .modal-body {
+  padding: 16px;
+  font-size: 0.875rem;
+}
+
+/* 运行日志内容样式 */
+#logModal pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--dark-text-color);
+  font-family: monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+/* 加载状态图标样式 */
+#logModal .spinner-border-sm {
+  width: 1rem;
+  height: 1rem;
+  border-width: 0.15em;
+  margin-left: 5px;
+}
+
+/* --------------- 文件选择弹窗样式 --------------- */
+/* 文件选择弹窗整体样式 */
+#fileSelectModal .modal-dialog {
+  max-width: 1080px;
+  margin: 4rem auto;
+  width: calc(100% - 1.25rem); /* 左右各保留1.5rem的最小边距 */
+}
+
+#fileSelectModal .modal-content {
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
+}
+
+/* 弹窗头部样式 */
+#fileSelectModal .modal-header {
+  background-color: #fff;
+  border-bottom: 1px solid var(--border-color);
+  padding: 11px 16px;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+}
+
+#fileSelectModal .modal-title {
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: var(--dark-text-color);
+  display: flex;
+  align-items: center;
+}
+
+#fileSelectModal .modal-title b {
+  font-weight: 500;
+}
+
+/* 弹窗关闭按钮 */
+#fileSelectModal .close {
+  font-size: 1.4rem;
+  padding: 8px;
+  margin: -8px -8px -8px auto;
+  opacity: 1;
+  color: var(--dark-text-color);
+  transition: opacity 0.15s;
+}
+
+/* 修改关闭按钮样式，使用 bi-x-lg 图标 */
+#fileSelectModal .close .bi-x-lg,
+.modal .close .bi-x-lg {
+  font-size: 1.2rem;
+  color: var(--dark-text-color);
+  opacity: 1;
+  position: relative;
+  top: 2px;
+  right: -2px; /* 向左移动2px */
+}
+
+#fileSelectModal .close:hover {
+  opacity: 1;
+  color: var(--dark-text-color);
+}
+
+/* 弹窗主体样式 */
+#fileSelectModal .modal-body {
+  padding: 16px;
+  font-size: 0.875rem;
+}
+
+/* 弹窗内警告框样式 */
+#fileSelectModal .alert-warning {
+  font-size: 0.85rem; /* 保留特定的字体大小 */
+}
+
+/* 弹窗内面包屑导航样式 */
+#fileSelectModal .breadcrumb {
+  background-color: var(--button-gray-background-color);
+  border-radius: 0px;
+  font-size: 0.85rem;
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  display: flex; /* 使用flexbox布局 */
+  align-items: center; /* 垂直居中 */
+  flex-wrap: wrap; /* 允许换行 */
+}
+
+#fileSelectModal .breadcrumb-item {
+  display: flex;
+  align-items: center;
+  margin-right: 10px; /* 为每个项目添加右边距 */
+  position: relative; /* 为伪元素定位提供参考 */
+}
+
+/* 移除最后一个项目的右边距 */
+#fileSelectModal .breadcrumb-item:last-child {
+  margin-right: 0;
+}
+
+#fileSelectModal .breadcrumb-item a {
+  color: var(--dark-text-color);
+  text-decoration: none;
+  padding: 0;
+}
+
+#fileSelectModal .breadcrumb-item a:hover {
+  color: var(--focus-border-color);
+  text-decoration: none;
+}
+
+#fileSelectModal .breadcrumb-item span {
+  padding: 0;
+}
+
+/* 首页图标右侧的特定斜杠样式 */
+#fileSelectModal .breadcrumb > li:first-child:after {
+  content: "/";
+  color: var(--dark-text-color);
+  position: relative;
+  margin: 0 5px;
+  top: -1px; /* 调整第一个斜杠的垂直位置 */
+  left: 2px; /* 向右微调第一个斜杠的水平位置 */
+  margin-right: -9.5px; /* 使用margin-right负值代替padding-right负值 */
+}
+
+/* 隐藏Bootstrap默认的::before分隔符 */
+#fileSelectModal .breadcrumb-item + .breadcrumb-item::before {
+  content: none; /* 禁用默认分隔符 */
+  display: none; /* 彻底隐藏元素 */
+}
+
+/* 重设分隔符的样式 */
+#fileSelectModal .breadcrumb-item:not(:last-child):not(:first-child)::after {
+  content: "/";
+  color: var(--dark-text-color);
+  position: absolute;
+  right: -11px; /* 调整位置 */
+  margin: 0 auto;
+  top: -1px; /* 微调其他斜杠的垂直位置 */
+}
+
+#fileSelectModal .breadcrumb-item .bi-house-door {
+  font-size: 0.9rem;
+  position: relative;
+  top: 0px;
+  left: 0px;
+}
+
+#fileSelectModal .breadcrumb-item.cursor-pointer:hover {
+  background-color: transparent; /* 移除面包屑导航中home图标的悬停背景色 */
+}
+
+#fileSelectModal .breadcrumb-item .text-muted {
+  color: var(--dark-text-color) !important; /* 修改灰色文本颜色为更浅的灰色 */
+}
+
+/* 弹窗内表格样式 - 与主界面表格区分 */
+#fileSelectModal .table {
+  margin-bottom: 0;
+  font-size: 0.85rem;
+  table-layout: fixed; /* 使用固定表格布局，确保列宽设置生效 */
+  width: 100%;
+}
+
+#fileSelectModal .table th {
+  background-color: var(--button-gray-background-color);
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  color: var(--dark-text-color);
+  font-weight: 600;
+  padding: 6.5px 12.5px !important; /* 表头上下边距，左右边距 */
+  font-size: 0.85rem;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  vertical-align: middle; /* 添加：垂直居中对齐 */
+  height: auto; /* 添加：自动高度，确保与内容一致 */
+}
+
+/* 模态框表格列宽设置 - 基于内容类型 */
+/* 文件名列 - 自动占用剩余空间 */
+#fileSelectModal .table .col-filename {
+  width: auto; /* 自动分配剩余空间 */
+  min-width: 230px !important; /* 添加!important确保优先级 */
+  flex-shrink: 0; /* 防止在小屏幕上压缩 */
+}
+
+/* 重命名列 - 自动占用剩余空间 */
+#fileSelectModal .table .col-rename {
+  width: auto; /* 自动分配剩余空间 */
+  min-width: 230px !important; /* 添加!important确保优先级 */
+  flex-shrink: 0; /* 防止在小屏幕上压缩 */
+}
+
+/* 大小列 - 固定宽度 */
+#fileSelectModal .table .col-size {
+  width: 90px;
+  min-width: 90px;
+  max-width: 90px;
+}
+
+/* 修改日期列 - 固定宽度 */
+#fileSelectModal .table .col-date {
+  width: 140px;
+  min-width: 140px;
+  max-width: 140px;
+}
+
+/* 操作列 - 固定宽度 */
+#fileSelectModal .table .col-action {
+  width: 53px;
+  min-width: 53px;
+  max-width: 53px;
+  text-align: center;
+}
+
+/* 确保单元格内容溢出时正确显示 */
+#fileSelectModal .table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 添加模态框表格中的排序箭头样式，与主表格一致 */
+#fileSelectModal .table th .bi-arrow-down,
+#fileSelectModal .table th .bi-arrow-up {
+  font-size: 0.85rem;
+  position: relative;
+  top: 0px;
+  opacity: 1;
+  font-weight: normal !important;
+}
+
+#fileSelectModal .table td {
+  padding: 6px 12px !important; /* 单元格上下边距，左右边距 */
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--dark-text-color);
+  font-size: 0.85rem;
+}
+
+#fileSelectModal .table .text-success {
+  color: #28a745 !important;
+}
+
+#fileSelectModal .table .text-danger {
+  color: #dc3545 !important;
+}
+
+#fileSelectModal .table .text-warning {
+  color: #ffc107 !important;
+}
+
+/* 弹窗内表格行悬停效果 */
+#fileSelectModal .table tr.cursor-pointer:hover {
+  background-color: var(--button-gray-background-color);
+  cursor: pointer;
+}
+
+/* 弹窗内文件夹和文件图标样式 */
+#fileSelectModal .bi-folder-fill {
+  color: #ffc107;
+  font-size: 0.9rem;
+  margin-right: 5px;
+}
+
+#fileSelectModal .bi-file-earmark {
+  color: var(--dark-text-color);
+  font-size: 0.9rem;
+  margin-right: 5px;
+}
+
+/* 弹窗删除链接样式 */
+#fileSelectModal .table td a {
+  color: var(--dark-text-color);
+  text-decoration: none;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+#fileSelectModal .table td a:hover {
+  color: #dc3545;
+  cursor: pointer;
+}
+
+/* 弹窗底部样式 */
+#fileSelectModal .modal-footer {
+  border-top: none; /* 隐藏底部分割线 */
+  padding: 0px 16px 12px 16px; /* 上 右 下 左：设置上内边距为0 */
+  margin-top: -4px; /* 使用负margin使整个底部区域向上移动 */
+  justify-content: flex-end;
+  gap: 0px; /* 按钮之间的间距 */
+  flex-wrap: wrap;
+  padding-right: 12px; /* 右边距 */
+}
+
+#fileSelectModal .modal-footer span {
+  font-size: 0.9rem;
+  color: var(--dark-text-color);
+  margin-right: auto;
+}
+
+/* 弹窗底部按钮样式 */
+#fileSelectModal .btn-primary {
+  background-color: var(--focus-border-color);
+  border-color: var(--focus-border-color);
+  font-size: 0.85rem;
+  height: 32px;
+  min-width: 32px;
+  padding: 0 8px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 弹窗底部按钮内的标记样式 */
+#fileSelectModal .btn-primary .badge {
+  margin-left: 5px;
+  display: flex;
+  align-items: center;
+}
+
+#fileSelectModal .btn-primary:hover {
+  background-color: #0A42CC !important;
+  border-color: #0A42CC !important;
+}
+
+#fileSelectModal .btn-sm {
+  font-size: 0.85rem;
+}
+
+/* 弹窗底部有文本内容的按钮样式 */
+#fileSelectModal .btn-primary:has(span) {
+  width: auto;
+  padding: 0 8px;
+}
+
+#fileSelectModal .btn-primary:not(:has(span)) {
+  width: auto;
+  min-width: 32px;
+  padding: 0 8px;
+}
+
+#fileSelectModal .btn-sm {
+  font-size: 0.85rem;
+}
+
+#fileSelectModal .badge-light {
+  background-color: #f8f9fa;
+  color: var(--dark-text-color);
+  font-size: 0.8rem;
+  font-weight: normal;
+}
+
+/* 按钮中任务名称标记样式 */
+.btn-primary .badge-light {
+  background-color: transparent !important;
+  color: inherit !important;
+  font-size: inherit !important;
+  font-weight: bold !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  height: auto !important;
+  line-height: 1 !important;
+  vertical-align: middle !important;
+  position: relative !important;
+  top: 0px !important;
+}
+
+/* 加载状态图标样式 */
+#fileSelectModal .spinner-border-sm {
+  width: 1rem;
+  height: 1rem;
+  border-width: 0.15em;
+  margin-left: 5px;
+}
+
+/* --------------- 深度搜索任务建议样式 --------------- */
+.task-suggestions {
+  width: 100%;
+  max-height: 482px;
+  overflow-y: auto;
+  transform: translate(0, 0);
+  top: 100%;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  border: 1px solid #0D53FF;
+  border-radius: 6px;
+  z-index: 1021;
+  padding: 0; /* 移除内部的内边距 */
+  min-height: 30px; /* 改为30px，加上1px上边框和1px下边框，总高度为32px */
+  box-sizing: border-box; /* 确保边框计入总高度 */
+}
+
+/* 移除下拉菜单项的内部空白 */
+.task-suggestions .dropdown-item {
+  padding: 0 8px;
+  margin: 0;
+  height: 30px; /* 内容高度改为30px */
+  line-height: 30px; /* 行高同样调整 */
+  box-sizing: border-box;
+  color: var(--dark-text-color); /* 文本颜色 */
+  transition: background-color 0.2s, color 0.2s;
+  font-size: 14px !important; /* 文本字号 */
+}
+
+/* 下拉菜单项悬停状态 */
+.task-suggestions .dropdown-item:hover {
+  background-color: var(--button-gray-background-color); /* 悬停背景色 */
+  color: var(--dark-text-color); /* 悬停文本颜色 */
+}
+
+/* 下拉菜单项点击状态 */
+.task-suggestions .dropdown-item:active {
+  background-color: var(--focus-border-color) !important; /* 点击背景色 */
+  color: #fff !important; /* 点击文本颜色 */
+}
+
+/* 链接样式 */
+.task-suggestions .dropdown-item small a {
+  color: var(--light-text-color); /* 链接颜色 */
+  text-decoration: none;
+  transition: color 0.2s;
+  font-size: 14px; /* 与前面文本大小一致 */
+}
+
+/* 链接悬停样式 */
+.task-suggestions .dropdown-item:hover small a {
+  color: var(--dark-text-color); /* 悬停时链接颜色 */
+}
+
+/* 链接点击状态样式 */
+.task-suggestions .dropdown-item:active small a {
+  color: #fff !important; /* 点击时链接颜色变为白色 */
+}
+
+/* "正在搜索中"状态的样式 */
+.task-suggestions .dropdown-item.text-muted {
+  height: 30px; /* 高度为30px，与边框一起刚好32px */
+  line-height: 30px;
+  padding: 0 8px !important; /* 添加左右内边距 */
+  font-size: 14px !important; /* 与其他文本保持一致 */
+  box-sizing: border-box;
+  text-align: left !important; /* 左对齐 */
+  color: var(--light-text-color) !important;
+}
+
+.task-suggestions .dropdown-item.text-muted:hover {
+  color: var(--dark-text-color) !important; /* 悬停时链接颜色 */
+}
+
+/* "以下资源来自CloudSaver搜索"提示文本样式 */
+.task-suggestions .dropdown-item.text-muted:not(.text-center) {
+  font-size: 14px !important; /* 与其他文本保持一致 */
+  text-align: left !important; /* 左对齐 */
+  padding-left: 8px !important; /* 添加左内边距 */
+  color: var(--light-text-color) !important;
+}
+
+.task-suggestions .dropdown-item.text-muted:hover {
+  color: var(--dark-text-color) !important; /* 悬停时链接颜色 */
+}
+
+/* "以下资源来自CloudSaver搜索"提示文本点击状态样式 */
+.task-suggestions .dropdown-item.text-muted:active {
+  color: #fff !important; /* 点击时文本颜色变为白色 */
+}
+
+/* --------------- JSON编辑器样式 --------------- */
+table.jsoneditor-tree>tbody>tr.jsoneditor-expandable:first-child {
+  display: none;
+}
+
+/* 自定义JSON编辑器样式 */
+div.jsoneditor {
+  border: 1px solid #0D53FF !important;
+  border-radius: 6px !important;
+}
+
+div.jsoneditor-menu {
+  background-color: #0D53FF !important;
+  border-bottom: 1px solid #0D53FF !important;
+  border-top-left-radius: 5px !important;
+  border-top-right-radius: 5px !important;
+  height: 31px !important;
+  padding: 0 6px !important;
+  line-height: 31px !important;
+}
+
+div.jsoneditor-menu > button,
+div.jsoneditor-menu > div.jsoneditor-modes > button {
+  height: 24px !important;
+  line-height: 24px !important;
+  margin-top: 0px !important;
+  position: relative !important;
+  top: 2px !important; /* 编辑器顶部图标高度 */
+}
+
+/* 上一步和下一步按钮单独下移 */
+div.jsoneditor-menu > button.jsoneditor-undo,
+div.jsoneditor-menu > button.jsoneditor-redo {
+  top: 3px !important;
+}
+
+div.jsoneditor-contextmenu ul li button.jsoneditor-selected,
+div.jsoneditor-contextmenu ul li button.jsoneditor-selected:hover,
+div.jsoneditor-contextmenu ul li button.jsoneditor-selected:focus {
+  background-color: #0D53FF !important;
+  color: white !important;
+}
+
+div.jsoneditor-tree button:focus {
+  background-color: #e6f1ff !important;
+}
+
+div.jsoneditor-tree button.jsoneditor-contextmenu:hover {
+  background-color: #e6f1ff !important;
+}
+
+div.jsoneditor-tree div.jsoneditor-show-more a:hover {
+  color: #0D53FF !important;
+}
+
+div.jsoneditor-tree div.jsoneditor-show-more {
+  background: linear-gradient(to right, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.8));
+}
+
+div.jsoneditor-statusbar {
+  border-top: 1px solid var(--border-color) !important;
+  background-color: #f5f5f5 !important;
+}
+
+button.jsoneditor-more {
+  background-color: #0D53FF !important;
+}
+
+button.jsoneditor-more:hover {
+  background-color: #0030cc !important;
+}
+
+div.jsoneditor-tree button.jsoneditor-button:focus {
+  background-color: #e6f1ff !important;
+}
+
+/* --------------- 登录页样式 --------------- */
+/* 登录卡片容器 - 设置宽度和阴影效果 */
+.login-card {
+  width: 340px;
+  background-color: white;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  padding: 0;
+  text-align: center;
+  overflow: hidden;
+  margin: 0 auto;
+}
+
+/* 登录页标题区域 - 浅灰色背景 */
+.login-header {
+  background-color: #f7f7fa;
+  padding: 30px;
+  margin-bottom: 0;
+  height: 100px; /* 设置固定高度 */
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* 垂直居中内容 */
+}
+
+/* 登录页表单区域 - 白色背景 */
+.login-body {
+  padding: 30px;
+}
+
+/* 登录页主标题样式 */
+.login-title {
+  font-size: 28px;
+  color: var(--dark-text-color);
+  margin: 6px 0 5px 0;
+  font-weight: 500;
+}
+
+/* 登录页主标题链接样式 */
+.login-title a {
+  color: var(--dark-text-color);
+  text-decoration: none;
+  transition: color 0.3s;
+}
+
+/* 登录页主标题链接悬停样式 */
+.login-title a:hover {
+  color: #0A42CC;
+  text-decoration: none;
+}
+
+/* 登录页副标题样式 */
+.login-subtitle {
+  font-size: 16px;
+  color: #808080;
+  margin: -5px 0 5px 0;
+  font-weight: normal;
+}
+
+/* 登录页表单组样式 */
+.login-page .form-group {
+  margin-bottom: 0;
+  position: relative;
+}
+
+/* 登录页输入框样式 */
+.login-page .form-control {
+  width: 100%;
+  height: 48px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0 15px;
+  font-size: 16px;
+  transition: all 0.3s;
+  box-sizing: border-box;
+  margin-bottom: 8px; /* 输入框之间的间距 */
+}
+
+/* 登录页输入框聚焦状态 */
+.login-page .form-control:focus {
+  border-color: var(--focus-border-color);
+  outline: none;
+  box-shadow: none;
+}
+
+/* 登录按钮样式 */
+.login-page .btn {
+  width: 100%;
+  height: 32px;
+  background-color: var(--focus-border-color);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  margin-top: 0;
+  display: flex;
+  align-items: center; /* 垂直居中 */
+  justify-content: center; /* 水平居中 */
+}
+
+/* 登录按钮悬停状态 */
+.login-page .btn:hover {
+  background-color: #0A42CC;
+}
+
+/* 登录页错误提示样式 */
+.login-page .alert {
+  background-color: #ffebee;
+  color: #dc3545;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center; /* 垂直居中 */
+  justify-content: center; /* 水平居中 */
+  font-size: 16px;
+}
+
+/* --------------- 图标样式 --------------- */
+.navbar-action-btn .bi-check2 {
+  font-size: 1.4rem;
+  position: relative;
+  top: 1px;
+}
+
+.navbar-action-btn .bi-caret-right,
+.navbar-action-btn .bi-chevron-expand {
+  font-size: 1.2rem;
+}
+
+/* 页面宽度图标样式 */
+.navbar-action-btn .bi-arrows {
+  font-size: 1.09rem;
+}
+
+.navbar-toggler-square .bi-list {
+  color: #fff;
+  font-size: 1.3rem;
+  position: relative;
+  top: 0.5px; /* 向下微调 */
+  transition: color 0.2s; /* 添加颜色过渡效果 */
+}
+
+/* 侧边栏菜单项图标样式 */
+.sidebar .nav-link .bi-list-ul {
+  font-size: 1.08rem;
+  position: relative;
+  top: 0.5px; /* 向下微调 */
+}
+
+.sidebar .nav-link .bi-gear {
+  font-size: 1.05rem;
+  position: relative;
+  top: 0.5px; /* 向下微调 */
+}
+
+.sidebar .nav-link .bi-clock-history {
+  font-size: 1rem;
+}
+
+.sidebar .nav-link .bi-power {
+  font-size: 1.27rem;
+}
+
+.bottom-links .nav-link .bi-book {
+  font-size: 0.95rem;
+  position: relative;
+  top: 0.5px; /* 向下微调 */
+}
+
+.bottom-links .nav-link .nav-text {
+  font-size: 0.85rem;
+}
+
+/* 侧边栏菜单项图标调整 */
+.sidebar-collapsed .nav-link i {
+  margin-right: 0;
+  margin-left: 0;
+  width: auto;
+  display: flex;
+  justify-content: center;
+  position: static; /* 保持在中心位置，不要使用绝对定位 */
+}
+
+/* 侧边栏折叠时确保内容完全居中且背景色填充完整 */
+.sidebar-collapsed .sidebar-sticky {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sidebar-collapsed .nav.flex-column {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sidebar-collapsed .nav-item {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* 确保选中状态背景色撑满 */
+.sidebar-collapsed .nav-link,
+.sidebar-collapsed .nav-link.active {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 侧边栏展开状态下的菜单项调整 */
+.sidebar:not(.sidebar-collapsed) .nav-link {
+  padding-left: 8.5px; /* 原来是7px，向右移动2px */
+}
+
+.sidebar:not(.sidebar-collapsed) .nav-link i {
+  margin-left: 8.5px; /* 原来是7px，向右移动2px */
+}
+
+/* 底部链接样式调整，向右移动2px */
+.sidebar:not(.sidebar-collapsed) .bottom-links .nav-link {
+  padding-left: 8.5px; /* 原来是7px，向右移动2px */
+}
+
+.sidebar:not(.sidebar-collapsed) .bottom-links .nav-link i {
+  margin-left: 8.5px; /* 原来是7px，向右移动2px */
+}
+
+.sidebar-collapsed .bottom-links .nav-link {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+  width: 100%;
+}
+
+.sidebar-collapsed .bottom-links .nav-item {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.sidebar-collapsed .bottom-links .nav-text {
+  opacity: 0;
+  width: 0;
+  margin: 0;
+  padding: 0;
+  display: block;
+  visibility: hidden;
+  max-width: 0;
+}
+
+.bottom-links .nav-link .bi-github {
+  font-size: 1rem;
+}
+
+/* 添加固定宽度容器保持图标位置 */
+.sidebar .nav-link .icon-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  transition: none; /* 防止过渡动画影响图标位置 */
+  position: relative;
+}
+
+/* 确保侧边栏折叠/展开过程中图标位置固定 */
+.sidebar .nav-link i {
+  position: static; /* 覆盖上面的relative设置 */
+  transition: none; /* 禁用图标的过渡动画，防止它跟随父容器移动 */
+}
+
+/* --------------- 统一页面字号 --------------- */
+/* 页面标题统一字号 (适用于不在main中的标题) */
+.row.title h2:not(main .row.title h2) {
+  font-size: 1.2rem !important;
+  margin-bottom: 0;
+}
+
+/* 页面内容字号 */
+main .form-control,
+main .input-group-text,
+main p,
+main label,
+main .table td,
+main .table th {
+  font-size: 0.95rem;
+}
+
+/* 表格头部字号 */
+.table th {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+/* 按钮中的文字大小 */
+.btn {
+  font-size: 0.95rem;
+}
+
+/* 菜单项字号 */
+.sidebar .nav-link {
+  font-size: 0.95rem;
+}
+
+/* 设置任务列表页面中运行和删除按钮的布局 */
+.task .col-auto {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px; /* 设置按钮之间的间距为8px */
+}
+
+/* 确保按钮大小一致 */
+.task .btn-outline-primary,
+.task .btn-outline-danger,
+.task .btn-warning,
+.row .btn-outline-primary {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 播放按钮样式 */
+.btn-outline-primary {
+  border-color: #0D53FF;
+  color: #0D53FF;
+}
+
+.btn-outline-primary:hover {
+  background-color: #0D53FF;
+  border-color: #0D53FF;
+  color: #fff;
+}
+
+/* 删除按钮样式 */
+.btn-outline-danger {
+  border-color: #dc3545;
+  color: #dc3545;
+}
+
+.btn-outline-danger:hover {
+  background-color: #dc3545;
+  border-color: #dc3545;
+  color: #fff;
+}
+
+/* 播放和删除图标大小 */
+.bi-caret-right {
+  font-size: 1.2rem;
+}
+
+.bi-trash3 {
+  font-size: 1rem;
+}
+
+/* 添加移除图标大小 */
+.bi-plus-lg, .bi-dash-lg {
+  font-size: 1.15rem;
+  position: relative;
+  top: -0.2px; /* 将图标向上移动 */
+}
+
+/* 替换Bootstrap默认的深色文本 */
+:root {
+  --dark-text-color: #404040;
+  --light-text-color: #b1b1b3;
+  --border-color: #e3e3e5; /* 统一边框颜色变量 */
+  --focus-border-color: #0D53FF; /* 输入框聚焦时的边框颜色 */
+  --shadow-spread: 0; /* 统一阴影扩散距离设为0 */
+  --button-gray-background-color: #ededf0; /* 按钮灰色背景颜色 */
+}
+
+/* 覆盖Bootstrap原生的按钮聚焦样式 */
+.btn.focus, .btn:focus {
+  box-shadow: none !important;
+}
+
+body {
+  color: var(--dark-text-color);
+}
+
+.text-body {
+  color: var(--dark-text-color) !important;
+}
+
+.table:not(.table-dark) {
+  color: var(--dark-text-color);
+}
+
+.dropdown-item,
+.dropdown-header {
+  color: var(--dark-text-color);
+}
+
+.form-control,
+.form-control:focus,
+.custom-select,
+.custom-file-label,
+.custom-file-label::after {
+  color: var(--dark-text-color);
+}
+
+.input-group-text {
+  color: var(--dark-text-color);
+}
+
+.list-group-item-action,
+.list-group-item-action:focus,
+.list-group-item-action:hover {
+  color: var(--dark-text-color);
+}
+
+.nav-tabs .nav-link,
+.nav-tabs .nav-link.active {
+  color: var(--dark-text-color);
+}
+
+.popover-body {
+  color: var(--dark-text-color);
+}
+
+/* 任务列表页面中的任务标题颜色 */
+.task .btn.btn-block.text-left {
+  color: var(--dark-text-color);
+}
+
+/* 历史记录页面的文本和表格内容 */
+.table td,
+.text-truncate, 
+.expanded-text,
+.table th,
+.cursor-pointer {
+  color: var(--dark-text-color);
+}
+
+/* 模态框和其他元素文本 */
+.modal-title,
+.modal-body,
+.form-check-label,
+.form-group label,
+.breadcrumb-item,
+.breadcrumb,
+.small,
+.col-form-label {
+  color: var(--dark-text-color);
+}
+
+/* 设置输入框占位符的颜色 */
+.form-control::placeholder {
+  color: var(--light-text-color); /* 修改占位符颜色 */
+}
+
+/* 设置禁用状态下输入框的背景色 */
+.form-control:disabled, 
+.form-control[readonly] {
+  background-color: #ededf0 !important;
+  opacity: 1;
+}
+
+/* 保持侧边栏激活状态的导航链接为白色 */
+.sidebar .nav-link.active {
+  color: white !important;
+}
+
+/* 设置侧边栏背景色 */
+.sidebar.bg-light {
+  background-color: #f7f7fa !important;
+}
+
+/* 设置任务列表之间的分隔线颜色 */
+.task hr {
+  border-color: var(--border-color); /* 使用变量替代硬编码颜色 */
+  margin-bottom: 8px; /* 分隔线与下方任务标题的距离 */
+  margin-top: 1px; /* 分隔线与上方任务标题的距离 */
+}
+
+/* 添加任务按钮上方的分割线样式 */
+.task-divider {
+  border-color: var(--border-color); /* 使用变量替代硬编码颜色 */
+  margin-bottom: 8px; /* 分隔线与下方添加任务按钮的距离 */
+  margin-top: 1px; /* 分隔线与上方最后一个任务的距离 */
+}
+
+/* 设置任务标题行样式 */
+.task .form-group.row[style*="align-items:center"] {
+  margin-bottom: 8px; /* 设置标题行与下方内容间距为8px */
+  padding-bottom: 0;
+  padding-top: 8px; /* 设置标题行与上方分隔线的间距为8px */
+}
+
+/* 设置任务标题按钮样式 */
+.task .btn.btn-block.text-left {
+  color: var(--dark-text-color);
+  padding: 4px 8px; /* 调整内边距 */
+  padding-left: 6px; /* 桌面模式下任务标题左边距 */
+  font-size: 0.95rem; /* 与输入框字体大小一致 */
+  font-weight: normal; /* 标准字重 */
+  line-height: 1.5; /* 与输入框行高一致 */
+  letter-spacing: normal; /* 标准字间距 */
+}
+
+/* 任务行按钮样式 */
+.task .col-auto .btn {
+  margin-top: 0; /* 确保按钮没有额外的上边距 */
+}
+
+/* 设置任务栏每一条的上下行距 */
+.task .form-group.row {
+  margin-bottom: 8px; /* 设置行之间的间距为8px */
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* 任务列表内任务标题参数 */
+.task .form-group.row .col-form-label {
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 0.95rem; /* 与输入框字体大小一致 */
+  font-weight: normal; /* 标准字重 */
+  line-height: 1.5; /* 与输入框行高一致 */
+  letter-spacing: normal; /* 标准字间距 */
+  position: relative; /* 添加相对定位 */
+  top: 0.5px; /* 文本下移0.5px */
+  left: 3.5px;
+}
+
+/* 复位执行周期选项组（不受左偏移影响） */
+.task .form-group.row .col-sm-10.col-form-label {
+  left: 0; /* 取消左偏移 */
+}
+
+/* 设置任务配置选项标签列的最大宽度（配置选项与配置框的距离） */
+.task .form-group.row .col-sm-2 {
+  max-width: 104px; /* 设置最大宽度为150px */
+  min-width: 104px; /* 保持最小宽度一致 */
+  width: 104px; /* 固定宽度 */
+}
+
+/* 任务配置选项输入框列自适应 */
+.task .form-group.row .col-sm-10 {
+  width: calc(100% - 104px); /* 计算剩余宽度 */
+  max-width: calc(100% - 104px); /* 最大宽度也应该计算 */
+  flex: 1; /* 允许伸缩 */
+}
+
+/* 表单输入框间距 */
+.task .form-group.row .form-control,
+.task .form-group.row .input-group {
+  margin-bottom: 0;
+}
+
+/* 添加任务列表的容器样式 */
+.task.mb-3 {
+  margin-bottom: 8px !important; /* 统一任务项之间的间距为8px */
+}
+
+/* 设置输入框焦点状态样式 */
+.form-control:focus {
+  border-color: var(--focus-border-color) !important;
+  border-width: 1px;
+  box-shadow: none;
+  outline: none;
+}
+
+/* 按钮通用点击效果 */
+.btn:active,
+.btn:focus {
+  box-shadow: none;
+  outline: none;
+}
+
+/* 给特定按钮类型添加特定颜色的阴影效果 */
+.btn-outline-primary:active,
+.btn-outline-primary:focus {
+  box-shadow: none;
+  outline: none;
+}
+
+.btn-outline-danger:active,
+.btn-outline-danger:focus {
+  box-shadow: none;
+  outline: none;
+}
+
+.btn-warning:active,
+.btn-warning:focus {
+  box-shadow: none;
+  outline: none;
+}
+
+.btn-primary:active,
+.btn-primary:focus {
+  box-shadow: none;
+  outline: none;
+}
+
+.btn-outline-secondary:active,
+.btn-outline-secondary:focus {
+  box-shadow: none;
+  outline: none;
+}
+
+/* 隐藏日期输入框的原生日历图标 */
+.date-input-no-icon::-webkit-calendar-picker-indicator {
+  display: none;
+  -webkit-appearance: none;
+}
+
+/* 确保Firefox中也能隐藏日期选择器图标 */
+.date-input-no-icon {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+/* 防止鼠标悬停在日期输入框末尾时显示指针样式 */
+.date-input-no-icon:hover {
+  cursor: text;
+}
+
+/* 修复日历按钮点击后背景色不恢复的问题 */
+.btn-outline-secondary:has(.bi-calendar3):focus,
+.btn-outline-secondary:has(.bi-calendar3):active,
+.btn-outline-secondary:has(.bi-calendar3).focus,
+.btn-outline-secondary:has(.bi-calendar3).active {
+  background-color: transparent !important;
+  border-color: var(--dark-text-color) !important;
+  color: var(--dark-text-color) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* 自定义JSON编辑器样式 */
+/* 调整搜索框样式 */
+div.jsoneditor-search {
+  height: 22px !important; /* 搜索输入框高度 */
+  border-radius: 4px !important; /* 搜索框整体圆角 */
+  overflow: hidden !important; /* 确保子元素不超出圆角边界 */
+}
+
+div.jsoneditor-search input {
+  height: 18px !important;
+  margin-top: 0 !important;
+  position: relative !important;
+  top: -5px !important; /* 搜索文本输入框高度 */
+  border-radius: 4px 0 0 4px !important; /* 左侧圆角 */
+}
+
+div.jsoneditor-search button {
+  height: 22px !important;
+  margin-top: -1px !important;
+  border-radius: 0 4px 4px 0 !important; /* 右侧圆角 */
+}
+
+/* 添加搜索按钮区域圆角 */
+div.jsoneditor-search-results {
+  border-radius: 4px !important;
+}
+
+/* 修改Search图标所在的框为圆角 */
+div.jsoneditor-search div.jsoneditor-frame {
+  border-radius: 4px !important;
+}
+
+/* 确保所有搜索相关组件具有圆角 */
+div.jsoneditor-search > * {
+  border-radius: 4px !important;
+}
+
+div.jsoneditor div.jsoneditor-navigation-bar {
+  background-color: #ededf0 !important; /* 设置背景颜色 */
+  color: var(--dark-text-color) !important; /* 设置文本颜色 */
+  border-bottom: 1px solid var(--border-color) !important; /* 设置底部边框为蓝色 */
+}
+
+/* 修改选择一个节点的文本颜色 */
+div.jsoneditor-navigation-bar .jsoneditor-treemode .jsoneditor-selection,
+div.jsoneditor-treepath .jsoneditor-treemode,
+div.jsoneditor-treepath {
+  color: var(--dark-text-color) !important;
+}
+
+/* 确保导航条中所有文本都是相同颜色 */
+div.jsoneditor-treepath * {
+  color: var(--dark-text-color) !important;
+}
+
+/* --------------- 分页控制样式 --------------- */
+.pagination-container {
+  margin-top: 24px !important;
+  padding: 0 0;
+  border-top: none;
+  transform: translateY(-20px);
+  position: relative;
+  z-index: 1;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  flex-wrap: wrap !important; /* 允许元素在需要时换行 */
+  gap: 0; /* 分页控制三行排列的行距 */
+}
+
+/* 桌面宽屏下的布局 */
+@media (min-width: 992px) {
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: auto;
+    order: 2;
+  }
+
+  .page-info {
+    color: var(--dark-text-color);
+    font-size: 0.95rem;
+    line-height: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    width: 33%; /* 为左侧文本区域预留固定宽度 */
+    order: 1;
+  }
+
+  .pagination-settings {
+    display: flex;
+    align-items: center;
+    width: 33%;
+    justify-content: flex-end;
+    order: 3;
+  }
+}
+
+/* 平板和窄屏下的布局 */
+@media (max-width: 991px) and (min-width: 768px) {
+  .pagination-container {
+    flex-direction: row;
+    justify-content: center !important;
+  }
+  
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    left: auto;
+    transform: none;
+    width: 100%;
+    order: 2;
+    margin: 12px 0; /* 上下间距调整为12px，与整体间距一致 */
+  }
+
+  .page-info {
+    color: var(--dark-text-color);
+    font-size: 0.95rem;
+    line-height: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    justify-content: center;
+    order: 1;
+    text-align: center;
+  }
+
+  .pagination-settings {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    justify-content: center;
+    order: 3;
+  }
+}
+
+/* 移动端布局 */
+@media (max-width: 767px) {
+  .pagination-container {
+    flex-direction: column;
+    align-items: center !important;
+    margin-top: 15px !important;
+    transform: translateY(-10px);
+    gap: 12px; /* 垂直间距调整为12px，与整体间距一致 */
+  }
+  
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    left: auto;
+    transform: none;
+    width: 100%;
+    order: 2;
+    flex-wrap: wrap;
+    margin: 0; /* 移除额外的上下margin，因为已有gap控制间距 */
+  }
+
+  .page-info {
+    color: var(--dark-text-color);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    height: auto;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    justify-content: center;
+    order: 1;
+    text-align: center;
+    padding: 5px 0;
+  }
+
+  .pagination-settings {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    justify-content: center;
+    order: 3;
+    flex-wrap: wrap;
+  }
+  
+  /* 不修改按钮大小，与桌面版保持一致 */
+  .pagination-controls .btn-sm {
+    min-width: 32px;
+    height: 32px;
+  }
+  
+  /* 保持与桌面版一致的跳页区域尺寸 */
+  .pagination-settings .form-control-sm {
+    height: 32px;
+  }
+  
+  /* 保持与桌面版一致的下拉菜单按钮尺寸 */
+  .pagination-settings .dropdown-toggle {
+    height: 32px;
+  }
+}
+
+.pagination-settings {
+  display: flex;
+  align-items: center;
+}
+
+/* 分页按钮样式 */
+.pagination-controls .btn-sm {
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  border-radius: 6px;
+}
+
+/* 分页按钮悬停状态 */
+.pagination-controls .btn-sm:hover {
+  background-color: var(--dark-text-color);
+  border-color: var(--dark-text-color);
+  color: #fff !important;
+}
+
+/* 分页按钮悬停状态下的图标 */
+.pagination-controls .btn-sm:hover i {
+  color: #fff !important;
+}
+
+/* 分页按钮点击后恢复正常状态 */
+.pagination-controls .btn-sm:not(:hover):not(.btn-primary) {
+  background-color: #fff;
+  border-color: var(--dark-text-color);
+  color: var(--dark-text-color);
+  transition: background-color 0.15s ease-out, color 0.15s ease-out;
+}
+
+/* 分页按钮点击后图标恢复正常状态 */
+.pagination-controls .btn-sm:not(:hover):not(.btn-primary) i {
+  color: var(--dark-text-color);
+  transition: color 0.15s ease-out;
+}
+
+/* 当前选中页码按钮 */
+.pagination-controls .btn-sm.btn-primary {
+  background-color: var(--focus-border-color) !important;
+  border-color: var(--focus-border-color) !important;
+  color: #fff !important;
+}
+
+/* 分页设置区域的间距调整 */
+.pagination-settings .text-secondary.mr-1 {
+  margin-right: 7.5px !important; /* "跳到第"与输入框之间的距离 */
+}
+
+.pagination-settings .mx-1 {
+  margin-left: 0 !important;
+  margin-right: 7px !important; /* 输入框与"页"之间的距离 */
+}
+
+.pagination-settings .text-secondary.mr-2 {
+  margin-right: 7px !important; /* "页"与"确定"按钮之间的距离 */
+}
+
+/* 页码输入框样式 */
+.pagination-settings .input-group[style*="width: 70px"] {
+  width: auto !important;
+  min-width: 64px !important;
+  display: inline-flex !important;
+}
+
+.pagination-settings .form-control-sm {
+  height: 32px;
+  width: 32px !important; /* 默认宽度为正方形 */
+  min-width: 32px; /* 最小宽度 */
+  text-align: center;
+  padding: 0 2px;
+  border-color: var(--dark-text-color);
+  border-radius: 6px;
+  -moz-appearance: textfield; /* Firefox */
+  transition: width 0.2s; /* 添加宽度过渡效果 */
+}
+
+/* 去掉输入框的上下箭头 */
+.pagination-settings .form-control-sm::-webkit-outer-spin-button,
+.pagination-settings .form-control-sm::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* 当输入内容较多或获得焦点时自动扩展宽度 */
+.pagination-settings .form-control-sm:focus,
+.pagination-settings .form-control-sm:not(:placeholder-shown) {
+  width: auto !important;
+  min-width: 32px;
+}
+
+/* 分页文本样式 - 统一所有文本的样式 */
+.pagination-settings .text-secondary,
+.pagination-controls .text-secondary,
+.pagination-container .text-secondary {
+  color: var(--dark-text-color) !important;
+  font-size: 0.95rem;
+  line-height: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+/* 分页下拉菜单样式 */
+.pagination-settings .dropdown-toggle {
+  height: 32px;
+  padding: 0 8px; /* 调整左右内边距，与下拉项保持一致 */
+  display: flex;
+  align-items: center;
+}
+
+/* 调整下拉按钮中文本和三角图标之间的距离 */
+.pagination-settings .dropdown-toggle::after {
+  margin-left: 7px; /* 增加文本和三角图标之间的距离 */
+}
+
+/* 分页下拉菜单按钮激活状态 */
+.pagination-settings .dropdown-toggle.show,
+.pagination-settings .dropdown-toggle:active,
+.pagination-settings .dropdown-toggle:focus {
+  background-color: var(--dark-text-color) !important;
+  border-color: var(--dark-text-color) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+
+/* 调整分页大小下拉菜单的宽度 */
+.pagination-settings .dropdown-menu {
+  min-width: 0;
+  width: 100%; /* 与按钮同宽 */
+  padding: 0; /* 移除菜单内边距 */
+  margin: 0; /* 移除菜单外边距 */
+  border-radius: 6px; /* 添加圆角 */
+  overflow: hidden; /* 确保内容不超出圆角 */
+  background-color: #fff; /* 设置默认背景颜色为灰色 */
+  border-color: var(--dark-text-color); /* 与按钮边框颜色相同 */
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.pagination-settings .dropdown-item {
+  font-size: 0.95rem;
+  padding: 0 8px; /* 调整左右内边距，与按钮文本边距保持一致 */
+  text-align: left; /* 文本左对齐 */
+  white-space: nowrap; /* 防止文本换行 */
+  border-bottom: none; /* 添加分隔线 */
+  height: 32px; /* 设置固定高度 */
+  line-height: 32px; /* 垂直居中文本 */
+  display: flex;
+  align-items: center; /* 垂直居中内容 */
+  background-color: #fff; /* 设置每个选项的默认背景颜色为灰色 */
+}
+
+/* 最后一个选项不需要底部边框 */
+.pagination-settings .dropdown-item:last-child {
+  border-bottom: none;
+}
+
+/* 下拉菜单项的悬停效果 */
+.pagination-settings .dropdown-item:hover {
+  background-color: var(--button-gray-background-color);
+  color: var(--dark-text-color);
+}
+
+/* 下拉菜单项的点击效果 */
+.pagination-settings .dropdown-item:active,
+.pagination-settings .dropdown-item:focus {
+  background-color: var(--button-gray-background-color) !important;
+  color: var(--dark-text-color) !important;
+  outline: none;
+}
+
+/* 省略号样式 */
+.pagination-controls .mx-1 {
+  color: var(--dark-text-color);
+  font-size: 0.95rem;
+  margin: 0 5px;
+  line-height: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+/* 分页按钮中的箭头图标大小 */
+.pagination-controls .btn-sm .bi-chevron-left {
+  font-size: 1.09rem;
+  position: relative;
+  top: 0px;
+  left: -1px; /* 向左移动左箭头 */
+}
+
+.pagination-controls .btn-sm .bi-chevron-right {
+  font-size: 1.09rem;
+  position: relative;
+  top: 0px;
+  right: -1px; /* 向右移动右箭头 */
+}
+
+/* --------------- 魔法匹配输入框比例设置 --------------- */
+/* 系统配置页面中魔法匹配的输入框比例 */
+.form-group.mb-2 > .input-group {
+  position: relative; /* 为绝对定位的子元素提供参考 */
+  padding-right: 31px; /* 为删除按钮预留空间 */
+}
+
+.form-group.mb-2 > .input-group > input[data-oldkey] {
+  flex: 1 !important; /* 魔法名输入框占比 */
+}
+
+.form-group.mb-2 > .input-group > input[placeholder="匹配表达式"] {
+  flex: 4 !important; /* 匹配表达式输入框占比 */
+}
+
+.form-group.mb-2 > .input-group > input[placeholder="替换表达式"] {
+  flex: 2 !important; /* 替换表达式输入框占比 */
+}
+
+.form-group.mb-2 > .input-group > .input-group-append {
+  position: absolute; /* 使按钮组脱离文档流 */
+  right: 0; /* 靠右对齐 */
+  top: 0; /* 顶部对齐 */
+  height: 100%; /* 与父元素等高 */
+}
+
+.form-group.mb-2 > .input-group > .input-group-append > .btn-outline-primary {
+  position: absolute; /* 使增加按钮不占用布局空间 */
+  right: 31px; /* 位于删除按钮左侧，边框重叠 */
+  z-index: 2; /* 确保按钮显示在最上层 */
+  background-color: #fff; /* 添加白色背景色，避免文本重叠 */
+}
+
+/* 为增加按钮添加左侧白色空间，避免文本重叠 */
+.form-group.mb-2 > .input-group > .input-group-append > .btn-outline-primary::before {
+  content: '';
+  position: absolute;
+  left: -9px; /* 从-8px调整为-9px，往左移动1px */
+  top: 0;
+  height: 100%;
+  width: 8px;
+  background-color: #fff;
+  z-index: -1; /* 将z-index设为负值，确保在按钮下方 */
+}
+
+/* 当鼠标悬停在增加按钮上时，保持蓝色背景 */
+.form-group.mb-2 > .input-group > .input-group-append > .btn-outline-primary:hover {
+  background-color: #0D53FF; /* 悬停时使用蓝色背景 */
+  color: #fff;
+}
+
+/* 当点击增加按钮时，保持蓝色背景 */
+.form-group.mb-2 > .input-group > .input-group-append > .btn-outline-primary:active,
+.form-group.mb-2 > .input-group > .input-group-append > .btn-outline-primary:focus {
+  background-color: #0D53FF !important; /* 点击时强制使用蓝色背景 */
+  color: white !important;
+}
+
+/* 点击或聚焦时也改变伪元素的背景色 */
+.form-group.mb-2 > .input-group > .input-group-append > .btn-outline-primary:active::before,
+.form-group.mb-2 > .input-group > .input-group-append > .btn-outline-primary:focus::before {
+  background-color: white !important; /* 保持白色背景 */
+}
+
+/* --------------- 插件区域样式 --------------- */
+/* 插件标题与上方内容的间距 */
+main .row.title[title*="插件的配置选项"] {
+  margin-top: 20px !important;
+  margin-bottom: 0px !important;
+}
+
+/* 调整插件选项容器的上边距（插件之间的距离） */
+div[data-toggle="collapse"]:first-of-type {
+  margin-top: 0px !important;
+}
+
+/* 插件与魔法匹配之间的间距 */
+main .row.title[title*="预定义的正则匹配规则"] {
+  margin-top: 19px !important;
+}
+
+/* 插件名称和展开图标的颜色 */
+div[data-toggle="collapse"] .btn.text-left {
+  color: var(--dark-text-color);
+  cursor: pointer;
+  transition: color 0.2s;
+  font-size: 0.95rem; /* 与输入框字体大小一致 */
+  font-weight: normal; /* 标准字重 */
+  line-height: 1.5; /* 与输入框行高一致 */
+  letter-spacing: normal; /* 标准字间距 */
+  position: relative;
+  left: 0px;
+}
+
+div[data-toggle="collapse"] .btn.text-left:hover {
+  color: var(--focus-border-color);
+}
+
+/* 系统配置页面插件折叠按钮箭头图标样式 */
+div[data-toggle="collapse"] .btn.text-left i.bi-caret-right-fill {
+  color: inherit;
+  transition: transform 0.2s;
+  position: relative;
+  top: 0.5px; /* 调整箭头垂直对齐，使其与文本居中 */
+  font-size: 0.95rem; /* 调整箭头大小与文本比例协调 */
+  margin-right: 4px; /* 添加右侧间距使与文字有适当间距 */
+}
+
+div[data-toggle="collapse"][aria-expanded="true"] .btn.text-left i.bi-caret-right-fill {
+  transform: rotate(90deg);
+}
+
+/* 禁用折叠按钮的点击背景色变化 */
+div[data-toggle="collapse"] .btn.text-left:focus,
+div[data-toggle="collapse"] .btn.text-left:active {
+  outline: none;
+  box-shadow: none;
+}
+
+/* 修复插件区域展开抖动问题 */
+/* 修复插件容器的负边距，防止抖动 */
+div[v-for*="plugin"] {
+  margin-bottom: 0 !important; /* 去除负边距，防止抖动 */
+}
+
+/* 为折叠区域设置平滑过渡 - 基础规则 */
+.collapse {
+  transition: height 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: height;
+}
+
+/* 修复折叠内容容器的间距，使折叠动画更流畅 */
+div[id^="collapse_"] {
+  margin-bottom: 8px; /* 为最后一个元素添加适当的底部间距 */
+  overflow: hidden; /* 防止内容溢出 */
+}
+
+/* 修复收起动画卡顿问题 */
+.collapsing {
+  position: relative;
+  height: 0;
+  overflow: hidden;
+  transition: height 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: height;
+}
+
+/* 确保折叠元素内的内容不添加额外的padding，避免动画抖动 */
+div[id^="collapse_"] > div.input-group {
+  padding: 0 !important;
+}
+
+/* 调整折叠内容中输入框的边距，防止抖动 */
+div[id^="collapse_"] .input-group.mb-2:last-child {
+  margin-bottom: 0 !important; /* 去除最后一个输入组的底部边距 */
+}
+
+/* 优化任务列表折叠动画 */
+.task .collapse {
+  transition: height 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: height;
+}
+
+/* 防止任务列表折叠内容中的元素添加额外padding，导致动画卡顿 */
+.task .collapse > div {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+/* 任务列表任务折叠箭头的动画，使旋转更平滑 */
+.task div[data-toggle="collapse"] .btn.text-left i.bi-caret-right-fill {
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  top: 0; /* 调整箭头垂直对齐，使其与文本居中 */
+  font-size: 0.95rem; /* 调整箭头大小与文本比例协调 */
+}
+
+.task div[data-toggle="collapse"][aria-expanded="true"] .btn.text-left i.bi-caret-right-fill {
+  transform: rotate(90deg);
+}
+
+/* 优化侧边栏菜单的折叠动画 */
+#sidebarMenu.collapse {
+  transition: height 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+  will-change: height;
+}
+
+#sidebarMenu.collapsing {
+  position: fixed !important;
+  left: 0;
+  top: 54px; /* 考虑导航栏高度 */
+  height: 0;
+  overflow: hidden;
+  transition: height 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+  will-change: height;
+  width: 100%;
+  z-index: 99;
+}
+
+/* 在移动设备上侧边栏菜单的特殊处理 */
+@media (max-width: 767.98px) {
+  #sidebarMenu {
+    position: fixed !important;
+    left: 0;
+    right: 0;
+    top: 54px; /* 考虑导航栏高度 */
+    z-index: 99;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    padding-top: 0 !important;
+  }
+  
+  /* 确保侧边栏内容正确定位 */
+  #sidebarMenu .sidebar-sticky {
+    height: calc(100vh - 54px); /* 计算正确的高度 */
+    padding-top: 20px; /* 恢复内部上边距，与非移动版本保持一致 */
+  }
+}
+
+/* 特别优化插件折叠动画，解决收起时最后阶段的卡顿问题 */
+div[id^="collapse_"][id*="plugin"] {
+  transition: height 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  will-change: height;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+div[id^="collapse_"][id*="plugin"].collapsing {
+  transition-duration: 0.12s !important;
+  transition-timing-function: cubic-bezier(0.5, 0, 0.75, 0) !important;
+}
+
+/* 确保插件区域内容不添加额外的外边距和内边距 */
+div[id^="collapse_"][id*="plugin"] > .input-group {
+  margin: 0 !important;
+  padding: 0 !important;
+  min-height: 32px; /* 插件固定高度的初始值，防止布局计算延迟 */
+}
+
+/* 确保插件折叠箭头动画更平滑 */
+div[data-toggle="collapse"] .btn.text-left i.bi-caret-right-fill {
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+/* 优化完全收起过程，避免卡顿，特别是当高度接近0时 */
+.collapsing[style*="height: 0"], 
+.collapsing[style*="height:0"] {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  transition-timing-function: cubic-bezier(0.55, 0, 1, 0.45) !important;
+  transition-duration: 0.1s !important;
+}
+
+/* 插件固定高度的初始值，防止布局计算延迟 */
+div[id^="collapse_"][id*="plugin"] .input-group {
+  min-height: 32px;
+}
+
+#fileSelectModal .btn-primary span {
+  background-color: transparent;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  padding: 0;
+  margin: 0;
+}
+
+#fileSelectModal .btn-primary .badge-light {
+  background-color: transparent;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  padding: 0;
+  margin: 0;
+}
+
+/* --------------- 命名预览页样式 --------------- */
+/* 命名预览表达式样式 */
+#fileSelectModal .mb-3[v-if="fileSelect.previewRegex"] {
+  margin-top: 15px;
+  margin-bottom: 15px !important;
+}
+
+#fileSelectModal .mb-3[v-if="fileSelect.previewRegex"] > div {
+  margin-bottom: 12px;
+}
+
+/* 预览页面表达式标题样式 */
+#fileSelectModal .mb-3[v-if="fileSelect.previewRegex"] b {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--dark-text-color);
+  margin-right: 8px;
+}
+
+/* 预览页面表达式内容样式 */
+#fileSelectModal .badge-info {
+  background-color: var(--focus-border-color) !important;
+  color: white !important;
+  font-size: 0.84rem !important;
+  padding: 6px 3px !important;
+  font-weight: normal !important;
+  border-radius: 4px !important;
+  line-height: 0.5 !important;
+  word-break: break-all !important;
+  text-align: left !important;
+  white-space: normal !important;
+}
+
+/* 预览表格的标题样式 */
+#fileSelectModal table.table th {
+  font-weight: 600 !important;
+  font-size: 0.85rem !important;
+}
+
+/* 命名预览区域样式 */
+#fileSelectModal div.mb-3 {
+  margin-top: 12.5px !important; /* 表达式上边距 */
+  margin-bottom: 0px !important;
+}
+
+/* 表达式组样式 - 应用于顺序命名、剧集命名和普通正则命名的容器 */
+#fileSelectModal div.mb-3 > div {
+  margin-bottom: 12.3px !important; /* 表达式下边距 */
+}
+
+/* 匹配表达式和替换表达式容器 */
+#fileSelectModal div.mb-3 > div > div[style*="display: flex"] {
+  margin-bottom: 0px !important;
+  margin-top: 6px !important;
+  padding-left: 12px !important; /* 表达式左边距 */
+}
+
+/* 多行表达式样式 - 缩小两行之间的间距 */
+#fileSelectModal div.mb-3 > div > div[style*="display: flex"] + div[style*="display: flex"] {
+  margin-top: 1px !important; /* 减少同一组内表达式之间的间距 */
+}
+
+/* 多行表达式间距 - 针对预览区域显示的多行表达式 */
+#fileSelectModal .mb-3[v-if="fileSelect.previewRegex"] > div > span.badge-info + span.badge-info {
+  margin-top: 1px !important; /* 减少多行表达式之间的间距 */
+  display: inline-block;
+}
+
+/* 顺序命名提示信息文本颜色，覆盖 Bootstrap .text-muted 类的颜色 */
+.text-muted {
+  color: var(--light-text-color) !important;
+}
+
+/* --------------- 深度搜索按钮样式 --------------- */
+.btn-primary:has(.spinner-border-sm) {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 0px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: var(--focus-border-color) !important;
+  border-color: var(--focus-border-color) !important;
+}
+
+/* 确保动画加载图标垂直居中 */
+.btn-primary .spinner-border-sm {
+  margin: 0 !important;
+  width: 1rem !important;
+  height: 1rem !important;
+  border-width: 0.15em !important;
+}
+
+/* --------------- datalist 历史记录提示框样式 --------------- */
+datalist {
+  display: none;
+}
+
+input::-webkit-calendar-picker-indicator {
+  display: none !important;
+  -webkit-appearance: none;
+}
+
+/* Chrome/Safari/Edge 下拉列表样式 */
+input::-webkit-list-button {
+  display: none !important;
+}
+
+/* Firefox datalist下拉箭头样式 */
+input::-moz-list-button {
+  display: none !important;
+}
+
+/* --------------- CloudSaver & WebUI 用户名和密码输入框样式 --------------- */
+/* 清除所有默认内边距和外边距 */
+.cloudsaver-username-col,
+.cloudsaver-password-col,
+.webui-username-col,
+.webui-password-col {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* 用户名列专用样式：左侧添加页边距，右侧留间隔 */
+.cloudsaver-username-col,
+.webui-username-col {
+  padding-left: 10px !important;
+  padding-right: 4px !important;
+}
+
+/* 密码列专用样式：右侧添加页边距，左侧留间隔 */
+.cloudsaver-password-col,
+.webui-password-col {
+  padding-left: 4px !important;
+  padding-right: 10px !important;
+}
+
+/* 确保移动模式下也有相同的边距 */
+@media (max-width: 767.98px) {
+  .cloudsaver-username-col,
+  .webui-username-col {
+    padding-left: 15px !important;
+    padding-right: 4px !important;
+  }
+  
+  .cloudsaver-password-col,
+  .webui-password-col {
+    padding-left: 4px !important;
+    padding-right: 15px !important;
+  }
+}
+
+/* --------------- 任务列表筛选框样式 --------------- */
+@media (min-width: 768px) {
+  /* 调整名称筛选框与任务筛选框之间的间距，从20px减小到8px */
+  .col-lg-6.col-md-6.mb-2.mb-md-0 {
+    padding-right: 4px;
+  }
+  
+  /* 匹配调整，确保任务筛选框左侧的间距 */
+  .col-lg-6.col-md-6:not(.mb-2) {
+    padding-left: 4px;
+  }
+}
+
+/* 在小屏设备上调整任务列表配置选项标题 */
+@media (max-width: 767.98px) {
+  .task .form-group.row .col-sm-2 {
+    max-width: 100%; /* 在小屏上允许全宽 */
+    min-width: auto; /* 取消最小宽度限制 */
+    width: 100%; /* 宽度适应屏幕 */
+    padding-top: 0; /* 移除顶部内边距 */
+    padding-bottom: 2px; /* 减少底部内边距 */
+    padding-left: 10px;
+    top: 2.5px;
+  }
+  
+  .task .form-group.row .col-sm-10 {
+    width: 100%; /* 全宽 */
+    max-width: 100%; /* 最大宽度全宽 */
+    margin-top: 0px; /* 减少顶部间距 */
+    padding-top: 0; /* 移除顶部内边距 */
+    padding-bottom: 0; /* 移除底部内边距 */
+  }
+  
+  /* 确保移动模式下配置选项间距与桌面模式一致 */
+  .task .form-group.row {
+    margin-bottom: 8px; /* 与桌面模式保持一致的行间距 */
+    padding-top: 0; /* 移除顶部内边距 */
+    padding-bottom: 0; /* 移除底部内边距 */
+  }
+  
+  /* 调整移动模式下表单控件的间距 */
+  .task .form-group.row .form-control,
+  .task .form-group.row .input-group {
+    margin-bottom: 0; /* 确保无底部边距 */
+  }
+  
+  /* 避免在移动模式下有额外内边距 */
+  .task .collapse > div .form-group.row:last-child {
+    margin-bottom: 8px; /* 保持最后一个选项与其他选项有相同的间距 */
+  }
+  
+  /* 调整任务配置标签的间距 */
+  .task .form-group.row .col-form-label {
+    padding-top: 2px; /* 减少顶部内边距 */
+    padding-bottom: 2px; /* 减少底部内边距 */
+  }
+  
+  /* 专门针对配置选项标题在配置框上方的情况调整 */
+  .task .form-group.row:not(.align-items-center) .col-sm-2 {
+    margin-bottom: 4.5px; /* 设置标题与配置框之间的距离 */
+    padding-left: 15px; /* 左对齐与其他元素保持一致 */
+    font-size: 0.95rem; /* 保持字体大小一致 */
+  }
+  
+  /* 标题在上方时配置框的左内边距调整 */
+  .task .form-group.row:not(.align-items-center) .col-sm-10 {
+    padding-left: 18.5px; /* 为标题在上方的配置框增加左内边距 */
+  }
+
+  /* 特别处理执行周期选项组等特殊情况 */
+  .task .form-group.row:not(.align-items-center) .form-check,
+  .task .form-group.row:not(.align-items-center) .form-group {
+    margin-top: 2px; /* 为表单组件添加顶部间距 */
+    padding-left: 0px; /* 左对齐一致 */
+  }
+
+  /* 移动模式下的任务标题左边距调整 */
+  @media (max-width: 767.98px) {
+    .task .btn.btn-block.text-left {
+      padding-left: 11px; /* 移动模式下标题左边距 */
+    }
+  }
+}
+
+/* 确保在移动设备上表格可以水平滚动 */
+@media (max-width: 767px) {
+  #fileSelectModal .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* 确保表格使用固定布局算法，保持列宽 */
+  #fileSelectModal .table {
+    table-layout: fixed;
+    width: max-content;
+    min-width: 100%;
+    margin-bottom: 0; /* 避免多余的底部间距 */
+  }
+  
+  /* 移动模式下面包屑导航宽度与表格匹配 */
+  /* 针对选择需转存的文件夹/选择起始文件模式 - 4列表格 */
+  #fileSelectModal[data-modal-type="source"] .breadcrumb,
+  #fileSelectModal[data-modal-type="start-file"] .breadcrumb {
+    min-width: 690px; /* 4列表格总宽度: 230px + 230px + 90px + 140px */
+  }
+  
+  #fileSelectModal[data-modal-type="source"] .table,
+  #fileSelectModal[data-modal-type="start-file"] .table {
+    width: 690px;
+  }
+  
+  /* 针对选择保存到的文件夹模式 - 带操作列的表格 */
+  #fileSelectModal[data-modal-type="target"] .breadcrumb {
+    min-width: 513px; /* 4列表格总宽度: 230px + 90px + 140px + 53px */
+  }
+  
+  #fileSelectModal[data-modal-type="target"] .table {
+    width: 513px;
+  }
+  
+  /* 针对命名预览模式 - 2列表格 */
+  #fileSelectModal[data-modal-type="preview"] .breadcrumb {
+    min-width: 460px; /* 2列表格总宽度: 230px + 230px */
+    margin-right: 0;
+    padding-right: 16px !important; /* 强制设置右边距为16px */
+    box-sizing: border-box;
+  }
+  
+  #fileSelectModal[data-modal-type="preview"] .table {
+    width: 460px;
+  }
+  
+  /* 确保面包屑导航内容不被截断 */
+  #fileSelectModal .breadcrumb-item {
+    white-space: nowrap;
+  }
+  
+  /* 修复模态框内边距问题 */
+  #fileSelectModal .modal-body {
+    padding-right: 16px !important;
+    padding-left: 16px !important;
+    -webkit-overflow-scrolling: touch; /* 在iOS设备上启用惯性滚动 */
+    overflow-x: hidden; /* 禁用整个modal-body的水平滚动，由内部元素单独控制 */
+  }
+  
+  /* 修复表格和面包屑导航的边距问题 */
+  #fileSelectModal .table-responsive {
+    padding-right: 0;
+    margin-right: 0;
+    width: 100%;
+  }
+  
+  /* 确保表格容器有正确的溢出行为 */
+  #fileSelectModal .modal-body > div:not(.alert-warning) {
+    overflow-x: auto;
+    width: 100%;
+    padding-bottom: 8px; /* 添加底部内边距，避免滚动条遮挡内容 */
+  }
+  
+  /* 确保面包屑导航在滚动容器内有正确的空间 */
+  #fileSelectModal nav[aria-label="breadcrumb"] {
+    padding-right: 16px; /* 确保右侧有足够边距 */
+    margin-right: 0;
+    margin-bottom: 8px; /* 保持与表格的间距一致 */
+  }
+  
+  /* 特别处理预览模式下的导航栏，防止双重内边距 */
+  #fileSelectModal[data-modal-type="preview"] .modal-body > div > nav[aria-label="breadcrumb"] {
+    padding-right: 0 !important; /* 清除可能的额外内边距 */
+  }
+  
+  /* 确保模态框内的预览区域也有合适的边距和滚动行为 */
+  #fileSelectModal .mb-3[v-if="fileSelect.previewRegex"] {
+    padding-right: 16px;
+    overflow-x: auto;
+    width: 100%;
+  }
+  
+  /* 优化表格的标题行在滚动时始终可见 */
+  #fileSelectModal .table th {
+    z-index: 5; /* 保证在滚动时标题行位于上层 */
+  }
+  
+  /* 优化滚动条样式，使其更细小不占用过多空间 */
+  #fileSelectModal .modal-body > div::-webkit-scrollbar {
+    height: 8px; /* 较细的滚动条 */
+  }
+  
+  #fileSelectModal .modal-body > div::-webkit-scrollbar-thumb {
+    background-color: var(--border-color); /* 滚动条滑块 */
+    border-radius: 4px; /* 圆角滚动条 */
+  }
+  
+  #fileSelectModal .modal-body > div::-webkit-scrollbar-track {
+    background-color: #f7f7fa; /* 滚动条轨道 */
+    border-radius: 4px; /* 圆角滚动条 */
+  }
+}
+
+/* 针对命名预览模式特别处理表格容器的底部内边距 */
+#fileSelectModal[data-modal-type="preview"] .modal-body > div:not(.alert-warning) {
+  padding-bottom: 0px !important; /* 命名预览模式下表格底部无滚动条时内边距设为0px */
+}
+
+/* 命名预览模式下，有滚动条时的底部内边距 */
+#fileSelectModal[data-modal-type="preview"] .modal-body > div.has-scrollbar:not(.alert-warning) {
+  padding-bottom: 8px !important; /* 有滚动条时增加底部内边距 */
+}
+
+/* --------------- 模态框表格展开按钮样式 --------------- */
+#fileSelectModal .expand-button {
+  position: absolute;
+  right: 5px;
+  top: 8px; /* 固定高度，不再使用百分比定位 */
+  transform: none; /* 移除垂直居中转换 */
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+  background: #fff;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  text-align: center;
+  line-height: 18px;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.2);
+  z-index: 2;
+}
+
+#fileSelectModal .position-relative:hover .expand-button {
+  opacity: 1;
+}
+
+#fileSelectModal .expand-button .bi {
+  font-size: 0.78em;
+  vertical-align: middle;
+  position: relative;
+  top: -0.5px;
+}
+
+/* 确保模态框中的表格单元格可以正确显示展开按钮 */
+#fileSelectModal .table td.position-relative {
+  position: relative;
+}
+
+/* 当表格行被点击时，防止展开按钮的点击事件冒泡 */
+#fileSelectModal .expand-button {
+  pointer-events: auto;
+}
+
+/* 确保展开状态下的文本可以正确换行 */
+#fileSelectModal .table td [style*="white-space: normal"] {
+  display: block;
+  width: 100%;
+}
+
+/* 确保表格行内容保持顶部对齐 */
+#fileSelectModal .table tr {
+  vertical-align: top !important;
+}
+
+#fileSelectModal .table td {
+  vertical-align: top !important;
+}
+
+/* 移动设备插件折叠按钮左边距设置 */
+@media (max-width: 767.98px) {
+  div[data-toggle="collapse"] .btn.text-left {
+    padding-left: 17px;
+  }
+}
+
+/* 模态框表头悬停样式 */
+#fileSelectModal .table th.cursor-pointer:hover {
+  background-color: #f7f7fa; /* 表头悬停背景色 */
+  cursor: pointer;
+}

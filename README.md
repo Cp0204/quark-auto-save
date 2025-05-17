@@ -1,30 +1,32 @@
 # 夸克自动转存
-本项目是在 [Cp0204/quark-auto-save:0.5.3.1](https://github.com/Cp0204/quark-auto-save) 的基础上修改而来的（感谢 [Cp0204](https://github.com/Cp0204)），我增加了几个功能，新增功能的代码都是通过 AI 完成的，不保证功能的稳定性。主要的新增功能如下（[详见](https://github.com/x1ao4/quark-auto-save-x/wiki)）：
+本项目是在 [Cp0204/quark-auto-save:0.5.3.1](https://github.com/Cp0204/quark-auto-save) 的基础上修改而来的（感谢 [Cp0204](https://github.com/Cp0204)），我对整个 WebUI 进行了重塑，增加了更多实用功能，新增功能的代码都是通过 AI 完成的，不保证功能的稳定性。主要的新增功能如下（[详见](https://github.com/x1ao4/quark-auto-save-x/wiki)）：
 
 - **过滤项目**：通过在 `过滤规则` 里设置过滤词来过滤不需要转存的文件或文件夹。
 - **顺序命名**：通过使用包含 `{}` 的表达式（如 `乘风2025 - S06E{}`）自动切换为 `顺序命名` 模式，该模式将通过文件名与上传时间等信息对文件进行智能排序，然后按顺序对每个文件的 `{}` 赋予序号，实现顺序命名。
 - **剧集命名**：通过使用包含 `[]` 的表达式（如 `黑镜 - S06E[]`）自动切换为 `剧集命名` 模式，该模式将从原始文件名中提取剧集编号，然后把提取的编号代入对应文件名的 `[]` 中，实现自动按剧集编号命名。
 - **自动切换命名模式**：默认的命名模式依然为 `正则命名` 模式，现在会通过用户输入的 `匹配表达式` 自动实时判断和切换对应的模式。
 - **自定义集编号识别规则**：支持在系统配置页面编辑用于提取剧集编号的 `集编号识别规则` 表达式，扩展识别范围。
+- **数据库**：引入 SQLite 数据库，记录和管理所有转存历史，便于查询和追踪。
+- **转存记录**：支持通过 WebUI 的转存记录页面查看、查询历史转存记录的相关信息。
+- **WebUI**：对整个 WebUI 进行了重塑，增加了更多实用功能，如文件选择和预览界面的排序功能、资源搜索的过滤功能、TMDB 和豆瓣搜索功能、页面视图切换功能、账号设置功能等等。
 
-本项目修改后的版本为个人需求定制版，代码是通过 AI 完成的，未经过充分测试（能发现的 BUG 我基本解决了，但可能存在未发现的 BUG），我会在后续的使用中继续完善功能。若你要使用本项目，请知晓本人不是程序员，我无法保证本项目的稳定性，如果你在使用过程中发现了 BUG，可以在 Issues 中提交，但不保证每个 BUG 都能被修复，请谨慎使用，风险自担。
+本项目修改后的版本为个人需求定制版，目的是满足我自己的使用需求，某些（我不用的）功能可能会因为修改而出现 BUG，不一定会被修复。若你要使用本项目，请知晓本人不是程序员，我无法保证本项目的稳定性，如果你在使用过程中发现了 BUG，可以在 Issues 中提交，但不保证每个 BUG 都能被修复，请谨慎使用，风险自担。
 
-夸克网盘签到、自动转存、命名整理、发推送提醒和刷新媒体库一条龙。
-对于一些持续更新的资源，隔段时间去转存十分麻烦。
-定期执行本脚本自动转存、文件名整理，配合 Alist、rclone、Emby 可达到自动追更的效果。🥳
+夸克网盘签到、自动转存、命名整理、发推送提醒和刷新媒体库一条龙。对于一些持续更新的资源，隔段时间去转存十分麻烦。定期执行本脚本自动转存、重命名整理，配合 Alist、rclone、Emby、Plex 可达到自动追更的效果。🥳
 
-注意！资源不会每时每刻更新，**严禁设定过高的定时运行频率！** 以免账号风控和给夸克服务器造成不必要的压力。
+注意！资源不会每时每刻更新，**严禁设置过高的定时运行频率！**
+以免账号风控或者给夸克服务器造成不必要的压力。
 
 ## 功能
 - 部署方式
-  - [x] 兼容青龙
-  - [x] 支持 Docker 独立部署，WebUI 配置
+  - [x] 支持 Docker 部署，WebUI 配置
+  - [x] 可能兼容青龙
 
 - 分享链接
   - [x] 支持分享链接的子目录
   - [x] 记录失效分享并跳过任务
   - [x] 支持需提取码的分享链接 <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/使用技巧集锦#支持需提取码的分享链接)</sup>
-  - [x] 智能搜索资源并自动填充 <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/CloudSaver搜索源)</sup>
+  - [x] 智能搜索资源并自动填充（**支持自动过滤失效链接**） <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/CloudSaver搜索源)</sup>
 
 - 文件管理
   - [x] 目标目录不存在时自动新建
@@ -32,15 +34,17 @@
   - [x] **过滤不需要转存的文件或文件夹**
   - [x] 转存后文件名整理（正则命名、**顺序命名**、**剧集命名**）
   - [x] 可选忽略文件后缀
+  - [x] **数据库记录所有转存历史**
 
 - 任务管理
   - [x] 支持多组任务
   - [x] 任务结束期限，期限后不执行此任务
   - [x] 可单独指定子任务星期几执行
+  - [x] **支持通过任务名称跳转 TMDB、豆瓣相关（搜索）页面**
 
 - 媒体库整合
   - [x] 根据任务名搜索 Emby 媒体库
-  - [x] 追更或整理后自动刷新 Emby 媒体库
+  - [x] 追更或整理后自动刷新 Emby、Plex 媒体库
   - [x] 媒体库模块化，用户可很方便地[开发自己的媒体库hook模块](./plugins)
 
 - 其它
@@ -51,21 +55,20 @@
 ## 部署
 ### Docker 部署
 
-Docker 部署提供 WebUI 管理配置，图形化配置已能满足绝大多数需求。部署命令：
+Docker Run
 
 ```shell
 docker run -d \
   --name quark-auto-save-x \
   -p 5005:5005 \
-  -e WEBUI_USERNAME=自定义用户名 \
-  -e WEBUI_PASSWORD=自定义密码 \
   -v /自定义配置文件的存储目录/quark-auto-save-x/config:/app/config \
   -v /自定义生成文件的存储目录:/media \  # 可选，插件 alist_strm_gen 生成 strm 使用
+  -v /自定义下载文件的存储目录:/downloads \  # 可选，插件 aria2 下载文件使用
   --restart unless-stopped \
   x1ao4/quark-auto-save-x:latest
 ```
 
-docker-compose.yml
+Docker Compose
 
 ```yaml
 version: "3.3"
@@ -75,23 +78,24 @@ services:
     container_name: quark-auto-save-x
     ports:
       - 5005:5005
-    environment:
-      WEBUI_USERNAME: 自定义用户名
-      WEBUI_PASSWORD: 自定义密码
     volumes:
       - /自定义配置文件的存储目录/quark-auto-save-x/config:/app/config
       - /自定义生成文件的存储目录:/media  # 可选，插件 alist_strm_gen 生成 strm 使用
+      - /自定义下载文件的存储目录:/downloads  # 可选，插件 aria2 下载文件使用
     restart: unless-stopped
 networks: {}
 ```
 
-管理地址：http://yourhost:5005
+默认管理地址：http://yourhost:5005
+
+默认管理用户名/密码：admin
 
 | 环境变量         | 说明     |
 | ---------------- | -------- |
 | `WEBUI_USERNAME` | 用户名 |
 | `WEBUI_PASSWORD` | 密码 |
 | `PLUGIN_FLAGS`   | 插件标志，如使用 `-emby,-aria2` 来禁用某些插件 |
+| `PORT` | 端口，Host 模式可使用此变量更换端口 |
 
 ### 青龙部署
 程序也支持以青龙定时任务的方式运行，但该方式无法使用 WebUI 管理任务，需手动修改配置文件。
@@ -118,7 +122,7 @@ networks: {}
 ### 刷新媒体库
 在有新转存时，可触发完成相应功能，如自动刷新媒体库、生成 .strm 文件等。配置指南：[插件配置](https://github.com/x1ao4/quark-auto-save-x/wiki/插件配置)
 
-媒体库模块以插件的方式的集成，如果你有兴趣请参考[插件开发指南](https://github.com/Cp0204/quark-auto-save/tree/main/plugins)。
+媒体库模块以插件的方式的集成，如果你有兴趣请参考[插件开发指南](https://github.com/x1ao4/quark-auto-save-x/tree/x/plugins)。
 
 ### 更多使用技巧
 请参考 Wiki ：[使用技巧集锦](https://github.com/x1ao4/quark-auto-save-x/wiki/使用技巧集锦)
