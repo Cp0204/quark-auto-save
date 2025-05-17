@@ -1,6 +1,6 @@
 {
   "cookie": [
-    "Your pan.quark.cn Cookie1, Only this one will do save task."
+    "打开 pan.quark.com 按 F12 抓取"
   ],
   "push_config": {
     "QUARK_SIGN_NOTIFY": true,
