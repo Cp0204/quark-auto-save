@@ -20,7 +20,8 @@ ARG BUILD_TAG=v${VERSION}
 ENV BUILD_SHA=$BUILD_SHA
 ENV BUILD_TAG=$BUILD_TAG
 
-# 端口
+# 端口配置 (可通过 -e PORT=xxxx 修改，适用于桥接模式和host模式)
+ENV PORT=5005
 EXPOSE 5005
 
 # 运行应用程序

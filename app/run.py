@@ -16,7 +16,7 @@ from flask import (
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sdk.cloudsaver import CloudSaver
-from datetime import timedelta
+from datetime import timedelta, datetime
 import subprocess
 import requests
 import hashlib
@@ -29,11 +29,23 @@ import re
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
 from quark_auto_save import Quark
-from quark_auto_save import Config
+from quark_auto_save import Config, format_bytes
 
 # 添加导入全局extract_episode_number和sort_file_by_name函数
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from quark_auto_save import extract_episode_number, sort_file_by_name
+
+# 导入数据库模块
+try:
+    from app.sdk.db import RecordDB
+except ImportError:
+    # 如果没有数据库模块，定义一个空类
+    class RecordDB:
+        def __init__(self, *args, **kwargs):
+            pass
+        
+        def get_records(self, *args, **kwargs):
+            return {"records": [], "pagination": {"total_records": 0, "total_pages": 0, "current_page": 1, "page_size": 20}}
 
 
 def get_app_ver():
@@ -53,6 +65,8 @@ SCRIPT_PATH = os.environ.get("SCRIPT_PATH", "./quark_auto_save.py")
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "./config/quark_config.json")
 PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "")
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
+# 从环境变量获取端口，默认为5005
+PORT = int(os.environ.get("PORT", "5005"))
 
 config_data = {}
 task_plugins_config_default = {}
@@ -114,17 +128,24 @@ def login():
     if request.method == "POST":
         username = config_data["webui"]["username"]
         password = config_data["webui"]["password"]
+        input_username = request.form.get("username")
+        input_password = request.form.get("password")
+        
         # 验证用户名和密码
-        if (username == request.form.get("username")) and (
-            password == request.form.get("password")
-        ):
+        if not input_username or not input_password:
+            logging.info(">>> 登录失败：用户名或密码为空")
+            return render_template("login.html", message="用户名和密码不能为空")
+        elif username != input_username:
+            logging.info(f">>> 登录失败：用户名错误 {input_username}")
+            return render_template("login.html", message="用户名或密码错误")
+        elif password != input_password:
+            logging.info(f">>> 用户 {input_username} 登录失败：密码错误")
+            return render_template("login.html", message="用户名或密码错误")
+        else:
             logging.info(f">>> 用户 {username} 登录成功")
             session.permanent = True
             session["token"] = get_login_token()
             return redirect(url_for("index"))
-        else:
-            logging.info(f">>> 用户 {username} 登录失败")
-            return render_template("login.html", message="登录失败")
 
     if is_login():
         return redirect(url_for("index"))
@@ -154,7 +175,11 @@ def get_data():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
     data = Config.read_json(CONFIG_PATH)
-    del data["webui"]
+    # 发送webui信息，但不发送密码原文
+    data["webui"] = {
+        "username": config_data["webui"]["username"],
+        "password": config_data["webui"]["password"]
+    }
     data["api_token"] = get_login_token()
     data["task_plugins_config_default"] = task_plugins_config_default
     return jsonify({"success": True, "data": data})
@@ -169,8 +194,15 @@ def update():
     dont_save_keys = ["task_plugins_config_default", "api_token"]
     for key, value in request.json.items():
         if key not in dont_save_keys:
-            config_data.update({key: value})
+            if key == "webui":
+                # 更新webui凭据
+                config_data["webui"]["username"] = value.get("username", config_data["webui"]["username"])
+                config_data["webui"]["password"] = value.get("password", config_data["webui"]["password"])
+            else:
+                config_data.update({key: value})
     Config.write_json(CONFIG_PATH, config_data)
+    # 更新session token，确保当前会话在用户名密码更改后仍然有效
+    session["token"] = get_login_token()
     # 重新加载任务
     if reload_tasks():
         logging.info(f">>> 配置更新成功")
@@ -197,6 +229,9 @@ def run_script_now():
         process_env["PYTHONIOENCODING"] = "utf-8"
         if tasklist:
             process_env["TASKLIST"] = json.dumps(tasklist, ensure_ascii=False)
+            # 添加原始任务索引的环境变量
+            if len(tasklist) == 1 and 'original_index' in request.json:
+                process_env["ORIGINAL_TASK_INDEX"] = str(request.json['original_index'])
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
@@ -294,15 +329,23 @@ def is_date_format(number_str):
     return False
 
 
-@app.route("/get_share_detail", methods=["POST"])
+# 获取分享详情接口
+@app.route("/get_share_detail", methods=["GET", "POST"])
 def get_share_detail():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
-    shareurl = request.json.get("shareurl", "")
-    stoken = request.json.get("stoken", "")
+    
+    # 支持GET和POST请求
+    if request.method == "GET":
+        shareurl = request.args.get("shareurl", "")
+        stoken = request.args.get("stoken", "")
+    else:
+        shareurl = request.json.get("shareurl", "")
+        stoken = request.json.get("stoken", "")
+        
     account = Quark("", 0)
     # 设置account的必要属性
-    account.episode_patterns = request.json.get("regex", {}).get("episode_patterns", [])
+    account.episode_patterns = request.json.get("regex", {}).get("episode_patterns", []) if request.method == "POST" else []
     
     pwd_id, passcode, pdir_fid, paths = account.extract_url(shareurl)
     if not stoken:
@@ -313,6 +356,10 @@ def get_share_detail():
     share_detail["paths"] = paths
     share_detail["stoken"] = stoken
 
+    # 如果是GET请求或者不需要预览正则，直接返回分享详情
+    if request.method == "GET" or not request.json.get("regex"):
+        return jsonify({"success": True, "data": share_detail})
+        
     # 正则命名预览
     def preview_regex(share_detail):
         regex = request.json.get("regex")
@@ -408,7 +455,6 @@ def get_share_detail():
                     regex_pattern = re.escape(episode_pattern).replace('\\[\\]', '(\\d+)')
             else:
                 # 如果输入模式不包含[]，则使用简单匹配模式，避免正则表达式错误
-                print(f"⚠️ 剧集命名模式中没有找到 [] 占位符，将使用简单匹配")
                 regex_pattern = "^" + re.escape(episode_pattern) + "(\\d+)$"
             
             # 实现高级排序算法
@@ -643,7 +689,7 @@ def init():
         "username": os.environ.get("WEBUI_USERNAME")
         or config_data.get("webui", {}).get("username", "admin"),
         "password": os.environ.get("WEBUI_PASSWORD")
-        or config_data.get("webui", {}).get("password", "admin123"),
+        or config_data.get("webui", {}).get("password", "admin"),
     }
 
     # 默认定时规则
@@ -659,7 +705,137 @@ def init():
     Config.write_json(CONFIG_PATH, config_data)
 
 
+# 获取历史转存记录
+@app.route("/history_records")
+def get_history_records():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+        
+    # 获取请求参数
+    page = int(request.args.get("page", 1))
+    page_size = int(request.args.get("page_size", 20))
+    sort_by = request.args.get("sort_by", "transfer_time")
+    order = request.args.get("order", "desc")
+    
+    # 获取筛选参数
+    task_name_filter = request.args.get("task_name", "")
+    keyword_filter = request.args.get("keyword", "")
+    
+    # 是否只请求所有任务名称
+    get_all_task_names = request.args.get("get_all_task_names", "").lower() in ["true", "1", "yes"]
+    
+    # 初始化数据库
+    db = RecordDB()
+    
+    # 如果请求所有任务名称，单独查询并返回
+    if get_all_task_names:
+        cursor = db.conn.cursor()
+        cursor.execute("SELECT DISTINCT task_name FROM transfer_records ORDER BY task_name")
+        all_task_names = [row[0] for row in cursor.fetchall()]
+        
+        # 如果同时请求分页数据，继续常规查询
+        if page > 0 and page_size > 0:
+            result = db.get_records(
+                page=page, 
+                page_size=page_size, 
+                sort_by=sort_by, 
+                order=order,
+                task_name_filter=task_name_filter,
+                keyword_filter=keyword_filter
+            )
+            # 添加所有任务名称到结果中
+            result["all_task_names"] = all_task_names
+            
+            # 处理记录格式化
+            format_records(result["records"])
+            
+            return jsonify({"success": True, "data": result})
+        else:
+            # 只返回任务名称
+            return jsonify({"success": True, "data": {"all_task_names": all_task_names}})
+    
+    # 常规查询
+    result = db.get_records(
+        page=page, 
+        page_size=page_size, 
+        sort_by=sort_by, 
+        order=order,
+        task_name_filter=task_name_filter,
+        keyword_filter=keyword_filter
+    )
+    
+    # 处理记录格式化
+    format_records(result["records"])
+    
+    return jsonify({"success": True, "data": result})
+
+
+# 辅助函数：格式化记录
+def format_records(records):
+    for record in records:
+        # 格式化时间戳为可读形式
+        if "transfer_time" in record:
+            try:
+                # 确保时间戳在合理范围内
+                timestamp = int(record["transfer_time"])
+                if timestamp > 9999999999:  # 检测是否为毫秒级时间戳（13位）
+                    timestamp = timestamp / 1000  # 转换为秒级时间戳
+                
+                if 0 < timestamp < 4102444800:  # 从1970年到2100年的合理时间戳范围
+                    record["transfer_time_readable"] = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    record["transfer_time_readable"] = "无效日期"
+            except (ValueError, TypeError, OverflowError):
+                record["transfer_time_readable"] = "无效日期"
+                
+        if "modify_date" in record:
+            try:
+                # 确保时间戳在合理范围内
+                timestamp = int(record["modify_date"])
+                if timestamp > 9999999999:  # 检测是否为毫秒级时间戳（13位）
+                    timestamp = timestamp / 1000  # 转换为秒级时间戳
+                    
+                if 0 < timestamp < 4102444800:  # 从1970年到2100年的合理时间戳范围
+                    record["modify_date_readable"] = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    record["modify_date_readable"] = "无效日期"
+            except (ValueError, TypeError, OverflowError):
+                record["modify_date_readable"] = "无效日期"
+                
+        # 格式化文件大小
+        if "file_size" in record:
+            try:
+                record["file_size_readable"] = format_bytes(int(record["file_size"]))
+            except (ValueError, TypeError):
+                record["file_size_readable"] = "未知大小"
+
+
+@app.route("/get_user_info")
+def get_user_info():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+    
+    user_info_list = []
+    for idx, cookie in enumerate(config_data["cookie"]):
+        account = Quark(cookie, idx)
+        account_info = account.init()
+        if account_info:
+            user_info_list.append({
+                "index": idx,
+                "nickname": account_info["nickname"],
+                "is_active": account.is_active
+            })
+        else:
+            user_info_list.append({
+                "index": idx,
+                "nickname": "",
+                "is_active": False
+            })
+    
+    return jsonify({"success": True, "data": user_info_list})
+
+
 if __name__ == "__main__":
     init()
     reload_tasks()
-    app.run(debug=DEBUG, host="0.0.0.0", port=5005)
+    app.run(debug=DEBUG, host="0.0.0.0", port=PORT)
