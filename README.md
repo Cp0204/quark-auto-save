@@ -86,7 +86,9 @@ services:
 networks: {}
 ```
 
-管理地址：http://yourhost:5005
+默认管理地址：http://yourhost:5005
+
+默认管理用户名/密码：admin
 
 | 环境变量         | 说明     |
 | ---------------- | -------- |
