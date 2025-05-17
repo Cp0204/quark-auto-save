@@ -63,7 +63,6 @@ docker run -d \
   -p 5005:5005 \
   -v /自定义配置文件的存储目录/quark-auto-save-x/config:/app/config \
   -v /自定义生成文件的存储目录:/media \  # 可选，插件 alist_strm_gen 生成 strm 使用
-  -v /自定义下载文件的存储目录:/downloads \  # 可选，插件 aria2 下载文件使用
   --restart unless-stopped \
   x1ao4/quark-auto-save-x:latest
 ```
@@ -81,7 +80,6 @@ services:
     volumes:
       - /自定义配置文件的存储目录/quark-auto-save-x/config:/app/config
       - /自定义生成文件的存储目录:/media  # 可选，插件 alist_strm_gen 生成 strm 使用
-      - /自定义下载文件的存储目录:/downloads  # 可选，插件 aria2 下载文件使用
     restart: unless-stopped
 networks: {}
 ```
