@@ -307,7 +307,7 @@
                       <div class="input-group">
                         <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @blur="changeShareurl(task)">
                         <div class="input-group-append" v-if="task.shareurl">
-                          <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;fileSelect.previewRegex=false;showShareSelect(index)" title="选择文件夹"><i class="bi bi-folder"></i></button>
+                          <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;fileSelect.previewRegex=false;fileSelect.sortBy='file_name';fileSelect.sortOrder='desc';showShareSelect(index)" title="选择文件夹"><i class="bi bi-folder"></i></button>
                           <div class="input-group-text">
                             <a target="_blank" :href="task.shareurl"><i class="bi bi-box-arrow-up-right"></i></a>
                           </div>
@@ -322,7 +322,7 @@
                         <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填" @focus="focusTaskname(index, task)">
                         <div class="input-group-append">
                           <button class="btn btn-secondary" type="button" v-if="smart_param.savepath && smart_param.index == index && task.savepath != smart_param.origin_savepath" @click="task.savepath = smart_param.origin_savepath"><i class="bi bi-reply"></i></button>
-                          <button class="btn btn-outline-secondary" type="button" @click="showSavepathSelect(index)">选择</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showSavepathSelect(index)">选择</button>
                         </div>
                       </div>
                     </div>
@@ -332,7 +332,7 @@
                     <div class="col-sm-10">
                       <div class="input-group">
                         <div class="input-group-prepend">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.previewRegex=true;showShareSelect(index)" title="预览正则处理效果">正则处理</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.previewRegex=true;fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showShareSelect(index)" title="预览正则处理效果">正则处理</button>
                         </div>
                         <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex">
                         <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
@@ -353,7 +353,7 @@
                       <div class="input-group">
                         <input type="text" class="form-control" placeholder="可选，只转存修改日期>此文件的文件" name="startfid[]" v-model="task.startfid">
                         <div class="input-group-append" v-if="task.shareurl">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.previewRegex=false;showShareSelect(index)">选择</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.previewRegex=false;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index)">选择</button>
                         </div>
                       </div>
                     </div>
@@ -468,12 +468,24 @@
               <table class="table table-hover table-sm">
                 <thead>
                   <tr>
-                    <th scope="col">文件名</th>
-                    <th scope="col" v-if="fileSelect.selectShare">正则处理</th>
+                    <th scope="col" class="cursor-pointer" @click="sortFileList('file_name')">
+                      文件名
+                      <span v-if="fileSelect.sortBy === 'file_name'">{{ fileSelect.sortOrder === "asc" ? "↑" : "↓" }}</span>
+                    </th>
+                    <th scope="col" v-if="fileSelect.selectShare">
+                      正则处理
+                    </th>
                     <template v-if="!fileSelect.previewRegex">
-                      <th scope="col">大小</th>
-                      <th scope="col">修改日期 ↓</th>
-                      <th scope="col" v-if="!fileSelect.selectShare">操作</th>
+                      <th scope="col">
+                        大小
+                      </th>
+                      <th scope="col" class="cursor-pointer" @click="sortFileList('updated_at')">
+                        修改日期
+                        <span v-if="fileSelect.sortBy === 'updated_at'">{{ fileSelect.sortOrder === "asc" ? "↑" : "↓" }}</span>
+                      </th>
+                      <th scope="col" v-if="!fileSelect.selectShare">
+                        操作
+                      </th>
                     </template>
                   </tr>
                 </thead>
@@ -562,6 +574,8 @@
           selectDir: true,
           selectShare: true,
           previewRegex: false,
+          sortBy: "updated_at",
+          sortOrder: "desc"
         },
       },
       filters: {
@@ -984,7 +998,8 @@
           axios.get('/get_savepath_detail', {
             params: params
           }).then(response => {
-            this.fileSelect.fileList = response.data.data.list
+            this.fileSelect.fileList = response.data.data.list;
+            this.sortFileList(this.fileSelect.sortBy, this.fileSelect.sortOrder);
             if (response.data.data.paths?.length > 0) {
               this.fileSelect.paths = response.data.data.paths
             }
@@ -1017,6 +1032,7 @@
           }).then(response => {
             if (response.data.success) {
               this.fileSelect.fileList = response.data.data.list;
+              this.sortFileList(this.fileSelect.sortBy, this.fileSelect.sortOrder);
               this.fileSelect.paths = response.data.data.paths;
               this.fileSelect.stoken = response.data.data.stoken;
             } else {
@@ -1090,6 +1106,26 @@
             shareurl = `${shareurl}#/list/share/${dir.fid}-${dir.name?.replace('-', '*101')}`
           }
           return shareurl;
+        },
+        sortFileList(column, order) {
+          if (this.fileSelect.sortBy === column && !order) {
+            this.fileSelect.sortOrder = this.fileSelect.sortOrder === "asc" ? "desc" : "asc";
+          } else {
+            this.fileSelect.sortBy = column;
+            this.fileSelect.sortOrder = order || "asc";
+          }
+
+          this.fileSelect.fileList.sort((a, b) => {
+            let valA = a[this.fileSelect.sortBy];
+            let valB = b[this.fileSelect.sortBy];
+
+            if (typeof valA === "string") valA = valA.toLowerCase();
+            if (typeof valB === "string") valB = valB.toLowerCase();
+
+            if (valA < valB) return this.fileSelect.sortOrder === "asc" ? -1 : 1;
+            if (valA > valB) return this.fileSelect.sortOrder === "asc" ? 1 : -1;
+            return 0;
+          });
         }
       }
     });
