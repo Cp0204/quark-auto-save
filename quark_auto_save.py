@@ -274,13 +274,19 @@ class MagicRename:
         # 合并目录文件列表
         filename_list = list(set(filename_list) | set(dir_filename_dict.values()))
         filename_list.sort(key=self._custom_sort_key)
-        # print(f"filename_list_sort: {filename_list}")
+        filename_index = {}
+        for name in filename_list:
+            if name in dir_filename_dict.values():
+                continue
+            i = filename_list.index(name) + 1
+            while i in dir_filename_dict.keys():
+                i += 1
+            dir_filename_dict[i] = name
+            filename_index[name] = i
         for file in file_list:
             if file.get("file_name_re"):
                 if match := re.search(r"\{I+\}", file["file_name_re"]):
-                    i = filename_list.index(file["file_name_re"]) + 1
-                    while i in dir_filename_dict.keys():
-                        i += 1
+                    i = filename_index.get(file["file_name_re"], 0)
                     file["file_name_re"] = re.sub(
                         match.group(),
                         str(i).zfill(match.group().count("I")),
