@@ -1596,6 +1596,17 @@
           // 检测任务名称中剧名和季序号之间的分隔符
           const separatorMatch = cleanTaskName.match(/^(.*?)([\s\.\-_]+)(?:S(\d+)|Season\s*(\d+))/i);
           let showName, seasonNumber, nameSeparator = ' - '; // 默认分隔符
+          let isTVShow = false; // 标记是否为电视节目
+          
+          // 判断保存路径是否包含电视节目相关的关键词
+          if (task.savepath) {
+            const tvKeywords = ["影视", "电视", "节目", "剧", "动漫", "动画", "番", "综艺", "真人秀", "TV", "Tv", "tv", "Series", "series", "Show", "show"];
+            isTVShow = tvKeywords.some(keyword => task.savepath.includes(keyword));
+          }
+          
+          // 当任务名称包含季信息或保存路径有电视剧关键词时，按电视节目处理
+          const hasSeason = separatorMatch && (separatorMatch[3] || separatorMatch[4]);
+          isTVShow = isTVShow || hasSeason;
           
           if (separatorMatch) {
             // 提取剧名（去除末尾空格和特殊符号）
@@ -1634,12 +1645,19 @@
                 const newPathParts = newPath.split('/');
                 pathParts[pathParts.length - 1] = newPathParts[newPathParts.length - 1];
               } else {
-                // 直接使用任务名称中提取的信息构建最后一级
-                pathParts[pathParts.length - 1] = showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0');
+                // 根据是否为电视节目决定处理方式
+                if (isTVShow) {
+                  // 电视节目格式：剧名 + 分隔符 + S季序号
+                  pathParts[pathParts.length - 1] = showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0');
+                } else {
+                  // 非电视节目直接使用任务名称
+                  pathParts[pathParts.length - 1] = cleanTaskName;
+                }
               }
               
               // 处理倒数第二级目录（剧名+年份）- 无论是否使用智能路径，都更新
-              if (pathParts.length >= 3) {
+              if (pathParts.length >= 3 && isTVShow) {
+                // 只有电视节目才更新倒数第二级目录
                 const parentDir = pathParts[pathParts.length - 2];
                 // 提取年份信息
                 const yearMatch = parentDir.match(/\((\d{4})\)|\（(\d{4})\）|[\s\-_]+(\d{4})(?:[\s\-_]+|$)/);
@@ -1656,17 +1674,50 @@
           
           // 更新命名规则 - 始终使用当前任务名称中的信息
           if (task.pattern) {
-            // 处理剧集命名模式
-            if (task.use_episode_naming) {
-              // 直接使用任务名称中提取的信息构建命名规则
-              task.pattern = showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0') + 'E[]';
-              task.episode_naming = task.pattern;
-            } 
-            // 处理顺序命名模式
-            else if (task.use_sequence_naming) {
-              // 直接使用任务名称中提取的信息构建命名规则
-              task.pattern = showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0') + 'E{}';
-              task.sequence_naming = task.pattern;
+            // 根据是否为电视节目决定处理方式
+            if (isTVShow) {
+              // 处理剧集命名模式
+              if (task.use_episode_naming) {
+                // 直接使用任务名称中提取的信息构建命名规则
+                task.pattern = showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0') + 'E[]';
+                task.episode_naming = task.pattern;
+              } 
+              // 处理顺序命名模式
+              else if (task.use_sequence_naming) {
+                // 直接使用任务名称中提取的信息构建命名规则
+                task.pattern = showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0') + 'E{}';
+                task.sequence_naming = task.pattern;
+              }
+            } else {
+              // 非电视节目，仅在使用剧集或顺序命名时更新
+              if (task.use_episode_naming) {
+                // 如果原模式是纯E[]，直接使用任务名称
+                if (task.pattern.trim() === 'E[]') {
+                  task.pattern = cleanTaskName + 'E[]';
+                } else if (task.pattern.includes('[]')) {
+                  // 尝试保留原有格式，但更新剧名部分
+                  const patternParts = task.pattern.split(/E\[\]/i);
+                  if (patternParts.length > 0) {
+                    task.pattern = cleanTaskName + 'E[]' + (patternParts[1] || '');
+                  } else {
+                    task.pattern = cleanTaskName + 'E[]';
+                  }
+                }
+                task.episode_naming = task.pattern;
+              } else if (task.use_sequence_naming) {
+                // 同样处理顺序命名
+                if (task.pattern.trim() === 'E{}' || task.pattern.trim() === '{}') {
+                  task.pattern = cleanTaskName + 'E{}';
+                } else if (task.pattern.includes('{}')) {
+                  const patternParts = task.pattern.split(/E\{\}/i);
+                  if (patternParts.length > 0) {
+                    task.pattern = cleanTaskName + 'E{}' + (patternParts[1] || '');
+                  } else {
+                    task.pattern = cleanTaskName + 'E{}';
+                  }
+                }
+                task.sequence_naming = task.pattern;
+              }
             }
           }
         },
