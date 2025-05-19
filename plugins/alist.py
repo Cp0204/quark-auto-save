@@ -52,13 +52,13 @@ class Alist:
             response = response.json()
             if response.get("code") == 200:
                 print(
-                    f"Alist刷新: {response.get('data',[])[1].get('value','')} {response.get('data',[])[0].get('value','')}"
+                    f"AList 刷新: {response.get('data',[])[1].get('value','')} {response.get('data',[])[0].get('value','')}"
                 )
                 return True
             else:
-                print(f"Alist刷新: 连接失败❌ {response.get('message')}")
+                print(f"AList 刷新: 连接失败 ❌ {response.get('message')}")
         except requests.exceptions.RequestException as e:
-            print(f"获取Alist信息出错: {e}")
+            print(f"获取 AList 信息出错: {e}")
         return False
 
     def storage_id_to_path(self, storage_id):
@@ -69,7 +69,7 @@ class Alist:
             storage_mount_path, quark_root_dir = match.group(1), match.group(2)
             file_list = self.get_file_list(storage_mount_path)
             if file_list.get("code") != 200:
-                print(f"Alist刷新: 获取挂载路径失败❌ {file_list.get('message')}")
+                print(f"AList 刷新: 获取挂载路径失败 ❌ {file_list.get('message')}")
                 return False, (None, None)
         # 2. 检查是否数字，调用 Alist API 获取存储信息
         elif re.match(r"^\d+$", storage_id):
@@ -84,12 +84,12 @@ class Alist:
                     )
                 elif storage_info["driver"] == "QuarkTV":
                     print(
-                        f"Alist刷新: [QuarkTV]驱动⚠️ storage_id请手动填入 /Alist挂载路径:/Quark目录路径"
+                        f"AList 刷新: [QuarkTV] 驱动 ⚠️ storage_id 请手动填入 /Alist挂载路径:/Quark目录路径"
                     )
                 else:
-                    print(f"Alist刷新: 不支持[{storage_info['driver']}]驱动 ❌")
+                    print(f"AList 刷新: 不支持 [{storage_info['driver']}] 驱动 ❌")
         else:
-            print(f"Alist刷新: storage_id[{storage_id}]格式错误❌")
+            print(f"AList 刷新: storage_id [{storage_id}] 格式错误 ❌")
         # 返回结果
         if storage_mount_path and quark_root_dir:
             return True, (storage_mount_path, quark_root_dir)
@@ -107,28 +107,28 @@ class Alist:
             if data.get("code") == 200:
                 return data.get("data", [])
             else:
-                print(f"Alist刷新: 存储{storage_id}连接失败❌ {data.get('message')}")
+                print(f"AList 刷新: 存储 {storage_id} 连接失败 ❌ {data.get('message')}")
         except Exception as e:
-            print(f"Alist刷新: 获取Alist存储出错 {e}")
+            print(f"AList 刷新: 获取 AList 存储出错 {e}")
         return []
 
     def refresh(self, path):
         data = self.get_file_list(path, True)
         if data.get("code") == 200:
-            print(f"📁 Alist刷新：目录[{path}] 成功✅")
+            print(f"📁 AList 刷新: 目录 [{path}] 成功 ✅")
             return data.get("data")
         elif "object not found" in data.get("message", ""):
             # 如果是根目录就不再往上查找
             if path == "/" or path == self.storage_mount_path:
-                print(f"📁 Alist刷新：根目录不存在，请检查 Alist 配置")
+                print(f"📁 AList 刷新: 根目录不存在，请检查 AList 配置")
                 return False
             # 获取父目录
             parent_path = os.path.dirname(path)
-            print(f"📁 Alist刷新：[{path}] 不存在，转父目录 [{parent_path}]")
+            print(f"📁 AList 刷新: [{path}] 不存在，转父目录 [{parent_path}]")
             # 递归刷新父目录
             return self.refresh(parent_path)
         else:
-            print(f"📁 Alist刷新：失败❌ {data.get('message')}")
+            print(f"📁 AList 刷新: 失败 ❌ {data.get('message')}")
 
     def get_file_list(self, path, force_refresh=False):
         url = f"{self.url}/api/fs/list"
@@ -145,7 +145,7 @@ class Alist:
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            print(f"📁 Alist刷新: 获取文件列表出错❌ {e}")
+            print(f"📁 AList 刷新: 获取文件列表出错 ❌ {e}")
         return {}
 
     def get_root_folder_full_path(self, cookie, pdir_fid):
@@ -178,5 +178,5 @@ class Alist:
                     path = f"{path}/{item['file_name']}"
                 return path
         except Exception as e:
-            print(f"Alist刷新: 获取Quark路径出错 {e}")
+            print(f"AList 刷新: 获取 Quark 路径出错 {e}")
         return ""

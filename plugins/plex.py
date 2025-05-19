@@ -42,13 +42,13 @@ class Plex:
             if response.status_code == 200:
                 info = response.json()["MediaContainer"]
                 print(
-                    f"Plex媒体库: {info.get('friendlyName','')} v{info.get('version','')}"
+                    f"Plex 媒体库: {info.get('friendlyName','')} v{info.get('version','')}"
                 )
                 return True
             else:
-                print(f"Plex媒体库: 连接失败❌ 状态码：{response.status_code}")
+                print(f"Plex 媒体库: 连接失败 ❌ 状态码: {response.status_code}")
         except Exception as e:
-            print(f"获取Plex媒体库信息出错: {e}")
+            print(f"获取 Plex 媒体库信息出错: {e}")
         return False
 
     def refresh(self, folder_path):
@@ -67,16 +67,16 @@ class Plex:
                         refresh_response = requests.get(refresh_url, headers=headers)
                         if refresh_response.status_code == 200:
                             print(
-                                f"🎞️ 刷新Plex媒体库：{library['title']} [{folder_path}] 成功✅"
+                                f"🎞️ 刷新 Plex 媒体库: {library['title']} [{folder_path}] 成功 ✅"
                             )
                             return True
                         else:
                             print(
-                                f"🎞️ 刷新Plex媒体库：刷新请求失败❌ 状态码：{refresh_response.status_code}"
+                                f"🎞️ 刷新 Plex 媒体库: 刷新请求失败 ❌ 状态码: {refresh_response.status_code}"
                             )
-            print(f"🎞️ 刷新Plex媒体库：{folder_path} 未找到匹配的媒体库❌")
+            print(f"🎞️ 刷新 Plex 媒体库: {folder_path} 未找到匹配的媒体库 ❌")
         except Exception as e:
-            print(f"刷新Plex媒体库出错: {e}")
+            print(f"刷新 Plex 媒体库出错: {e}")
         return False
 
     def _get_libraries(self):
@@ -89,7 +89,7 @@ class Plex:
                 libraries = response.json()["MediaContainer"].get("Directory", [])
                 return libraries
             else:
-                print(f"🎞️ 获取Plex媒体库信息失败❌ 状态码：{response.status_code}")
+                print(f"🎞️ 获取 Plex 媒体库信息失败 ❌ 状态码: {response.status_code}")
         except Exception as e:
-            print(f"获取Plex媒体库信息出错: {e}")
+            print(f"获取 Plex 媒体库信息出错: {e}")
         return []

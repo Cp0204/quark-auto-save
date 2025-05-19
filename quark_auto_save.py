@@ -1048,9 +1048,10 @@ class Quark:
                 dir_paths_exist_arr.append(
                     {"file_path": dir_path, "fid": new_dir["fid"]}
                 )
-                print(f"创建文件夹：{dir_path}")
+                # print(f"创建文件夹：{dir_path}")
             else:
-                print(f"创建文件夹：{dir_path} 失败, {mkdir_return['message']}")
+                # print(f"创建文件夹：{dir_path} 失败, {mkdir_return['message']}")
+                pass
         # 储存目标目录的fid
         for dir_path in dir_paths_exist_arr:
             self.savepath_fid[dir_path["file_path"]] = dir_path["fid"]

@@ -48,13 +48,13 @@ class Emby:
             if "application/json" in response.headers["Content-Type"]:
                 response = response.json()
                 print(
-                    f"Emby媒体库: {response.get('ServerName','')} v{response.get('Version','')}"
+                    f"Emby 媒体库: {response.get('ServerName','')} v{response.get('Version','')}"
                 )
                 return True
             else:
-                print(f"Emby媒体库: 连接失败❌ {response.text}")
+                print(f"Emby 媒体库: 连接失败 ❌ {response.text}")
         except Exception as e:
-            print(f"获取Emby媒体库信息出错: {e}")
+            print(f"获取 Emby 媒体库信息出错: {e}")
         return False
 
     def refresh(self, emby_id):
@@ -74,12 +74,12 @@ class Emby:
                 "POST", url, headers=headers, params=querystring
             )
             if response.text == "":
-                print(f"🎞️ 刷新Emby媒体库：成功✅")
+                print(f"🎞️ 刷新 Emby 媒体库: 成功 ✅")
                 return True
             else:
-                print(f"🎞️ 刷新Emby媒体库：{response.text}❌")
+                print(f"🎞️ 刷新 Emby 媒体库: {response.text} ❌")
         except Exception as e:
-            print(f"刷新Emby媒体库出错: {e}")
+            print(f"刷新 Emby 媒体库出错: {e}")
         return False
 
     def search(self, media_name):
@@ -106,11 +106,11 @@ class Emby:
                     for item in response["Items"]:
                         if item["IsFolder"]:
                             print(
-                                f"🎞️ 《{item['Name']}》匹配到Emby媒体库ID：{item['Id']}"
+                                f"🎞️ 《{item['Name']}》匹配到 Emby 媒体库 ID: {item['Id']}"
                             )
                             return item["Id"]
             else:
-                print(f"🎞️ 搜索Emby媒体库：{response.text}❌")
+                print(f"🎞️ 搜索 Emby 媒体库: {response.text}❌")
         except Exception as e:
-            print(f"搜索Emby媒体库出错: {e}")
+            print(f"搜索 Emby 媒体库出错: {e}")
         return ""
