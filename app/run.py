@@ -263,6 +263,40 @@ def get_task_suggestions():
         return jsonify({"success": False, "message": "未登录"})
     query = request.args.get("q", "").lower()
     deep = request.args.get("d", "").lower()
+    
+    # 提取剧名，去除季数信息
+    def extract_show_name(task_name):
+        # 清理任务名称中的连续空格和特殊符号
+        clean_name = task_name.replace('\u3000', ' ').replace('\t', ' ')
+        clean_name = re.sub(r'\s+', ' ', clean_name).strip()
+        
+        # 匹配常见的季数格式
+        # 例如：黑镜 - S07、人生若如初见 - S01、折腰.S01、音你而来-S02、快乐的大人 S02
+        season_patterns = [
+            r'^(.*?)[\s\.\-_]+S\d+$',  # 黑镜 - S07、折腰.S01、音你而来-S02
+            r'^(.*?)[\s\.\-_]+Season\s*\d+$',  # 黑镜 - Season 1
+            r'^(.*?)\s+S\d+$',  # 快乐的大人 S02
+            r'^(.*?)[\s\.\-_]+S\d+E\d+$',  # 处理 S01E01 格式
+            r'^(.*?)\s+第\s*\d+\s*季$',  # 处理 第N季 格式
+            r'^(.*?)[\s\.\-_]+第\s*\d+\s*季$',  # 处理 - 第N季 格式
+            r'^(.*?)\s+第[一二三四五六七八九十零]+季$',  # 处理 第一季、第二季 格式
+            r'^(.*?)[\s\.\-_]+第[一二三四五六七八九十零]+季$',  # 处理 - 第一季、- 第二季 格式
+        ]
+        
+        for pattern in season_patterns:
+            match = re.match(pattern, clean_name, re.IGNORECASE)
+            if match:
+                show_name = match.group(1).strip()
+                # 去除末尾可能残留的分隔符
+                show_name = re.sub(r'[\s\.\-_]+$', '', show_name)
+                return show_name
+                
+        # 如果没有匹配到季数格式，返回原名称
+        return clean_name
+    
+    # 处理搜索关键词，提取剧名
+    search_query = extract_show_name(query)
+    
     try:
         cs_data = config_data.get("source", {}).get("cloudsaver", {})
         if (
@@ -276,23 +310,34 @@ def get_task_suggestions():
                 cs_data.get("password", ""),
                 cs_data.get("token", ""),
             )
-            search = cs.auto_login_search(query)
+            # 使用处理后的搜索关键词
+            search = cs.auto_login_search(search_query)
             if search.get("success"):
                 if search.get("new_token"):
                     cs_data["token"] = search.get("new_token")
                     Config.write_json(CONFIG_PATH, config_data)
                 search_results = cs.clean_search_results(search.get("data"))
+                # 在返回结果中添加实际使用的搜索关键词
                 return jsonify(
-                    {"success": True, "source": "CloudSaver", "data": search_results}
+                    {
+                        "success": True, 
+                        "source": "CloudSaver", 
+                        "data": search_results
+                    }
                 )
             else:
                 return jsonify({"success": True, "message": search.get("message")})
         else:
             base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
-            url = f"{base_url}/task_suggestions?q={query}&d={deep}"
+            # 使用处理后的搜索关键词
+            url = f"{base_url}/task_suggestions?q={search_query}&d={deep}"
             response = requests.get(url)
             return jsonify(
-                {"success": True, "source": "网络公开", "data": response.json()}
+                {
+                    "success": True, 
+                    "source": "网络公开", 
+                    "data": response.json()
+                }
             )
     except Exception as e:
         return jsonify({"success": True, "message": f"error: {str(e)}"})
