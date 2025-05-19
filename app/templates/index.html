@@ -1529,7 +1529,22 @@
         addTask() {
           if (!this.formData.tasklist) 
             this.formData.tasklist = [];
-          newTask = { ...this.newTask }
+          let newTask = { ...this.newTask };
+
+          // 如果有上一个任务，继承保存路径和命名规则
+          if (this.formData.tasklist.length > 0) {
+            const lastTask = this.formData.tasklist[this.formData.tasklist.length - 1];
+            newTask.savepath = lastTask.savepath || "";
+            newTask.pattern = lastTask.pattern || "";
+            
+            // 继承命名规则选择模式
+            newTask.use_sequence_naming = lastTask.use_sequence_naming || false;
+            newTask.use_episode_naming = lastTask.use_episode_naming || false;
+            newTask.sequence_naming = lastTask.sequence_naming || "";
+            newTask.episode_naming = lastTask.episode_naming || "";
+            newTask.replace = lastTask.replace || "";
+          }
+
           this.formData.tasklist.push(newTask)
           const index = this.formData.tasklist.length - 1;
           
@@ -1573,8 +1588,87 @@
           this.smart_param.searchTimer = setTimeout(() => {
             this.searchSuggestions(index, task.taskname, 0);
           }, 1000);
-          if (this.smart_param.savepath)
-            task.savepath = this.smart_param.savepath.replace('TASKNAME', task.taskname);
+          
+          // 清理任务名称中的连续空格和特殊符号
+          const cleanTaskName = task.taskname.replace(/\s+/g, ' ').trim();
+          
+          // 提取任务名称中的分隔符格式
+          // 检测任务名称中剧名和季序号之间的分隔符
+          const separatorMatch = cleanTaskName.match(/^(.*?)([\s\.\-_]+)(?:S(\d+)|Season\s*(\d+))/i);
+          let showName, seasonNumber, nameSeparator = ' - '; // 默认分隔符
+          
+          if (separatorMatch) {
+            // 提取剧名（去除末尾空格和特殊符号）
+            showName = separatorMatch[1].trim().replace(/[\s\.\-_]+$/, '');
+            // 提取季序号
+            seasonNumber = separatorMatch[3] || separatorMatch[4] || '01';
+            // 提取实际使用的分隔符
+            const rawSeparator = separatorMatch[2];
+            // 规范化分隔符（如果是连续的空格，转为单个空格）
+            nameSeparator = rawSeparator.replace(/\s+/g, ' ');
+            // 如果只有一个点号，保留点号
+            if (rawSeparator === '.') {
+              nameSeparator = '.';
+            }
+            // 如果是单个空格，保留单个空格
+            else if (rawSeparator === ' ') {
+              nameSeparator = ' ';
+            }
+            // 其他情况保持原样
+          } else {
+            // 如果没有匹配到季序号格式，默认使用整个任务名作为剧名，季序号为01
+            showName = cleanTaskName;
+            seasonNumber = '01';
+          }
+          
+          // 更新保存路径 - 无论是否使用智能路径，都确保倒数第二级目录更新
+          if (task.savepath) {
+            // 分割保存路径为各级目录
+            const pathParts = task.savepath.split('/');
+            
+            if (pathParts.length >= 2) {
+              // 如果智能路径已设置，使用原有逻辑更新最后一级
+              if (this.smart_param.savepath) {
+                // 更新最后一级目录，但保留前面的路径结构
+                const newPath = this.smart_param.savepath.replace('TASKNAME', task.taskname);
+                const newPathParts = newPath.split('/');
+                pathParts[pathParts.length - 1] = newPathParts[newPathParts.length - 1];
+              } else {
+                // 直接使用任务名称中提取的信息构建最后一级
+                pathParts[pathParts.length - 1] = showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0');
+              }
+              
+              // 处理倒数第二级目录（剧名+年份）- 无论是否使用智能路径，都更新
+              if (pathParts.length >= 3) {
+                const parentDir = pathParts[pathParts.length - 2];
+                // 提取年份信息
+                const yearMatch = parentDir.match(/\((\d{4})\)|\（(\d{4})\）|[\s\-_]+(\d{4})(?:[\s\-_]+|$)/);
+                const year = yearMatch ? (yearMatch[1] || yearMatch[2] || yearMatch[3] || '2025') : '2025';
+                
+                // 重建倒数第二级目录，使用新的剧名和原有的年份
+                pathParts[pathParts.length - 2] = showName + ' (' + year + ')';
+              }
+              
+              // 更新保存路径
+              task.savepath = pathParts.join('/');
+            }
+          }
+          
+          // 更新命名规则 - 始终使用当前任务名称中的信息
+          if (task.pattern) {
+            // 处理剧集命名模式
+            if (task.use_episode_naming) {
+              // 直接使用任务名称中提取的信息构建命名规则
+              task.pattern = showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0') + 'E[]';
+              task.episode_naming = task.pattern;
+            } 
+            // 处理顺序命名模式
+            else if (task.use_sequence_naming) {
+              // 直接使用任务名称中提取的信息构建命名规则
+              task.pattern = showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0') + 'E{}';
+              task.sequence_naming = task.pattern;
+            }
+          }
         },
         removeTask(index) {
           if (confirm("确认删除任务 [#" + (index + 1) + ": " + this.formData.tasklist[index].taskname + "] 吗？"))
