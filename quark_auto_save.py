@@ -862,18 +862,19 @@ class Quark:
         mr = MagicRename(CONFIG_DATA.get("magic_regex", {}))
         mr.set_taskname(task["taskname"])
 
+        # 魔法正则转换
+        pattern, replace = mr.magic_regex_conv(
+            task.get("pattern", ""), task.get("replace", "")
+        )
         # 需保存的文件清单
         need_save_list = []
         # 添加符合的
         for share_file in share_file_list:
-            if share_file["dir"] and task.get("update_subdir", False):
-                pattern, replace = task["update_subdir"], ""
-            else:
-                pattern, replace = mr.magic_regex_conv(
-                    task.get("pattern", ""), task.get("replace", "")
-                )
+            search_pattern = (
+                task.get("update_subdir", "") if share_file["dir"] else pattern
+            )
             # 正则文件名匹配
-            if re.search(pattern, share_file["file_name"]):
+            if re.search(search_pattern, share_file["file_name"]):
                 # 判断原文件名是否存在，处理忽略扩展名
                 if not mr.is_exists(
                     share_file["file_name"],
