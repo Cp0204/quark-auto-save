@@ -922,7 +922,7 @@ class Quark:
             if share_file["fid"] == task.get("startfid", ""):
                 break
 
-        if re.search(r"\{I+\}", replace):
+        if re.search(r"\{I+\}", task.get("replace", "")):
             mr.set_dir_file_list(dir_file_list, replace)
             mr.sort_file_list(need_save_list)
 

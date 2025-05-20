@@ -334,7 +334,7 @@ def get_share_detail():
                     share_file["file_name_re"] = file_name_re
 
         # 文件列表排序
-        if re.search(r"\{I+\}", replace):
+        if re.search(r"\{I+\}", task.get("replace", "")):
             mr.set_dir_file_list(dir_file_list, replace)
             mr.sort_file_list(data["list"])
 
