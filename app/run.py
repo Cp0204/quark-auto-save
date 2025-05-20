@@ -310,14 +310,14 @@ def get_share_detail():
             dir_file_list = []
             dir_filename_list = []
 
+        pattern, replace = mr.magic_regex_conv(
+            task.get("pattern", ""), task.get("replace", "")
+        )
         for share_file in data["list"]:
-            if share_file["dir"] and task.get("update_subdir", False):
-                pattern, replace = task["update_subdir"], ""
-            else:
-                pattern, replace = mr.magic_regex_conv(
-                    task.get("pattern", ""), task.get("replace", "")
-                )
-            if re.search(pattern, share_file["file_name"]):
+            search_pattern = (
+                task.get("update_subdir", "") if share_file["dir"] else pattern
+            )
+            if re.search(search_pattern, share_file["file_name"]):
                 # 文件名重命名，目录不重命名
                 file_name_re = (
                     share_file["file_name"]
