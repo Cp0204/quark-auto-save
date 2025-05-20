@@ -1282,14 +1282,14 @@
         formatShareUrlBanMessage(message) {
           if (!message) return message;
           
-          if (message.includes("分享者用户封禁链接查看受限")) {
+          if (message.includes("分享者用户封禁链接查看受限") || 
+              message.includes("文件涉及违规内容") ||
+              message.includes("分享地址已失效")) {
             return "该分享已失效，不可访问";
           } else if (message.includes("好友已取消了分享")) {
             return "该分享已被取消，无法访问";
           } else if (message.includes("文件已被分享者删除") || message === "文件已被分享者删除或文件夹为空") {
             return "该分享已被删除，无法访问";
-          } else if (message.includes("分享地址已失效")) {
-            return "该分享已失效，不可访问";
           }
           
           return message;
@@ -1661,7 +1661,7 @@
           
           // 判断保存路径是否包含电视节目相关的关键词
           if (task.savepath) {
-            const tvKeywords = ["影视", "电视", "节目", "剧", "动漫", "动画", "番", "综艺", "真人秀", "TV", "Tv", "tv", "Series", "series", "Show", "show"];
+            const tvKeywords = ["电视", "节目", "剧", "动漫", "动画", "番", "综艺", "真人秀", "TV", "Tv", "tv", "Series", "series", "Show", "show"];
             isTVShow = tvKeywords.some(keyword => task.savepath.includes(keyword));
           }
           
@@ -2029,7 +2029,8 @@
             "好友已取消了分享",
             "文件已被分享者删除",
             "文件夹为空",
-            "分享地址已失效"
+            "分享地址已失效",
+            "文件涉及违规内容"
           ];
 
           // 如果没有搜索结果，直接返回
