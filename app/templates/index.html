@@ -192,6 +192,12 @@
                   <span class="nav-text"><span v-html="versionTips"></span></span>
                 </a>
               </li>
+              <li class="nav-item">
+                <a class="nav-link" href="https://github.com/x1ao4/quark-auto-save-x/wiki/赞赏与交流群" target="_blank">
+                  <i class="bi bi-wechat"></i>
+                  <span class="nav-text">WeChat Group</span>
+                </a>
+              </li>
             </ul>
           </div>
         </div>
@@ -483,7 +489,9 @@
                             </span>
                             <span v-else>正在搜索中...</span>
                           </div>
-                          <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">{{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${smart_param.taskSuggestions.source} 搜索提供（仅显示有效链接），如有侵权请联系资源发布方` : "未搜索到有效资源" }}</div>
+                          <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
+                            {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${smart_param.taskSuggestions.source} 搜索提供（仅显示有效链接），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
+                          </div>
                           <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(index, suggestion)" style="font-size: 14px;" :title="suggestion.content">
                             <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                             <small class="text-muted">
@@ -497,7 +505,7 @@
                             <i v-else class="bi bi-search"></i>
                           </button>
                           <div class="input-group-text" title="谷歌搜索">
-                            <a target="_blank" :href="`https://www.google.com/search?q=%22pan.quark.cn/s%22+${task.taskname}`"><i class="bi bi-google"></i></a>
+                            <a target="_blank" :href="`https://www.google.com/search?q=%22pan.quark.cn/s%22+${cleanTaskNameForSearch(task.taskname)}`"><i class="bi bi-google"></i></a>
                           </div>
                           <div class="input-group-text" title="TMDB搜索">
                             <a target="_blank" :href="`https://www.themoviedb.org/search?query=${cleanTaskNameForSearch(task.taskname)}`"><img src="./static/TMDB.svg" class="tmdb-icon"></a>
@@ -1280,14 +1288,14 @@
         formatShareUrlBanMessage(message) {
           if (!message) return message;
           
-          if (message.includes("分享者用户封禁链接查看受限")) {
+          if (message.includes("分享者用户封禁链接查看受限") || 
+              message.includes("文件涉及违规内容") ||
+              message.includes("分享地址已失效")) {
             return "该分享已失效，不可访问";
           } else if (message.includes("好友已取消了分享")) {
             return "该分享已被取消，无法访问";
           } else if (message.includes("文件已被分享者删除") || message === "文件已被分享者删除或文件夹为空") {
             return "该分享已被删除，无法访问";
-          } else if (message.includes("分享地址已失效")) {
-            return "该分享已失效，不可访问";
           }
           
           return message;
@@ -1340,12 +1348,39 @@
         },
         cleanTaskNameForSearch(taskName) {
           if (!taskName) return '';
-          // 移除 Sxx 格式（包括 S01、S01E01 等）
-          let cleanedName = taskName.replace(/\s*[-–—_]\s*S\d+(\w\d+)?/i, '');
+          
+          // 清理任务名称中的连续空格和特殊符号
+          let cleanedName = taskName.replace(/\u3000/g, ' ').replace(/\t/g, ' ');
+          cleanedName = cleanedName.replace(/\s+/g, ' ').trim();
+          
+          // 匹配常见的季数格式
+          const seasonPatterns = [
+            /^(.*?)[\s\.\-_]+S\d+$/i,  // 黑镜 - S07、折腰.S01、音你而来-S02
+            /^(.*?)[\s\.\-_]+Season\s*\d+$/i,  // 黑镜 - Season 1
+            /^(.*?)\s+S\d+$/i,  // 快乐的大人 S02
+            /^(.*?)[\s\.\-_]+S\d+E\d+$/i,  // 处理 S01E01 格式
+            /^(.*?)\s+第\s*\d+\s*季$/i,  // 处理 第N季 格式
+            /^(.*?)[\s\.\-_]+第\s*\d+\s*季$/i,  // 处理 - 第N季 格式
+            /^(.*?)\s+第[一二三四五六七八九十零]+季$/i,  // 处理 第一季、第二季 格式
+            /^(.*?)[\s\.\-_]+第[一二三四五六七八九十零]+季$/i,  // 处理 - 第一季、- 第二季 格式
+          ];
+          
+          for (const pattern of seasonPatterns) {
+            const match = cleanedName.match(pattern);
+            if (match) {
+              let showName = match[1].trim();
+              // 去除末尾可能残留的分隔符
+              showName = showName.replace(/[\s\.\-_]+$/, '');
+              return encodeURIComponent(showName);
+            }
+          }
+          
+          // 如果没有匹配到季数格式，执行原有的清理逻辑
           // 移除孤立的特殊符号
           cleanedName = cleanedName.replace(/\s*[-–—_]\s*$/, '');
           // 移除开头和结尾的特殊符号
           cleanedName = cleanedName.trim().replace(/^[-–—_\s]+|[-–—_\s]+$/g, '');
+          
           return encodeURIComponent(cleanedName);
         },
         changeTab(tab) {
@@ -1529,7 +1564,22 @@
         addTask() {
           if (!this.formData.tasklist) 
             this.formData.tasklist = [];
-          newTask = { ...this.newTask }
+          let newTask = { ...this.newTask };
+
+          // 如果有上一个任务，继承保存路径和命名规则
+          if (this.formData.tasklist.length > 0) {
+            const lastTask = this.formData.tasklist[this.formData.tasklist.length - 1];
+            newTask.savepath = lastTask.savepath || "";
+            newTask.pattern = lastTask.pattern || "";
+            
+            // 继承命名规则选择模式
+            newTask.use_sequence_naming = lastTask.use_sequence_naming || false;
+            newTask.use_episode_naming = lastTask.use_episode_naming || false;
+            newTask.sequence_naming = lastTask.sequence_naming || "";
+            newTask.episode_naming = lastTask.episode_naming || "";
+            newTask.replace = lastTask.replace || "";
+          }
+
           this.formData.tasklist.push(newTask)
           const index = this.formData.tasklist.length - 1;
           
@@ -1573,8 +1623,217 @@
           this.smart_param.searchTimer = setTimeout(() => {
             this.searchSuggestions(index, task.taskname, 0);
           }, 1000);
-          if (this.smart_param.savepath)
-            task.savepath = this.smart_param.savepath.replace('TASKNAME', task.taskname);
+          
+          // 清理任务名称中的连续空格和特殊符号
+          const cleanTaskName = task.taskname.replace(/\s+/g, ' ').trim();
+          
+          // 提取任务名称中的分隔符格式
+          // 使用与cleanTaskNameForSearch相同的季数格式匹配模式
+          let showName, seasonNumber, nameSeparator = ' - '; // 默认分隔符
+          let isTVShow = false; // 标记是否为电视节目
+          let separatorMatch = null;
+          
+          // 匹配常见的季数格式
+          const seasonPatterns = [
+            /^(.*?)([\s\.\-_]+)S(\d+)$/i,  // 黑镜 - S07、折腰.S01、音你而来-S02
+            /^(.*?)([\s\.\-_]+)Season\s*(\d+)$/i,  // 黑镜 - Season 1
+            /^(.*?)(\s+)S(\d+)$/i,  // 快乐的大人 S02
+            /^(.*?)([\s\.\-_]+)S(\d+)E\d+$/i,  // 处理 S01E01 格式
+            /^(.*?)(\s+)第\s*(\d+)\s*季$/i,  // 处理 第N季 格式
+            /^(.*?)([\s\.\-_]+)第\s*(\d+)\s*季$/i,  // 处理 - 第N季 格式
+            /^(.*?)(\s+)第([一二三四五六七八九十零]+)季$/i,  // 处理 第一季、第二季 格式
+            /^(.*?)([\s\.\-_]+)第([一二三四五六七八九十零]+)季$/i,  // 处理 - 第一季、- 第二季 格式
+          ];
+          
+          // 尝试匹配各种格式
+          for (const pattern of seasonPatterns) {
+            const match = cleanTaskName.match(pattern);
+            if (match) {
+              separatorMatch = match;
+              // 根据不同的格式，确定季序号的位置
+              if (match[3] && match[3].match(/[一二三四五六七八九十零]/)) {
+                // 将中文数字转换为阿拉伯数字
+                const chineseToNumber = {
+                  '零': '0', '一': '1', '二': '2', '三': '3', '四': '4',
+                  '五': '5', '六': '6', '七': '7', '八': '8', '九': '9', '十': '10'
+                };
+                seasonNumber = chineseToNumber[match[3]] || '01';
+              } else {
+                seasonNumber = match[3] || '01';
+              }
+              break;
+            }
+          }
+          
+          // 判断保存路径是否包含电视节目相关的关键词
+          if (task.savepath) {
+            const tvKeywords = ["电视", "节目", "剧", "动漫", "动画", "番", "综艺", "真人秀", "TV", "Tv", "tv", "Series", "series", "Show", "show"];
+            isTVShow = tvKeywords.some(keyword => task.savepath.includes(keyword));
+          }
+          
+          // 当任务名称包含季信息或保存路径有电视剧关键词时，按电视节目处理
+          const hasSeason = separatorMatch !== null;
+          isTVShow = isTVShow || hasSeason;
+          
+          if (separatorMatch) {
+            // 提取剧名（去除末尾空格和特殊符号）
+            showName = separatorMatch[1].trim().replace(/[\s\.\-_]+$/, '');
+            // 季序号已在上面的循环中提取
+            // 提取实际使用的分隔符
+            const rawSeparator = separatorMatch[2];
+            
+            // 处理特殊情况：如果是"黑镜 - 第五季"这种格式，需要保留完整的" - "分隔符
+            // 检查原始字符串中剧名后面的分隔符
+            const fullSeparator = cleanTaskName.substring(showName.length, cleanTaskName.length - (separatorMatch[3] ? separatorMatch[3].length + 1 : 0)).match(/^([\s\.\-_]+)/);
+            
+            if (fullSeparator && fullSeparator[1]) {
+              // 使用完整的分隔符
+              nameSeparator = fullSeparator[1];
+            } else {
+              // 规范化分隔符（如果是连续的空格，转为单个空格）
+              nameSeparator = rawSeparator.replace(/\s+/g, ' ');
+              // 如果只有一个点号，保留点号
+              if (rawSeparator === '.') {
+                nameSeparator = '.';
+              }
+              // 如果是单个空格，保留单个空格
+              else if (rawSeparator === ' ') {
+                nameSeparator = ' ';
+              }
+            }
+            // 其他情况保持原样
+          } else {
+            // 如果没有匹配到季序号格式，默认使用整个任务名作为剧名，季序号为01
+            showName = cleanTaskName;
+            seasonNumber = '01';
+          }
+          
+          // 更新保存路径 - 无论是否使用智能路径，都确保倒数第二级目录更新
+          if (task.savepath) {
+            // 分割保存路径为各级目录
+            const pathParts = task.savepath.split('/');
+            
+            if (pathParts.length >= 2) {
+              // 如果智能路径已设置，使用原有逻辑更新最后一级
+              if (this.smart_param.savepath) {
+                // 更新最后一级目录，但保留前面的路径结构
+                const newPath = this.smart_param.savepath.replace('TASKNAME', task.taskname);
+                const newPathParts = newPath.split('/');
+                pathParts[pathParts.length - 1] = newPathParts[newPathParts.length - 1];
+              } else {
+                // 根据是否为电视节目决定处理方式
+                if (isTVShow) {
+                  // 电视节目格式：剧名 + 分隔符 + S季序号
+                  pathParts[pathParts.length - 1] = showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0');
+                } else {
+                  // 非电视节目直接使用任务名称
+                  pathParts[pathParts.length - 1] = cleanTaskName;
+                }
+              }
+              
+              // 处理倒数第二级目录（剧名+年份）- 无论是否使用智能路径，都更新
+              if (pathParts.length >= 3 && isTVShow) {
+                // 只有电视节目才更新倒数第二级目录
+                const parentDir = pathParts[pathParts.length - 2];
+                // 提取年份信息
+                const yearMatch = parentDir.match(/\((\d{4})\)|\（(\d{4})\）|[\s\-_]+(\d{4})(?:[\s\-_]+|$)/);
+                const year = yearMatch ? (yearMatch[1] || yearMatch[2] || yearMatch[3] || '2025') : '2025';
+                
+                // 重建倒数第二级目录，使用新的剧名和原有的年份
+                pathParts[pathParts.length - 2] = showName + ' (' + year + ')';
+              }
+              
+              // 更新保存路径
+              task.savepath = pathParts.join('/');
+            }
+          }
+          
+          // 额外处理：检查保存路径最末级是否包含中文季序号，如果包含则转换为标准格式
+          if (task.savepath) {
+            const pathParts = task.savepath.split('/');
+            if (pathParts.length > 0) {
+              const lastPart = pathParts[pathParts.length - 1];
+              // 匹配中文季序号格式
+              const chineseSeasonMatch = lastPart.match(/^(.*?)([\s\.\-_]+)第([一二三四五六七八九十零]+)季$/);
+              if (chineseSeasonMatch) {
+                const showName = chineseSeasonMatch[1].trim();
+                const separator = chineseSeasonMatch[2];
+                const chineseSeason = chineseSeasonMatch[3];
+                
+                // 将中文数字转换为阿拉伯数字
+                const chineseToNumber = {
+                  '零': '0', '一': '1', '二': '2', '三': '3', '四': '4',
+                  '五': '5', '六': '6', '七': '7', '八': '8', '九': '9', '十': '10'
+                };
+                const seasonNumber = chineseToNumber[chineseSeason] || '1';
+                
+                // 更新最末级目录为标准格式
+                pathParts[pathParts.length - 1] = showName + separator + 'S' + seasonNumber.padStart(2, '0');
+                task.savepath = pathParts.join('/');
+              }
+              
+              // 匹配阿拉伯数字季序号格式
+              const arabicSeasonMatch = lastPart.match(/^(.*?)([\s\.\-_]+)第(\d+)季$/);
+              if (arabicSeasonMatch) {
+                const showName = arabicSeasonMatch[1].trim();
+                const separator = arabicSeasonMatch[2];
+                const seasonNumber = arabicSeasonMatch[3];
+                
+                // 更新最末级目录为标准格式
+                pathParts[pathParts.length - 1] = showName + separator + 'S' + seasonNumber.padStart(2, '0');
+                task.savepath = pathParts.join('/');
+              }
+            }
+          }
+          
+          // 更新命名规则 - 始终使用当前任务名称中的信息
+          if (task.pattern) {
+            // 根据是否为电视节目决定处理方式
+            if (isTVShow) {
+              // 处理剧集命名模式
+              if (task.use_episode_naming) {
+                // 直接使用任务名称中提取的信息构建命名规则
+                task.pattern = showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0') + 'E[]';
+                task.episode_naming = task.pattern;
+              } 
+              // 处理顺序命名模式
+              else if (task.use_sequence_naming) {
+                // 直接使用任务名称中提取的信息构建命名规则
+                task.pattern = showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0') + 'E{}';
+                task.sequence_naming = task.pattern;
+              }
+            } else {
+              // 非电视节目，仅在使用剧集或顺序命名时更新
+              if (task.use_episode_naming) {
+                // 如果原模式是纯E[]，直接使用任务名称
+                if (task.pattern.trim() === 'E[]') {
+                  task.pattern = cleanTaskName + 'E[]';
+                } else if (task.pattern.includes('[]')) {
+                  // 尝试保留原有格式，但更新剧名部分
+                  const patternParts = task.pattern.split(/E\[\]/i);
+                  if (patternParts.length > 0) {
+                    task.pattern = cleanTaskName + 'E[]' + (patternParts[1] || '');
+                  } else {
+                    task.pattern = cleanTaskName + 'E[]';
+                  }
+                }
+                task.episode_naming = task.pattern;
+              } else if (task.use_sequence_naming) {
+                // 同样处理顺序命名
+                if (task.pattern.trim() === 'E{}' || task.pattern.trim() === '{}') {
+                  task.pattern = cleanTaskName + 'E{}';
+                } else if (task.pattern.includes('{}')) {
+                  const patternParts = task.pattern.split(/E\{\}/i);
+                  if (patternParts.length > 0) {
+                    task.pattern = cleanTaskName + 'E{}' + (patternParts[1] || '');
+                  } else {
+                    task.pattern = cleanTaskName + 'E{}';
+                  }
+                }
+                task.sequence_naming = task.pattern;
+              }
+            }
+          }
         },
         removeTask(index) {
           if (confirm("确认删除任务 [#" + (index + 1) + ": " + this.formData.tasklist[index].taskname + "] 吗？"))
@@ -1776,7 +2035,8 @@
             "好友已取消了分享",
             "文件已被分享者删除",
             "文件夹为空",
-            "分享地址已失效"
+            "分享地址已失效",
+            "文件涉及违规内容"
           ];
 
           // 如果没有搜索结果，直接返回

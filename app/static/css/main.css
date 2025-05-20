@@ -2137,6 +2137,12 @@ div.jsoneditor-tree button.jsoneditor-button:focus {
   top: 0.5px; /* 向下微调 */
 }
 
+.bottom-links .nav-link .bi-wechat {
+  font-size: 1rem;
+  position: relative;
+  top: -0.5px; /* 向上微调 */
+}
+
 .bottom-links .nav-link .nav-text {
   font-size: 0.85rem;
 }

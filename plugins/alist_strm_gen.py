@@ -82,7 +82,7 @@ class Alist_strm_gen:
             storage_mount_path, quark_root_dir = match.group(1), match.group(2)
             file_list = self.get_file_list(storage_mount_path)
             if file_list.get("code") != 200:
-                print(f"Alist-Strm生成: 获取挂载路径失败❌ {file_list.get('message')}")
+                print(f"Alist-Strm 生成: 获取挂载路径失败 ❌ {file_list.get('message')}")
                 return False, (None, None)
         # 2. 检查是否数字，调用 Alist API 获取存储信息
         elif re.match(r"^\d+$", storage_id):
@@ -97,15 +97,15 @@ class Alist_strm_gen:
                     )
                 elif storage_info["driver"] == "QuarkTV":
                     print(
-                        f"Alist-Strm生成: [QuarkTV]驱动⚠️ storage_id请手动填入 /Alist挂载路径:/Quark目录路径"
+                        f"Alist-Strm 生成: [QuarkTV] 驱动 ⚠️ storage_id 请手动填入 /Alist挂载路径:/Quark目录路径"
                     )
                 else:
-                    print(f"Alist-Strm生成: 不支持[{storage_info['driver']}]驱动 ❌")
+                    print(f"Alist-Strm 生成: 不支持 [{storage_info['driver']}] 驱动 ❌")
         else:
-            print(f"Alist-Strm生成: storage_id[{storage_id}]格式错误❌")
+            print(f"Alist-Strm 生成: storage_id [{storage_id}] 格式错误❌")
         # 返回结果
         if storage_mount_path and quark_root_dir:
-            print(f"Alist-Strm生成: [{storage_mount_path}:{quark_root_dir}]")
+            print(f"Alist-Strm 生成: [{storage_mount_path}:{quark_root_dir}]")
             return True, (storage_mount_path, quark_root_dir)
         else:
             return False, (None, None)
@@ -121,15 +121,15 @@ class Alist_strm_gen:
             if data.get("code") == 200:
                 return data.get("data", [])
             else:
-                print(f"Alist-Strm生成: 获取存储失败❌ {data.get('message')}")
+                print(f"Alist-Strm 生成: 获取存储失败 ❌ {data.get('message')}")
         except Exception as e:
-            print(f"Alist-Strm生成: 获取存储出错 {e}")
+            print(f"Alist-Strm 生成: 获取存储出错 {e}")
         return []
 
     def check_dir(self, path):
         data = self.get_file_list(path)
         if data.get("code") != 200:
-            print(f"📺 Alist-Strm生成: 获取文件列表失败❌{data.get('message')}")
+            print(f"📺 Alist-Strm 生成: 获取文件列表失败 ❌ {data.get('message')}")
             return
         elif files := data.get("data", {}).get("content"):
             for item in files:
@@ -154,7 +154,7 @@ class Alist_strm_gen:
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            print(f"📺 Alist-Strm生成: 获取文件列表出错❌ {e}")
+            print(f"📺 Alist-Strm 生成: 获取文件列表出错 ❌ {e}")
         return {}
 
     def generate_strm(self, file_path):
@@ -171,7 +171,7 @@ class Alist_strm_gen:
                 os.makedirs(os.path.dirname(strm_path))
             with open(strm_path, "w", encoding="utf-8") as strm_file:
                 strm_file.write(f"{self.strm_server}{file_path}")
-            print(f"📺 生成STRM文件 {strm_path} 成功✅")
+            print(f"📺 生成 STRM 文件 {strm_path} 成功 ✅")
 
     def get_root_folder_full_path(self, cookie, pdir_fid):
         if pdir_fid == "0":
@@ -203,5 +203,5 @@ class Alist_strm_gen:
                     path = f"{path}/{item['file_name']}"
                 return path
         except Exception as e:
-            print(f"Alist-Strm生成: 获取Quark路径出错 {e}")
+            print(f"Alist-Strm 生成: 获取 Quark 路径出错 {e}")
         return ""

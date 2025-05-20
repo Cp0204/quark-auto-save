@@ -174,7 +174,7 @@ class Aria2:
                 # print(f"📥 Aria2下载: {file_path} (已存在，跳过)")
                 continue
             
-            print(f"📥 Aria2下载: {file_path}")
+            print(f"📥 Aria2 下载: {file_path}")
             
             # 确保目录存在
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
@@ -194,7 +194,7 @@ class Aria2:
             try:
                 self.add_uri(aria2_params)
             except Exception as e:
-                print(f"📥 Aria2添加下载任务失败: {e}")
+                print(f"📥 Aria2 添加下载任务失败: {e}")
 
     def _make_rpc_request(self, method, params=None):
         """发出 JSON-RPC 请求."""
@@ -211,17 +211,17 @@ class Aria2:
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            print(f"Aria2下载: 错误{e}")
+            print(f"Aria2 下载: 错误{e}")
         return {}
 
     def get_version(self):
         """检查与 Aria2 的连接."""
         response = self._make_rpc_request("aria2.getVersion")
         if response.get("result"):
-            print(f"Aria2下载: v{response['result']['version']}")
+            print(f"Aria2 下载: v{response['result']['version']}")
             return True
         else:
-            print(f"Aria2下载: 连接失败{response.get('error')}")
+            print(f"Aria2 下载: 连接失败{response.get('error')}")
             return False
 
     def add_uri(self, params=None):

@@ -1048,9 +1048,10 @@ class Quark:
                 dir_paths_exist_arr.append(
                     {"file_path": dir_path, "fid": new_dir["fid"]}
                 )
-                print(f"创建文件夹：{dir_path}")
+                # print(f"创建文件夹：{dir_path}")
             else:
-                print(f"创建文件夹：{dir_path} 失败, {mkdir_return['message']}")
+                # print(f"创建文件夹：{dir_path} 失败, {mkdir_return['message']}")
+                pass
         # 储存目标目录的fid
         for dir_path in dir_paths_exist_arr:
             self.savepath_fid[dir_path["file_path"]] = dir_path["fid"]
@@ -3001,17 +3002,17 @@ class Quark:
 
 def verify_account(account):
     # 验证账号
-    print(f"▶️ 验证第{account.index}个账号")
+    print(f"▶️ 验证第 {account.index} 个账号")
     if "__uid" not in account.cookie:
-        print(f"💡 不存在cookie必要参数，判断为仅签到")
+        print(f"💡 不存在 cookie 必要参数，判断为仅签到")
         return False
     else:
         account_info = account.init()
         if not account_info:
-            add_notify(f"👤 第{account.index}个账号登录失败，cookie无效❌")
+            add_notify(f"👤 第 {account.index} 个账号登录失败，cookie 无效 ❌")
             return False
         else:
-            print(f"👤 账号昵称: {account_info['nickname']}✅")
+            print(f"👤 账号昵称: {account_info['nickname']} ✅")
             return True
 
 
@@ -3021,7 +3022,7 @@ def format_bytes(size_bytes: int) -> str:
     while size_bytes >= 1024 and i < len(units) - 1:
         size_bytes /= 1024
         i += 1
-    return f"{size_bytes:.2f} {units[i]}"
+    return f"{size_bytes:.2f}{units[i]}"
 
 
 def do_sign(account):
@@ -3032,15 +3033,15 @@ def do_sign(account):
     # 每日领空间
     growth_info = account.get_growth_info()
     if growth_info:
-        growth_message = f"💾 {'88VIP' if growth_info['88VIP'] else '普通用户'} 总空间：{format_bytes(growth_info['total_capacity'])}，签到累计获得：{format_bytes(growth_info['cap_composition'].get('sign_reward', 0))}"
+        growth_message = f"💾 {'88VIP' if growth_info['88VIP'] else '普通用户'}: 总空间 {format_bytes(growth_info['total_capacity'])}，签到累计获得 {format_bytes(growth_info['cap_composition'].get('sign_reward', 0))}"
         if growth_info["cap_sign"]["sign_daily"]:
-            sign_message = f"📅 签到记录: 今日已签到+{int(growth_info['cap_sign']['sign_daily_reward']/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']})✅"
+            sign_message = f"📅 签到记录: 今日已签到 +{int(growth_info['cap_sign']['sign_daily_reward']/1024/1024)}MB，连签进度（{growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']}）✅"
             message = f"{sign_message}\n{growth_message}"
             print(message)
         else:
             sign, sign_return = account.get_growth_sign()
             if sign:
-                sign_message = f"📅 执行签到: 今日签到+{int(sign_return/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅"
+                sign_message = f"📅 执行签到: 今日签到 +{int(sign_return/1024/1024)}MB，连签进度（{growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']}）✅"
                 message = f"{sign_message}\n{growth_message}"
                 if (
                     str(
