@@ -3724,3 +3724,43 @@ input::-moz-list-button {
   background-color: #f7f7fa; /* 表头悬停背景色 */
   cursor: pointer;
 }
+
+/* 移除number类型输入框的上下箭头 */
+input.no-spinner::-webkit-outer-spin-button,
+input.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox也需要特别处理 */
+input.no-spinner {
+  -moz-appearance: textfield;
+}
+
+/* 秒字框正方形样式 */
+.square-append {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
+}
+
+/* 确保Crontab和延迟执行框在移动端也保持一行 */
+@media (max-width: 767.98px) {
+  .row.mb-2 .col-sm-6 {
+    flex: 0 0 50%;
+    max-width: 50%;
+  }
+  
+  .row.mb-2 .col-sm-6.pr-1 {
+    padding-right: 4px !important;
+    padding-left: 15px !important;
+  }
+  
+  .row.mb-2 .col-sm-6.pl-1 {
+    padding-left: 4px !important;
+    padding-right: 15px !important;
+  }
+}

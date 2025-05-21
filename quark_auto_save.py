@@ -4283,7 +4283,6 @@ def do_save(account, tasklist=[]):
                         )
             elif is_new_tree is False:  # 明确没有新文件
                 print(f"任务完成: 没有新的文件需要转存")
-                print()
     print()
 
 

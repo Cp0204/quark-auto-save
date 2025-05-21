@@ -25,6 +25,8 @@ import base64
 import sys
 import os
 import re
+import random
+import time
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
@@ -683,6 +685,18 @@ def add_task():
 # 定时任务执行的函数
 def run_python(args):
     logging.info(f">>> 定时运行任务")
+    # 检查是否需要随机延迟执行
+    if delay := config_data.get("crontab_delay"):
+        try:
+            delay_seconds = int(delay)
+            if delay_seconds > 0:
+                # 在0到设定值之间随机选择一个延迟时间
+                random_delay = random.randint(0, delay_seconds)
+                logging.info(f">>> 随机延迟执行 {random_delay}秒")
+                time.sleep(random_delay)
+        except (ValueError, TypeError):
+            logging.warning(f">>> 延迟执行设置无效: {delay}")
+    
     os.system(f"{PYTHON_PATH} {args}")
 
 
@@ -708,6 +722,9 @@ def reload_tasks():
         logging.info(">>> 重载调度器")
         logging.info(f"调度状态: {scheduler_state_map[scheduler.state]}")
         logging.info(f"定时规则: {crontab}")
+        # 记录延迟执行设置
+        if delay := config_data.get("crontab_delay"):
+            logging.info(f"延迟执行: 0-{delay}秒")
         logging.info(f"现有任务: {scheduler.get_jobs()}")
         return True
     else:
@@ -740,6 +757,10 @@ def init():
     # 默认定时规则
     if not config_data.get("crontab"):
         config_data["crontab"] = "0 8,18,20 * * *"
+    
+    # 默认延迟执行设置
+    if "crontab_delay" not in config_data:
+        config_data["crontab_delay"] = 0
 
     # 初始化插件配置
     _, plugins_config_default, task_plugins_config_default = Config.load_plugins()

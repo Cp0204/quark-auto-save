@@ -273,11 +273,26 @@
                 </span>
               </div>
             </div>
-            <div class="input-group mb-2">
-              <div class="input-group-prepend">
-                <span class="input-group-text">Crontab</span>
+            <div class="row mb-2">
+              <div class="col-sm-6 pr-1">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">Crontab</span>
+                  </div>
+                  <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
+                </div>
               </div>
-              <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
+              <div class="col-sm-6 pl-1">
+                <div class="input-group" title="添加随机延迟时间：定时任务将在0到设定秒数之间随机延迟执行，可设范围：0–3600秒，0表示不延迟">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">延迟执行</span>
+                  </div>
+                  <input type="text" v-model="formData.crontab_delay" class="form-control no-spinner" placeholder="0-3600" @input="validateNumberInput($event, 'crontab_delay', 3600)">
+                  <div class="input-group-append">
+                    <span class="input-group-text square-append">秒</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="row title" title="通知推送，支持多个渠道，查阅Wiki了解详情">
@@ -1438,6 +1453,7 @@
                 
                 return task;
               });
+              
               // 获取所有任务父目录
               config_data.tasklist.forEach(item => {
                 parentDir = this.getParentDirectory(item.savepath)
@@ -3071,6 +3087,40 @@
               return aValue < bValue ? 1 : -1;
             }
           });
+        },
+        validateNumberInput(event, field, max) {
+          // 获取当前输入值
+          let value = event.target.value;
+          // 获取输入框的当前光标位置
+          const cursorPosition = event.target.selectionStart;
+          
+          // 记录原始长度
+          const originalLength = value.length;
+          
+          // 移除非数字字符
+          const cleanValue = value.replace(/[^\d]/g, '');
+          
+          // 如果有非数字字符被移除
+          if (cleanValue !== value) {
+            // 计算移除了多少个字符
+            const diff = originalLength - cleanValue.length;
+            
+            // 更新输入框的值
+            event.target.value = cleanValue;
+            
+            // 调整光标位置（考虑到字符被移除）
+            setTimeout(() => {
+              event.target.setSelectionRange(Math.max(0, cursorPosition - diff), Math.max(0, cursorPosition - diff));
+            }, 0);
+          }
+          
+          // 确保不超过最大值
+          if (cleanValue !== '' && parseInt(cleanValue) > max) {
+            event.target.value = max.toString();
+          }
+          
+          // 更新数据模型，如果为空则默认为0
+          this.formData[field] = event.target.value === '' ? 0 : parseInt(event.target.value);
         },
       }
     });
