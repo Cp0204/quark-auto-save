@@ -892,10 +892,13 @@ def get_user_info():
                 "is_active": account.is_active
             })
         else:
+            # 检查是否有移动端参数
+            has_mparam = bool(account.mparam)
             user_info_list.append({
                 "index": idx,
                 "nickname": "",
-                "is_active": False
+                "is_active": False,
+                "has_mparam": has_mparam
             })
     
     return jsonify({"success": True, "data": user_info_list})

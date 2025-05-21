@@ -252,7 +252,7 @@
             <div v-for="(value, index) in formData.cookie" :key="index" class="input-group mb-2">
               <div class="input-group-prepend" v-if="userInfoList[index]">
                 <span class="input-group-text" :style="userInfoList[index].nickname ? (userInfoList[index].is_active ? 'color: var(--dark-text-color);' : 'color: red;') : 'color: var(--dark-text-color);'">
-                  {{ userInfoList[index].nickname || '未登录' }}
+                  {{ userInfoList[index].nickname || (userInfoList[index].has_mparam ? '仅签到' : '未登录') }}
                 </span>
               </div>
               <div class="input-group-prepend" v-else>
