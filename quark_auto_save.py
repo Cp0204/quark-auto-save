@@ -3004,7 +3004,6 @@ def verify_account(account):
     # 验证账号
     print(f"▶️ 验证第 {account.index} 个账号")
     if "__uid" not in account.cookie:
-        print(f"💡 不存在 cookie 必要参数，判断为仅签到")
         return False
     else:
         account_info = account.init()
@@ -3052,7 +3051,8 @@ def do_sign(account):
                 ):
                     print(message)
                 else:
-                    message = message.replace("今日", f"[{account.nickname}]今日")
+                    if account.nickname:
+                        message = message.replace("今日", f"{account.nickname} 今日")
                     add_notify(message)
             else:
                 print(f"📅 签到异常: {sign_return}")
@@ -4061,24 +4061,65 @@ def do_save(account, tasklist=[]):
                 if not display_files and file_nodes:
                     # 查找目录中修改时间最新的文件（可能是刚刚转存的）
                     today = datetime.now().strftime('%Y-%m-%d')
-                    recent_files = []
+                    recent_files = []  # 定义并初始化recent_files变量
                     
                     # 首先尝试通过修改日期过滤当天的文件
                     for file in file_nodes:
                         # 如果有时间戳，转换为日期字符串
                         if 'updated_at' in file and file['updated_at']:
-                            update_time = datetime.fromtimestamp(file['updated_at']).strftime('%Y-%m-%d')
-                            if update_time == today:
-                                recent_files.append(file)
+                            try:
+                                # 检查时间戳是否在合理范围内 (1970-2100年)
+                                timestamp = file['updated_at']
+                                if timestamp > 4102444800:  # 2100年的时间戳
+                                    # 可能是毫秒级时间戳，尝试转换为秒级
+                                    timestamp = timestamp / 1000
+                                
+                                # 再次检查时间戳是否在合理范围内
+                                if 0 < timestamp < 4102444800:
+                                    update_time = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d')
+                                    if update_time == today:
+                                        recent_files.append(file)
+                                else:
+                                    print(f"警告: 文件 {file.get('file_name', '未知')} 的时间戳 {file['updated_at']} 超出范围")
+                            except (ValueError, OSError, OverflowError) as e:
+                                print(f"警告: 处理文件 {file.get('file_name', '未知')} 的时间戳时出错: {e}")
                     
                     # 如果没有找到当天的文件，至少显示一个最新的文件
                     if not recent_files and file_nodes:
-                        # 按修改时间排序
-                        recent_files = sorted(file_nodes, key=lambda x: x.get('updated_at', 0), reverse=True)
+                        # 定义安全的排序键函数
+                        def safe_timestamp_key(x):
+                            try:
+                                timestamp = x.get('updated_at', 0)
+                                # 如果时间戳太大，可能是毫秒级时间戳
+                                if timestamp > 4102444800:  # 2100年的时间戳
+                                    timestamp = timestamp / 1000
+                                # 再次检查范围
+                                if timestamp < 0 or timestamp > 4102444800:
+                                    return 0  # 无效时间戳返回0
+                                return timestamp
+                            except (ValueError, TypeError):
+                                return 0  # 无效返回0
                         
+                        try:
+                            # 按修改时间排序，使用安全的排序函数
+                            recent_files = sorted(file_nodes, key=safe_timestamp_key, reverse=True)
+                        except Exception as e:
+                            print(f"警告: 文件排序时出错: {e}")
+                            # 如果排序出错，直接使用原始列表
+                            recent_files = file_nodes
+                    
                     # 只取第一个作为显示
                     if recent_files:
-                        display_files.append(recent_files[0]['file_name'])
+                        try:
+                            display_files.append(recent_files[0]['file_name'])
+                        except (IndexError, KeyError) as e:
+                            print(f"警告: 获取文件名时出错: {e}")
+                            # 如果出错，尝试添加第一个文件（如果有）
+                            if file_nodes:
+                                try:
+                                    display_files.append(file_nodes[0]['file_name'])
+                                except (KeyError, IndexError):
+                                    print("警告: 无法获取有效的文件名")
                 
                 # 添加成功通知 - 修复问题：确保在有文件时添加通知
                 if display_files:
