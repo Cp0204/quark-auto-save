@@ -836,6 +836,63 @@ def get_history_records():
     return jsonify({"success": True, "data": result})
 
 
+# 删除转存记录
+@app.route("/delete_history_records", methods=["POST"])
+def delete_history_records():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+    
+    # 获取要删除的记录ID列表
+    record_ids = request.json.get("record_ids", [])
+    
+    if not record_ids:
+        return jsonify({"success": False, "message": "未提供要删除的记录ID"})
+    
+    # 初始化数据库
+    db = RecordDB()
+    
+    # 删除记录
+    deleted_count = 0
+    for record_id in record_ids:
+        deleted_count += db.delete_record(record_id)
+    
+    return jsonify({
+        "success": True, 
+        "message": f"成功删除 {deleted_count} 条记录",
+        "deleted_count": deleted_count
+    })
+
+
+# 删除单条转存记录
+@app.route("/delete_history_record", methods=["POST"])
+def delete_history_record():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+    
+    # 获取要删除的记录ID
+    record_id = request.json.get("id")
+    
+    if not record_id:
+        return jsonify({"success": False, "message": "未提供要删除的记录ID"})
+    
+    # 初始化数据库
+    db = RecordDB()
+    
+    # 删除记录
+    deleted = db.delete_record(record_id)
+    
+    if deleted:
+        return jsonify({
+            "success": True, 
+            "message": "成功删除 1 条记录",
+        })
+    else:
+        return jsonify({
+            "success": False, 
+            "message": "记录删除失败，可能记录不存在",
+        })
+
+
 # 辅助函数：格式化记录
 def format_records(records):
     for record in records:

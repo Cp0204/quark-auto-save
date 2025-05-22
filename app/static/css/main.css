@@ -92,6 +92,8 @@ body.login-page {
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 9999;
+  width: auto;
+  max-width: 80%;
 }
 
 .toast-custom {
@@ -100,13 +102,15 @@ body.login-page {
   box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
   border: none;
   border-radius: 6px;
+  margin: 0 auto;
 }
 
 .toast-body-custom {
   text-align: center;
-  padding: 1rem 0.75rem;
+  padding: 1rem 1.2rem;
   color: #fff;
   font-size: 0.95rem;
+  white-space: nowrap;
 }
 
 /* --------------- 底部按钮 --------------- */
@@ -3763,4 +3767,89 @@ input.no-spinner {
     padding-left: 4px !important;
     padding-right: 15px !important;
   }
+}
+
+/* --------------- 转存记录相关样式 --------------- */
+.selected-record {
+  background-color: var(--button-gray-background-color) !important;
+}
+
+/* 删除按钮样式 */
+.delete-record-btn {
+  color: #dc3545;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  visibility: hidden; /* 默认隐藏 */
+}
+
+/* 删除按钮图标大小 */
+.delete-record-btn .bi-trash3 {
+  font-size: 1rem;
+}
+
+/* 选中行或鼠标悬停行时显示删除按钮 */
+tr.selected-record .delete-record-btn,
+.selectable-records tbody tr:hover .delete-record-btn {
+  visibility: visible;
+}
+
+/* 表头中的删除按钮仅在有选中行时显示 */
+table th .delete-record-btn {
+  visibility: hidden;
+}
+
+/* 禁止在表格中选择文本，以便更好地支持点击选择 */
+table.selectable-records {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+table.selectable-records tbody tr {
+  cursor: pointer;
+}
+
+/* 修改表格行悬停样式，使用变量保持一致性 */
+table.selectable-records tbody tr:hover {
+  background-color: var(--button-gray-background-color);
+}
+
+/* 确保展开按钮在选中状态下仍然可见 */
+tr.selected-record .expand-button {
+  z-index: 2;
+}
+
+/* 当鼠标悬停在展开按钮或删除按钮上时，不改变按钮的背景色 */
+table.selectable-records .expand-button:hover,
+table.selectable-records .delete-record-btn:hover {
+  background-color: transparent !important;
+}
+
+/* 选中行或鼠标悬停行的大小列样式 */
+tr.selected-record .file-size-cell .file-size-value,
+.selectable-records tbody tr:hover .file-size-cell .file-size-value {
+  display: none; /* 隐藏文件大小信息 */
+}
+
+tr.selected-record .file-size-cell .delete-record-btn,
+.selectable-records tbody tr:hover .file-size-cell .delete-record-btn {
+  display: flex;
+  justify-content: flex-start; /* 居左对齐 */
+  align-items: center;
+  width: auto;
+  height: 100%;
+  margin-left: 0; /* 确保没有左边距 */
+  padding-left: 0; /* 确保没有左内边距 */
+}
+
+/* 当鼠标悬停在展开按钮或删除按钮上时，不改变按钮的背景色 */
+table.selectable-records .expand-button:hover {
+  background-color: #fff !important; /* 保持展开按钮原有的白色背景 */
 }
