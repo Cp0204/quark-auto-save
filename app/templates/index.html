@@ -252,7 +252,7 @@
             <div v-for="(value, index) in formData.cookie" :key="index" class="input-group mb-2">
               <div class="input-group-prepend" v-if="userInfoList[index]">
                 <span class="input-group-text" :style="userInfoList[index].nickname ? (userInfoList[index].is_active ? 'color: var(--dark-text-color);' : 'color: red;') : 'color: var(--dark-text-color);'">
-                  {{ userInfoList[index].nickname || '未登录' }}
+                  {{ userInfoList[index].nickname || (userInfoList[index].has_mparam ? '仅签到' : '未登录') }}
                 </span>
               </div>
               <div class="input-group-prepend" v-else>
@@ -273,11 +273,26 @@
                 </span>
               </div>
             </div>
-            <div class="input-group mb-2">
-              <div class="input-group-prepend">
-                <span class="input-group-text">Crontab</span>
+            <div class="row mb-2">
+              <div class="col-sm-6 pr-1">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">Crontab</span>
+                  </div>
+                  <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
+                </div>
               </div>
-              <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
+              <div class="col-sm-6 pl-1">
+                <div class="input-group" title="添加随机延迟时间：定时任务将在0到设定秒数之间随机延迟执行，可设范围：0–3600秒，0表示不延迟">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">延迟执行</span>
+                  </div>
+                  <input type="text" v-model="formData.crontab_delay" class="form-control no-spinner" placeholder="0-3600" @input="validateNumberInput($event, 'crontab_delay', 3600)">
+                  <div class="input-group-append">
+                    <span class="input-group-text square-append">秒</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="row title" title="通知推送，支持多个渠道，查阅Wiki了解详情">
@@ -670,14 +685,14 @@
             </div>
             
             <div class="table-responsive">
-              <table class="table table-hover">
+              <table class="table table-hover selectable-records">
                 <thead>
                   <tr>
                     <th style="width:10%" class="cursor-pointer" @click="sortHistory('transfer_time')">转存日期 <i v-if="historyParams.sortBy === 'transfer_time'" :class="historyParams.order === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
                     <th style="width:18%" class="cursor-pointer" @click="sortHistory('task_name')">任务名称 <i v-if="historyParams.sortBy === 'task_name'" :class="historyParams.order === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
                     <th style="width:25%" class="cursor-pointer" @click="sortHistory('original_name')">原文件 <i v-if="historyParams.sortBy === 'original_name'" :class="historyParams.order === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
                     <th style="width:25%" class="cursor-pointer" @click="sortHistory('renamed_to')">转存为 <i v-if="historyParams.sortBy === 'renamed_to'" :class="historyParams.order === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
-                    <th style="width:7%" class="cursor-pointer" @click="sortHistory('file_size')">大小 <i v-if="historyParams.sortBy === 'file_size'" :class="historyParams.order === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
+                    <th style="width:7%" class="cursor-pointer file-size-column" @click="sortHistory('file_size')">大小 <i v-if="historyParams.sortBy === 'file_size'" :class="historyParams.order === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
                     <th style="width:10%" class="cursor-pointer" @click="sortHistory('modify_date')">修改日期 <i v-if="historyParams.sortBy === 'modify_date'" :class="historyParams.order === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
                   </tr>
                 </thead>
@@ -685,7 +700,9 @@
                   <tr v-if="filteredHistoryRecords.length === 0">
                     <td colspan="6" class="text-center">暂无记录</td>
                   </tr>
-                  <tr v-for="(record, index) in filteredHistoryRecords" :key="record.id">
+                  <tr v-for="(record, index) in filteredHistoryRecords" :key="record.id" 
+                      :class="{'selected-record': selectedRecords.includes(record.id)}" 
+                      @click="selectRecord($event, record.id)">
                     <td>{{ record.transfer_time_readable }}</td>
                     <td class="position-relative">
                       <div v-if="!record._expandedFields || !record._expandedFields.includes('task_name')" 
@@ -694,7 +711,7 @@
                            v-check-overflow="index + '|task_name'">
                         {{ record.task_name }}
                       </div>
-                      <div class="expand-button" v-if="isTextTruncated(record.task_name, index, 'task_name')" @click="toggleExpand(index, 'task_name')">
+                      <div class="expand-button" v-if="isTextTruncated(record.task_name, index, 'task_name')" @click.stop="toggleExpand(index, 'task_name', $event)">
                         <i :class="record._expandedFields && record._expandedFields.length > 0 ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
                       </div>
                       <div class="expanded-text" v-if="record._expandedFields && record._expandedFields.includes('task_name')">
@@ -708,7 +725,7 @@
                            v-check-overflow="index + '|original_name'">
                         {{ record.original_name }}
                       </div>
-                      <div class="expand-button" v-if="isTextTruncated(record.original_name, index, 'original_name')" @click="toggleExpand(index, 'original_name')">
+                      <div class="expand-button" v-if="isTextTruncated(record.original_name, index, 'original_name')" @click.stop="toggleExpand(index, 'original_name', $event)">
                         <i :class="record._expandedFields && record._expandedFields.length > 0 ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
                       </div>
                       <div class="expanded-text" v-if="record._expandedFields && record._expandedFields.includes('original_name')">
@@ -722,14 +739,19 @@
                            v-check-overflow="index + '|renamed_to'">
                         {{ record.renamed_to }}
                       </div>
-                      <div class="expand-button" v-if="isTextTruncated(record.renamed_to, index, 'renamed_to')" @click="toggleExpand(index, 'renamed_to')">
+                      <div class="expand-button" v-if="isTextTruncated(record.renamed_to, index, 'renamed_to')" @click.stop="toggleExpand(index, 'renamed_to', $event)">
                         <i :class="record._expandedFields && record._expandedFields.length > 0 ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
                       </div>
                       <div class="expanded-text" v-if="record._expandedFields && record._expandedFields.includes('renamed_to')">
                         {{ record.renamed_to }}
                       </div>
                     </td>
-                    <td>{{ record.file_size_readable }}</td>
+                    <td class="file-size-cell">
+                      <span class="file-size-value">{{ record.file_size_readable }}</span>
+                      <span class="delete-record-btn" @click.stop="deleteRecord(record.id, record.original_name)" title="删除记录">
+                        <i class="bi bi-trash3"></i>
+                      </span>
+                    </td>
                     <td>{{ record.modify_date_readable }}</td>
                   </tr>
                 </tbody>
@@ -739,7 +761,7 @@
             <!-- 分页控制 -->
             <div class="pagination-container d-flex justify-content-between align-items-center mt-3">
               <div class="page-info text-secondary">
-                显示 {{ history.pagination && history.pagination.total_records > 0 ? ((historyParams.page - 1) * historyParams.page_size + 1) + '-' + Math.min(historyParams.page * historyParams.page_size, history.pagination.total_records) : '0' }} 条，共 {{ history.pagination ? history.pagination.total_records : 0 }} 条记录
+                显示 {{ history.pagination && history.pagination.total_records > 0 ? ((historyParams.page - 1) * historyParams.page_size + 1) + '-' + Math.min(historyParams.page * historyParams.page_size, history.pagination.total_records) : '0' }} 条，共 {{ history.pagination ? history.pagination.total_records : 0 }} 条记录{{ selectedRecords.length > 0 ? '，已选中 ' + selectedRecords.length + ' 条记录' : '' }}
               </div>
               <div class="pagination-controls d-flex align-items-center">
                 <button type="button" class="btn btn-outline-secondary btn-sm mx-1" :class="{ disabled: historyParams.page <= 1 }" @click="changePage(historyParams.page - 1)" :disabled="historyParams.page <= 1">
@@ -1043,6 +1065,8 @@
         displayedPages: [],
         allTaskNames: [],
         toastMessage: "",
+        selectedRecords: [],
+        lastSelectedRecordIndex: -1, // 记录最后选择的记录索引，用于Shift选择
       },
       computed: {
         episodePatternsText: {
@@ -1223,6 +1247,10 @@
           // 只隐藏下拉菜单，不清空搜索结果，这样点击同一任务的输入框时还能看到之前的搜索结果
           this.smart_param.showSuggestions = false;
         });
+        
+        // 添加点击事件监听器，用于在点击表格外区域时取消选择记录
+        document.addEventListener('click', this.handleOutsideClick);
+        
         window.addEventListener('beforeunload', this.handleBeforeUnload);
         
         // 监听模态框显示事件，检查滚动条状态
@@ -1282,6 +1310,8 @@
       },
       beforeDestroy() {
         window.removeEventListener('beforeunload', this.handleBeforeUnload);
+        // 移除点击事件监听器
+        document.removeEventListener('click', this.handleOutsideClick);
       },
       methods: {
         // 添加格式化分享链接警告信息的方法
@@ -1438,6 +1468,7 @@
                 
                 return task;
               });
+              
               // 获取所有任务父目录
               config_data.tasklist.forEach(item => {
                 parentDir = this.getParentDirectory(item.savepath)
@@ -1540,7 +1571,7 @@
           });
         },
         removeCookie(index) {
-          if (this.formData.cookie[index] == "" || confirm("确认删除吗？")) {
+          if (this.formData.cookie[index] == "" || confirm("确定要删除吗？")) {
             this.formData.cookie.splice(index, 1);
             // 删除对应的用户信息
             if (this.userInfoList.length > index) {
@@ -1558,7 +1589,7 @@
             this.$set(this.formData.push_config, key, "");
         },
         removePush(key) {
-          if (confirm("确认删除吗？"))
+          if (confirm("确定要删除吗？"))
             this.$delete(this.formData.push_config, key);
         },
         addTask() {
@@ -1836,7 +1867,7 @@
           }
         },
         removeTask(index) {
-          if (confirm("确认删除任务 [#" + (index + 1) + ": " + this.formData.tasklist[index].taskname + "] 吗？"))
+          if (confirm("确定要删除任务 [#" + (index + 1) + ": " + this.formData.tasklist[index].taskname + "] 吗？"))
             this.formData.tasklist.splice(index, 1);
         },
         changeShareurl(task) {
@@ -2225,12 +2256,12 @@
           }
         },
         removeMagicRegex(key) {
-          if (confirm(`确认删除魔法匹配规则 [${key}] 吗？`)) {
+          if (confirm(`确定要删除魔法匹配规则 [${key}] 吗？`)) {
             this.$delete(this.formData.magic_regex, key);
           }
         },
         deleteFile(fid, fname, isDir) {
-          if (fid != "" && confirm(`确认删除${isDir ? '目录' : '文件'} [${fname}] 吗？`))
+          if (fid != "" && confirm(`确定要删除${isDir ? '目录' : '文件'} [${fname}] 吗？`))
             axios.post('/delete_file', {
               fid: fid
             }).then(response => {
@@ -2782,7 +2813,12 @@
           
           return record._isOverflowing && record._isOverflowing[field];
         },
-        toggleExpand(index, field) {
+        toggleExpand(index, field, event) {
+          // 阻止事件冒泡，避免触发行选择
+          if (event) {
+            event.stopPropagation();
+          }
+          
           // 获取当前记录
           const record = this.filteredHistoryRecords[index];
           // 初始化_expandedFields属性（如果不存在）
@@ -3071,6 +3107,186 @@
               return aValue < bValue ? 1 : -1;
             }
           });
+        },
+        validateNumberInput(event, field, max) {
+          // 获取当前输入值
+          let value = event.target.value;
+          // 获取输入框的当前光标位置
+          const cursorPosition = event.target.selectionStart;
+          
+          // 记录原始长度
+          const originalLength = value.length;
+          
+          // 移除非数字字符
+          const cleanValue = value.replace(/[^\d]/g, '');
+          
+          // 如果有非数字字符被移除
+          if (cleanValue !== value) {
+            // 计算移除了多少个字符
+            const diff = originalLength - cleanValue.length;
+            
+            // 更新输入框的值
+            event.target.value = cleanValue;
+            
+            // 调整光标位置（考虑到字符被移除）
+            setTimeout(() => {
+              event.target.setSelectionRange(Math.max(0, cursorPosition - diff), Math.max(0, cursorPosition - diff));
+            }, 0);
+          }
+          
+          // 确保不超过最大值
+          if (cleanValue !== '' && parseInt(cleanValue) > max) {
+            event.target.value = max.toString();
+          }
+          
+          // 更新数据模型，如果为空则默认为0
+          this.formData[field] = event.target.value === '' ? 0 : parseInt(event.target.value);
+        },
+        selectRecord(event, recordId) {
+          // 获取当前记录的索引
+          const currentIndex = this.filteredHistoryRecords.findIndex(record => record.id === recordId);
+          if (currentIndex === -1) return;
+          
+          // 如果是Shift+点击，选择范围
+          if (event.shiftKey && this.selectedRecords.length > 0) {
+            // 找出所有已选中记录的索引
+            const selectedIndices = this.selectedRecords.map(id => 
+              this.filteredHistoryRecords.findIndex(record => record.id === id)
+            ).filter(index => index !== -1); // 过滤掉未找到的记录
+            
+            if (selectedIndices.length > 0) {
+              // 找出已选中记录中最靠前的索引
+              const earliestSelectedIndex = Math.min(...selectedIndices);
+              // 确定最终的选择范围
+              const startIndex = Math.min(earliestSelectedIndex, currentIndex);
+              const endIndex = Math.max(earliestSelectedIndex, currentIndex);
+              
+              // 获取新的选择范围内所有记录的ID
+              this.selectedRecords = this.filteredHistoryRecords
+                .slice(startIndex, endIndex + 1)
+                .map(record => record.id);
+            } else {
+              // 如果没有有效的选中记录（可能是由于列表刷新），则只选择当前记录
+              this.selectedRecords = [recordId];
+            }
+          } 
+          // 如果是Ctrl/Cmd+点击，切换单个记录选择状态
+          else if (event.ctrlKey || event.metaKey) {
+            if (this.selectedRecords.includes(recordId)) {
+              this.selectedRecords = this.selectedRecords.filter(id => id !== recordId);
+            } else {
+              this.selectedRecords.push(recordId);
+            }
+          } 
+          // 普通点击，清除当前选择并选择当前记录
+          else {
+            if (this.selectedRecords.length === 1 && this.selectedRecords.includes(recordId)) {
+              this.selectedRecords = [];
+            } else {
+              this.selectedRecords = [recordId];
+            }
+          }
+          
+          // 更新最后选择的记录索引，只有在有选择记录时才更新
+          if (this.selectedRecords.length > 0) {
+            this.lastSelectedRecordIndex = currentIndex;
+          } else {
+            this.lastSelectedRecordIndex = -1;
+          }
+        },
+        deleteSelectedRecords() {
+          if (this.selectedRecords.length === 0) return;
+          
+          if (confirm(`确定要删除选中的 ${this.selectedRecords.length} 条记录吗？`)) {
+            axios.post('/delete_history_records', {
+              record_ids: this.selectedRecords
+            })
+            .then(response => {
+              if (response.data.success) {
+                this.showToast(response.data.message);
+                // 重新加载记录
+                this.loadHistoryRecords();
+                // 清空选择
+                this.selectedRecords = [];
+                this.lastSelectedRecordIndex = -1;
+              } else {
+                alert(response.data.message || '删除失败');
+              }
+            })
+            .catch(error => {
+              console.error('删除记录时出错:', error);
+              alert('删除记录时出错: ' + (error.response?.data?.message || error.message));
+            });
+          }
+        },
+        deleteRecord(id, original_name) {
+          // 检查是否有多条记录被选中
+          if (this.selectedRecords.length > 1) {
+            // 如果有多条记录被选中，调用批量删除方法
+            if (confirm(`确定要删除选中的 ${this.selectedRecords.length} 条记录吗？`)) {
+              axios.post('/delete_history_records', {
+                record_ids: this.selectedRecords
+              })
+              .then(response => {
+                if (response.data.success) {
+                  this.showToast(`成功删除 ${this.selectedRecords.length} 条记录`);
+                  // 重新加载记录
+                  this.loadHistoryRecords();
+                  // 清空选择
+                  this.selectedRecords = [];
+                  this.lastSelectedRecordIndex = -1;
+                } else {
+                  alert(response.data.message || '删除失败');
+                }
+              })
+              .catch(error => {
+                console.error('删除记录时出错:', error);
+                alert('删除记录时出错: ' + (error.response?.data?.message || error.message));
+              });
+            }
+          } else {
+            // 单条记录删除
+            if (confirm(`确定要删除此条记录吗？`)) {
+              axios.post('/delete_history_record', {
+                id: id
+              })
+              .then(response => {
+                if (response.data.success) {
+                  this.showToast('成功删除 1 条记录');
+                  // 重新加载记录
+                  this.loadHistoryRecords();
+                  // 清空选择
+                  this.selectedRecords = [];
+                  this.lastSelectedRecordIndex = -1;
+                } else {
+                  alert(response.data.message || '删除失败');
+                }
+              })
+              .catch(error => {
+                console.error('删除记录时出错:', error);
+                alert('删除记录时出错: ' + (error.response?.data?.message || error.message));
+              });
+            }
+          }
+        },
+        // 处理点击表格外区域的事件
+        handleOutsideClick(event) {
+          // 如果当前不是历史记录页面或者没有选中的记录，则不处理
+          if (this.activeTab !== 'history' || this.selectedRecords.length === 0) {
+            return;
+          }
+          
+          // 检查点击是否在表格内
+          const tableElement = document.querySelector('.table.selectable-records');
+          // 检查点击是否在分页控制区域
+          const paginationElement = document.querySelector('.pagination-container');
+          
+          // 如果点击不在表格内且不在分页控制区域内，则清除选择
+          if (tableElement && !tableElement.contains(event.target) && 
+              paginationElement && !paginationElement.contains(event.target)) {
+            this.selectedRecords = [];
+            this.lastSelectedRecordIndex = -1;
+          }
         },
       }
     });
