@@ -1274,8 +1274,8 @@ button.close:focus,
   align-items: center;
   border-width: 1px;
   border-style: solid;
-  height: 35.5px;
-  min-height: 35.5px;
+  height: 36px;
+  min-height: 36px;
 }
 
 /* 任务列表中的警告框样式 */
@@ -1500,7 +1500,7 @@ button.close:focus,
   background-color: var(--button-gray-background-color);
   border-radius: 0px;
   font-size: 0.85rem;
-  padding: 6px 12px;
+  padding: 6.5px 12px 6px 12px; /* 上右下左内边距 */
   margin-bottom: 8px;
   border-top: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
@@ -1592,7 +1592,7 @@ button.close:focus,
   border-bottom: 1px solid var(--border-color);
   color: var(--dark-text-color);
   font-weight: 600;
-  padding: 6.5px 12.5px !important; /* 表头上下边距，左右边距 */
+  padding: 7px 12.5px 6.5px 12.5px !important; /* 表头上右下左内边距 */
   font-size: 0.85rem;
   white-space: nowrap;
   position: sticky;
@@ -1656,7 +1656,7 @@ button.close:focus,
 }
 
 #fileSelectModal .table td {
-  padding: 6px 12px !important; /* 单元格上下边距，左右边距 */
+  padding: 5.5px 12.5px 7px 12.5px !important; /* 单元格上右下左内边距 */
   vertical-align: middle;
   border-bottom: 1px solid var(--border-color);
   color: var(--dark-text-color);
@@ -1686,12 +1686,16 @@ button.close:focus,
   color: #ffc107;
   font-size: 0.9rem;
   margin-right: 5px;
+  position: relative;
+  top: 1px; /* 负值向上移动，正值向下移动 */
 }
 
 #fileSelectModal .bi-file-earmark {
   color: var(--dark-text-color);
   font-size: 0.9rem;
   margin-right: 5px;
+  position: relative;
+  top: 0px !important; /* 负值向上移动，正值向下移动 */
 }
 
 /* 弹窗删除链接样式 */
@@ -3666,7 +3670,7 @@ input::-moz-list-button {
 #fileSelectModal .expand-button {
   position: absolute;
   right: 5px;
-  top: 8px; /* 固定高度，不再使用百分比定位 */
+  top: 7.5px; /* 固定高度，不再使用百分比定位 */
   transform: none; /* 移除垂直居中转换 */
   cursor: pointer;
   opacity: 0;
@@ -3861,4 +3865,37 @@ tr.selected-record .file-size-cell .delete-record-btn,
 /* 当鼠标悬停在展开按钮或删除按钮上时，不改变按钮的背景色 */
 table.selectable-records .expand-button:hover {
   background-color: #fff !important; /* 保持展开按钮原有的白色背景 */
+}
+
+/* 模态框表格单元格文本垂直对齐调整 */
+#fileSelectModal .table td {
+  transform: translateY(0.5px); /* 文本下移0.5px，不影响元素实际高度 */
+}
+
+/* 确保文件大小、修改日期和操作列的文本位置与文件名一致 */
+#fileSelectModal .table td:not(.col-filename) {
+  transform: translateY(1.5px); /* 非文件名列文本下移1.5px */
+}
+
+/* 特别调整红色"×"符号的位置 */
+#fileSelectModal .table td.col-rename.text-danger div:not(.expand-button) {
+  position: relative;
+  top: -1px; /* 将"×"标记上移1px */
+}
+
+/* 文件名列已经通过图标微调过，保持原样或细微调整 */
+#fileSelectModal .bi-folder-fill {
+  color: #ffc107;
+  font-size: 0.9rem;
+  margin-right: 5px;
+  position: relative;
+  top: 1px; /* 负值向上移动，正值向下移动 */
+}
+
+#fileSelectModal .bi-file-earmark {
+  color: var(--dark-text-color);
+  font-size: 0.9rem;
+  margin-right: 5px;
+  position: relative;
+  top: 0px; /* 负值向上移动，正值向下移动 */
 }
