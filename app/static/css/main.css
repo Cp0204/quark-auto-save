@@ -1120,7 +1120,7 @@ textarea.form-control {
   border-bottom-right-radius: 0;
 }
 
-/* --------------- 扩展按钮样式 --------------- */
+/* --------------- 转存记录展开按钮样式 --------------- */
 .expand-button {
   position: absolute;
   right: 5px;
@@ -1180,8 +1180,8 @@ textarea.form-control {
   vertical-align: middle;
   border-bottom: 1px solid var(--border-color); /* 修改底部边框为1px */
   border-top: 1px solid var(--border-color); /* 添加上边框线 */
-  padding-top: 8px; /* 增加上内边距 */
-  padding-bottom: 8px; /* 增加下内边距 */
+  padding-top: 8.5px; /* 增加上内边距 */
+  padding-bottom: 8.5px; /* 增加下内边距 */
   padding-left: 9px !important; /* 表头左内边距，与按钮一致 */
   padding-right: 9px !important; /* 表头右内边距，与按钮一致 */
   background-color: var(--button-gray-background-color); /* 表头背景色 */
@@ -1206,6 +1206,7 @@ textarea.form-control {
   padding-left: 9px !important; /* 单元格左内边距，与按钮一致 */
   padding-right: 9px !important; /* 单元格右内边距，与按钮一致 */
   border-bottom: 1px solid var(--border-color); /* 单元格分割线颜色 */
+  transform: translateY(0.5px); /* 文本下移0.5px，不影响元素实际高度 */
 }
 
 /* 表格行悬停样式 */
@@ -3774,7 +3775,13 @@ input.no-spinner {
   background-color: var(--button-gray-background-color) !important;
 }
 
-/* 删除按钮样式 */
+/* 文件大小值的文本位置调整 */
+.file-size-cell .file-size-value {
+  transform: translateY(-1px); /* 文本下移 */
+  display: inline-block; /* 确保transform生效 */
+}
+
+/* 转存记录删除按钮样式 */
 .delete-record-btn {
   color: #dc3545;
   cursor: pointer;
@@ -3786,6 +3793,8 @@ input.no-spinner {
   border-radius: 4px;
   transition: background-color 0.2s ease;
   visibility: hidden; /* 默认隐藏 */
+  position: relative; /* 添加相对定位 */
+  top: -0.5px; /* 上移 */
 }
 
 /* 删除按钮图标大小 */
