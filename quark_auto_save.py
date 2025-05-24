@@ -819,7 +819,7 @@ class Quark:
                 fids += response["data"]
                 file_paths = file_paths[50:]
             else:
-                print(f"获取目录ID：失败, {response['message']}")
+                print(f"获取目录ID: 失败, {response['message']}")
                 break
             if len(file_paths) == 0:
                 break
@@ -1286,8 +1286,8 @@ class Quark:
     def do_save_task(self, task):
         # 判断资源失效记录
         if task.get("shareurl_ban"):
-            print(f"分享资源已失效：{task['shareurl_ban']}")
-            add_notify(f"❗《{task['taskname']}》分享资源已失效：{task['shareurl_ban']}\n")
+            print(f"分享资源已失效: {task['shareurl_ban']}")
+            add_notify(f"❗《{task['taskname']}》分享资源已失效: {task['shareurl_ban']}\n")
             return
             
         # 标准化保存路径，去掉可能存在的首位斜杠，然后重新添加
@@ -1304,8 +1304,8 @@ class Quark:
         is_sharing, stoken = self.get_stoken(pwd_id, passcode)
         if not is_sharing:
             task["shareurl_ban"] = stoken
-            print(f"分享详情获取失败：{stoken}")
-            add_notify(f"❗《{task['taskname']}》分享详情获取失败：{stoken}\n")
+            print(f"分享详情获取失败: {stoken}")
+            add_notify(f"❗《{task['taskname']}》分享详情获取失败: {stoken}\n")
             return
         share_detail = self.get_detail(pwd_id, stoken, pdir_fid, _fetch_share=1)
         # 获取保存路径fid
@@ -1393,7 +1393,7 @@ class Quark:
         if not share_file_list:
             if subdir_path == "":
                 task["shareurl_ban"] = "分享为空，文件已被分享者删除"
-                add_notify(f"❌《{task['taskname']}》：{task['shareurl_ban']}\n")
+                add_notify(f"❌《{task['taskname']}》: {task['shareurl_ban']}\n")
             return tree
         elif (
             len(share_file_list) == 1
@@ -1445,7 +1445,7 @@ class Quark:
             if task.get("use_sequence_naming") or task.get("use_episode_naming"):
                 # 计算剩余的实际可用文件数（排除文件夹）
                 remaining_usable_count = len([f for f in share_file_list if not f.get("dir", False)])
-                print(f"📑 应用过滤词: {task['filterwords']}，剩余{remaining_usable_count}个项目")
+                print(f"📑 应用过滤词: {task['filterwords']}，剩余 {remaining_usable_count} 个项目")
             else:
                 # 正则模式下，需要先检查哪些文件/文件夹会被实际转存
                 pattern, replace = "", ""
@@ -1479,7 +1479,7 @@ class Quark:
                     print(f"⚠️ 计算可处理项目时出错: {str(e)}")
                     remaining_count = len([f for f in share_file_list if re.search(pattern, f["file_name"])])
                 
-                print(f"📑 应用过滤词: {task['filterwords']}，剩余{remaining_count}个项目")
+                print(f"📑 应用过滤词: {task['filterwords']}，剩余 {remaining_count} 个项目")
             print()
 
         # 获取目标目录文件列表
@@ -2215,7 +2215,7 @@ class Quark:
             else:
                 err_msg = save_file_return["message"]
             if err_msg:
-                add_notify(f"❌《{task['taskname']}》转存失败：{err_msg}\n")
+                add_notify(f"❌《{task['taskname']}》转存失败: {err_msg}\n")
         else:
             # 没有新文件需要转存
             if not subdir_path:  # 只在顶层（非子目录）打印一次消息
@@ -2369,7 +2369,7 @@ class Quark:
                         # 移除直接打印的部分，由do_save负责打印
                         # print(rename_log)
                 except Exception as e:
-                    rename_log = f"重命名出错: {dir_file['file_name']} → {save_name}，错误：{str(e)}"
+                    rename_log = f"重命名出错: {dir_file['file_name']} → {save_name}，错误: {str(e)}"
                     rename_logs.append(rename_log)
                     # 移除直接打印的部分，由do_save负责打印
                     # print(rename_log)
@@ -2455,7 +2455,7 @@ class Quark:
                     # 获取分享详情
                     is_sharing, stoken = self.get_stoken(pwd_id, passcode)
                     if not is_sharing:
-                        print(f"分享详情获取失败：{stoken}")
+                        print(f"分享详情获取失败: {stoken}")
                         return False, []
                     
                     # 获取分享文件列表
@@ -2758,11 +2758,11 @@ class Quark:
                                 return True, rename_logs
                             else:
                                 err_msg = query_task_return["message"]
-                                add_notify(f"❌《{task['taskname']}》转存失败：{err_msg}\n")
+                                add_notify(f"❌《{task['taskname']}》转存失败: {err_msg}\n")
                                 return False, []
                         else:
                             print(f"❌ 保存文件失败: {save_file_return['message']}")
-                            add_notify(f"❌《{task['taskname']}》转存失败：{save_file_return['message']}\n")
+                            add_notify(f"❌《{task['taskname']}》转存失败: {save_file_return['message']}\n")
                             return False, []
                     else:
                         # print("没有需要保存的新文件")
@@ -2950,7 +2950,7 @@ class Quark:
                     if new_name != orig_name:
                         rename_operations.append((dir_file, new_name))
                 except Exception as e:
-                    print(f"正则替换出错: {dir_file['file_name']}，错误：{str(e)}")
+                    print(f"正则替换出错: {dir_file['file_name']}，错误: {str(e)}")
             
             # 按原始文件名字母顺序排序，使重命名操作有序进行
             # rename_operations.sort(key=lambda x: x[0]["file_name"])
@@ -2989,7 +2989,7 @@ class Quark:
                             rename_logs.append(error_log)
                     except Exception as e:
                         # 收集错误日志但不打印
-                        error_log = f"重命名出错: {dir_file['file_name']} → {new_name}，错误：{str(e)}"
+                        error_log = f"重命名出错: {dir_file['file_name']} → {new_name}，错误: {str(e)}"
                         rename_logs.append(error_log)
                 else:
                     # 重名警告但不打印
