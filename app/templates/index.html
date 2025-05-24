@@ -912,7 +912,14 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(file, key) in fileSelect.fileList" :key="key" @click="fileSelect.selectDir ? (file.dir ? navigateTo(file.fid, file.file_name) : null) : selectStartFid(file.fid)" :class="{'cursor-pointer': fileSelect.selectDir ? file.dir : true}" style="vertical-align: top;">
+                  <tr v-for="(file, key) in fileSelect.fileList" :key="key" 
+                      @click="fileSelect.selectDir ? (file.dir ? navigateTo(file.fid, file.file_name) : selectFileItem($event, file.fid)) : selectStartFid(file.fid)" 
+                      :class="{
+                        'cursor-pointer': file.dir || !fileSelect.selectShare || (!fileSelect.selectDir && !file.dir),
+                        'selected-file': fileSelect.selectedFiles.includes(file.fid)
+                      }" 
+                      style="vertical-align: top;" 
+                      @mousedown="preventTextSelection($event, file.dir)">
                     <td class="col-filename position-relative" style="padding-left: 5px; vertical-align: top;">
                       <div v-if="!file._expandedFields || !file._expandedFields.includes('file_name')" 
                            style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 25px;" 
@@ -945,7 +952,9 @@
                       <td class="col-size" v-if="file.dir" style="vertical-align: top;">{{ file.include_items }} 项</td>
                       <td class="col-size" v-else style="vertical-align: top;">{{file.size | size}}</td>
                       <td class="col-date" style="vertical-align: top;">{{file.updated_at | ts2date}}</td>
-                      <td class="col-action" v-if="!fileSelect.selectShare" style="vertical-align: top;"><a @click.stop.prevent="deleteFile(file.fid, file.file_name, file.dir)" style="cursor: pointer;">删除</a></td>
+                      <td class="col-action" v-if="!fileSelect.selectShare" style="vertical-align: top;">
+                        <a @click.stop.prevent="deleteSelectedFiles(file.fid, file.file_name, file.dir)" style="cursor: pointer;">删除</a>
+                      </td>
                     </template>
                   </tr>
                 </tbody>
@@ -953,6 +962,9 @@
             </div>
           </div>
           <div class="modal-footer" v-if="fileSelect.selectDir && !fileSelect.previewRegex">
+            <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+              共 {{ fileSelect.fileList.length }} 个项目<span v-if="fileSelect.selectedFiles.length > 0">，已选中 {{ fileSelect.selectedFiles.length }} 个项目</span>
+            </div>
             <button type="button" class="btn btn-primary btn-sm" @click="selectCurrentFolder()">{{fileSelect.selectShare ? '转存当前文件夹' : '保存到当前文件夹'}}</button>
             <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="formData.tasklist[fileSelect.index].taskname"></span>」文件夹</button>
           </div>
@@ -1046,7 +1058,9 @@
           selectShare: true,
           previewRegex: false,
           sortBy: "updated_at", // 默认排序字段
-          sortOrder: "desc" // 默认排序顺序
+          sortOrder: "desc", // 默认排序顺序
+          selectedFiles: [], // 存储选中的文件ID
+          lastSelectedFileIndex: -1 // 记录最后选择的文件索引
         },
         historyParams: {
           sortBy: "transfer_time",
@@ -1203,13 +1217,20 @@
         this.checkNewVersion();
         this.fetchUserInfo(); // 获取用户信息
         
-        // 从本地存储中恢复之前的标签页状态
+        // 添加点击事件监听
+        document.addEventListener('click', this.handleOutsideClick);
+        document.addEventListener('click', this.handleModalOutsideClick);
+        
+        // 添加模态框关闭事件监听
+        $('#fileSelectModal').on('hidden.bs.modal', () => {
+          this.fileSelect.selectedFiles = [];
+          this.fileSelect.lastSelectedFileIndex = -1;
+        });
+        
+        // 检查本地存储中的标签页状态
         const savedTab = localStorage.getItem('quarkAutoSave_activeTab');
         if (savedTab) {
           this.activeTab = savedTab;
-        } else {
-          // 默认显示任务列表页面
-          this.activeTab = 'tasklist';
         }
         
         // 从本地存储中恢复侧边栏折叠状态
@@ -1250,6 +1271,15 @@
         
         // 添加点击事件监听器，用于在点击表格外区域时取消选择记录
         document.addEventListener('click', this.handleOutsideClick);
+        
+        // 添加点击事件监听器，用于在点击模态框表格外区域时取消选择文件
+        document.addEventListener('click', this.handleModalOutsideClick);
+        
+        // 添加模态框关闭事件监听，清空选中文件列表
+        $('#fileSelectModal').on('hidden.bs.modal', () => {
+          this.fileSelect.selectedFiles = [];
+          this.fileSelect.lastSelectedFileIndex = -1;
+        });
         
         window.addEventListener('beforeunload', this.handleBeforeUnload);
         
@@ -2261,17 +2291,34 @@
           }
         },
         deleteFile(fid, fname, isDir) {
-          if (fid != "" && confirm(`确定要删除${isDir ? '目录' : '文件'} [${fname}] 吗？`))
-            axios.post('/delete_file', {
-              fid: fid
-            }).then(response => {
-              if (response.data.code == 0) {
-                this.fileSelect.fileList = this.fileSelect.fileList.filter(item => item.fid != fid);
+          if (!confirm(`确定要删除此项目吗？`)) {
+            return;
+          }
+          
+          axios.post('/delete_file', { fid: fid })
+            .then(response => {
+              if (response.data.code === 0) {
+                // 从列表中移除文件
+                this.fileSelect.fileList = this.fileSelect.fileList.filter(item => item.fid !== fid);
+                
+                // 如果文件在选中列表中，也从选中列表中移除
+                if (this.fileSelect.selectedFiles.includes(fid)) {
+                  this.fileSelect.selectedFiles = this.fileSelect.selectedFiles.filter(id => id !== fid);
+                  
+                  // 如果选中列表为空，重置最后选择的索引
+                  if (this.fileSelect.selectedFiles.length === 0) {
+                    this.fileSelect.lastSelectedFileIndex = -1;
+                  }
+                }
+                
+                this.showToast('成功删除 1 个项目');
               } else {
-                alert('删除失败：' + response.data.message);
+                alert('删除失败: ' + response.data.message);
               }
-            }).catch(error => {
-              // 错误处理
+            })
+            .catch(error => {
+              console.error('删除项目出错:', error);
+              alert('删除项目出错: ' + (error.response?.data?.message || error.message));
             });
         },
         getSavepathDetail(params = 0) {
@@ -3286,6 +3333,155 @@
               paginationElement && !paginationElement.contains(event.target)) {
             this.selectedRecords = [];
             this.lastSelectedRecordIndex = -1;
+          }
+        },
+        selectFileItem(event, fileId) {
+          // 如果是在预览模式或选择分享模式，不允许选择
+          if (this.fileSelect.previewRegex || this.fileSelect.selectShare) return;
+          
+          // 获取当前文件的索引
+          const currentIndex = this.fileSelect.fileList.findIndex(file => file.fid === fileId);
+          if (currentIndex === -1) return;
+          
+          // 如果是Shift+点击，选择范围
+          if (event.shiftKey && this.fileSelect.selectedFiles.length > 0) {
+            // 找出所有已选中文件的索引
+            const selectedIndices = this.fileSelect.selectedFiles.map(id => 
+              this.fileSelect.fileList.findIndex(file => file.fid === id)
+            ).filter(index => index !== -1); // 过滤掉未找到的文件
+            
+            if (selectedIndices.length > 0) {
+              // 找出已选中文件中最靠前的索引
+              const earliestSelectedIndex = Math.min(...selectedIndices);
+              // 确定最终的选择范围
+              const startIndex = Math.min(earliestSelectedIndex, currentIndex);
+              const endIndex = Math.max(earliestSelectedIndex, currentIndex);
+              
+              // 获取范围内所有文件的ID（排除文件夹）
+              this.fileSelect.selectedFiles = this.fileSelect.fileList
+                .slice(startIndex, endIndex + 1)
+                .filter(file => !file.dir) // 只选择文件，不选择文件夹
+                .map(file => file.fid);
+            } else {
+              // 如果没有有效的选中文件（可能是由于列表刷新），则只选择当前文件
+              const file = this.fileSelect.fileList[currentIndex];
+              if (!file.dir) { // 不选择文件夹
+                this.fileSelect.selectedFiles = [fileId];
+              }
+            }
+          } 
+          // 如果是Ctrl/Cmd+点击，切换单个文件选择状态
+          else if (event.ctrlKey || event.metaKey) {
+            const file = this.fileSelect.fileList[currentIndex];
+            if (file.dir) return; // 不允许选择文件夹
+            
+            if (this.fileSelect.selectedFiles.includes(fileId)) {
+              this.fileSelect.selectedFiles = this.fileSelect.selectedFiles.filter(id => id !== fileId);
+            } else {
+              this.fileSelect.selectedFiles.push(fileId);
+            }
+          } 
+          // 普通点击，清除当前选择并选择当前文件
+          else {
+            const file = this.fileSelect.fileList[currentIndex];
+            if (file.dir) return; // 不允许选择文件夹
+            
+            if (this.fileSelect.selectedFiles.length === 1 && this.fileSelect.selectedFiles.includes(fileId)) {
+              this.fileSelect.selectedFiles = [];
+            } else {
+              this.fileSelect.selectedFiles = [fileId];
+            }
+          }
+          
+          // 更新最后选择的文件索引，只有在有选择文件时才更新
+          if (this.fileSelect.selectedFiles.length > 0) {
+            this.fileSelect.lastSelectedFileIndex = currentIndex;
+          } else {
+            this.fileSelect.lastSelectedFileIndex = -1;
+          }
+          
+          // 阻止事件冒泡
+          event.stopPropagation();
+        },
+        deleteSelectedFiles(clickedFid, clickedFname, isDir) {
+          // 如果是文件夹或者没有选中的文件，则按原来的方式删除单个文件
+          if (isDir || this.fileSelect.selectedFiles.length === 0) {
+            this.deleteFile(clickedFid, clickedFname, isDir);
+            return;
+          }
+          
+          // 如果点击的文件不在选中列表中，也按原来的方式删除单个文件
+          if (!this.fileSelect.selectedFiles.includes(clickedFid)) {
+            this.deleteFile(clickedFid, clickedFname, isDir);
+            return;
+          }
+          
+          // 多选删除
+          const selectedCount = this.fileSelect.selectedFiles.length;
+          
+          // 根据选中数量使用不同的确认提示
+          let confirmMessage = selectedCount === 1 
+            ? `确定要删除此项目吗？` 
+            : `确定要删除选中的 ${selectedCount} 个项目吗？`;
+            
+          if (confirm(confirmMessage)) {
+            // 创建一个Promise数组来处理所有删除请求
+            const deletePromises = this.fileSelect.selectedFiles.map(fid => {
+              return axios.post('/delete_file', { fid: fid })
+                .then(response => {
+                  return { fid: fid, success: response.data.code === 0 };
+                })
+                .catch(error => {
+                  return { fid: fid, success: false };
+                });
+            });
+            
+            // 等待所有删除请求完成
+            Promise.all(deletePromises)
+              .then(results => {
+                // 统计成功和失败的数量
+                const successCount = results.filter(r => r.success).length;
+                const failCount = results.length - successCount;
+                
+                // 从文件列表中移除成功删除的文件
+                const successfullyDeletedFids = results.filter(r => r.success).map(r => r.fid);
+                this.fileSelect.fileList = this.fileSelect.fileList.filter(item => !successfullyDeletedFids.includes(item.fid));
+                
+                // 清空选中文件列表
+                this.fileSelect.selectedFiles = [];
+                this.fileSelect.lastSelectedFileIndex = -1;
+                
+                // 显示结果
+                if (failCount > 0) {
+                  alert(`成功删除 ${successCount} 个项目，${failCount} 个项目删除失败`);
+                } else {
+                  this.showToast(`成功删除 ${successCount} 个项目`);
+                }
+              });
+          }
+        },
+        handleModalOutsideClick(event) {
+          // 如果当前不是文件选择模式或者没有选中的文件，则不处理
+          if (this.fileSelect.previewRegex || this.fileSelect.selectShare || this.fileSelect.selectedFiles.length === 0) {
+            return;
+          }
+          
+          // 检查点击是否在表格内
+          const tableElement = document.querySelector('#fileSelectModal .table');
+          
+          // 如果点击不在表格内，则清除选择
+          if (tableElement && !tableElement.contains(event.target)) {
+            this.fileSelect.selectedFiles = [];
+            this.fileSelect.lastSelectedFileIndex = -1;
+          }
+        },
+        preventTextSelection(event, isDir) {
+          // 如果是文件夹，不阻止默认行为
+          if (isDir) return;
+          
+          // 如果是Shift点击或Ctrl/Cmd点击，阻止文本选择
+          if (event.shiftKey || event.ctrlKey || event.metaKey) {
+            event.preventDefault();
           }
         },
       }

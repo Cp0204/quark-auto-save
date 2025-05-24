@@ -1656,7 +1656,7 @@ button.close:focus,
 }
 
 #fileSelectModal .table td {
-  padding: 5.5px 12.5px 7px 12.5px !important; /* 单元格上右下左内边距 */
+  padding: 5.5px 12.5px 7px 12px !important; /* 单元格上右下左内边距 */
   vertical-align: middle;
   border-bottom: 1px solid var(--border-color);
   color: var(--dark-text-color);
@@ -1722,8 +1722,14 @@ button.close:focus,
   padding-right: 12px; /* 右边距 */
 }
 
+/* 添加文件选择模态框左下角文件信息文本的左边距样式 */
+#fileSelectModal .modal-footer .file-selection-info {
+  margin-left: 0px; /* 与表格左边距保持一致 */
+  font-size: 0.85rem !important; /* 覆盖内联样式 */
+}
+
 #fileSelectModal .modal-footer span {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: var(--dark-text-color);
   margin-right: auto;
 }
@@ -3898,4 +3904,14 @@ table.selectable-records .expand-button:hover {
   margin-right: 5px;
   position: relative;
   top: 0px; /* 负值向上移动，正值向下移动 */
+}
+
+/* 添加选中文件的样式 */
+.selected-file {
+  background-color: var(--button-gray-background-color);
+}
+
+/* 确保文件选择模态框中的表格行在选中状态下保持可见 */
+#fileSelectModal .table tr.selected-file:hover {
+  background-color: var(--button-gray-background-color);
 }
