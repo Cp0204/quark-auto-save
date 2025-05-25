@@ -1010,6 +1010,84 @@ def get_user_info():
     return jsonify({"success": True, "data": user_info_list})
 
 
+# 重置文件夹（删除文件夹内所有文件和相关记录）
+@app.route("/reset_folder", methods=["POST"])
+def reset_folder():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+    
+    # 获取请求参数
+    save_path = request.json.get("save_path", "")
+    task_name = request.json.get("task_name", "")
+    
+    if not save_path:
+        return jsonify({"success": False, "message": "保存路径不能为空"})
+    
+    try:
+        # 初始化夸克网盘客户端
+        account = Quark(config_data["cookie"][0], 0)
+        
+        # 1. 获取文件夹ID
+        # 先检查是否已有缓存的文件夹ID
+        folder_fid = account.savepath_fid.get(save_path)
+        
+        # 如果没有缓存的ID，则尝试创建文件夹以获取ID
+        if not folder_fid:
+            mkdir_result = account.mkdir(save_path)
+            if mkdir_result.get("code") == 0:
+                folder_fid = mkdir_result["data"]["fid"]
+                account.savepath_fid[save_path] = folder_fid
+            else:
+                return jsonify({"success": False, "message": f"获取文件夹ID失败: {mkdir_result.get('message', '未知错误')}"})
+        
+        # 2. 获取文件夹内的所有文件
+        file_list = account.ls_dir(folder_fid)
+        if isinstance(file_list, dict) and file_list.get("error"):
+            return jsonify({"success": False, "message": f"获取文件列表失败: {file_list.get('error', '未知错误')}"})
+        
+        # 收集所有文件ID
+        file_ids = []
+        for item in file_list:
+            file_ids.append(item["fid"])
+        
+        # 3. 删除所有文件
+        deleted_files = 0
+        if file_ids:
+            delete_result = account.delete(file_ids)
+            if delete_result.get("code") == 0:
+                deleted_files = len(file_ids)
+        
+        # 4. 删除相关的历史记录
+        deleted_records = 0
+        try:
+            # 初始化数据库
+            db = RecordDB()
+            
+            # 查询与该保存路径相关的所有记录
+            cursor = db.conn.cursor()
+            cursor.execute("SELECT id FROM transfer_records WHERE save_path = ?", (save_path,))
+            record_ids = [row[0] for row in cursor.fetchall()]
+            
+            # 删除找到的所有记录
+            for record_id in record_ids:
+                deleted_records += db.delete_record(record_id)
+                
+        except Exception as e:
+            logging.error(f">>> 删除记录时出错: {str(e)}")
+            # 即使删除记录失败，也返回文件删除成功
+        
+        return jsonify({
+            "success": True, 
+            "message": f"重置成功，删除了 {deleted_files} 个文件和 {deleted_records} 条记录",
+            "deleted_files": deleted_files,
+            "deleted_records": deleted_records
+        })
+        
+    except Exception as e:
+        logging.error(f">>> 重置文件夹时出错: {str(e)}")
+        return jsonify({"success": False, "message": f"重置文件夹时出错: {str(e)}"})
+
+
 if __name__ == "__main__":
     init()
     reload_tasks()

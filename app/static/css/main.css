@@ -805,6 +805,11 @@ main div[v-if="activeTab === 'config'"] .row.title:first-child {
   font-size: 0.98rem;
 }
 
+/* 重置文件夹图标样式 */
+.bi-folder-x {
+  font-size: 0.98rem;
+}
+
 /* 恢复图标样式 */
 .bi-reply {
   color: var(--dark-text-color);

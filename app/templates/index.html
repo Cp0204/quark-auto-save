@@ -554,6 +554,7 @@
                         <div class="input-group-append">
                           <button class="btn btn-outline-secondary" type="button" v-if="smart_param.savepath && smart_param.index == index && task.savepath != smart_param.origin_savepath" @click="task.savepath = smart_param.origin_savepath" title="恢复保存路径"><i class="bi bi-reply"></i></button>
                           <button class="btn btn-outline-secondary" type="button" @click="showSavepathSelect(index)" title="选择文件夹"><i class="bi bi-folder"></i></button>
+                          <button type="button" class="btn btn-outline-secondary" @click="resetFolder(index)" title="重置文件夹：此操作将删除当前保存路径中的所有文件及相关转存记录，且不可恢复，请谨慎操作"><i class="bi bi-folder-x"></i></button>
                         </div>
                       </div>
                     </div>
@@ -3534,6 +3535,53 @@
           // 如果是Shift点击或Ctrl/Cmd点击，阻止文本选择
           if (event.shiftKey || event.ctrlKey || event.metaKey) {
             event.preventDefault();
+          }
+        },
+        resetFolder(index) {
+          // 重置文件夹
+          this.formData.tasklist[index].savepath = this.formData.tasklist[index].savepath.split('/').slice(0, -1).join('/');
+          if (this.formData.tasklist[index].savepath.endsWith('/')) {
+            this.formData.tasklist[index].savepath = this.formData.tasklist[index].savepath.slice(0, -1);
+          }
+          this.showToast('文件夹已重置');
+        },
+        resetFolder(index) {
+          // 获取当前任务的保存路径
+          const savePath = this.formData.tasklist[index].savepath;
+          const taskName = this.formData.tasklist[index].taskname;
+          
+          if (!savePath) {
+            this.showToast('保存路径为空，无法重置');
+            return;
+          }
+          
+          // 显示确认对话框
+          if (confirm(`确定要重置文件夹「${savePath}」吗？`)) {
+            // 显示加载状态
+            this.modalLoading = true;
+            
+            // 调用后端API
+            axios.post('/reset_folder', {
+              save_path: savePath,
+              task_name: taskName
+            })
+            .then(response => {
+              if (response.data.success) {
+                this.showToast(`重置成功：删除了 ${response.data.deleted_files || 0} 个文件，${response.data.deleted_records || 0} 条记录`);
+                // 如果当前是历史记录页面，刷新记录
+                if (this.activeTab === 'history') {
+                  this.loadHistoryRecords();
+                }
+              } else {
+                alert(response.data.message || '重置文件夹失败');
+              }
+              this.modalLoading = false;
+            })
+            .catch(error => {
+              console.error('重置文件夹出错:', error);
+              alert('重置文件夹出错: ' + (error.response?.data?.message || error.message));
+              this.modalLoading = false;
+            });
           }
         },
       }
