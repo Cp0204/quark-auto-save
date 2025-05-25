@@ -953,7 +953,8 @@
                       <td class="col-size" v-else style="vertical-align: top;">{{file.size | size}}</td>
                       <td class="col-date" style="vertical-align: top;">{{file.updated_at | ts2date}}</td>
                       <td class="col-action" v-if="!fileSelect.selectShare" style="vertical-align: top;">
-                        <a @click.stop.prevent="deleteSelectedFiles(file.fid, file.file_name, file.dir)" style="cursor: pointer;">删除</a>
+                        <a @click.stop.prevent="deleteSelectedFiles(file.fid, file.file_name, file.dir)" style="cursor: pointer;">删除文件</a>
+                        <a @click.stop.prevent="deleteSelectedFiles(file.fid, file.file_name, file.dir, true)" style="cursor: pointer; margin-left: 10px;">删除文件和记录</a>
                       </td>
                     </template>
                   </tr>
@@ -2290,12 +2291,23 @@
             this.$delete(this.formData.magic_regex, key);
           }
         },
-        deleteFile(fid, fname, isDir) {
-          if (!confirm(`确定要删除此项目吗？`)) {
+        deleteFile(fid, fname, isDir, deleteRecords = false) {
+          // 根据是否删除记录显示不同的确认提示
+          let confirmMessage = deleteRecords 
+            ? `确定要删除此项目及其关联记录吗？` 
+            : `确定要删除此项目吗？`;
+            
+          if (!confirm(confirmMessage)) {
             return;
           }
           
-          axios.post('/delete_file', { fid: fid })
+          // 获取当前路径作为save_path参数
+          let save_path = "";
+          if (this.fileSelect && this.fileSelect.paths) {
+            save_path = this.fileSelect.paths.map(item => item.name).join("/");
+          }
+          
+          axios.post('/delete_file', { fid: fid, file_name: fname, delete_records: deleteRecords, save_path: save_path })
             .then(response => {
               if (response.data.code === 0) {
                 // 从列表中移除文件
@@ -2311,7 +2323,18 @@
                   }
                 }
                 
-                this.showToast('成功删除 1 个项目');
+                // 显示成功消息，根据是否删除记录显示不同的消息
+                if (deleteRecords) {
+                  const deletedRecords = response.data.deleted_records || 0;
+                  this.showToast(`成功删除 1 个项目${deletedRecords > 0 ? `及其关联的 ${deletedRecords} 条记录` : ''}`);
+                } else {
+                  this.showToast('成功删除 1 个项目');
+                }
+                
+                // 如果同时删除了记录，无论当前在哪个页面，都刷新历史记录
+                if (deleteRecords) {
+                  this.loadHistoryRecords();
+                }
               } else {
                 alert('删除失败: ' + response.data.message);
               }
@@ -3403,36 +3426,53 @@
           // 阻止事件冒泡
           event.stopPropagation();
         },
-        deleteSelectedFiles(clickedFid, clickedFname, isDir) {
+        deleteSelectedFiles(clickedFid, clickedFname, isDir, deleteRecords = false) {
           // 如果是文件夹或者没有选中的文件，则按原来的方式删除单个文件
           if (isDir || this.fileSelect.selectedFiles.length === 0) {
-            this.deleteFile(clickedFid, clickedFname, isDir);
+            this.deleteFile(clickedFid, clickedFname, isDir, deleteRecords);
             return;
           }
           
           // 如果点击的文件不在选中列表中，也按原来的方式删除单个文件
           if (!this.fileSelect.selectedFiles.includes(clickedFid)) {
-            this.deleteFile(clickedFid, clickedFname, isDir);
+            this.deleteFile(clickedFid, clickedFname, isDir, deleteRecords);
             return;
           }
           
           // 多选删除
           const selectedCount = this.fileSelect.selectedFiles.length;
           
-          // 根据选中数量使用不同的确认提示
-          let confirmMessage = selectedCount === 1 
-            ? `确定要删除此项目吗？` 
-            : `确定要删除选中的 ${selectedCount} 个项目吗？`;
+          // 根据选中数量和是否删除记录使用不同的确认提示
+          let confirmMessage = '';
+          if (deleteRecords) {
+            confirmMessage = selectedCount === 1 
+              ? `确定要删除此项目及其关联记录吗？` 
+              : `确定要删除选中的 ${selectedCount} 个项目及其关联记录吗？`;
+          } else {
+            confirmMessage = selectedCount === 1 
+              ? `确定要删除此项目吗？` 
+              : `确定要删除选中的 ${selectedCount} 个项目吗？`;
+          }
             
           if (confirm(confirmMessage)) {
+            // 获取当前路径作为save_path参数
+            let save_path = "";
+            if (this.fileSelect && this.fileSelect.paths) {
+              save_path = this.fileSelect.paths.map(item => item.name).join("/");
+            }
+            
             // 创建一个Promise数组来处理所有删除请求
             const deletePromises = this.fileSelect.selectedFiles.map(fid => {
-              return axios.post('/delete_file', { fid: fid })
+              // 查找对应的文件对象，获取文件名
+              const fileObj = this.fileSelect.fileList.find(file => file.fid === fid);
+              const fileName = fileObj ? fileObj.file_name : '';
+              
+              return axios.post('/delete_file', { fid: fid, file_name: fileName, delete_records: deleteRecords, save_path: save_path })
                 .then(response => {
-                  return { fid: fid, success: response.data.code === 0 };
+                  return { fid: fid, success: response.data.code === 0, deleted_records: response.data.deleted_records || 0 };
                 })
                 .catch(error => {
-                  return { fid: fid, success: false };
+                  return { fid: fid, success: false, deleted_records: 0 };
                 });
             });
             
@@ -3442,6 +3482,8 @@
                 // 统计成功和失败的数量
                 const successCount = results.filter(r => r.success).length;
                 const failCount = results.length - successCount;
+                // 统计删除的记录数
+                const totalDeletedRecords = results.reduce((sum, r) => sum + (r.deleted_records || 0), 0);
                 
                 // 从文件列表中移除成功删除的文件
                 const successfullyDeletedFids = results.filter(r => r.success).map(r => r.fid);
@@ -3455,7 +3497,17 @@
                 if (failCount > 0) {
                   alert(`成功删除 ${successCount} 个项目，${failCount} 个项目删除失败`);
                 } else {
-                  this.showToast(`成功删除 ${successCount} 个项目`);
+                  // 根据是否删除记录显示不同的消息
+                  if (deleteRecords) {
+                    this.showToast(`成功删除 ${successCount} 个项目${totalDeletedRecords > 0 ? `及其关联的 ${totalDeletedRecords} 条记录` : ''}`);
+                  } else {
+                    this.showToast(`成功删除 ${successCount} 个项目`);
+                  }
+                }
+                
+                // 如果同时删除了记录，无论当前在哪个页面都刷新历史记录
+                if (deleteRecords) {
+                  this.loadHistoryRecords();
                 }
               });
           }

@@ -1146,6 +1146,19 @@ class Quark:
                 # 目前只是添加占位符，未来可以扩展功能
                 pass
             
+            # 获取保存路径
+            save_path = task.get("savepath", "")
+            # 如果file_info中有子目录路径信息，则拼接完整路径
+            subdir_path = file_info.get("subdir_path", "")
+            if subdir_path:
+                # 确保路径格式正确，避免双斜杠
+                if save_path.endswith('/') and subdir_path.startswith('/'):
+                    save_path = save_path + subdir_path[1:]
+                elif not save_path.endswith('/') and not subdir_path.startswith('/'):
+                    save_path = save_path + '/' + subdir_path
+                else:
+                    save_path = save_path + subdir_path
+            
             # 添加记录到数据库
             db.add_record(
                 task_name=task.get("taskname", ""),
@@ -1156,7 +1169,8 @@ class Quark:
                 duration=duration,
                 resolution=resolution,
                 file_id=file_id,
-                file_type=file_type
+                file_type=file_type,
+                save_path=save_path
             )
             
             # 关闭数据库连接
@@ -1195,12 +1209,26 @@ class Quark:
             file_id = file_info.get("fid", "")
             task_name = task.get("taskname", "")
             
+            # 获取保存路径
+            save_path = task.get("savepath", "")
+            # 如果file_info中有子目录路径信息，则拼接完整路径
+            subdir_path = file_info.get("subdir_path", "")
+            if subdir_path:
+                # 确保路径格式正确，避免双斜杠
+                if save_path.endswith('/') and subdir_path.startswith('/'):
+                    save_path = save_path + subdir_path[1:]
+                elif not save_path.endswith('/') and not subdir_path.startswith('/'):
+                    save_path = save_path + '/' + subdir_path
+                else:
+                    save_path = save_path + subdir_path
+            
             # 更新记录
             updated = db.update_renamed_to(
                 file_id=file_id,
                 original_name=original_name,
                 renamed_to=renamed_to,
-                task_name=task_name
+                task_name=task_name,
+                save_path=save_path
             )
             
             # 关闭数据库连接
@@ -1255,12 +1283,17 @@ class Quark:
             # 使用原文件名和任务名查找记录
             task_name = task.get("taskname", "")
             
+            # 获取保存路径
+            save_path = task.get("savepath", "")
+            # 注意：从日志中无法获取子目录信息，只能使用任务的主保存路径
+            
             # 更新记录
             updated = db.update_renamed_to(
                 file_id="",  # 不使用file_id查询，因为在日志中无法获取
                 original_name=old_name,
                 renamed_to=new_name,
-                task_name=task_name
+                task_name=task_name,
+                save_path=save_path
             )
             
             # 关闭数据库连接

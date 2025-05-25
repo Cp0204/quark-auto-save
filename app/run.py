@@ -650,6 +650,55 @@ def delete_file():
     account = Quark(config_data["cookie"][0], 0)
     if fid := request.json.get("fid"):
         response = account.delete([fid])
+        
+        # 处理delete_records参数
+        if request.json.get("delete_records") and response.get("code") == 0:
+            try:
+                # 初始化数据库
+                db = RecordDB()
+                
+                # 获取save_path参数
+                save_path = request.json.get("save_path", "")
+                
+                # 如果没有提供save_path，则不删除任何记录
+                if not save_path:
+                    response["deleted_records"] = 0
+                    # logging.info(f">>> 删除文件 {fid} 但未提供save_path，不删除任何记录")
+                    return jsonify(response)
+                
+                # 查询与该文件ID和save_path相关的所有记录
+                cursor = db.conn.cursor()
+                
+                # 使用file_id和save_path进行精确匹配
+                cursor.execute("SELECT id FROM transfer_records WHERE file_id = ? AND save_path = ?", (fid, save_path))
+                record_ids = [row[0] for row in cursor.fetchall()]
+                
+                # 如果没有找到匹配的file_id记录，尝试通过文件名查找
+                if not record_ids:
+                    # 获取文件名（如果有的话）
+                    file_name = request.json.get("file_name", "")
+                    if file_name:
+                        # 使用文件名和save_path进行精确匹配
+                        cursor.execute("""
+                            SELECT id FROM transfer_records 
+                            WHERE (original_name = ? OR renamed_to = ?) 
+                            AND save_path = ?
+                        """, (file_name, file_name, save_path))
+                        
+                        record_ids = [row[0] for row in cursor.fetchall()]
+                
+                # 删除找到的所有记录
+                deleted_count = 0
+                for record_id in record_ids:
+                    deleted_count += db.delete_record(record_id)
+                
+                # 添加删除记录的信息到响应中
+                response["deleted_records"] = deleted_count
+                # logging.info(f">>> 删除文件 {fid} 同时删除了 {deleted_count} 条相关记录")
+                
+            except Exception as e:
+                logging.error(f">>> 删除记录时出错: {str(e)}")
+                # 不影响主流程，即使删除记录失败也返回文件删除成功
     else:
         response = {"success": False, "message": "缺失必要字段: fid"}
     return jsonify(response)

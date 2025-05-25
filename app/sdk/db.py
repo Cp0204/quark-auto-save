@@ -31,9 +31,17 @@ class RecordDB:
             resolution TEXT,
             modify_date INTEGER NOT NULL,
             file_id TEXT,
-            file_type TEXT
+            file_type TEXT,
+            save_path TEXT
         )
         ''')
+        
+        # 检查save_path字段是否存在，如果不存在则添加
+        cursor.execute("PRAGMA table_info(transfer_records)")
+        columns = [column[1] for column in cursor.fetchall()]
+        if 'save_path' not in columns:
+            cursor.execute('ALTER TABLE transfer_records ADD COLUMN save_path TEXT')
+            
         self.conn.commit()
     
     def close(self):
@@ -41,19 +49,19 @@ class RecordDB:
             self.conn.close()
     
     def add_record(self, task_name, original_name, renamed_to, file_size, modify_date, 
-                  duration="", resolution="", file_id="", file_type=""):
+                  duration="", resolution="", file_id="", file_type="", save_path=""):
         """添加一条转存记录"""
         cursor = self.conn.cursor()
         cursor.execute(
             "INSERT INTO transfer_records (transfer_time, task_name, original_name, renamed_to, file_size, "
-            "duration, resolution, modify_date, file_id, file_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "duration, resolution, modify_date, file_id, file_type, save_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (int(time.time()), task_name, original_name, renamed_to, file_size, 
-             duration, resolution, modify_date, file_id, file_type)
+             duration, resolution, modify_date, file_id, file_type, save_path)
         )
         self.conn.commit()
         return cursor.lastrowid
     
-    def update_renamed_to(self, file_id, original_name, renamed_to, task_name=""):
+    def update_renamed_to(self, file_id, original_name, renamed_to, task_name="", save_path=""):
         """更新最近一条记录的renamed_to字段
         
         Args:
@@ -61,6 +69,7 @@ class RecordDB:
             original_name: 原文件名
             renamed_to: 重命名后的文件名
             task_name: 任务名称，可选项，如提供则作为附加筛选条件
+            save_path: 保存路径，可选项，如提供则同时更新保存路径
             
         Returns:
             更新的记录数量
@@ -97,11 +106,17 @@ class RecordDB:
         
         if result:
             record_id = result[0]
-            # 更新记录
-            cursor.execute(
-                "UPDATE transfer_records SET renamed_to = ? WHERE id = ?",
-                (renamed_to, record_id)
-            )
+            # 根据是否提供save_path决定更新哪些字段
+            if save_path:
+                cursor.execute(
+                    "UPDATE transfer_records SET renamed_to = ?, save_path = ? WHERE id = ?",
+                    (renamed_to, save_path, record_id)
+                )
+            else:
+                cursor.execute(
+                    "UPDATE transfer_records SET renamed_to = ? WHERE id = ?",
+                    (renamed_to, record_id)
+                )
             self.conn.commit()
             return cursor.rowcount
         
@@ -124,7 +139,7 @@ class RecordDB:
         
         # 构建SQL查询
         valid_columns = ["transfer_time", "task_name", "original_name", "renamed_to", 
-                         "file_size", "duration", "resolution", "modify_date"]
+                         "file_size", "duration", "resolution", "modify_date", "save_path"]
         
         if sort_by not in valid_columns:
             sort_by = "transfer_time"
@@ -140,7 +155,8 @@ class RecordDB:
             params.append(task_name_filter)
         
         if keyword_filter:
-            where_clauses.append("task_name LIKE ?")
+            where_clauses.append("(task_name LIKE ? OR original_name LIKE ?)")
+            params.append(f"%{keyword_filter}%")
             params.append(f"%{keyword_filter}%")
         
         where_clause = " AND ".join(where_clauses)
@@ -193,3 +209,32 @@ class RecordDB:
         cursor.execute("DELETE FROM transfer_records WHERE id = ?", (record_id,))
         self.conn.commit()
         return cursor.rowcount
+        
+    def get_records_by_save_path(self, save_path, include_subpaths=False):
+        """根据保存路径查询记录
+        
+        Args:
+            save_path: 要查询的保存路径
+            include_subpaths: 是否包含子路径下的文件
+            
+        Returns:
+            匹配的记录列表
+        """
+        cursor = self.conn.cursor()
+        
+        if include_subpaths:
+            # 如果包含子路径，使用LIKE查询
+            query = "SELECT * FROM transfer_records WHERE save_path LIKE ? ORDER BY transfer_time DESC"
+            cursor.execute(query, [f"{save_path}%"])
+        else:
+            # 精确匹配路径
+            query = "SELECT * FROM transfer_records WHERE save_path = ? ORDER BY transfer_time DESC"
+            cursor.execute(query, [save_path])
+            
+        records = cursor.fetchall()
+        
+        # 将结果转换为字典列表
+        if records:
+            columns = [col[0] for col in cursor.description]
+            return [dict(zip(columns, row)) for row in records]
+        return []

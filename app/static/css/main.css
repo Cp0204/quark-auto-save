@@ -1633,10 +1633,11 @@ button.close:focus,
 
 /* 操作列 - 固定宽度 */
 #fileSelectModal .table .col-action {
-  width: 53px;
-  min-width: 53px;
-  max-width: 53px;
-  text-align: center;
+  width: 188px;
+  min-width: 188px;
+  max-width: 188px;
+  text-align: left;
+  padding-left: 12px !important;
 }
 
 /* 确保单元格内容溢出时正确显示 */
@@ -3576,11 +3577,11 @@ input::-moz-list-button {
   
   /* 针对选择保存到的文件夹模式 - 带操作列的表格 */
   #fileSelectModal[data-modal-type="target"] .breadcrumb {
-    min-width: 513px; /* 4列表格总宽度: 230px + 90px + 140px + 53px */
+    min-width: 648px; /* 4列表格总宽度: 230px + 90px + 140px + 188px */
   }
   
   #fileSelectModal[data-modal-type="target"] .table {
-    width: 513px;
+    width: 648px;
   }
   
   /* 针对命名预览模式 - 2列表格 */
