@@ -1287,14 +1287,35 @@ class Quark:
             save_path = task.get("savepath", "")
             # 注意：从日志中无法获取子目录信息，只能使用任务的主保存路径
             
+            # 检查文件是否已存在于记录中
+            # 先查询是否有匹配的记录
+            cursor = db.conn.cursor()
+            query = "SELECT file_id FROM transfer_records WHERE original_name = ? AND task_name = ? AND save_path = ?"
+            cursor.execute(query, (old_name, task_name, save_path))
+            result = cursor.fetchone()
+            
+            # 如果找到了匹配的记录，使用file_id进行更新
+            file_id = result[0] if result else ""
+            
             # 更新记录
-            updated = db.update_renamed_to(
-                file_id="",  # 不使用file_id查询，因为在日志中无法获取
-                original_name=old_name,
-                renamed_to=new_name,
-                task_name=task_name,
-                save_path=save_path
-            )
+            if file_id:
+                # 使用file_id更新
+                updated = db.update_renamed_to(
+                    file_id=file_id,
+                    original_name="",  # 不使用原文件名，因为已有file_id
+                    renamed_to=new_name,
+                    task_name=task_name,
+                    save_path=save_path
+                )
+            else:
+                # 使用原文件名更新
+                updated = db.update_renamed_to(
+                    file_id="",  # 不使用file_id查询，因为在日志中无法获取
+                    original_name=old_name,
+                    renamed_to=new_name,
+                    task_name=task_name,
+                    save_path=save_path
+                )
             
             # 关闭数据库连接
             db.close()
@@ -1303,7 +1324,7 @@ class Quark:
         except Exception as e:
             print(f"根据日志更新转存记录失败: {e}")
             return False
-            
+    
     # 批量处理重命名日志
     def process_rename_logs(self, task, rename_logs):
         """处理重命名日志列表，更新数据库记录
@@ -1315,6 +1336,49 @@ class Quark:
         for log in rename_logs:
             if "重命名:" in log and "→" in log and "失败" not in log:
                 self.update_transfer_record_from_log(task, log)
+    
+    def check_file_exists_in_records(self, file_id, task=None):
+        """检查文件ID是否存在于转存记录中
+        
+        Args:
+            file_id: 要检查的文件ID
+            task: 可选的任务信息，用于进一步筛选
+            
+        Returns:
+            bool: 文件是否已存在于记录中
+        """
+        if not file_id:
+            return False
+            
+        try:
+            # 初始化数据库
+            db = RecordDB()
+            
+            # 构建查询条件
+            conditions = ["file_id = ?"]
+            params = [file_id]
+            
+            # 如果提供了任务信息，添加任务名称条件
+            if task and task.get("taskname"):
+                conditions.append("task_name = ?")
+                params.append(task.get("taskname"))
+            
+            # 构建WHERE子句
+            where_clause = " AND ".join(conditions)
+            
+            # 查询是否存在匹配的记录
+            cursor = db.conn.cursor()
+            query = f"SELECT COUNT(*) FROM transfer_records WHERE {where_clause}"
+            cursor.execute(query, params)
+            count = cursor.fetchone()[0]
+            
+            # 关闭数据库连接
+            db.close()
+            
+            return count > 0
+        except Exception as e:
+            print(f"检查文件记录时出错: {e}")
+            return False
 
     def do_save_task(self, task):
         # 判断资源失效记录
@@ -1596,8 +1660,14 @@ class Quark:
             filtered_share_files = []
             for share_file in share_file_list:
                 if share_file["dir"]:
-                    # 不再直接添加目录到filtered_share_files
                     # 目录处理会在后续专门的循环中进行
+                    filtered_share_files.append(share_file)
+                    continue
+                
+                # 检查文件ID是否存在于转存记录中
+                file_id = share_file.get("fid", "")
+                if file_id and self.check_file_exists_in_records(file_id, task):
+                    # 文件ID已存在于记录中，跳过处理
                     continue
                     
                 file_size = share_file.get("size", 0)
@@ -1808,6 +1878,12 @@ class Quark:
             
             # 添加符合的
             for share_file in share_file_list:
+                # 检查文件ID是否存在于转存记录中
+                file_id = share_file.get("fid", "")
+                if file_id and self.check_file_exists_in_records(file_id, task):
+                    # 文件ID已存在于记录中，跳过处理
+                    continue
+                    
                 # 检查文件是否已存在（通过大小和扩展名）- 新增的文件查重逻辑
                 is_duplicate = False
                 if not share_file["dir"]:  # 文件夹不进行内容查重
@@ -2504,6 +2580,12 @@ class Quark:
                             # 处理子目录
                             if task.get("update_subdir") and re.search(task["update_subdir"], share_file["file_name"]):
                                 filtered_share_files.append(share_file)
+                            continue
+                        
+                        # 检查文件ID是否存在于转存记录中
+                        file_id = share_file.get("fid", "")
+                        if file_id and self.check_file_exists_in_records(file_id, task):
+                            # 文件ID已存在于记录中，跳过处理
                             continue
                             
                         # 从共享文件中提取剧集号

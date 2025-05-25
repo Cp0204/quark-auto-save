@@ -1798,7 +1798,7 @@ button.close:focus,
   background-color: transparent !important;
   color: inherit !important;
   font-size: inherit !important;
-  font-weight: bold !important;
+  font-weight: normal !important;
   padding: 0 !important;
   margin: 0 !important;
   display: inline-flex !important;
@@ -3311,7 +3311,7 @@ div[id^="collapse_"][id*="plugin"] .input-group {
   background-color: transparent;
   color: inherit;
   font-size: inherit;
-  font-weight: inherit;
+  font-weight: normal;
   padding: 0;
   margin: 0;
 }
