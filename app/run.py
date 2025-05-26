@@ -187,6 +187,62 @@ def get_data():
     return jsonify({"success": True, "data": data})
 
 
+def sync_task_plugins_config():
+    """同步更新所有任务的插件配置
+    
+    1. 检查每个任务的插件配置
+    2. 如果插件配置不存在，使用默认配置
+    3. 如果插件配置存在但缺少新的配置项，添加默认值
+    4. 保留原有的自定义配置
+    5. 只处理已启用的插件（通过PLUGIN_FLAGS检查）
+    6. 清理被禁用插件的配置
+    """
+    global config_data, task_plugins_config_default
+    
+    # 如果没有任务列表，直接返回
+    if not config_data.get("tasklist"):
+        return
+        
+    # 获取禁用的插件列表
+    disabled_plugins = set()
+    if PLUGIN_FLAGS:
+        disabled_plugins = {name.lstrip('-') for name in PLUGIN_FLAGS.split(',')}
+        
+    # 遍历所有任务
+    for task in config_data["tasklist"]:
+        # 确保任务有addition字段
+        if "addition" not in task:
+            task["addition"] = {}
+            
+        # 清理被禁用插件的配置
+        for plugin_name in list(task["addition"].keys()):
+            if plugin_name in disabled_plugins:
+                del task["addition"][plugin_name]
+            
+        # 遍历所有插件的默认配置
+        for plugin_name, default_config in task_plugins_config_default.items():
+            # 跳过被禁用的插件
+            if plugin_name in disabled_plugins:
+                continue
+                
+            # 如果任务中没有该插件的配置，添加默认配置
+            if plugin_name not in task["addition"]:
+                task["addition"][plugin_name] = default_config.copy()
+            else:
+                # 如果任务中有该插件的配置，检查是否有新的配置项
+                current_config = task["addition"][plugin_name]
+                # 确保current_config是字典类型
+                if not isinstance(current_config, dict):
+                    # 如果不是字典类型，使用默认配置
+                    task["addition"][plugin_name] = default_config.copy()
+                    continue
+                    
+                # 遍历默认配置的每个键值对
+                for key, default_value in default_config.items():
+                    if key not in current_config:
+                        current_config[key] = default_value
+
+
 # 更新数据
 @app.route("/update", methods=["POST"])
 def update():
@@ -202,6 +258,10 @@ def update():
                 config_data["webui"]["password"] = value.get("password", config_data["webui"]["password"])
             else:
                 config_data.update({key: value})
+    
+    # 同步更新任务的插件配置
+    sync_task_plugins_config()
+    
     Config.write_json(CONFIG_PATH, config_data)
     # 更新session token，确保当前会话在用户名密码更改后仍然有效
     session["token"] = get_login_token()
@@ -650,6 +710,55 @@ def delete_file():
     account = Quark(config_data["cookie"][0], 0)
     if fid := request.json.get("fid"):
         response = account.delete([fid])
+        
+        # 处理delete_records参数
+        if request.json.get("delete_records") and response.get("code") == 0:
+            try:
+                # 初始化数据库
+                db = RecordDB()
+                
+                # 获取save_path参数
+                save_path = request.json.get("save_path", "")
+                
+                # 如果没有提供save_path，则不删除任何记录
+                if not save_path:
+                    response["deleted_records"] = 0
+                    # logging.info(f">>> 删除文件 {fid} 但未提供save_path，不删除任何记录")
+                    return jsonify(response)
+                
+                # 查询与该文件ID和save_path相关的所有记录
+                cursor = db.conn.cursor()
+                
+                # 使用file_id和save_path进行精确匹配
+                cursor.execute("SELECT id FROM transfer_records WHERE file_id = ? AND save_path = ?", (fid, save_path))
+                record_ids = [row[0] for row in cursor.fetchall()]
+                
+                # 如果没有找到匹配的file_id记录，尝试通过文件名查找
+                if not record_ids:
+                    # 获取文件名（如果有的话）
+                    file_name = request.json.get("file_name", "")
+                    if file_name:
+                        # 使用文件名和save_path进行精确匹配
+                        cursor.execute("""
+                            SELECT id FROM transfer_records 
+                            WHERE (original_name = ? OR renamed_to = ?) 
+                            AND save_path = ?
+                        """, (file_name, file_name, save_path))
+                        
+                        record_ids = [row[0] for row in cursor.fetchall()]
+                
+                # 删除找到的所有记录
+                deleted_count = 0
+                for record_id in record_ids:
+                    deleted_count += db.delete_record(record_id)
+                
+                # 添加删除记录的信息到响应中
+                response["deleted_records"] = deleted_count
+                # logging.info(f">>> 删除文件 {fid} 同时删除了 {deleted_count} 条相关记录")
+                
+            except Exception as e:
+                logging.error(f">>> 删除记录时出错: {str(e)}")
+                # 不影响主流程，即使删除记录失败也返回文件删除成功
     else:
         response = {"success": False, "message": "缺失必要字段: fid"}
     return jsonify(response)
@@ -766,6 +875,22 @@ def init():
     _, plugins_config_default, task_plugins_config_default = Config.load_plugins()
     plugins_config_default.update(config_data.get("plugins", {}))
     config_data["plugins"] = plugins_config_default
+    
+    # 获取禁用的插件列表
+    disabled_plugins = set()
+    if PLUGIN_FLAGS:
+        disabled_plugins = {name.lstrip('-') for name in PLUGIN_FLAGS.split(',')}
+    
+    # 清理所有任务中被禁用插件的配置
+    if config_data.get("tasklist"):
+        for task in config_data["tasklist"]:
+            if "addition" in task:
+                for plugin_name in list(task["addition"].keys()):
+                    if plugin_name in disabled_plugins:
+                        del task["addition"][plugin_name]
+    
+    # 同步更新任务的插件配置
+    sync_task_plugins_config()
 
     # 更新配置
     Config.write_json(CONFIG_PATH, config_data)
@@ -959,6 +1084,84 @@ def get_user_info():
             })
     
     return jsonify({"success": True, "data": user_info_list})
+
+
+# 重置文件夹（删除文件夹内所有文件和相关记录）
+@app.route("/reset_folder", methods=["POST"])
+def reset_folder():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+    
+    # 获取请求参数
+    save_path = request.json.get("save_path", "")
+    task_name = request.json.get("task_name", "")
+    
+    if not save_path:
+        return jsonify({"success": False, "message": "保存路径不能为空"})
+    
+    try:
+        # 初始化夸克网盘客户端
+        account = Quark(config_data["cookie"][0], 0)
+        
+        # 1. 获取文件夹ID
+        # 先检查是否已有缓存的文件夹ID
+        folder_fid = account.savepath_fid.get(save_path)
+        
+        # 如果没有缓存的ID，则尝试创建文件夹以获取ID
+        if not folder_fid:
+            mkdir_result = account.mkdir(save_path)
+            if mkdir_result.get("code") == 0:
+                folder_fid = mkdir_result["data"]["fid"]
+                account.savepath_fid[save_path] = folder_fid
+            else:
+                return jsonify({"success": False, "message": f"获取文件夹ID失败: {mkdir_result.get('message', '未知错误')}"})
+        
+        # 2. 获取文件夹内的所有文件
+        file_list = account.ls_dir(folder_fid)
+        if isinstance(file_list, dict) and file_list.get("error"):
+            return jsonify({"success": False, "message": f"获取文件列表失败: {file_list.get('error', '未知错误')}"})
+        
+        # 收集所有文件ID
+        file_ids = []
+        for item in file_list:
+            file_ids.append(item["fid"])
+        
+        # 3. 删除所有文件
+        deleted_files = 0
+        if file_ids:
+            delete_result = account.delete(file_ids)
+            if delete_result.get("code") == 0:
+                deleted_files = len(file_ids)
+        
+        # 4. 删除相关的历史记录
+        deleted_records = 0
+        try:
+            # 初始化数据库
+            db = RecordDB()
+            
+            # 查询与该保存路径相关的所有记录
+            cursor = db.conn.cursor()
+            cursor.execute("SELECT id FROM transfer_records WHERE save_path = ?", (save_path,))
+            record_ids = [row[0] for row in cursor.fetchall()]
+            
+            # 删除找到的所有记录
+            for record_id in record_ids:
+                deleted_records += db.delete_record(record_id)
+                
+        except Exception as e:
+            logging.error(f">>> 删除记录时出错: {str(e)}")
+            # 即使删除记录失败，也返回文件删除成功
+        
+        return jsonify({
+            "success": True, 
+            "message": f"重置成功，删除了 {deleted_files} 个文件和 {deleted_records} 条记录",
+            "deleted_files": deleted_files,
+            "deleted_records": deleted_records
+        })
+        
+    except Exception as e:
+        logging.error(f">>> 重置文件夹时出错: {str(e)}")
+        return jsonify({"success": False, "message": f"重置文件夹时出错: {str(e)}"})
 
 
 if __name__ == "__main__":

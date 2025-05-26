@@ -819,7 +819,7 @@ class Quark:
                 fids += response["data"]
                 file_paths = file_paths[50:]
             else:
-                print(f"获取目录ID：失败, {response['message']}")
+                print(f"获取目录ID: 失败, {response['message']}")
                 break
             if len(file_paths) == 0:
                 break
@@ -1146,6 +1146,19 @@ class Quark:
                 # 目前只是添加占位符，未来可以扩展功能
                 pass
             
+            # 获取保存路径
+            save_path = task.get("savepath", "")
+            # 如果file_info中有子目录路径信息，则拼接完整路径
+            subdir_path = file_info.get("subdir_path", "")
+            if subdir_path:
+                # 确保路径格式正确，避免双斜杠
+                if save_path.endswith('/') and subdir_path.startswith('/'):
+                    save_path = save_path + subdir_path[1:]
+                elif not save_path.endswith('/') and not subdir_path.startswith('/'):
+                    save_path = save_path + '/' + subdir_path
+                else:
+                    save_path = save_path + subdir_path
+            
             # 添加记录到数据库
             db.add_record(
                 task_name=task.get("taskname", ""),
@@ -1156,7 +1169,8 @@ class Quark:
                 duration=duration,
                 resolution=resolution,
                 file_id=file_id,
-                file_type=file_type
+                file_type=file_type,
+                save_path=save_path
             )
             
             # 关闭数据库连接
@@ -1195,12 +1209,26 @@ class Quark:
             file_id = file_info.get("fid", "")
             task_name = task.get("taskname", "")
             
+            # 获取保存路径
+            save_path = task.get("savepath", "")
+            # 如果file_info中有子目录路径信息，则拼接完整路径
+            subdir_path = file_info.get("subdir_path", "")
+            if subdir_path:
+                # 确保路径格式正确，避免双斜杠
+                if save_path.endswith('/') and subdir_path.startswith('/'):
+                    save_path = save_path + subdir_path[1:]
+                elif not save_path.endswith('/') and not subdir_path.startswith('/'):
+                    save_path = save_path + '/' + subdir_path
+                else:
+                    save_path = save_path + subdir_path
+            
             # 更新记录
             updated = db.update_renamed_to(
                 file_id=file_id,
                 original_name=original_name,
                 renamed_to=renamed_to,
-                task_name=task_name
+                task_name=task_name,
+                save_path=save_path
             )
             
             # 关闭数据库连接
@@ -1255,13 +1283,39 @@ class Quark:
             # 使用原文件名和任务名查找记录
             task_name = task.get("taskname", "")
             
+            # 获取保存路径
+            save_path = task.get("savepath", "")
+            # 注意：从日志中无法获取子目录信息，只能使用任务的主保存路径
+            
+            # 检查文件是否已存在于记录中
+            # 先查询是否有匹配的记录
+            cursor = db.conn.cursor()
+            query = "SELECT file_id FROM transfer_records WHERE original_name = ? AND task_name = ? AND save_path = ?"
+            cursor.execute(query, (old_name, task_name, save_path))
+            result = cursor.fetchone()
+            
+            # 如果找到了匹配的记录，使用file_id进行更新
+            file_id = result[0] if result else ""
+            
             # 更新记录
-            updated = db.update_renamed_to(
-                file_id="",  # 不使用file_id查询，因为在日志中无法获取
-                original_name=old_name,
-                renamed_to=new_name,
-                task_name=task_name
-            )
+            if file_id:
+                # 使用file_id更新
+                updated = db.update_renamed_to(
+                    file_id=file_id,
+                    original_name="",  # 不使用原文件名，因为已有file_id
+                    renamed_to=new_name,
+                    task_name=task_name,
+                    save_path=save_path
+                )
+            else:
+                # 使用原文件名更新
+                updated = db.update_renamed_to(
+                    file_id="",  # 不使用file_id查询，因为在日志中无法获取
+                    original_name=old_name,
+                    renamed_to=new_name,
+                    task_name=task_name,
+                    save_path=save_path
+                )
             
             # 关闭数据库连接
             db.close()
@@ -1270,7 +1324,7 @@ class Quark:
         except Exception as e:
             print(f"根据日志更新转存记录失败: {e}")
             return False
-            
+    
     # 批量处理重命名日志
     def process_rename_logs(self, task, rename_logs):
         """处理重命名日志列表，更新数据库记录
@@ -1282,12 +1336,55 @@ class Quark:
         for log in rename_logs:
             if "重命名:" in log and "→" in log and "失败" not in log:
                 self.update_transfer_record_from_log(task, log)
+    
+    def check_file_exists_in_records(self, file_id, task=None):
+        """检查文件ID是否存在于转存记录中
+        
+        Args:
+            file_id: 要检查的文件ID
+            task: 可选的任务信息，用于进一步筛选
+            
+        Returns:
+            bool: 文件是否已存在于记录中
+        """
+        if not file_id:
+            return False
+            
+        try:
+            # 初始化数据库
+            db = RecordDB()
+            
+            # 构建查询条件
+            conditions = ["file_id = ?"]
+            params = [file_id]
+            
+            # 如果提供了任务信息，添加任务名称条件
+            if task and task.get("taskname"):
+                conditions.append("task_name = ?")
+                params.append(task.get("taskname"))
+            
+            # 构建WHERE子句
+            where_clause = " AND ".join(conditions)
+            
+            # 查询是否存在匹配的记录
+            cursor = db.conn.cursor()
+            query = f"SELECT COUNT(*) FROM transfer_records WHERE {where_clause}"
+            cursor.execute(query, params)
+            count = cursor.fetchone()[0]
+            
+            # 关闭数据库连接
+            db.close()
+            
+            return count > 0
+        except Exception as e:
+            print(f"检查文件记录时出错: {e}")
+            return False
 
     def do_save_task(self, task):
         # 判断资源失效记录
         if task.get("shareurl_ban"):
-            print(f"分享资源已失效：{task['shareurl_ban']}")
-            add_notify(f"❗《{task['taskname']}》分享资源已失效：{task['shareurl_ban']}\n")
+            print(f"分享资源已失效: {task['shareurl_ban']}")
+            add_notify(f"❗《{task['taskname']}》分享资源已失效: {task['shareurl_ban']}\n")
             return
             
         # 标准化保存路径，去掉可能存在的首位斜杠，然后重新添加
@@ -1304,8 +1401,8 @@ class Quark:
         is_sharing, stoken = self.get_stoken(pwd_id, passcode)
         if not is_sharing:
             task["shareurl_ban"] = stoken
-            print(f"分享详情获取失败：{stoken}")
-            add_notify(f"❗《{task['taskname']}》分享详情获取失败：{stoken}\n")
+            print(f"分享详情获取失败: {stoken}")
+            add_notify(f"❗《{task['taskname']}》分享详情获取失败: {stoken}\n")
             return
         share_detail = self.get_detail(pwd_id, stoken, pdir_fid, _fetch_share=1)
         # 获取保存路径fid
@@ -1393,7 +1490,7 @@ class Quark:
         if not share_file_list:
             if subdir_path == "":
                 task["shareurl_ban"] = "分享为空，文件已被分享者删除"
-                add_notify(f"❌《{task['taskname']}》：{task['shareurl_ban']}\n")
+                add_notify(f"❌《{task['taskname']}》: {task['shareurl_ban']}\n")
             return tree
         elif (
             len(share_file_list) == 1
@@ -1445,7 +1542,7 @@ class Quark:
             if task.get("use_sequence_naming") or task.get("use_episode_naming"):
                 # 计算剩余的实际可用文件数（排除文件夹）
                 remaining_usable_count = len([f for f in share_file_list if not f.get("dir", False)])
-                print(f"📑 应用过滤词: {task['filterwords']}，剩余{remaining_usable_count}个项目")
+                print(f"📑 应用过滤词: {task['filterwords']}，剩余 {remaining_usable_count} 个项目")
             else:
                 # 正则模式下，需要先检查哪些文件/文件夹会被实际转存
                 pattern, replace = "", ""
@@ -1479,7 +1576,7 @@ class Quark:
                     print(f"⚠️ 计算可处理项目时出错: {str(e)}")
                     remaining_count = len([f for f in share_file_list if re.search(pattern, f["file_name"])])
                 
-                print(f"📑 应用过滤词: {task['filterwords']}，剩余{remaining_count}个项目")
+                print(f"📑 应用过滤词: {task['filterwords']}，剩余 {remaining_count} 个项目")
             print()
 
         # 获取目标目录文件列表
@@ -1563,8 +1660,14 @@ class Quark:
             filtered_share_files = []
             for share_file in share_file_list:
                 if share_file["dir"]:
-                    # 不再直接添加目录到filtered_share_files
                     # 目录处理会在后续专门的循环中进行
+                    filtered_share_files.append(share_file)
+                    continue
+                
+                # 检查文件ID是否存在于转存记录中
+                file_id = share_file.get("fid", "")
+                if file_id and self.check_file_exists_in_records(file_id, task):
+                    # 文件ID已存在于记录中，跳过处理
                     continue
                     
                 file_size = share_file.get("size", 0)
@@ -1775,6 +1878,12 @@ class Quark:
             
             # 添加符合的
             for share_file in share_file_list:
+                # 检查文件ID是否存在于转存记录中
+                file_id = share_file.get("fid", "")
+                if file_id and self.check_file_exists_in_records(file_id, task):
+                    # 文件ID已存在于记录中，跳过处理
+                    continue
+                    
                 # 检查文件是否已存在（通过大小和扩展名）- 新增的文件查重逻辑
                 is_duplicate = False
                 if not share_file["dir"]:  # 文件夹不进行内容查重
@@ -2215,7 +2324,7 @@ class Quark:
             else:
                 err_msg = save_file_return["message"]
             if err_msg:
-                add_notify(f"❌《{task['taskname']}》转存失败：{err_msg}\n")
+                add_notify(f"❌《{task['taskname']}》转存失败: {err_msg}\n")
         else:
             # 没有新文件需要转存
             if not subdir_path:  # 只在顶层（非子目录）打印一次消息
@@ -2369,7 +2478,7 @@ class Quark:
                         # 移除直接打印的部分，由do_save负责打印
                         # print(rename_log)
                 except Exception as e:
-                    rename_log = f"重命名出错: {dir_file['file_name']} → {save_name}，错误：{str(e)}"
+                    rename_log = f"重命名出错: {dir_file['file_name']} → {save_name}，错误: {str(e)}"
                     rename_logs.append(rename_log)
                     # 移除直接打印的部分，由do_save负责打印
                     # print(rename_log)
@@ -2455,7 +2564,7 @@ class Quark:
                     # 获取分享详情
                     is_sharing, stoken = self.get_stoken(pwd_id, passcode)
                     if not is_sharing:
-                        print(f"分享详情获取失败：{stoken}")
+                        print(f"分享详情获取失败: {stoken}")
                         return False, []
                     
                     # 获取分享文件列表
@@ -2471,6 +2580,12 @@ class Quark:
                             # 处理子目录
                             if task.get("update_subdir") and re.search(task["update_subdir"], share_file["file_name"]):
                                 filtered_share_files.append(share_file)
+                            continue
+                        
+                        # 检查文件ID是否存在于转存记录中
+                        file_id = share_file.get("fid", "")
+                        if file_id and self.check_file_exists_in_records(file_id, task):
+                            # 文件ID已存在于记录中，跳过处理
                             continue
                             
                         # 从共享文件中提取剧集号
@@ -2758,11 +2873,11 @@ class Quark:
                                 return True, rename_logs
                             else:
                                 err_msg = query_task_return["message"]
-                                add_notify(f"❌《{task['taskname']}》转存失败：{err_msg}\n")
+                                add_notify(f"❌《{task['taskname']}》转存失败: {err_msg}\n")
                                 return False, []
                         else:
                             print(f"❌ 保存文件失败: {save_file_return['message']}")
-                            add_notify(f"❌《{task['taskname']}》转存失败：{save_file_return['message']}\n")
+                            add_notify(f"❌《{task['taskname']}》转存失败: {save_file_return['message']}\n")
                             return False, []
                     else:
                         # print("没有需要保存的新文件")
@@ -2950,7 +3065,7 @@ class Quark:
                     if new_name != orig_name:
                         rename_operations.append((dir_file, new_name))
                 except Exception as e:
-                    print(f"正则替换出错: {dir_file['file_name']}，错误：{str(e)}")
+                    print(f"正则替换出错: {dir_file['file_name']}，错误: {str(e)}")
             
             # 按原始文件名字母顺序排序，使重命名操作有序进行
             # rename_operations.sort(key=lambda x: x[0]["file_name"])
@@ -2989,7 +3104,7 @@ class Quark:
                             rename_logs.append(error_log)
                     except Exception as e:
                         # 收集错误日志但不打印
-                        error_log = f"重命名出错: {dir_file['file_name']} → {new_name}，错误：{str(e)}"
+                        error_log = f"重命名出错: {dir_file['file_name']} → {new_name}，错误: {str(e)}"
                         rename_logs.append(error_log)
                 else:
                     # 重名警告但不打印

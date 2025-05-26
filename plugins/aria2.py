@@ -29,6 +29,7 @@ class Aria2:
     default_task_config = {
         "auto_download": False,  # 是否自动添加下载任务
         "pause": False,  # 添加任务后为暂停状态，不自动开始（手动下载）
+        "auto_delete_quark_files": False,  # 是否在添加下载任务后自动删除夸克网盘文件
     }
     is_active = False
     rpc_url = None
@@ -116,6 +117,7 @@ class Aria2:
         # 筛选出当次转存的文件
         file_fids = []
         file_paths = []
+        file_info = []  # 存储文件的完整信息，包括ID和路径
         
         for file in dir_files:
             if file.get("dir", False):
@@ -132,7 +134,14 @@ class Aria2:
             
             if is_current_file:
                 file_fids.append(file["fid"])
-                file_paths.append(f"{savepath}/{file_name}")
+                file_path = f"{savepath}/{file_name}"
+                file_paths.append(file_path)
+                # 保存完整信息
+                file_info.append({
+                    "fid": file["fid"],
+                    "path": file_path,
+                    "name": file_name
+                })
         
         if not file_fids:
             print("📝 Aria2: 未能匹配到需要下载的文件")
@@ -161,6 +170,9 @@ class Aria2:
         
         # 使用全局排序函数对文件进行排序
         download_items.sort(key=lambda x: x["sort_key"])
+        
+        # 记录成功添加到下载队列的文件信息，用于后续删除
+        downloaded_files = []
             
         # 按排序后的顺序下载文件
         for item in download_items:
@@ -193,8 +205,34 @@ class Aria2:
             ]
             try:
                 self.add_uri(aria2_params)
+                # 记录成功添加到下载队列的文件信息
+                idx = file_paths.index(file_path)
+                if idx >= 0 and idx < len(file_info):
+                    downloaded_files.append(file_info[idx])
             except Exception as e:
                 print(f"📥 Aria2 添加下载任务失败: {e}")
+        
+        # 如果配置了自动删除且有成功添加下载任务的文件，则删除夸克网盘中的文件
+        if task_config.get("auto_delete_quark_files") and downloaded_files:
+            try:
+                # 提取要删除的文件ID
+                files_to_delete = []
+                for file_data in downloaded_files:
+                    # 再次确认文件路径，确保只删除指定目录下的文件
+                    if file_data["path"].startswith(savepath):
+                        files_to_delete.append(file_data["fid"])
+                
+                if files_to_delete:
+                    account.delete(files_to_delete)
+            except Exception as e:
+                print(f"📝 Aria2: 删除夸克网盘文件失败: {e}")
+        else:
+            if not task_config.get("auto_delete_quark_files"):
+                # 未启用自动删除，不需要输出信息
+                pass
+            elif not downloaded_files:
+                # 没有需要删除的文件，不需要输出信息
+                pass
 
     def _make_rpc_request(self, method, params=None):
         """发出 JSON-RPC 请求."""
