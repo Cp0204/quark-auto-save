@@ -1657,48 +1657,40 @@ class Quark:
                     })
             
             # 预先过滤掉已经存在的文件（按大小和扩展名比对）
+            # 只保留文件，不保留文件夹
             filtered_share_files = []
             for share_file in share_file_list:
                 if share_file["dir"]:
-                    # 目录处理会在后续专门的循环中进行
-                    filtered_share_files.append(share_file)
+                    # 顺序命名模式下，未设置update_subdir时不处理文件夹
                     continue
-                
                 # 检查文件ID是否存在于转存记录中
                 file_id = share_file.get("fid", "")
                 if file_id and self.check_file_exists_in_records(file_id, task):
                     # 文件ID已存在于记录中，跳过处理
                     continue
-                    
                 file_size = share_file.get("size", 0)
                 file_ext = os.path.splitext(share_file["file_name"])[1].lower()
                 share_update_time = share_file.get("last_update_at", 0) or share_file.get("updated_at", 0)
-                
                 # 检查是否已存在相同大小和扩展名的文件
                 key = f"{file_size}_{file_ext}"
                 is_duplicate = False
-                
                 if key in dir_files_map:
                     for existing_file in dir_files_map[key]:
                         existing_update_time = existing_file.get("updated_at", 0)
-                        
                         # 防止除零错误
                         if existing_update_time == 0:
                             continue
-                            
                         # 如果修改时间相近（30天内）或者差距不大（10%以内），认为是同一个文件
                         time_diff = abs(share_update_time - existing_update_time)
                         time_ratio = abs(1 - (share_update_time / existing_update_time)) if existing_update_time else 1
-                        
                         if time_diff < 2592000 or time_ratio < 0.1:
                             # 文件已存在，跳过处理
                             is_duplicate = True
                             break
-                
                 # 只有非重复文件才进行处理
                 if not is_duplicate:
                     filtered_share_files.append(share_file)
-                    
+                
                 # 指定文件开始订阅/到达指定文件（含）结束历遍
                 if share_file["fid"] == task.get("startfid", ""):
                     break
