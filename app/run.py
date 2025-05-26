@@ -187,6 +187,62 @@ def get_data():
     return jsonify({"success": True, "data": data})
 
 
+def sync_task_plugins_config():
+    """同步更新所有任务的插件配置
+    
+    1. 检查每个任务的插件配置
+    2. 如果插件配置不存在，使用默认配置
+    3. 如果插件配置存在但缺少新的配置项，添加默认值
+    4. 保留原有的自定义配置
+    5. 只处理已启用的插件（通过PLUGIN_FLAGS检查）
+    6. 清理被禁用插件的配置
+    """
+    global config_data, task_plugins_config_default
+    
+    # 如果没有任务列表，直接返回
+    if not config_data.get("tasklist"):
+        return
+        
+    # 获取禁用的插件列表
+    disabled_plugins = set()
+    if PLUGIN_FLAGS:
+        disabled_plugins = {name.lstrip('-') for name in PLUGIN_FLAGS.split(',')}
+        
+    # 遍历所有任务
+    for task in config_data["tasklist"]:
+        # 确保任务有addition字段
+        if "addition" not in task:
+            task["addition"] = {}
+            
+        # 清理被禁用插件的配置
+        for plugin_name in list(task["addition"].keys()):
+            if plugin_name in disabled_plugins:
+                del task["addition"][plugin_name]
+            
+        # 遍历所有插件的默认配置
+        for plugin_name, default_config in task_plugins_config_default.items():
+            # 跳过被禁用的插件
+            if plugin_name in disabled_plugins:
+                continue
+                
+            # 如果任务中没有该插件的配置，添加默认配置
+            if plugin_name not in task["addition"]:
+                task["addition"][plugin_name] = default_config.copy()
+            else:
+                # 如果任务中有该插件的配置，检查是否有新的配置项
+                current_config = task["addition"][plugin_name]
+                # 确保current_config是字典类型
+                if not isinstance(current_config, dict):
+                    # 如果不是字典类型，使用默认配置
+                    task["addition"][plugin_name] = default_config.copy()
+                    continue
+                    
+                # 遍历默认配置的每个键值对
+                for key, default_value in default_config.items():
+                    if key not in current_config:
+                        current_config[key] = default_value
+
+
 # 更新数据
 @app.route("/update", methods=["POST"])
 def update():
@@ -202,6 +258,10 @@ def update():
                 config_data["webui"]["password"] = value.get("password", config_data["webui"]["password"])
             else:
                 config_data.update({key: value})
+    
+    # 同步更新任务的插件配置
+    sync_task_plugins_config()
+    
     Config.write_json(CONFIG_PATH, config_data)
     # 更新session token，确保当前会话在用户名密码更改后仍然有效
     session["token"] = get_login_token()
@@ -815,6 +875,22 @@ def init():
     _, plugins_config_default, task_plugins_config_default = Config.load_plugins()
     plugins_config_default.update(config_data.get("plugins", {}))
     config_data["plugins"] = plugins_config_default
+    
+    # 获取禁用的插件列表
+    disabled_plugins = set()
+    if PLUGIN_FLAGS:
+        disabled_plugins = {name.lstrip('-') for name in PLUGIN_FLAGS.split(',')}
+    
+    # 清理所有任务中被禁用插件的配置
+    if config_data.get("tasklist"):
+        for task in config_data["tasklist"]:
+            if "addition" in task:
+                for plugin_name in list(task["addition"].keys()):
+                    if plugin_name in disabled_plugins:
+                        del task["addition"][plugin_name]
+    
+    # 同步更新任务的插件配置
+    sync_task_plugins_config()
 
     # 更新配置
     Config.write_json(CONFIG_PATH, config_data)
