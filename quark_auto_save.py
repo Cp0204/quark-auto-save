@@ -1663,14 +1663,21 @@ class Quark:
                 if share_file["dir"]:
                     # 顺序命名模式下，未设置update_subdir时不处理文件夹
                     continue
+
                 # 检查文件ID是否存在于转存记录中
                 file_id = share_file.get("fid", "")
                 if file_id and self.check_file_exists_in_records(file_id, task):
                     # 文件ID已存在于记录中，跳过处理
                     continue
+
+                # 指定文件开始订阅/到达指定文件（含）结束历遍
+                if share_file["fid"] == task.get("startfid", ""):
+                    break
+
                 file_size = share_file.get("size", 0)
                 file_ext = os.path.splitext(share_file["file_name"])[1].lower()
                 share_update_time = share_file.get("last_update_at", 0) or share_file.get("updated_at", 0)
+
                 # 检查是否已存在相同大小和扩展名的文件
                 key = f"{file_size}_{file_ext}"
                 is_duplicate = False
@@ -1687,13 +1694,10 @@ class Quark:
                             # 文件已存在，跳过处理
                             is_duplicate = True
                             break
+
                 # 只有非重复文件才进行处理
                 if not is_duplicate:
                     filtered_share_files.append(share_file)
-                
-                # 指定文件开始订阅/到达指定文件（含）结束历遍
-                if share_file["fid"] == task.get("startfid", ""):
-                    break
             
             # 实现高级排序算法
             def extract_sorting_value(file):
@@ -1875,6 +1879,10 @@ class Quark:
                 if file_id and self.check_file_exists_in_records(file_id, task):
                     # 文件ID已存在于记录中，跳过处理
                     continue
+
+                # 指定文件开始订阅/到达指定文件（含）结束历遍
+                if share_file["fid"] == task.get("startfid", ""):
+                    break
                     
                 # 检查文件是否已存在（通过大小和扩展名）- 新增的文件查重逻辑
                 is_duplicate = False
@@ -2209,9 +2217,6 @@ class Quark:
                     share_file["save_name"] = share_file["file_name"]
                     share_file["original_name"] = share_file["file_name"]
                     need_save_list.append(share_file)
-                # 指定文件开始订阅/到达指定文件（含）结束历遍
-                if share_file["fid"] == task.get("startfid", ""):
-                    break
 
         fid_list = [item["fid"] for item in need_save_list]
         fid_token_list = [item["share_fid_token"] for item in need_save_list]
@@ -2579,6 +2584,10 @@ class Quark:
                         if file_id and self.check_file_exists_in_records(file_id, task):
                             # 文件ID已存在于记录中，跳过处理
                             continue
+
+                        # 指定文件开始订阅/到达指定文件（含）结束历遍
+                        if share_file["fid"] == task.get("startfid", ""):
+                            break
                             
                         # 从共享文件中提取剧集号
                         episode_num = extract_episode_number_local(share_file["file_name"])
@@ -2629,10 +2638,6 @@ class Quark:
                         # 只处理非重复文件
                         if not is_duplicate:
                             filtered_share_files.append(share_file)
-                        
-                        # 指定文件开始订阅/到达指定文件（含）结束历遍
-                        if share_file["fid"] == task.get("startfid", ""):
-                            break
                     
                     # 实现高级排序算法
                     def sort_by_episode(file):
