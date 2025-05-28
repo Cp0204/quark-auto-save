@@ -3972,3 +3972,61 @@ table.selectable-records .expand-button:hover {
   position: relative;
   top: -0.5px;
 }
+
+/* 任务按钮悬停显示样式 */
+.task-buttons .hover-only {
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  position: absolute;
+  right: 0;
+  visibility: hidden;
+}
+
+/* 修改悬停触发范围到整个任务单元 */
+.task:hover .task-buttons .hover-only {
+  opacity: 1;
+  visibility: visible;
+  position: static;
+}
+
+/* 确保按钮容器在悬停时保持宽度 */
+.task-buttons {
+  position: relative;
+  min-width: 160px; /* 根据按钮数量和间距调整 */
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 0;
+  margin-right: 0;
+}
+
+/* 确保按钮在悬停时可见 */
+.task:hover .task-buttons {
+  z-index: 1;
+}
+
+/* 移动模式下的任务按钮容器样式 */
+@media (max-width: 767.98px) {
+  .task .col-auto.task-buttons {
+    padding-right: 15px; /* 与添加任务按钮的右边距保持一致 */
+  }
+}
+
+@media (min-width: 992px) {
+  .display-setting-row > .col-lg-3 {
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+  }
+  .display-setting-row {
+    margin-left: -4px !important;
+    margin-right: -4px !important;
+  }
+}
+
+.display-setting-row > [class*='col-'] {
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
+.display-setting-row {
+  margin-left: -4px !important;
+  margin-right: -4px !important;
+}
