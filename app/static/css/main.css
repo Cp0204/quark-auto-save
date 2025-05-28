@@ -2311,6 +2311,8 @@ main .table th {
 .task .btn-outline-primary,
 .task .btn-outline-danger,
 .task .btn-warning,
+.task .btn-outline-plex,
+.task .btn-outline-alist,
 .row .btn-outline-primary {
   width: 32px;
   height: 32px;
@@ -2318,6 +2320,7 @@ main .table th {
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 6px !important;
 }
 
 /* 播放按钮样式 */
@@ -3920,4 +3923,52 @@ table.selectable-records .expand-button:hover {
 /* 确保文件选择模态框中的表格行在选中状态下保持可见 */
 #fileSelectModal .table tr.selected-file:hover {
   background-color: var(--button-gray-background-color);
+}
+
+/* Plex按钮样式 */
+.btn-outline-plex {
+  border-color: #EBAF00;
+  color: #EBAF00;
+}
+
+.btn-outline-plex:hover {
+  background-color: #EBAF00;
+  border-color: #EBAF00;
+  color: #fff;
+}
+
+.btn-outline-plex:hover .plex-icon {
+  filter: brightness(0) invert(1);
+}
+
+/* AList按钮样式 */
+.btn-outline-alist {
+  border-color: #70C6BE;
+  color: #70C6BE;
+}
+
+.btn-outline-alist:hover {
+  background-color: #70C6BE;
+  border-color: #70C6BE;
+  color: #fff;
+}
+
+.btn-outline-alist:hover .alist-icon {
+  filter: brightness(0) invert(1);
+}
+
+/* Plex图标样式 */
+.plex-icon {
+  width: 11px;
+  height: auto;
+  object-fit: contain;
+}
+
+/* AList图标样式 */
+.alist-icon {
+  width: 17.8px;
+  height: auto;
+  object-fit: contain;
+  position: relative;
+  top: -0.5px;
 }

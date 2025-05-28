@@ -484,8 +484,10 @@
                     </div>
                   </div>
                   <div class="col-auto">
+                    <button type="button" class="btn btn-outline-plex" v-if="formData.plugins && formData.plugins.plex && formData.plugins.plex.url && formData.plugins.plex.token && formData.plugins.plex.quark_root_path" @click="refreshPlexLibrary(index)" title="刷新Plex媒体库"><img src="./static/Plex.svg" class="plex-icon"></button>
+                    <button type="button" class="btn btn-outline-alist" v-if="formData.plugins && formData.plugins.alist && formData.plugins.alist.url && formData.plugins.alist.token && formData.plugins.alist.storage_id" @click="refreshAlistDirectory(index)" title="刷新AList目录"><img src="https://cdn.jsdelivr.net/gh/alist-org/logo@main/logo.svg" class="alist-icon"></button>
                     <button class="btn btn-warning" v-if="task.shareurl_ban" :title="formatShareUrlBanMessage(task.shareurl_ban)" disabled><i class="bi bi-exclamation-circle"></i></button>
-                    <button type="button" class="btn btn-outline-primary" @click="runScriptNow(index)" title="运行此任务" v-else><i class="bi bi-caret-right"></i></button>
+                    <button type="button" class="btn btn-outline-primary" @click="runScriptNow(index)" title="运行此任务" v-if="!task.shareurl_ban"><i class="bi bi-caret-right"></i></button>
                     <button type="button" class="btn btn-outline-danger" @click="removeTask(index)" title="删除此任务"><i class="bi bi-trash3"></i></button>
                   </div>
                 </div>
@@ -3583,6 +3585,32 @@
               this.modalLoading = false;
             });
           }
+        },
+        refreshPlexLibrary(index) {
+          axios.post('/refresh_plex_library', { task_index: index })
+            .then(response => {
+              if (response.data.success) {
+                this.showToast(response.data.message);
+              } else {
+                alert(response.data.message);
+              }
+            })
+            .catch(error => {
+              alert("刷新 Plex 媒体库失败: " + (error.response?.data?.message || error.message || "未知错误"));
+            });
+        },
+        refreshAlistDirectory(index) {
+          axios.post('/refresh_alist_directory', { task_index: index })
+            .then(response => {
+              if (response.data.success) {
+                this.showToast(response.data.message);
+              } else {
+                alert(response.data.message);
+              }
+            })
+            .catch(error => {
+              alert("刷新 AList 目录失败: " + (error.response?.data?.message || error.message || "未知错误"));
+            });
         },
       }
     });
