@@ -2425,6 +2425,7 @@ body {
 /* 任务列表页面中的任务标题颜色 */
 .task .btn.btn-block.text-left {
   color: var(--dark-text-color);
+  transition: color 0.2s ease-in-out;
 }
 
 /* 历史记录页面的文本和表格内容 */
@@ -4029,4 +4030,72 @@ table.selectable-records .expand-button:hover {
 .display-setting-row {
   margin-left: -4px !important;
   margin-right: -4px !important;
+}
+
+/* 任务单元基础样式 */
+.task {
+  position: relative;
+  cursor: pointer;
+}
+
+/* 任务展开后的配置区域使用默认指针 */
+.task .collapse {
+  cursor: default;
+}
+
+/* 任务按钮悬停显示样式 */
+.task-buttons .hover-only {
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  position: absolute;
+  right: 0;
+  visibility: hidden;
+}
+
+/* 修改悬停触发范围到整个任务单元 */
+.task:hover .task-buttons .hover-only {
+  opacity: 1;
+  visibility: visible;
+  position: static;
+}
+
+/* 确保按钮容器在悬停时保持宽度 */
+.task-buttons {
+  position: relative;
+  min-width: 160px; /* 根据按钮数量和间距调整 */
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 0;
+  margin-right: 0;
+}
+
+/* 确保按钮在悬停时可见 */
+.task:hover .task-buttons {
+  z-index: 1;
+}
+
+/* 添加伪元素扩展整个任务单元的可点击区域 */
+.task::before,
+.task::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 8px;
+  background: transparent;
+  z-index: 0;
+  pointer-events: auto;
+}
+
+.task::before {
+  top: 0;
+}
+
+.task::after {
+  bottom: -8px;
+}
+
+/* 当鼠标悬停在任务单元上时，任务标题变为蓝色 */
+.task:hover .btn.btn-block.text-left {
+  color: var(--focus-border-color);
 }
