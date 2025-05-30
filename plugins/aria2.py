@@ -151,7 +151,7 @@ class Aria2:
         download_return, cookie = account.download(file_fids)
         
         if not download_return.get("data"):
-            print("📝 Aria2: 获取下载链接失败")
+            print("📝 Aria2: 获取下载链接失败 ❌")
             return
         
         # 准备要下载的文件信息    
@@ -186,7 +186,7 @@ class Aria2:
                 # print(f"📥 Aria2下载: {file_path} (已存在，跳过)")
                 continue
             
-            print(f"📥 Aria2 下载: {file_path}")
+            print(f"📥 添加 Aria2 下载任务: {file_path} 成功 ✅")
             
             # 确保目录存在
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
@@ -210,7 +210,7 @@ class Aria2:
                 if idx >= 0 and idx < len(file_info):
                     downloaded_files.append(file_info[idx])
             except Exception as e:
-                print(f"📥 Aria2 添加下载任务失败: {e}")
+                print(f"📥 添加 Aria2 下载任务失败 ❌ {e}")
         
         # 如果配置了自动删除且有成功添加下载任务的文件，则删除夸克网盘中的文件
         if task_config.get("auto_delete_quark_files") and downloaded_files:
@@ -225,7 +225,7 @@ class Aria2:
                 if files_to_delete:
                     account.delete(files_to_delete)
             except Exception as e:
-                print(f"📝 Aria2: 删除夸克网盘文件失败: {e}")
+                print(f"📝 Aria2: 删除夸克网盘文件失败 ❌ {e}")
         else:
             if not task_config.get("auto_delete_quark_files"):
                 # 未启用自动删除，不需要输出信息
@@ -249,7 +249,7 @@ class Aria2:
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            print(f"Aria2 下载: 错误{e}")
+            print(f"Aria2 下载: 错误 ❌ {e}")
         return {}
 
     def get_version(self):
@@ -259,7 +259,7 @@ class Aria2:
             print(f"Aria2 下载: v{response['result']['version']}")
             return True
         else:
-            print(f"Aria2 下载: 连接失败{response.get('error')}")
+            print(f"Aria2 下载: 连接失败 ❌ {response.get('error')}")
             return False
 
     def add_uri(self, params=None):

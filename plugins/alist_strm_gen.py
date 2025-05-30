@@ -2,16 +2,15 @@
 # -*- encoding: utf-8 -*-
 """
 @File    :   alist_strm_gen.py
-@Desc    :   Alist 生成 strm 文件简化版
-@Version :   v1.1
-@Time    :   2024/11/16
-@Author  :   xiaoQQya
-@Contact :   xiaoQQya@126.com
+@Desc    :   AList 生成 STRM 文件简化版
+@Time    :   2025/05/30
+@Author  :   xiaoQQya, x1ao4
 """
 import os
 import re
 import json
 import requests
+from quark_auto_save import sort_file_by_name
 
 
 class Alist_strm_gen:
@@ -32,47 +31,97 @@ class Alist_strm_gen:
     storage_mount_path = None
     quark_root_dir = None
     strm_server = None
+    # 缓存生成的文件列表
+    generated_files = []
 
     def __init__(self, **kwargs):
         self.plugin_name = self.__class__.__name__.lower()
-        if kwargs:
-            for key, _ in self.default_config.items():
-                if key in kwargs:
-                    setattr(self, key, kwargs[key])
+        
+        # 检查必要配置
+        missing_configs = []
+        for key, _ in self.default_config.items():
+            if key in kwargs:
+                setattr(self, key, kwargs[key])
+            else:
+                missing_configs.append(key)
+        
+        if missing_configs:
+            print(f"{self.plugin_name} 模块缺少必要参数: {', '.join(missing_configs)}")
+            return
+            
+        if not self.url or not self.token or not self.storage_id:
+            print(f"{self.plugin_name} 模块配置不完整，请检查配置")
+            return
+            
+        # 检查 strm_save_dir 是否存在
+        if not os.path.exists(self.strm_save_dir):
+            try:
+                os.makedirs(self.strm_save_dir)
+            except Exception as e:
+                print(f"创建 STRM 保存目录失败 ❌ {e}")
+                return
+                
+        success, result = self.storage_id_to_path(self.storage_id)
+        if success:
+            self.is_active = True
+            # 存储挂载路径, 夸克根文件夹
+            self.storage_mount_path, self.quark_root_dir = result
+            # 替换strm文件内链接的主机地址
+            self.strm_replace_host = self.strm_replace_host.strip()
+            if self.strm_replace_host:
+                if self.strm_replace_host.startswith("http"):
+                    self.strm_server = f"{self.strm_replace_host}/d"
                 else:
-                    print(f"{self.plugin_name} 模块缺少必要参数: {key}")
-            if self.url and self.token and self.storage_id:
-                success, result = self.storage_id_to_path(self.storage_id)
-                if success:
-                    self.is_active = True
-                    # 存储挂载路径, 夸克根文件夹
-                    self.storage_mount_path, self.quark_root_dir = result
-                    # 替换strm文件内链接的主机地址
-                    self.strm_replace_host = self.strm_replace_host.strip()
-                    if self.strm_replace_host:
-                        if self.strm_replace_host.startswith("http"):
-                            self.strm_server = f"{self.strm_replace_host}/d"
-                        else:
-                            self.strm_server = f"http://{self.strm_replace_host}/d"
-                    else:
-                        self.strm_server = f"{self.url.strip()}/d"
+                    self.strm_server = f"http://{self.strm_replace_host}/d"
+            else:
+                self.strm_server = f"{self.url.strip()}/d"
+        else:
+            pass
 
     def run(self, task, **kwargs):
+        if not self.is_active:
+            return
+            
         task_config = task.get("addition", {}).get(
             self.plugin_name, self.default_task_config
         )
+        
         if not task_config.get("auto_gen"):
             return
-        if task.get("savepath") and task.get("savepath").startswith(
-            self.quark_root_dir
-        ):
-            alist_path = os.path.normpath(
-                os.path.join(
-                    self.storage_mount_path,
-                    task["savepath"].replace(self.quark_root_dir, "", 1).lstrip("/"),
-                )
-            ).replace("\\", "/")
-            self.check_dir(alist_path)
+            
+        if not task.get("savepath"):
+            return
+            
+        # 标准化路径
+        savepath = os.path.normpath(task["savepath"]).replace("\\", "/")
+        quark_root = os.path.normpath(self.quark_root_dir).replace("\\", "/")
+        
+        # 确保路径以 / 开头
+        if not savepath.startswith("/"):
+            savepath = "/" + savepath
+        if not quark_root.startswith("/"):
+            quark_root = "/" + quark_root
+            
+        if not savepath.startswith(quark_root):
+            print(f"{self.plugin_name} 任务的保存路径不在配置的夸克根目录内，跳过处理")
+            return
+            
+        alist_path = os.path.normpath(
+            os.path.join(
+                self.storage_mount_path,
+                savepath.replace(quark_root, "", 1).lstrip("/"),
+            )
+        ).replace("\\", "/")
+        
+        # 清空生成的文件列表
+        self.generated_files = []
+        self.check_dir(alist_path)
+        
+        # 按顺序显示生成的文件
+        if self.generated_files:
+            sorted_files = sorted(self.generated_files, key=sort_file_by_name)
+            for file_path in sorted_files:
+                print(f"🌐 生成 STRM 文件: {file_path} 成功 ✅")
 
     def storage_id_to_path(self, storage_id):
         storage_mount_path, quark_root_dir = None, None
@@ -82,7 +131,7 @@ class Alist_strm_gen:
             storage_mount_path, quark_root_dir = match.group(1), match.group(2)
             file_list = self.get_file_list(storage_mount_path)
             if file_list.get("code") != 200:
-                print(f"Alist-Strm 生成: 获取挂载路径失败 ❌ {file_list.get('message')}")
+                print(f"AList-Strm 生成: 获取挂载路径失败 ❌ {file_list.get('message')}")
                 return False, (None, None)
         # 2. 检查是否数字，调用 Alist API 获取存储信息
         elif re.match(r"^\d+$", storage_id):
@@ -97,15 +146,15 @@ class Alist_strm_gen:
                     )
                 elif storage_info["driver"] == "QuarkTV":
                     print(
-                        f"Alist-Strm 生成: [QuarkTV] 驱动 ⚠️ storage_id 请手动填入 /Alist挂载路径:/Quark目录路径"
+                        f"AList-Strm 生成: [QuarkTV] 驱动 ⚠️ storage_id 请手动填入 /Alist挂载路径:/Quark目录路径"
                     )
                 else:
-                    print(f"Alist-Strm 生成: 不支持 [{storage_info['driver']}] 驱动 ❌")
+                    print(f"AList-Strm 生成: 不支持 [{storage_info['driver']}] 驱动 ❌")
         else:
-            print(f"Alist-Strm 生成: storage_id [{storage_id}] 格式错误❌")
+            print(f"AList-Strm 生成: storage_id [{storage_id}] 格式错误 ❌")
         # 返回结果
         if storage_mount_path and quark_root_dir:
-            print(f"Alist-Strm 生成: [{storage_mount_path}:{quark_root_dir}]")
+            print(f"AList-Strm 生成: [{storage_mount_path}:{quark_root_dir}]")
             return True, (storage_mount_path, quark_root_dir)
         else:
             return False, (None, None)
@@ -121,15 +170,15 @@ class Alist_strm_gen:
             if data.get("code") == 200:
                 return data.get("data", [])
             else:
-                print(f"Alist-Strm 生成: 获取存储失败 ❌ {data.get('message')}")
+                print(f"AList-Strm 生成: 获取存储失败 ❌ {data.get('message')}")
         except Exception as e:
-            print(f"Alist-Strm 生成: 获取存储出错 {e}")
+            print(f"AList-Strm 生成: 获取存储出错 ❌ {e}")
         return []
 
     def check_dir(self, path):
         data = self.get_file_list(path)
         if data.get("code") != 200:
-            print(f"📺 Alist-Strm 生成: 获取文件列表失败 ❌ {data.get('message')}")
+            print(f"🌐 AList-Strm 生成: 获取文件列表失败 ❌ {data.get('message')}")
             return
         elif files := data.get("data", {}).get("content"):
             for item in files:
@@ -154,7 +203,7 @@ class Alist_strm_gen:
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            print(f"📺 Alist-Strm 生成: 获取文件列表出错 ❌ {e}")
+            print(f"🌐 AList-Strm 生成: 获取文件列表出错 ❌ {e}")
         return {}
 
     def generate_strm(self, file_path):
@@ -168,10 +217,18 @@ class Alist_strm_gen:
             if os.path.exists(strm_path):
                 return
             if not os.path.exists(os.path.dirname(strm_path)):
-                os.makedirs(os.path.dirname(strm_path))
-            with open(strm_path, "w", encoding="utf-8") as strm_file:
-                strm_file.write(f"{self.strm_server}{file_path}")
-            print(f"📺 生成 STRM 文件 {strm_path} 成功 ✅")
+                try:
+                    os.makedirs(os.path.dirname(strm_path))
+                except Exception as e:
+                    print(f"🌐 创建目录失败: {os.path.dirname(strm_path)} ❌ {e}")
+                    return
+            try:
+                with open(strm_path, "w", encoding="utf-8") as strm_file:
+                    strm_file.write(f"{self.strm_server}{file_path}")
+                # 将生成的文件添加到列表中，稍后统一显示
+                self.generated_files.append(strm_path)
+            except Exception as e:
+                print(f"🌐 生成 STRM 文件: {strm_path} 失败 ❌ {e}")
 
     def get_root_folder_full_path(self, cookie, pdir_fid):
         if pdir_fid == "0":
@@ -203,5 +260,5 @@ class Alist_strm_gen:
                     path = f"{path}/{item['file_name']}"
                 return path
         except Exception as e:
-            print(f"Alist-Strm 生成: 获取 Quark 路径出错 {e}")
+            print(f"AList-Strm 生成: 获取 Quark 路径出错 ❌ {e}")
         return ""
