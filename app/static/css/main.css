@@ -2311,6 +2311,8 @@ main .table th {
 .task .btn-outline-primary,
 .task .btn-outline-danger,
 .task .btn-warning,
+.task .btn-outline-plex,
+.task .btn-outline-alist,
 .row .btn-outline-primary {
   width: 32px;
   height: 32px;
@@ -2318,6 +2320,7 @@ main .table th {
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 6px !important;
 }
 
 /* 播放按钮样式 */
@@ -2422,6 +2425,7 @@ body {
 /* 任务列表页面中的任务标题颜色 */
 .task .btn.btn-block.text-left {
   color: var(--dark-text-color);
+  transition: color 0.2s ease-in-out;
 }
 
 /* 历史记录页面的文本和表格内容 */
@@ -3920,4 +3924,178 @@ table.selectable-records .expand-button:hover {
 /* 确保文件选择模态框中的表格行在选中状态下保持可见 */
 #fileSelectModal .table tr.selected-file:hover {
   background-color: var(--button-gray-background-color);
+}
+
+/* Plex按钮样式 */
+.btn-outline-plex {
+  border-color: #EBAF00;
+  color: #EBAF00;
+}
+
+.btn-outline-plex:hover {
+  background-color: #EBAF00;
+  border-color: #EBAF00;
+  color: #fff;
+}
+
+.btn-outline-plex:hover .plex-icon {
+  filter: brightness(0) invert(1);
+}
+
+/* AList按钮样式 */
+.btn-outline-alist {
+  border-color: #70C6BE;
+  color: #70C6BE;
+}
+
+.btn-outline-alist:hover {
+  background-color: #70C6BE;
+  border-color: #70C6BE;
+  color: #fff;
+}
+
+.btn-outline-alist:hover .alist-icon {
+  filter: brightness(0) invert(1);
+}
+
+/* Plex图标样式 */
+.plex-icon {
+  width: 10.4px;
+  height: auto;
+  object-fit: contain;
+}
+
+/* AList图标样式 */
+.alist-icon {
+  width: 17.8px;
+  height: auto;
+  object-fit: contain;
+  position: relative;
+  top: -0.5px;
+}
+
+/* 任务按钮悬停显示样式 */
+.task-buttons .hover-only {
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  position: absolute;
+  right: 0;
+  visibility: hidden;
+}
+
+/* 修改悬停触发范围到整个任务单元 */
+.task:hover .task-buttons .hover-only {
+  opacity: 1;
+  visibility: visible;
+  position: static;
+}
+
+/* 确保按钮容器在悬停时保持宽度 */
+.task-buttons {
+  position: relative;
+  min-width: 160px; /* 根据按钮数量和间距调整 */
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 0;
+  margin-right: 0;
+}
+
+/* 确保按钮在悬停时可见 */
+.task:hover .task-buttons {
+  z-index: 1;
+}
+
+/* 移动模式下的任务按钮容器样式 */
+@media (max-width: 767.98px) {
+  .task .col-auto.task-buttons {
+    padding-right: 15px; /* 与添加任务按钮的右边距保持一致 */
+  }
+}
+
+@media (min-width: 992px) {
+  .display-setting-row > .col-lg-3 {
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+  }
+  .display-setting-row {
+    margin-left: -4px !important;
+    margin-right: -4px !important;
+  }
+}
+
+.display-setting-row > [class*='col-'] {
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
+.display-setting-row {
+  margin-left: -4px !important;
+  margin-right: -4px !important;
+}
+
+/* 任务单元基础样式 */
+.task {
+  position: relative;
+  cursor: pointer;
+}
+
+/* 任务展开后的配置区域使用默认指针 */
+.task .collapse {
+  cursor: default;
+}
+
+/* 任务按钮悬停显示样式 */
+.task-buttons .hover-only {
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  position: absolute;
+  right: 0;
+  visibility: hidden;
+}
+
+/* 修改悬停触发范围到整个任务单元 */
+.task:hover .task-buttons .hover-only {
+  opacity: 1;
+  visibility: visible;
+  position: static;
+}
+
+/* 确保按钮容器在悬停时保持宽度 */
+.task-buttons {
+  position: relative;
+  min-width: 160px; /* 根据按钮数量和间距调整 */
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 0;
+  margin-right: 0;
+}
+
+/* 确保按钮在悬停时可见 */
+.task:hover .task-buttons {
+  z-index: 1;
+}
+
+/* 添加伪元素扩展整个任务单元的可点击区域 */
+.task::before,
+.task::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 8px;
+  background: transparent;
+  z-index: 0;
+  pointer-events: auto;
+}
+
+.task::before {
+  top: 0;
+}
+
+.task::after {
+  bottom: -8px;
+}
+
+/* 当鼠标悬停在任务单元上时，任务标题变为蓝色 */
+.task:hover .btn.btn-block.text-left {
+  color: var(--focus-border-color);
 }

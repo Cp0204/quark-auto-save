@@ -319,6 +319,64 @@ def run_script_now():
     )
 
 
+# 刷新Plex媒体库
+@app.route("/refresh_plex_library", methods=["POST"])
+def refresh_plex_library():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+    
+    task_index = request.json.get("task_index")
+    if task_index is None:
+        return jsonify({"success": False, "message": "缺少任务索引"})
+        
+    # 获取任务信息
+    task = config_data["tasklist"][task_index]
+    if not task.get("savepath"):
+        return jsonify({"success": False, "message": "任务没有保存路径"})
+        
+    # 导入Plex插件
+    from plugins.plex import Plex
+    
+    # 初始化Plex插件
+    plex = Plex(**config_data["plugins"]["plex"])
+    if not plex.is_active:
+        return jsonify({"success": False, "message": "Plex 插件未正确配置"})
+        
+    # 执行刷新
+    plex.run(task)
+    
+    return jsonify({"success": True, "message": "成功刷新 Plex 媒体库"})
+
+
+# 刷新AList目录
+@app.route("/refresh_alist_directory", methods=["POST"])
+def refresh_alist_directory():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+    
+    task_index = request.json.get("task_index")
+    if task_index is None:
+        return jsonify({"success": False, "message": "缺少任务索引"})
+        
+    # 获取任务信息
+    task = config_data["tasklist"][task_index]
+    if not task.get("savepath"):
+        return jsonify({"success": False, "message": "任务没有保存路径"})
+        
+    # 导入AList插件
+    from plugins.alist import Alist
+    
+    # 初始化AList插件
+    alist = Alist(**config_data["plugins"]["alist"])
+    if not alist.is_active:
+        return jsonify({"success": False, "message": "AList 插件未正确配置"})
+        
+    # 执行刷新
+    alist.run(task)
+    
+    return jsonify({"success": True, "message": "成功刷新 AList 目录"})
+
+
 @app.route("/task_suggestions")
 def get_task_suggestions():
     if not is_login():

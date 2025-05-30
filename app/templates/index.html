@@ -440,6 +440,63 @@
               </div>
             </div>
 
+            <div class="row title" title="设置任务列表页面的任务按钮的显示方式，刷新Plex媒体库和刷新AList目录按钮仅在配置了对应插件的前提下才支持显示">
+              <div class="col">
+                <h2 style="display: inline-block; font-size: 1.5rem;">显示设置</h2>
+                <span class="badge badge-pill badge-light">
+                  <a href="#"><i class="bi bi-question-circle"></i></a>
+                </span>
+              </div>
+            </div>
+            <div class="row mb-2 display-setting-row">
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">运行此任务</span>
+                  </div>
+                  <select class="form-control" v-model="formData.button_display.run_task">
+                    <option value="always">始终显示</option>
+                    <option value="hover">悬停显示</option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">删除此任务</span>
+                  </div>
+                  <select class="form-control" v-model="formData.button_display.delete_task">
+                    <option value="always">始终显示</option>
+                    <option value="hover">悬停显示</option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">刷新 Plex 媒体库</span>
+                  </div>
+                  <select class="form-control" v-model="formData.button_display.refresh_plex">
+                    <option value="always">始终显示</option>
+                    <option value="hover">悬停显示</option>
+                    <option value="disabled">禁用</option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">刷新 AList 目录</span>
+                  </div>
+                  <select class="form-control" v-model="formData.button_display.refresh_alist">
+                    <option value="always">始终显示</option>
+                    <option value="hover">悬停显示</option>
+                    <option value="disabled">禁用</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
           </div>
 
           <div v-if="activeTab === 'tasklist'">
@@ -483,10 +540,12 @@
                       <i class="bi bi-caret-right-fill"></i> #<span v-html="`${String(index+1).padStart(2, '0')} ${task.taskname}`"></span>
                     </div>
                   </div>
-                  <div class="col-auto">
+                  <div class="col-auto task-buttons">
+                    <button type="button" class="btn btn-outline-plex" v-if="formData.plugins && formData.plugins.plex && formData.plugins.plex.url && formData.plugins.plex.token && formData.plugins.plex.quark_root_path && formData.button_display.refresh_plex !== 'disabled'" :class="{'hover-only': formData.button_display.refresh_plex === 'hover'}" @click="refreshPlexLibrary(index)" title="刷新Plex媒体库"><img src="./static/Plex.svg" class="plex-icon"></button>
+                    <button type="button" class="btn btn-outline-alist" v-if="formData.plugins && formData.plugins.alist && formData.plugins.alist.url && formData.plugins.alist.token && formData.plugins.alist.storage_id && formData.button_display.refresh_alist !== 'disabled'" :class="{'hover-only': formData.button_display.refresh_alist === 'hover'}" @click="refreshAlistDirectory(index)" title="刷新AList目录"><img src="https://cdn.jsdelivr.net/gh/alist-org/logo@main/logo.svg" class="alist-icon"></button>
                     <button class="btn btn-warning" v-if="task.shareurl_ban" :title="formatShareUrlBanMessage(task.shareurl_ban)" disabled><i class="bi bi-exclamation-circle"></i></button>
-                    <button type="button" class="btn btn-outline-primary" @click="runScriptNow(index)" title="运行此任务" v-else><i class="bi bi-caret-right"></i></button>
-                    <button type="button" class="btn btn-outline-danger" @click="removeTask(index)" title="删除此任务"><i class="bi bi-trash3"></i></button>
+                    <button type="button" class="btn btn-outline-primary" @click="runScriptNow(index)" title="运行此任务" v-if="!task.shareurl_ban" :class="{'hover-only': formData.button_display.run_task === 'hover'}"><i class="bi bi-caret-right"></i></button>
+                    <button type="button" class="btn btn-outline-danger" @click="removeTask(index)" title="删除此任务" :class="{'hover-only': formData.button_display.delete_task === 'hover'}"><i class="bi bi-trash3"></i></button>
                   </div>
                 </div>
                 <div class="collapse ml-3" :id="'collapse_'+index">
@@ -1006,6 +1065,12 @@
           webui: {
             username: "",
             password: ""
+          },
+          button_display: {
+            run_task: "always",
+            delete_task: "always",
+            refresh_plex: "always",
+            refresh_alist: "always"
           }
         },
         userInfoList: [], // 用户信息列表
@@ -1523,6 +1588,15 @@
               // 确保剧集识别模式存在
               if (!config_data.episode_patterns) {
                 config_data.episode_patterns = [];
+              }
+              // 确保按钮显示配置存在
+              if (!config_data.button_display) {
+                config_data.button_display = {
+                  run_task: "always",
+                  delete_task: "always",
+                  refresh_plex: "always",
+                  refresh_alist: "always"
+                };
               }
               this.formData = config_data;
               setTimeout(() => {
@@ -3583,6 +3657,32 @@
               this.modalLoading = false;
             });
           }
+        },
+        refreshPlexLibrary(index) {
+          axios.post('/refresh_plex_library', { task_index: index })
+            .then(response => {
+              if (response.data.success) {
+                this.showToast(response.data.message);
+              } else {
+                alert(response.data.message);
+              }
+            })
+            .catch(error => {
+              alert("刷新 Plex 媒体库失败: " + (error.response?.data?.message || error.message || "未知错误"));
+            });
+        },
+        refreshAlistDirectory(index) {
+          axios.post('/refresh_alist_directory', { task_index: index })
+            .then(response => {
+              if (response.data.success) {
+                this.showToast(response.data.message);
+              } else {
+                alert(response.data.message);
+              }
+            })
+            .catch(error => {
+              alert("刷新 AList 目录失败: " + (error.response?.data?.message || error.message || "未知错误"));
+            });
         },
       }
     });
