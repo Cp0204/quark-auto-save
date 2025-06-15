@@ -101,8 +101,13 @@ class Alist_sync:
         data = self.get_storage_path(self.quark_storage_id)
         if data["driver"] != "Quark":
             print(f"Alist同步: 存储{slef.quark_storage_id}非夸克存储❌ {data["driver"]}")
-        else:
-            self.quark_mount_path = data["mount_path"]
+            return 0
+        quark_mount_root_path = re.sub(r".*root_folder_id\":\"",'',data["addition"])
+        quark_mount_root_path = re.sub(r"\",.*", '', quark_mount_root_path)
+        if quark_mount_root_path != "0" or quark_mount_root_path != "":
+            print(f"Alist同步: 存储{self.quark_storage_id}挂载的目录非夸克根目录❌")
+            return 0
+        self.quark_mount_path = data["mount_path"]
 
         #获取保存路径的挂载根目录
         if self.save_storage_id != 0:
