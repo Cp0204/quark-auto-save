@@ -104,7 +104,7 @@ class Alist_sync:
             return 0
         quark_mount_root_path = re.sub(r".*root_folder_id\":\"",'',data["addition"])
         quark_mount_root_path = re.sub(r"\",.*", '', quark_mount_root_path)
-        if quark_mount_root_path != "0" or quark_mount_root_path != "":
+        if quark_mount_root_path != "0" and quark_mount_root_path != "":
             print(f"Alist同步: 存储{self.quark_storage_id}挂载的目录非夸克根目录❌")
             return 0
         self.quark_mount_path = data["mount_path"]
