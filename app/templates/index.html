@@ -2478,7 +2478,7 @@
               alert('删除项目出错: ' + (error.response?.data?.message || error.message));
             });
         },
-        getSavepathDetail(params = 0) {
+        getSavepathDetail(params = 0, retryCount = 0, maxRetries = 3) {
           if (params === "" || params === null || params === undefined) {
             // 为空字符串时直接使用根目录fid
             params = 0;
@@ -2499,8 +2499,18 @@
             }
             this.modalLoading = false;
           }).catch(error => {
-            this.fileSelect.error = "获取文件夹列表失败";
-            this.modalLoading = false;
+            // 如果还有重试次数，则进行重试
+            if (retryCount < maxRetries) {
+              console.log(`获取文件夹列表失败，正在进行第 ${retryCount + 1} 次重试...`);
+              // 短暂延迟后重试
+              setTimeout(() => {
+                this.getSavepathDetail(params, retryCount + 1, maxRetries);
+              }, 1000); // 1秒后重试
+            } else {
+              // 超过最大重试次数，显示错误信息
+              this.fileSelect.error = "获取文件夹列表失败，请关闭窗口再试一次";
+              this.modalLoading = false;
+            }
           });
         },
         showSavepathSelect(index) {
@@ -2528,7 +2538,7 @@
             this.getSavepathDetail(savepath);
           }
         },
-        getShareDetail() {
+        getShareDetail(retryCount = 0, maxRetries = 3) {
           this.modalLoading = true;
           axios.post('/get_share_detail', {
             shareurl: this.fileSelect.shareurl,
@@ -2574,8 +2584,18 @@
             }
             this.modalLoading = false;
           }).catch(error => {
-            this.fileSelect.error = "获取文件夹列表失败";
-            this.modalLoading = false;
+            // 如果还有重试次数，则进行重试
+            if (retryCount < maxRetries) {
+              console.log(`获取文件夹列表失败，正在进行第 ${retryCount + 1} 次重试...`);
+              // 短暂延迟后重试
+              setTimeout(() => {
+                this.getShareDetail(retryCount + 1, maxRetries);
+              }, 1000); // 1秒后重试
+            } else {
+              // 超过最大重试次数，显示错误信息
+              this.fileSelect.error = "获取文件夹列表失败，请关闭窗口再试一次";
+              this.modalLoading = false;
+            }
           });
         },
         showShareSelect(index, shareurl = null) {
@@ -2609,7 +2629,8 @@
           }
           
           $('#fileSelectModal').modal('toggle');
-          this.getShareDetail();
+          // 调用getShareDetail时不传递任何参数，使用默认的重试机制
+          this.getShareDetail(0, 3);
           
           // 命名预览模式下，确保在模态框显示后检查滚动条状态
           if (this.fileSelect.previewRegex) {
@@ -2622,7 +2643,8 @@
           path = { fid: fid, name: name }
           if (this.fileSelect.selectShare) {
             this.fileSelect.shareurl = this.getShareurl(this.fileSelect.shareurl, path);
-            this.getShareDetail();
+            // 使用重试机制调用getShareDetail
+            this.getShareDetail(0, 3);
           } else {
             if (fid == "0") {
               this.fileSelect.paths = []
@@ -2634,7 +2656,8 @@
                 this.fileSelect.paths.push({ fid: fid, name: name })
               }
             }
-            this.getSavepathDetail(fid);
+            // 使用重试机制调用getSavepathDetail
+            this.getSavepathDetail(fid, 0, 3);
           }
         },
         selectCurrentFolder(addTaskname = false) {
