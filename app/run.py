@@ -680,7 +680,7 @@ def get_share_detail():
                     if any(word in item['file_name'] for word in filterwords_list):
                         item["filtered"] = True
             
-            # 为每个文件生成新文件名
+            # 为每个文件生成新文件名并存储剧集编号用于排序
             for file in sorted_files:
                 if not file.get("filtered"):
                     # 获取文件扩展名
@@ -694,9 +694,12 @@ def get_share_detail():
                             file["file_name_re"] = f"{episode_num:02d}{file_ext}"
                         else:
                             file["file_name_re"] = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                        # 存储原始的剧集编号，用于数值排序
+                        file["episode_number"] = episode_num
                     else:
                         # 无法提取剧集号，标记为无法处理
                         file["file_name_re"] = "❌ 无法识别剧集号"
+                        file["episode_number"] = 9999999  # 给一个很大的值，确保排在最后
                     
             return share_detail
         else:

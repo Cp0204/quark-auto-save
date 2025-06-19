@@ -3212,14 +3212,13 @@
         },
         // 文件选择模态框的排序方法
         sortFileList(field) {
-          // 如果点击了当前排序字段，则切换排序顺序
+          // 切换排序方向
           if (this.fileSelect.sortBy === field) {
             this.fileSelect.sortOrder = this.fileSelect.sortOrder === 'asc' ? 'desc' : 'asc';
           } else {
-            // 如果点击了不同的字段，则设置为该字段并使用默认排序顺序
             this.fileSelect.sortBy = field;
-            // 对于日期和重命名列使用降序，其他字段使用升序
-            this.fileSelect.sortOrder = field === 'updated_at' || field === 'file_name_re' ? 'desc' : 'asc';
+            // 默认降序（除了文件名外）
+            this.fileSelect.sortOrder = field === 'file_name' ? 'asc' : 'desc';
           }
           
           // 按选定字段和顺序对文件列表进行排序
@@ -3235,9 +3234,15 @@
               aValue = a.file_name.toLowerCase();
               bValue = b.file_name.toLowerCase();
             } else if (field === 'file_name_re') {
-              // 对于重命名列，使用重命名后的文件名进行排序
-              aValue = (a.file_name_re || '').toLowerCase();
-              bValue = (b.file_name_re || '').toLowerCase();
+              // 对于重命名列，优先使用episode_number进行数值排序（如果存在）
+              if (a.episode_number !== undefined && b.episode_number !== undefined) {
+                aValue = a.episode_number;
+                bValue = b.episode_number;
+              } else {
+                // 否则使用重命名后的文件名进行字符串排序
+                aValue = (a.file_name_re || '').toLowerCase();
+                bValue = (b.file_name_re || '').toLowerCase();
+              }
             } else if (field === 'size') {
               // 对于文件大小，使用数字进行排序
               if (a.dir && b.dir) {
@@ -3279,9 +3284,15 @@
               aValue = a.file_name.toLowerCase();
               bValue = b.file_name.toLowerCase();
             } else if (field === 'file_name_re') {
-              // 对于重命名列，使用重命名后的文件名进行排序
-              aValue = (a.file_name_re || '').toLowerCase();
-              bValue = (b.file_name_re || '').toLowerCase();
+              // 对于重命名列，优先使用episode_number进行数值排序（如果存在）
+              if (a.episode_number !== undefined && b.episode_number !== undefined) {
+                aValue = a.episode_number;
+                bValue = b.episode_number;
+              } else {
+                // 否则使用重命名后的文件名进行字符串排序
+                aValue = (a.file_name_re || '').toLowerCase();
+                bValue = (b.file_name_re || '').toLowerCase();
+              }
             } else if (field === 'size') {
               // 对于文件大小，使用数字进行排序
               if (a.dir && b.dir) {
