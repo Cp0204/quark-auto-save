@@ -4119,3 +4119,13 @@ select.task-filter-select,
   position: relative;
   z-index: 2;
 }
+
+/* 添加任务名称悬停样式 */
+.task-name-hover {
+  cursor: pointer;
+  transition: color 0.2s ease-in-out;
+}
+
+.task-name-hover:hover {
+  color: var(--focus-border-color) !important;
+}

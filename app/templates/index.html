@@ -768,13 +768,15 @@
                       <div v-if="!record._expandedFields || !record._expandedFields.includes('task_name')" 
                            class="text-truncate" 
                            :title="record.task_name" 
-                           v-check-overflow="index + '|task_name'">
+                           v-check-overflow="index + '|task_name'"
+                           :class="{'task-name-hover': true}"
+                           @click.stop="filterByTaskName(record.task_name, $event)">
                         {{ record.task_name }}
                       </div>
                       <div class="expand-button" v-if="isTextTruncated(record.task_name, index, 'task_name')" @click.stop="toggleExpand(index, 'task_name', $event)">
                         <i :class="record._expandedFields && record._expandedFields.length > 0 ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
                       </div>
-                      <div class="expanded-text" v-if="record._expandedFields && record._expandedFields.includes('task_name')">
+                      <div class="expanded-text task-name-hover" v-if="record._expandedFields && record._expandedFields.includes('task_name')" @click.stop="filterByTaskName(record.task_name, $event)">
                         {{ record.task_name }}
                       </div>
                     </td>
@@ -3683,6 +3685,23 @@
             .catch(error => {
               alert("刷新 AList 目录失败: " + (error.response?.data?.message || error.message || "未知错误"));
             });
+        },
+        filterByTaskName(taskName, event) {
+          // 防止事件冒泡，避免触发行选择
+          if (event) {
+            event.stopPropagation();
+          }
+          
+          // 如果当前已经筛选了该任务，则取消筛选
+          if (this.historyTaskSelected === taskName) {
+            this.historyTaskSelected = "";
+          } else {
+            // 设置任务筛选值
+            this.historyTaskSelected = taskName;
+          }
+          
+          // 重新加载记录
+          this.loadHistoryRecords();
         },
       }
     });
