@@ -523,7 +523,7 @@
                       <option value="">全部任务</option>
                       <option v-for="task in taskNames" :value="task" v-html="task"></option>
                     </select>
-                    <i class="bi bi-chevron-down select-arrow" style="position: absolute; pointer-events: none; color: var(--dark-text-color);"></i>
+                    <!-- <i class="bi bi-chevron-down select-arrow" style="position: absolute; pointer-events: none; color: var(--dark-text-color);"></i> -->
                   </div>
                   <div class="input-group-append">
                     <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearData('taskDirSelected')"><i class="bi bi-x-lg"></i></button>
@@ -735,7 +735,7 @@
                       <option value="">全部任务</option>
                       <option v-for="task in historyTasks" :value="task" v-html="task"></option>
                     </select>
-                    <i class="bi bi-chevron-down select-arrow" style="position: absolute; pointer-events: none; color: var(--dark-text-color);"></i>
+                    <!-- <i class="bi bi-chevron-down select-arrow" style="position: absolute; pointer-events: none; color: var(--dark-text-color);"></i> -->
                   </div>
                   <div class="input-group-append">
                     <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearData('historyTaskSelected')"><i class="bi bi-x-lg"></i></button>
