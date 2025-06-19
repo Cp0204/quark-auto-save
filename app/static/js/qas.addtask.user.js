@@ -30,11 +30,11 @@
             showCancelButton: true,
             html: `
                 <label for="qas_base">QAS 地址</label>
-                <input id="qas_base" class="swal2-input" placeholder="如: http://192.168.1.8:5005" value="${qas_base}">
+                <input id="qas_base" class="swal2-input" placeholder="如: http://192.168.1.8:5005" value="${qas_base}"><br>
                 <label for="qas_token">QAS Token</label>
-                <input id="qas_token" class="swal2-input" placeholder="v0.5+ 系统配置中查找" value="${qas_token}">
+                <input id="qas_token" class="swal2-input" placeholder="v0.5+ 系统配置中查找" value="${qas_token}"><br>
                 <label for="qas_token">默认正则</label>
-                <input id="default_pattern" class="swal2-input" placeholder="如 $TV" value="${default_pattern}">
+                <input id="default_pattern" class="swal2-input" placeholder="如 $TV" value="${default_pattern}"><br>
                 <label for="qas_token">默认替换</label><input id="default_replace" class="swal2-input" value="${default_replace}">
             `,
             focusConfirm: false,

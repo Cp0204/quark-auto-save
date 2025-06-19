@@ -75,7 +75,7 @@ docker run -d \
 
 ```json
 {
-  "media_servers": {
+  "plugins": {
     "emby": {
       "url": "http://your-emby-server:8096",
       "token": "YOUR_EMBY_TOKEN"
@@ -92,3 +92,4 @@ docker run -d \
 | ------- | -------------------- | --------------------------------------- |
 | plex.py | 自动刷新 Plex 媒体库 | [zhazhayu](https://github.com/zhazhayu) |
 | alist_strm_gen.py | 自动生成strm | [xiaoQQya](https://github.com/xiaoQQya) |
+| alist_sync.py | 调用 alist 实现跨网盘转存 | [jenfonro](https://github.com/jenfonro) |
