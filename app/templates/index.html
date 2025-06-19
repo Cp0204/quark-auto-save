@@ -115,6 +115,66 @@
       }
     }
   });
+  
+  // 添加中文数字转阿拉伯数字的函数
+  function chineseToArabic(chinese) {
+    if (!chinese) {
+      return null;
+    }
+    
+    // 数字映射
+    const digitMap = {
+      '零': 0, '一': 1, '二': 2, '三': 3, '四': 4, 
+      '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, 
+      '两': 2
+    };
+    
+    // 单位映射
+    const unitMap = {
+      '十': 10, 
+      '百': 100, 
+      '千': 1000, 
+      '万': 10000
+    };
+    
+    // 如果是单个字符，直接返回对应数字
+    if (chinese.length === 1) {
+      if (chinese === '十') return 10;
+      return digitMap[chinese];
+    }
+    
+    let result = 0;
+    let section = 0;
+    let number = 0;
+    
+    // 从左向右处理
+    for (let i = 0; i < chinese.length; i++) {
+      const char = chinese[i];
+      
+      if (char in digitMap) {
+        number = digitMap[char];
+      } else if (char in unitMap) {
+        const unit = unitMap[char];
+        // 如果前面没有数字，默认为1，例如"十"表示1*10=10
+        section += (number || 1) * unit;
+        number = 0;
+        
+        // 如果是万级单位，累加到结果并重置section
+        if (unit === 10000) {
+          result += section;
+          section = 0;
+        }
+      } else {
+        // 非法字符
+        return null;
+      }
+    }
+    
+    // 加上最后的数字和小节
+    result += section + number;
+    
+    return result;
+  }
   </script>
 </head>
 
@@ -1790,13 +1850,10 @@
             if (match) {
               separatorMatch = match;
               // 根据不同的格式，确定季序号的位置
-              if (match[3] && match[3].match(/[一二三四五六七八九十零]/)) {
+              if (match[3] && match[3].match(/[一二三四五六七八九十百千万零两]/)) {
                 // 将中文数字转换为阿拉伯数字
-                const chineseToNumber = {
-                  '零': '0', '一': '1', '二': '2', '三': '3', '四': '4',
-                  '五': '5', '六': '6', '七': '7', '八': '8', '九': '9', '十': '10'
-                };
-                seasonNumber = chineseToNumber[match[3]] || '01';
+                const arabicNumber = chineseToArabic(match[3]);
+                seasonNumber = arabicNumber !== null ? String(arabicNumber) : '01';
               } else {
                 seasonNumber = match[3] || '01';
               }
@@ -1893,18 +1950,15 @@
             if (pathParts.length > 0) {
               const lastPart = pathParts[pathParts.length - 1];
               // 匹配中文季序号格式
-              const chineseSeasonMatch = lastPart.match(/^(.*?)([\s\.\-_]+)第([一二三四五六七八九十零]+)季$/);
+              const chineseSeasonMatch = lastPart.match(/^(.*?)([\s\.\-_]+)第([一二三四五六七八九十百千万零两]+)季$/);
               if (chineseSeasonMatch) {
                 const showName = chineseSeasonMatch[1].trim();
                 const separator = chineseSeasonMatch[2];
                 const chineseSeason = chineseSeasonMatch[3];
                 
                 // 将中文数字转换为阿拉伯数字
-                const chineseToNumber = {
-                  '零': '0', '一': '1', '二': '2', '三': '3', '四': '4',
-                  '五': '5', '六': '6', '七': '7', '八': '8', '九': '9', '十': '10'
-                };
-                const seasonNumber = chineseToNumber[chineseSeason] || '1';
+                const arabicNumber = chineseToArabic(chineseSeason);
+                const seasonNumber = arabicNumber !== null ? String(arabicNumber) : '1';
                 
                 // 更新最末级目录为标准格式
                 pathParts[pathParts.length - 1] = showName + separator + 'S' + seasonNumber.padStart(2, '0');

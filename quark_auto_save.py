@@ -454,7 +454,7 @@ def chinese_to_arabic(chinese):
     digit_map = {
         '零': 0, '一': 1, '二': 2, '三': 3, '四': 4, 
         '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, 
-        '两': 2, '十': 10
+        '两': 2
     }
     
     # 单位映射
@@ -467,37 +467,36 @@ def chinese_to_arabic(chinese):
     
     # 如果是单个字符，直接返回对应数字
     if len(chinese) == 1:
+        if chinese == '十':
+            return 10
         return digit_map.get(chinese)
     
-    # 如果只有"十"
-    if chinese == '十':
-        return 10
-    
     result = 0
-    temp = 0
-    unit = 1
+    section = 0
+    number = 0
     
-    # 从右向左处理
-    for i in range(len(chinese) - 1, -1, -1):
+    # 从左向右处理
+    for i in range(len(chinese)):
         char = chinese[i]
         
-        # 处理数字
-        if char in digit_map and char != '十':
-            temp = digit_map[char]
-            result += temp * unit
-            unit = 1  # 重置单位
-        # 处理单位
+        if char in digit_map:
+            number = digit_map[char]
         elif char in unit_map:
-            if char == '十' and i == 0:  # 处理"十X"的情况
-                result += 10 + digit_map.get(chinese[1], 0)
-                break
-            else:
-                unit = unit_map[char]
-                if i == 0:  # 如果单位在最前面，如"十三"，则前面默认为1
-                    result += unit
+            unit = unit_map[char]
+            # 如果前面没有数字，默认为1，例如"十"表示1*10=10
+            section += (number or 1) * unit
+            number = 0
+            
+            # 如果是万级单位，累加到结果并重置section
+            if unit == 10000:
+                result += section
+                section = 0
         else:
             # 非法字符
             return None
+    
+    # 加上最后的数字和小节
+    result += section + number
     
     return result
 
