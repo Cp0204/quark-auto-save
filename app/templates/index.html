@@ -2401,6 +2401,9 @@
         },
         selectSuggestion(index, suggestion) {
           this.smart_param.showSuggestions = false;
+          // 确保显示的是选择需转存的文件夹界面，而不是命名预览界面
+          this.fileSelect.previewRegex = false;
+          this.fileSelect.selectDir = true;
           this.showShareSelect(index, suggestion.shareurl);
         },
         addMagicRegex() {
