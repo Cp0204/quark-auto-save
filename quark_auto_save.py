@@ -3238,7 +3238,7 @@ def format_bytes(size_bytes: int) -> str:
     while size_bytes >= 1024 and i < len(units) - 1:
         size_bytes /= 1024
         i += 1
-    return f"{size_bytes:.2f}{units[i]}"
+    return f"{size_bytes:.2f} {units[i]}"
 
 
 def do_sign(account):
