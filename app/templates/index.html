@@ -2478,7 +2478,7 @@
               alert('删除项目出错: ' + (error.response?.data?.message || error.message));
             });
         },
-        getSavepathDetail(params = 0, retryCount = 0, maxRetries = 3) {
+        getSavepathDetail(params = 0, retryCount = 0, maxRetries = 1) {
           if (params === "" || params === null || params === undefined) {
             // 为空字符串时直接使用根目录fid
             params = 0;
@@ -2505,7 +2505,7 @@
               // 短暂延迟后重试
               setTimeout(() => {
                 this.getSavepathDetail(params, retryCount + 1, maxRetries);
-              }, 1000); // 1秒后重试
+              }, 2000); // 2秒后重试
             } else {
               // 超过最大重试次数，显示错误信息
               this.fileSelect.error = "获取文件夹列表失败，请关闭窗口再试一次";
@@ -2538,7 +2538,7 @@
             this.getSavepathDetail(savepath);
           }
         },
-        getShareDetail(retryCount = 0, maxRetries = 3) {
+        getShareDetail(retryCount = 0, maxRetries = 1) {
           this.modalLoading = true;
           axios.post('/get_share_detail', {
             shareurl: this.fileSelect.shareurl,
@@ -2590,7 +2590,7 @@
               // 短暂延迟后重试
               setTimeout(() => {
                 this.getShareDetail(retryCount + 1, maxRetries);
-              }, 1000); // 1秒后重试
+              }, 2000); // 2秒后重试
             } else {
               // 超过最大重试次数，显示错误信息
               this.fileSelect.error = "获取文件夹列表失败，请关闭窗口再试一次";
@@ -2630,7 +2630,7 @@
           
           $('#fileSelectModal').modal('toggle');
           // 调用getShareDetail时不传递任何参数，使用默认的重试机制
-          this.getShareDetail(0, 3);
+          this.getShareDetail(0, 1);
           
           // 命名预览模式下，确保在模态框显示后检查滚动条状态
           if (this.fileSelect.previewRegex) {
@@ -2644,7 +2644,7 @@
           if (this.fileSelect.selectShare) {
             this.fileSelect.shareurl = this.getShareurl(this.fileSelect.shareurl, path);
             // 使用重试机制调用getShareDetail
-            this.getShareDetail(0, 3);
+            this.getShareDetail(0, 1);
           } else {
             if (fid == "0") {
               this.fileSelect.paths = []
@@ -2657,7 +2657,7 @@
               }
             }
             // 使用重试机制调用getSavepathDetail
-            this.getSavepathDetail(fid, 0, 3);
+            this.getSavepathDetail(fid, 0, 1);
           }
         },
         selectCurrentFolder(addTaskname = false) {
