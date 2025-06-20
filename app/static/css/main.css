@@ -849,6 +849,8 @@ select.form-control {
   box-sizing: border-box !important;
   border-top-left-radius: 0 !important; /* 移除左上角圆角 */
   border-bottom-left-radius: 0 !important; /* 移除左下角圆角 */
+  border-top-right-radius: 0 !important; /* 移除右上角圆角 */
+  border-bottom-right-radius: 0 !important; /* 移除右下角圆角 */
 }
 
 /* 为确保输入组中select元素的边角正确 */
@@ -4098,4 +4100,32 @@ table.selectable-records .expand-button:hover {
 /* 当鼠标悬停在任务单元上时，任务标题变为蓝色 */
 .task:hover .btn.btn-block.text-left {
   color: var(--focus-border-color);
+}
+
+select.task-filter-select,
+.task-filter-select {
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+.input-group .form-control:focus {
+  z-index: 3;
+  position: relative;
+}
+.input-group .form-control:focus + .input-group-append .btn,
+.input-group .form-control:focus + .input-group-append .btn:focus {
+  border-left-color: #2563eb !important; /* 激活时的边框色 */
+  box-shadow: none !important;
+  position: relative;
+  z-index: 2;
+}
+
+/* 添加任务名称悬停样式 */
+.task-name-hover {
+  cursor: pointer;
+  transition: color 0.2s ease-in-out;
+}
+
+.task-name-hover:hover {
+  color: var(--focus-border-color) !important;
 }

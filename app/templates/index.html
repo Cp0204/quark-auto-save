@@ -115,6 +115,66 @@
       }
     }
   });
+  
+  // 添加中文数字转阿拉伯数字的函数
+  function chineseToArabic(chinese) {
+    if (!chinese) {
+      return null;
+    }
+    
+    // 数字映射
+    const digitMap = {
+      '零': 0, '一': 1, '二': 2, '三': 3, '四': 4, 
+      '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, 
+      '两': 2
+    };
+    
+    // 单位映射
+    const unitMap = {
+      '十': 10, 
+      '百': 100, 
+      '千': 1000, 
+      '万': 10000
+    };
+    
+    // 如果是单个字符，直接返回对应数字
+    if (chinese.length === 1) {
+      if (chinese === '十') return 10;
+      return digitMap[chinese];
+    }
+    
+    let result = 0;
+    let section = 0;
+    let number = 0;
+    
+    // 从左向右处理
+    for (let i = 0; i < chinese.length; i++) {
+      const char = chinese[i];
+      
+      if (char in digitMap) {
+        number = digitMap[char];
+      } else if (char in unitMap) {
+        const unit = unitMap[char];
+        // 如果前面没有数字，默认为1，例如"十"表示1*10=10
+        section += (number || 1) * unit;
+        number = 0;
+        
+        // 如果是万级单位，累加到结果并重置section
+        if (unit === 10000) {
+          result += section;
+          section = 0;
+        }
+      } else {
+        // 非法字符
+        return null;
+      }
+    }
+    
+    // 加上最后的数字和小节
+    result += section + number;
+    
+    return result;
+  }
   </script>
 </head>
 
@@ -523,7 +583,7 @@
                       <option value="">全部任务</option>
                       <option v-for="task in taskNames" :value="task" v-html="task"></option>
                     </select>
-                    <i class="bi bi-chevron-down select-arrow" style="position: absolute; pointer-events: none; color: var(--dark-text-color);"></i>
+                    <!-- <i class="bi bi-chevron-down select-arrow" style="position: absolute; pointer-events: none; color: var(--dark-text-color);"></i> -->
                   </div>
                   <div class="input-group-append">
                     <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearData('taskDirSelected')"><i class="bi bi-x-lg"></i></button>
@@ -735,7 +795,7 @@
                       <option value="">全部任务</option>
                       <option v-for="task in historyTasks" :value="task" v-html="task"></option>
                     </select>
-                    <i class="bi bi-chevron-down select-arrow" style="position: absolute; pointer-events: none; color: var(--dark-text-color);"></i>
+                    <!-- <i class="bi bi-chevron-down select-arrow" style="position: absolute; pointer-events: none; color: var(--dark-text-color);"></i> -->
                   </div>
                   <div class="input-group-append">
                     <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearData('historyTaskSelected')"><i class="bi bi-x-lg"></i></button>
@@ -768,13 +828,15 @@
                       <div v-if="!record._expandedFields || !record._expandedFields.includes('task_name')" 
                            class="text-truncate" 
                            :title="record.task_name" 
-                           v-check-overflow="index + '|task_name'">
+                           v-check-overflow="index + '|task_name'"
+                           :class="{'task-name-hover': true}"
+                           @click.stop="filterByTaskName(record.task_name, $event)">
                         {{ record.task_name }}
                       </div>
                       <div class="expand-button" v-if="isTextTruncated(record.task_name, index, 'task_name')" @click.stop="toggleExpand(index, 'task_name', $event)">
                         <i :class="record._expandedFields && record._expandedFields.length > 0 ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
                       </div>
-                      <div class="expanded-text" v-if="record._expandedFields && record._expandedFields.includes('task_name')">
+                      <div class="expanded-text task-name-hover" v-if="record._expandedFields && record._expandedFields.includes('task_name')" @click.stop="filterByTaskName(record.task_name, $event)">
                         {{ record.task_name }}
                       </div>
                     </td>
@@ -1788,13 +1850,10 @@
             if (match) {
               separatorMatch = match;
               // 根据不同的格式，确定季序号的位置
-              if (match[3] && match[3].match(/[一二三四五六七八九十零]/)) {
+              if (match[3] && match[3].match(/[一二三四五六七八九十百千万零两]/)) {
                 // 将中文数字转换为阿拉伯数字
-                const chineseToNumber = {
-                  '零': '0', '一': '1', '二': '2', '三': '3', '四': '4',
-                  '五': '5', '六': '6', '七': '7', '八': '8', '九': '9', '十': '10'
-                };
-                seasonNumber = chineseToNumber[match[3]] || '01';
+                const arabicNumber = chineseToArabic(match[3]);
+                seasonNumber = arabicNumber !== null ? String(arabicNumber) : '01';
               } else {
                 seasonNumber = match[3] || '01';
               }
@@ -1891,18 +1950,15 @@
             if (pathParts.length > 0) {
               const lastPart = pathParts[pathParts.length - 1];
               // 匹配中文季序号格式
-              const chineseSeasonMatch = lastPart.match(/^(.*?)([\s\.\-_]+)第([一二三四五六七八九十零]+)季$/);
+              const chineseSeasonMatch = lastPart.match(/^(.*?)([\s\.\-_]+)第([一二三四五六七八九十百千万零两]+)季$/);
               if (chineseSeasonMatch) {
                 const showName = chineseSeasonMatch[1].trim();
                 const separator = chineseSeasonMatch[2];
                 const chineseSeason = chineseSeasonMatch[3];
                 
                 // 将中文数字转换为阿拉伯数字
-                const chineseToNumber = {
-                  '零': '0', '一': '1', '二': '2', '三': '3', '四': '4',
-                  '五': '5', '六': '6', '七': '7', '八': '8', '九': '9', '十': '10'
-                };
-                const seasonNumber = chineseToNumber[chineseSeason] || '1';
+                const arabicNumber = chineseToArabic(chineseSeason);
+                const seasonNumber = arabicNumber !== null ? String(arabicNumber) : '1';
                 
                 // 更新最末级目录为标准格式
                 pathParts[pathParts.length - 1] = showName + separator + 'S' + seasonNumber.padStart(2, '0');
@@ -2345,6 +2401,9 @@
         },
         selectSuggestion(index, suggestion) {
           this.smart_param.showSuggestions = false;
+          // 确保显示的是选择需转存的文件夹界面，而不是命名预览界面
+          this.fileSelect.previewRegex = false;
+          this.fileSelect.selectDir = true;
           this.showShareSelect(index, suggestion.shareurl);
         },
         addMagicRegex() {
@@ -2419,7 +2478,7 @@
               alert('删除项目出错: ' + (error.response?.data?.message || error.message));
             });
         },
-        getSavepathDetail(params = 0) {
+        getSavepathDetail(params = 0, retryCount = 0, maxRetries = 3) {
           if (params === "" || params === null || params === undefined) {
             // 为空字符串时直接使用根目录fid
             params = 0;
@@ -2440,8 +2499,18 @@
             }
             this.modalLoading = false;
           }).catch(error => {
-            this.fileSelect.error = "获取文件夹列表失败";
-            this.modalLoading = false;
+            // 如果还有重试次数，则进行重试
+            if (retryCount < maxRetries) {
+              console.log(`获取文件夹列表失败，正在进行第 ${retryCount + 1} 次重试...`);
+              // 短暂延迟后重试
+              setTimeout(() => {
+                this.getSavepathDetail(params, retryCount + 1, maxRetries);
+              }, 1000); // 1秒后重试
+            } else {
+              // 超过最大重试次数，显示错误信息
+              this.fileSelect.error = "获取文件夹列表失败，请关闭窗口再试一次";
+              this.modalLoading = false;
+            }
           });
         },
         showSavepathSelect(index) {
@@ -2469,7 +2538,7 @@
             this.getSavepathDetail(savepath);
           }
         },
-        getShareDetail() {
+        getShareDetail(retryCount = 0, maxRetries = 3) {
           this.modalLoading = true;
           axios.post('/get_share_detail', {
             shareurl: this.fileSelect.shareurl,
@@ -2515,8 +2584,18 @@
             }
             this.modalLoading = false;
           }).catch(error => {
-            this.fileSelect.error = "获取文件夹列表失败";
-            this.modalLoading = false;
+            // 如果还有重试次数，则进行重试
+            if (retryCount < maxRetries) {
+              console.log(`获取文件夹列表失败，正在进行第 ${retryCount + 1} 次重试...`);
+              // 短暂延迟后重试
+              setTimeout(() => {
+                this.getShareDetail(retryCount + 1, maxRetries);
+              }, 1000); // 1秒后重试
+            } else {
+              // 超过最大重试次数，显示错误信息
+              this.fileSelect.error = "获取文件夹列表失败，请关闭窗口再试一次";
+              this.modalLoading = false;
+            }
           });
         },
         showShareSelect(index, shareurl = null) {
@@ -2550,7 +2629,8 @@
           }
           
           $('#fileSelectModal').modal('toggle');
-          this.getShareDetail();
+          // 调用getShareDetail时不传递任何参数，使用默认的重试机制
+          this.getShareDetail(0, 3);
           
           // 命名预览模式下，确保在模态框显示后检查滚动条状态
           if (this.fileSelect.previewRegex) {
@@ -2563,7 +2643,8 @@
           path = { fid: fid, name: name }
           if (this.fileSelect.selectShare) {
             this.fileSelect.shareurl = this.getShareurl(this.fileSelect.shareurl, path);
-            this.getShareDetail();
+            // 使用重试机制调用getShareDetail
+            this.getShareDetail(0, 3);
           } else {
             if (fid == "0") {
               this.fileSelect.paths = []
@@ -2575,7 +2656,8 @@
                 this.fileSelect.paths.push({ fid: fid, name: name })
               }
             }
-            this.getSavepathDetail(fid);
+            // 使用重试机制调用getSavepathDetail
+            this.getSavepathDetail(fid, 0, 3);
           }
         },
         selectCurrentFolder(addTaskname = false) {
@@ -3156,14 +3238,13 @@
         },
         // 文件选择模态框的排序方法
         sortFileList(field) {
-          // 如果点击了当前排序字段，则切换排序顺序
+          // 切换排序方向
           if (this.fileSelect.sortBy === field) {
             this.fileSelect.sortOrder = this.fileSelect.sortOrder === 'asc' ? 'desc' : 'asc';
           } else {
-            // 如果点击了不同的字段，则设置为该字段并使用默认排序顺序
             this.fileSelect.sortBy = field;
-            // 对于日期和重命名列使用降序，其他字段使用升序
-            this.fileSelect.sortOrder = field === 'updated_at' || field === 'file_name_re' ? 'desc' : 'asc';
+            // 默认降序（除了文件名外）
+            this.fileSelect.sortOrder = field === 'file_name' ? 'asc' : 'desc';
           }
           
           // 按选定字段和顺序对文件列表进行排序
@@ -3179,9 +3260,15 @@
               aValue = a.file_name.toLowerCase();
               bValue = b.file_name.toLowerCase();
             } else if (field === 'file_name_re') {
-              // 对于重命名列，使用重命名后的文件名进行排序
-              aValue = (a.file_name_re || '').toLowerCase();
-              bValue = (b.file_name_re || '').toLowerCase();
+              // 对于重命名列，优先使用episode_number进行数值排序（如果存在）
+              if (a.episode_number !== undefined && b.episode_number !== undefined) {
+                aValue = a.episode_number;
+                bValue = b.episode_number;
+              } else {
+                // 否则使用重命名后的文件名进行字符串排序
+                aValue = (a.file_name_re || '').toLowerCase();
+                bValue = (b.file_name_re || '').toLowerCase();
+              }
             } else if (field === 'size') {
               // 对于文件大小，使用数字进行排序
               if (a.dir && b.dir) {
@@ -3223,9 +3310,15 @@
               aValue = a.file_name.toLowerCase();
               bValue = b.file_name.toLowerCase();
             } else if (field === 'file_name_re') {
-              // 对于重命名列，使用重命名后的文件名进行排序
-              aValue = (a.file_name_re || '').toLowerCase();
-              bValue = (b.file_name_re || '').toLowerCase();
+              // 对于重命名列，优先使用episode_number进行数值排序（如果存在）
+              if (a.episode_number !== undefined && b.episode_number !== undefined) {
+                aValue = a.episode_number;
+                bValue = b.episode_number;
+              } else {
+                // 否则使用重命名后的文件名进行字符串排序
+                aValue = (a.file_name_re || '').toLowerCase();
+                bValue = (b.file_name_re || '').toLowerCase();
+              }
             } else if (field === 'size') {
               // 对于文件大小，使用数字进行排序
               if (a.dir && b.dir) {
@@ -3683,6 +3776,23 @@
             .catch(error => {
               alert("刷新 AList 目录失败: " + (error.response?.data?.message || error.message || "未知错误"));
             });
+        },
+        filterByTaskName(taskName, event) {
+          // 防止事件冒泡，避免触发行选择
+          if (event) {
+            event.stopPropagation();
+          }
+          
+          // 如果当前已经筛选了该任务，则取消筛选
+          if (this.historyTaskSelected === taskName) {
+            this.historyTaskSelected = "";
+          } else {
+            // 设置任务筛选值
+            this.historyTaskSelected = taskName;
+          }
+          
+          // 重新加载记录
+          this.loadHistoryRecords();
         },
       }
     });

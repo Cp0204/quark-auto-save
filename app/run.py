@@ -27,6 +27,7 @@ import os
 import re
 import random
 import time
+import treelib
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
@@ -35,19 +36,41 @@ from quark_auto_save import Config, format_bytes
 
 # 添加导入全局extract_episode_number和sort_file_by_name函数
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from quark_auto_save import extract_episode_number, sort_file_by_name
+from quark_auto_save import extract_episode_number, sort_file_by_name, chinese_to_arabic, is_date_format
 
 # 导入数据库模块
 try:
-    from app.sdk.db import RecordDB
+    # 先尝试相对导入
+    from sdk.db import RecordDB
 except ImportError:
-    # 如果没有数据库模块，定义一个空类
-    class RecordDB:
-        def __init__(self, *args, **kwargs):
-            pass
-        
-        def get_records(self, *args, **kwargs):
-            return {"records": [], "pagination": {"total_records": 0, "total_pages": 0, "current_page": 1, "page_size": 20}}
+    try:
+        # 如果相对导入失败，尝试从app包导入
+        from app.sdk.db import RecordDB
+    except ImportError:
+        # 如果没有数据库模块，定义一个空类
+        class RecordDB:
+            def __init__(self, *args, **kwargs):
+                pass
+            
+            def get_records(self, *args, **kwargs):
+                return {"records": [], "pagination": {"total_records": 0, "total_pages": 0, "current_page": 1, "page_size": 20}}
+
+# 导入工具函数
+try:
+    # 先尝试相对导入
+    from sdk.utils import format_bytes, get_file_icon, format_file_display
+except ImportError:
+    try:
+        # 如果相对导入失败，尝试从app包导入
+        from app.sdk.utils import format_bytes, get_file_icon, format_file_display
+    except ImportError:
+        # 如果导入失败，使用默认实现或从quark_auto_save导入
+        # format_bytes已从quark_auto_save导入
+        def get_file_icon(file_name, is_dir=False):
+            return "📄" if not is_dir else "📁"
+            
+        def format_file_display(prefix, icon, name):
+            return f"{prefix}{icon} {name}"
 
 
 def get_app_ver():
@@ -463,37 +486,6 @@ def get_task_suggestions():
         return jsonify({"success": True, "message": f"error: {str(e)}"})
 
 
-# 添加函数，与主程序保持一致
-def is_date_format(number_str):
-    """
-    判断一个纯数字字符串是否可能是日期格式
-    支持的格式：YYYYMMDD, MMDD
-    """
-    # 判断YYYYMMDD格式 (8位数字)
-    if len(number_str) == 8 and number_str.startswith('20'):
-        year = int(number_str[:4])
-        month = int(number_str[4:6])
-        day = int(number_str[6:8])
-        
-        # 简单检查月份和日期是否有效
-        if 1 <= month <= 12 and 1 <= day <= 31:
-            # 可能是日期格式
-            return True
-    
-    # 判断MMDD格式 (4位数字)
-    elif len(number_str) == 4:
-        month = int(number_str[:2])
-        day = int(number_str[2:4])
-        
-        # 简单检查月份和日期是否有效
-        if 1 <= month <= 12 and 1 <= day <= 31:
-            # 可能是日期格式
-            return True
-            
-    # 其他长度的纯数字不视为日期格式
-    return False
-
-
 # 获取分享详情接口
 @app.route("/get_share_detail", methods=["GET", "POST"])
 def get_share_detail():
@@ -599,6 +591,22 @@ def get_share_detail():
             episode_pattern = regex.get("episode_naming")
             episode_patterns = regex.get("episode_patterns", [])
             
+            # 添加中文数字匹配模式
+            chinese_patterns = [
+                {"regex": r'第([一二三四五六七八九十百千万零两]+)集'},
+                {"regex": r'第([一二三四五六七八九十百千万零两]+)期'},
+                {"regex": r'第([一二三四五六七八九十百千万零两]+)话'},
+                {"regex": r'([一二三四五六七八九十百千万零两]+)集'},
+                {"regex": r'([一二三四五六七八九十百千万零两]+)期'},
+                {"regex": r'([一二三四五六七八九十百千万零两]+)话'}
+            ]
+            
+            # 合并中文模式到episode_patterns
+            if episode_patterns:
+                episode_patterns.extend(chinese_patterns)
+            else:
+                episode_patterns = chinese_patterns
+            
             # 调用全局的集编号提取函数
             def extract_episode_number_local(filename):
                 return extract_episode_number(filename, episode_patterns=episode_patterns)
@@ -672,7 +680,7 @@ def get_share_detail():
                     if any(word in item['file_name'] for word in filterwords_list):
                         item["filtered"] = True
             
-            # 为每个文件生成新文件名
+            # 为每个文件生成新文件名并存储剧集编号用于排序
             for file in sorted_files:
                 if not file.get("filtered"):
                     # 获取文件扩展名
@@ -686,9 +694,12 @@ def get_share_detail():
                             file["file_name_re"] = f"{episode_num:02d}{file_ext}"
                         else:
                             file["file_name_re"] = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                        # 存储原始的剧集编号，用于数值排序
+                        file["episode_number"] = episode_num
                     else:
                         # 无法提取剧集号，标记为无法处理
                         file["file_name_re"] = "❌ 无法识别剧集号"
+                        file["episode_number"] = 9999999  # 给一个很大的值，确保排在最后
                     
             return share_detail
         else:

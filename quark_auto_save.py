@@ -141,11 +141,29 @@ def sort_file_by_name(file):
     if match_chinese:
         episode_value = int(match_chinese.group(1))
     
+    # 2.1.1 "第[中文数字]期/集/话" 格式
+    if episode_value == float('inf'):
+        match_chinese_num = re.search(r'第([一二三四五六七八九十百千万零两]+)[期集话]', filename)
+        if match_chinese_num:
+            chinese_num = match_chinese_num.group(1)
+            arabic_num = chinese_to_arabic(chinese_num)
+            if arabic_num is not None:
+                episode_value = arabic_num
+    
     # 2.2 "X集/期/话" 格式
     if episode_value == float('inf'):
         match_chinese_simple = re.search(r'(\d+)[期集话]', filename)
         if match_chinese_simple:
             episode_value = int(match_chinese_simple.group(1))
+    
+    # 2.2.1 "[中文数字]集/期/话" 格式
+    if episode_value == float('inf'):
+        match_chinese_simple_num = re.search(r'([一二三四五六七八九十百千万零两]+)[期集话]', filename)
+        if match_chinese_simple_num:
+            chinese_num = match_chinese_simple_num.group(1)
+            arabic_num = chinese_to_arabic(chinese_num)
+            if arabic_num is not None:
+                episode_value = arabic_num
     
     # 2.3 S01E01格式
     if episode_value == float('inf'):
@@ -299,6 +317,16 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
         r'_?(\d+)_?'
     ]
     
+    # 添加中文数字匹配模式
+    chinese_patterns = [
+        r'第([一二三四五六七八九十百千万零两]+)集',
+        r'第([一二三四五六七八九十百千万零两]+)期',
+        r'第([一二三四五六七八九十百千万零两]+)话',
+        r'([一二三四五六七八九十百千万零两]+)集',
+        r'([一二三四五六七八九十百千万零两]+)期',
+        r'([一二三四五六七八九十百千万零两]+)话'
+    ]
+    
     patterns = None
     
     # 检查传入的episode_patterns参数
@@ -328,7 +356,19 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
                 return episode_num
         except:
             continue
-            
+    
+    # 尝试匹配中文数字模式
+    for pattern_regex in chinese_patterns:
+        try:
+            match = re.search(pattern_regex, filename_without_dates)
+            if match:
+                chinese_num = match.group(1)
+                arabic_num = chinese_to_arabic(chinese_num)
+                if arabic_num is not None:
+                    return arabic_num
+        except:
+            continue
+    
     # 如果从不含日期的文件名中没有找到剧集号，尝试从原始文件名中提取
     # 这是为了兼容某些特殊情况，但要检查提取的数字不是日期
     file_name_without_ext = os.path.splitext(filename)[0]
@@ -394,6 +434,71 @@ def is_date_format(number_str):
             
     # 其他格式不视为日期格式
     return False
+
+def chinese_to_arabic(chinese):
+    """
+    将中文数字转换为阿拉伯数字
+    支持格式：一、二、三、四、五、六、七、八、九、十、百、千、万
+    以及：零、两（特殊处理为2）
+    
+    Args:
+        chinese: 中文数字字符串
+        
+    Returns:
+        int: 转换后的阿拉伯数字，如果无法转换则返回None
+    """
+    if not chinese:
+        return None
+        
+    # 数字映射
+    digit_map = {
+        '零': 0, '一': 1, '二': 2, '三': 3, '四': 4, 
+        '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, 
+        '两': 2
+    }
+    
+    # 单位映射
+    unit_map = {
+        '十': 10, 
+        '百': 100, 
+        '千': 1000, 
+        '万': 10000
+    }
+    
+    # 如果是单个字符，直接返回对应数字
+    if len(chinese) == 1:
+        if chinese == '十':
+            return 10
+        return digit_map.get(chinese)
+    
+    result = 0
+    section = 0
+    number = 0
+    
+    # 从左向右处理
+    for i in range(len(chinese)):
+        char = chinese[i]
+        
+        if char in digit_map:
+            number = digit_map[char]
+        elif char in unit_map:
+            unit = unit_map[char]
+            # 如果前面没有数字，默认为1，例如"十"表示1*10=10
+            section += (number or 1) * unit
+            number = 0
+            
+            # 如果是万级单位，累加到结果并重置section
+            if unit == 10000:
+                result += section
+                section = 0
+        else:
+            # 非法字符
+            return None
+    
+    # 加上最后的数字和小节
+    result += section + number
+    
+    return result
 
 # 兼容青龙
 try:
@@ -3133,7 +3238,7 @@ def format_bytes(size_bytes: int) -> str:
     while size_bytes >= 1024 and i < len(units) - 1:
         size_bytes /= 1024
         i += 1
-    return f"{size_bytes:.2f}{units[i]}"
+    return f"{size_bytes:.2f} {units[i]}"
 
 
 def do_sign(account):
@@ -4258,6 +4363,11 @@ def do_save(account, tasklist=[]):
                                 number_part = filename[len(prefix):].split(suffix)[0] if suffix else filename[len(prefix):]
                                 if number_part.isdigit():
                                     return int(number_part)
+                                # 尝试转换中文数字
+                                else:
+                                    arabic_num = chinese_to_arabic(number_part)
+                                    if arabic_num is not None:
+                                        return arabic_num
                     
                     # 如果所有方法都失败，返回float('inf')
                     return float('inf')
