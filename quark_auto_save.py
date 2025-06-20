@@ -19,6 +19,8 @@ import traceback
 import urllib.parse
 from datetime import datetime
 
+from natsort import natsorted
+
 # 兼容青龙
 try:
     from treelib import Tree
@@ -273,7 +275,7 @@ class MagicRename:
         # print(f"dir_filename_list: {dir_filename_list}")
         # 合并目录文件列表
         filename_list = list(set(filename_list) | set(dir_filename_dict.values()))
-        filename_list.sort(key=self._custom_sort_key)
+        filename_list = natsorted(filename_list, key=self._custom_sort_key)
         filename_index = {}
         for name in filename_list:
             if name in dir_filename_dict.values():
