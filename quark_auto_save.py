@@ -265,7 +265,8 @@ class MagicRename:
     def sort_file_list(self, file_list, dir_filename_dict={}):
         """文件列表统一排序，给{I+}赋值"""
         filename_list = [
-            f["file_name_re"]
+            # 强制加入`文件修改时间`字段供排序，效果：1无可排序字符时则按修改时间排序，2和目录已有文件重名时始终在其后
+            f"{f['file_name_re']}{f['updated_at']}"
             for f in file_list
             if f.get("file_name_re") and not f["dir"]
         ]
@@ -287,7 +288,9 @@ class MagicRename:
         for file in file_list:
             if file.get("file_name_re"):
                 if match := re.search(r"\{I+\}", file["file_name_re"]):
-                    i = filename_index.get(file["file_name_re"], 0)
+                    i = filename_index.get(
+                        f"{file['file_name_re']}{file['updated_at']}", 0
+                    )
                     file["file_name_re"] = re.sub(
                         match.group(),
                         str(i).zfill(match.group().count("I")),
