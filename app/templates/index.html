@@ -358,10 +358,17 @@
                       </div>
                     </div>
                   </div>
-                  <div class="form-group row" title="需匹配到各级嵌套目录名才会更新，否则子目录在第一次转存后不会更新。注意：原理是逐级索引，深层嵌套目录的场景下效率非常低，慎用 .*">
+                  <div class="form-group row" title="需匹配到各级嵌套目录名才会更新，否则子目录在第一次转存后不会更新。注意：递归模式原理是逐级索引，深层嵌套目录的场景下效率非常低，慎用 .*">
                     <label class="col-sm-2 col-form-label">更新目录</label>
                     <div class="col-sm-10">
-                      <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，匹配需更新子目录（含各级嵌套目录）的正则表达式，多项以|分割，如 4k|1080p">
+                      <div class="input-group">
+                        <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，匹配需更新子目录（含各级嵌套目录）的正则表达式，多项以|分割，如 4k|1080p">
+                        <div class="input-group-append" title="重存模式：删除该目录下所有文件，重新转存，大资源包时推荐使用&#x0A;不勾选为递归模式：递归检查，逐级更新嵌套目录，效率低">
+                          <div class="input-group-text">
+                            <input type="checkbox" v-model="task.update_subdir_resave_mode">&nbsp;重存模式
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <div class="form-group row">

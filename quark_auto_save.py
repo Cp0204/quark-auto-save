@@ -613,7 +613,7 @@ class Quark:
                 "__t": datetime.now().timestamp(),
             }
             response = self._send_request("GET", url, params=querystring).json()
-            if response["data"]["status"] != 0:
+            if response["data"]["status"] == 2:
                 if retry_index > 0:
                     print()
                 break
@@ -902,8 +902,35 @@ class Quark:
                             need_save_list.append(share_file)
                 elif share_file["dir"]:
                     # 存在并是一个目录，历遍子目录
-                    if task.get("update_subdir", False):
-                        if re.search(task["update_subdir"], share_file["file_name"]):
+                    if task.get("update_subdir", False) and re.search(
+                        task["update_subdir"], share_file["file_name"]
+                    ):
+                        if task.get("update_subdir_resave_mode", False):
+                            # 重存模式：删除该目录下所有文件，重新转存
+                            print(f"重存子目录：{savepath}/{share_file['file_name']}")
+                            # 删除子目录、回收站中彻底删除
+                            subdir = next(
+                                (
+                                    f
+                                    for f in dir_file_list
+                                    if f["file_name"] == share_file["file_name"]
+                                ),
+                                None,
+                            )
+                            delete_return = self.delete([subdir["fid"]])
+                            self.query_task(delete_return["data"]["task_id"])
+                            recycle_list = self.recycle_list()
+                            record_id_list = [
+                                item["record_id"]
+                                for item in recycle_list
+                                if item["fid"] == subdir["fid"]
+                            ]
+                            self.recycle_remove(record_id_list)
+                            # 作为新文件添加到转存列表
+                            share_file["file_name_re"] = share_file["file_name"]
+                            need_save_list.append(share_file)
+                        else:
+                            # 递归模式
                             print(f"检查子目录：{savepath}/{share_file['file_name']}")
                             subdir_tree = self.dir_check_and_save(
                                 task,
