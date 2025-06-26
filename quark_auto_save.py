@@ -875,7 +875,9 @@ class Quark:
         # 添加符合的
         for share_file in share_file_list:
             search_pattern = (
-                task.get("update_subdir", "") if share_file["dir"] else pattern
+                task["update_subdir"]
+                if share_file["dir"] and task.get("update_subdir")
+                else pattern
             )
             # 正则文件名匹配
             if re.search(search_pattern, share_file["file_name"]):
