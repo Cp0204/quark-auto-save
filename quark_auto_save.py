@@ -195,6 +195,9 @@ class MagicRename:
         "八",
         "九",
         "十",
+        "百",
+        "千",
+        "万",
     ]
 
     def __init__(self, magic_regex={}, magic_variable={}):
@@ -259,14 +262,14 @@ class MagicRename:
         """自定义排序键"""
         for i, keyword in enumerate(self.priority_list):
             if keyword in name:
-                return name.replace(keyword, f"{i:02d}")  # 替换为数字，方便排序
+                name = name.replace(keyword, f"_{i:02d}_")  # 替换为数字，方便排序
         return name
 
     def sort_file_list(self, file_list, dir_filename_dict={}):
         """文件列表统一排序，给{I+}赋值"""
         filename_list = [
             # 强制加入`文件修改时间`字段供排序，效果：1无可排序字符时则按修改时间排序，2和目录已有文件重名时始终在其后
-            f"{f['file_name_re']}{f['updated_at']}"
+            f"{f['file_name_re']}_{f['updated_at']}"
             for f in file_list
             if f.get("file_name_re") and not f["dir"]
         ]
@@ -289,7 +292,7 @@ class MagicRename:
             if file.get("file_name_re"):
                 if match := re.search(r"\{I+\}", file["file_name_re"]):
                     i = filename_index.get(
-                        f"{file['file_name_re']}{file['updated_at']}", 0
+                        f"{file['file_name_re']}_{file['updated_at']}", 0
                     )
                     file["file_name_re"] = re.sub(
                         match.group(),
