@@ -25,7 +25,7 @@ class Alist_sync:
     default_task_config = {
         "enable": False,  # 当前任务开关，
         "save_path": "",  # 需要同步目录，默认空时路径则会与夸克的保存路径一致，不开启完整路径模式时，默认根目录为保存驱动的根目录
-        "verify_path": "",  # 验证目录，主要用于影视库避免重复文件，一般配合alist的别名功能及full_path使用，用于多个网盘的源合并成一个目录
+        "verify_path": "",  # 验证目录，主要用于影视库避免重复文件，一般配合alist的别名功能及full_path_mode使用，用于多个网盘的源合并成一个目录
         "full_path_mode": False,  # 完整路径模式
         # 完整路径模式开启后不再限制保存目录的存储驱动，将根据填入的路径进行保存，需要填写完整的alist目录
     }
@@ -115,7 +115,7 @@ class Alist_sync:
             self.save_path = f"{self.save_mount_path}/{task['savepath']}"
         else:
             self.save_path = task["addition"]["alist_sync"]["save_path"]
-            if not task["addition"]["alist_sync"]["full_path"]:
+            if not task["addition"]["alist_sync"]["full_path_mode"]:
                 if self.save_path.startswith("/"):
                     self.save_path = self.save_path[1:]
                 if self.save_path.endswith("/"):
@@ -142,7 +142,7 @@ class Alist_sync:
 
         if task["addition"]["alist_sync"]["verify_path"]:
             self.verify_path = task["addition"]["alist_sync"]["verify_path"]
-            if not task["addition"]["alist_sync"]["full_path"]:
+            if not task["addition"]["alist_sync"]["full_path_mode"]:
                 if self.verify_path.startswith("/"):
                     self.verify_path = self.save_path[1:]
                 if self.verify_path.endswith("/"):
