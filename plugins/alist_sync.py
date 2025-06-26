@@ -165,7 +165,7 @@ class Alist_sync:
         # 获取网盘已有文件
         source_dir_list = self.get_path_list(self.source_path)
 
-        if self.TV_mode == 0 or self.TV_mode == "":
+        if self.tv_mode == 0 or self.tv_mode == "":
             self.tv_mode = False
         else:
             self.tv_mode = True
