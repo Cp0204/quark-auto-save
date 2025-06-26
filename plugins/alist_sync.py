@@ -229,6 +229,10 @@ class Alist_sync:
                 )
                 for target_list in target_dir_list:
                     if self.tv_mode:
+                        if source_list["is_dir"]:
+                            # print(f"跳过目录同步")
+                            skip = True
+                            break
                         target_list_filename = (
                             target_list["name"]
                             .replace(".mp4", "")
