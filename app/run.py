@@ -315,7 +315,9 @@ def get_share_detail():
         )
         for share_file in data["list"]:
             search_pattern = (
-                task.get("update_subdir", "") if share_file["dir"] else pattern
+                task["update_subdir"]
+                if share_file["dir"] and task.get("update_subdir")
+                else pattern
             )
             if re.search(search_pattern, share_file["file_name"]):
                 # 文件名重命名，目录不重命名
