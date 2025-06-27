@@ -591,6 +591,22 @@ def get_share_detail():
             episode_pattern = regex.get("episode_naming")
             episode_patterns = regex.get("episode_patterns", [])
             
+            # 获取默认的剧集模式
+            default_episode_pattern = {"regex": '第(\\d+)集|第(\\d+)期|第(\\d+)话|(\\d+)集|(\\d+)期|(\\d+)话|[Ee][Pp]?(\\d+)|(\\d+)[-_\\s]*4[Kk]|\\[(\\d+)\\]|【(\\d+)】|_?(\\d+)_?'}
+            
+            # 获取配置的剧集模式，确保每个模式都是字典格式
+            episode_patterns = []
+            raw_patterns = config_data.get("episode_patterns", [default_episode_pattern])
+            for p in raw_patterns:
+                if isinstance(p, dict) and p.get("regex"):
+                    episode_patterns.append(p)
+                elif isinstance(p, str):
+                    episode_patterns.append({"regex": p})
+            
+            # 如果没有有效的模式，使用默认模式
+            if not episode_patterns:
+                episode_patterns = [default_episode_pattern]
+                
             # 添加中文数字匹配模式
             chinese_patterns = [
                 {"regex": r'第([一二三四五六七八九十百千万零两]+)集'},
@@ -600,74 +616,7 @@ def get_share_detail():
                 {"regex": r'([一二三四五六七八九十百千万零两]+)期'},
                 {"regex": r'([一二三四五六七八九十百千万零两]+)话'}
             ]
-            
-            # 合并中文模式到episode_patterns
-            if episode_patterns:
-                episode_patterns.extend(chinese_patterns)
-            else:
-                episode_patterns = chinese_patterns
-            
-            # 调用全局的集编号提取函数
-            def extract_episode_number_local(filename):
-                return extract_episode_number(filename, episode_patterns=episode_patterns)
-            
-            # 构建剧集命名的正则表达式 (主要用于检测已命名文件)
-            if episode_pattern == "[]":
-                # 对于单独的[]，使用特殊匹配
-                regex_pattern = "^(\\d+)$"  # 匹配纯数字文件名
-            elif "[]" in episode_pattern:
-                # 特殊处理E[]、EP[]等常见格式，使用更宽松的匹配方式
-                if episode_pattern == "E[]":
-                    # 对于E[]格式，只检查文件名中是否包含形如E01的部分
-                    regex_pattern = "^E(\\d+)$"  # 只匹配纯E+数字的文件名格式
-                elif episode_pattern == "EP[]":
-                    # 对于EP[]格式，只检查文件名中是否包含形如EP01的部分
-                    regex_pattern = "^EP(\\d+)$"  # 只匹配纯EP+数字的文件名格式
-                else:
-                    # 对于其他带[]的格式，使用常规转义和替换
-                    regex_pattern = re.escape(episode_pattern).replace('\\[\\]', '(\\d+)')
-            else:
-                # 如果输入模式不包含[]，则使用简单匹配模式，避免正则表达式错误
-                regex_pattern = "^" + re.escape(episode_pattern) + "(\\d+)$"
-            
-            # 实现高级排序算法
-            def extract_sorting_value(file):
-                if file["dir"]:  # 跳过文件夹
-                    return (float('inf'), 0, 0, 0)  # 返回元组以确保类型一致性
-                
-                filename = file["file_name"]
-                
-                # 尝试获取剧集序号
-                episode_num = extract_episode_number_local(filename)
-                if episode_num is not None:
-                    # 返回元组以确保类型一致性
-                    return (0, episode_num, 0, 0)
-                
-                # 如果无法提取剧集号，则使用通用的排序函数
-                return sort_file_by_name(file)
-            
-            # 过滤出非目录文件，并且排除已经符合命名规则的文件
-            files_to_process = []
-            for f in share_detail["list"]:
-                if f["dir"]:
-                    continue  # 跳过目录
-                
-                # 检查文件是否已符合命名规则
-                if episode_pattern == "[]":
-                    # 对于单独的[]，检查文件名是否为纯数字
-                    file_name_without_ext = os.path.splitext(f["file_name"])[0]
-                    if file_name_without_ext.isdigit():
-                        # 增加判断：如果是日期格式的纯数字，不视为已命名
-                        if not is_date_format(file_name_without_ext):
-                            continue  # 跳过已符合命名规则的文件
-                elif re.match(regex_pattern, f["file_name"]):
-                    continue  # 跳过已符合命名规则的文件
-                
-                # 添加到待处理文件列表
-                files_to_process.append(f)
-            
-            # 根据提取的排序值进行排序
-            sorted_files = sorted(files_to_process, key=extract_sorting_value)
+            episode_patterns.extend(chinese_patterns)
             
             # 应用过滤词过滤
             filterwords = regex.get("filterwords", "")
@@ -675,32 +624,25 @@ def get_share_detail():
                 # 同时支持中英文逗号分隔
                 filterwords = filterwords.replace("，", ",")
                 filterwords_list = [word.strip() for word in filterwords.split(',')]
-                for item in sorted_files:
-                    # 被过滤的文件不会有file_name_re，与不匹配正则的文件显示一致
+                for item in share_detail["list"]:
+                    # 被过滤的文件显示一个 ×
                     if any(word in item['file_name'] for word in filterwords_list):
                         item["filtered"] = True
+                        item["file_name_re"] = "×"
             
-            # 为每个文件生成新文件名并存储剧集编号用于排序
-            for file in sorted_files:
-                if not file.get("filtered"):
-                    # 获取文件扩展名
-                    file_ext = os.path.splitext(file["file_name"])[1]
-                    # 尝试提取剧集号
-                    episode_num = extract_episode_number_local(file["file_name"])
-                    if episode_num is not None:
-                        # 生成预览文件名
-                        if episode_pattern == "[]":
-                            # 对于单独的[]，直接使用数字序号作为文件名
-                            file["file_name_re"] = f"{episode_num:02d}{file_ext}"
-                        else:
-                            file["file_name_re"] = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
-                        # 存储原始的剧集编号，用于数值排序
-                        file["episode_number"] = episode_num
-                    else:
-                        # 无法提取剧集号，标记为无法处理
-                        file["file_name_re"] = "❌ 无法识别剧集号"
-                        file["episode_number"] = 9999999  # 给一个很大的值，确保排在最后
+            # 处理未被过滤的文件
+            for file in share_detail["list"]:
+                if not file["dir"] and not file.get("filtered"):  # 只处理未被过滤的非目录文件
+                    extension = os.path.splitext(file["file_name"])[1]
+                    # 从文件名中提取集号
+                    episode_num = extract_episode_number(file["file_name"], episode_patterns=episode_patterns)
                     
+                    if episode_num is not None:
+                        file["file_name_re"] = episode_pattern.replace("[]", f"{episode_num:02d}") + extension
+                    else:
+                        # 没有提取到集号，显示无法识别的提示
+                        file["file_name_re"] = "× 无法识别剧集编号"
+            
             return share_detail
         else:
             # 普通正则命名预览
@@ -990,7 +932,7 @@ def get_history_records():
     # 如果请求所有任务名称，单独查询并返回
     if get_all_task_names:
         cursor = db.conn.cursor()
-        cursor.execute("SELECT DISTINCT task_name FROM transfer_records ORDER BY task_name")
+        cursor.execute("SELECT DISTINCT task_name FROM transfer_records WHERE task_name NOT IN ('rename', 'undo_rename') ORDER BY task_name")
         all_task_names = [row[0] for row in cursor.fetchall()]
         
         # 如果同时请求分页数据，继续常规查询
@@ -1001,7 +943,8 @@ def get_history_records():
                 sort_by=sort_by, 
                 order=order,
                 task_name_filter=task_name_filter,
-                keyword_filter=keyword_filter
+                keyword_filter=keyword_filter,
+                exclude_task_names=["rename", "undo_rename"]
             )
             # 添加所有任务名称到结果中
             result["all_task_names"] = all_task_names
@@ -1021,7 +964,8 @@ def get_history_records():
         sort_by=sort_by, 
         order=order,
         task_name_filter=task_name_filter,
-        keyword_filter=keyword_filter
+        keyword_filter=keyword_filter,
+        exclude_task_names=["rename", "undo_rename"]
     )
     
     # 处理记录格式化
@@ -1233,7 +1177,371 @@ def reset_folder():
         return jsonify({"success": False, "message": f"重置文件夹时出错: {str(e)}"})
 
 
+# 获取文件列表
+@app.route("/file_list")
+def get_file_list():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+    
+    # 获取请求参数
+    folder_id = request.args.get("folder_id", "root")
+    sort_by = request.args.get("sort_by", "file_name")
+    order = request.args.get("order", "asc")
+    page = int(request.args.get("page", 1))
+    page_size = int(request.args.get("page_size", 15))
+    
+    try:
+        # 初始化夸克网盘客户端
+        account = Quark(config_data["cookie"][0], 0)
+        
+        # 获取文件列表
+        if folder_id == "root":
+            folder_id = "0"  # 根目录的ID为0
+            paths = []  # 根目录没有路径
+        else:
+            # 获取当前文件夹的路径
+            paths = account.get_paths(folder_id)
+        
+        # 获取文件列表
+        files = account.ls_dir(folder_id)
+        if isinstance(files, dict) and files.get("error"):
+            return jsonify({"success": False, "message": f"获取文件列表失败: {files.get('error', '未知错误')}"})
+        
+        # 计算总数
+        total = len(files)
+        
+        # 排序
+        if sort_by == "file_name":
+            files.sort(key=lambda x: x["file_name"].lower())
+        elif sort_by == "file_size":
+            files.sort(key=lambda x: x["size"] if not x["dir"] else 0)
+        else:  # updated_at
+            files.sort(key=lambda x: x["updated_at"])
+
+        if order == "desc":
+            files.reverse()
+
+        # 根据排序字段决定是否将目录放在前面
+        if sort_by == "updated_at":
+            # 修改日期排序时严格按照日期排序，不区分文件夹和文件
+            sorted_files = files
+        else:
+            # 其他排序时目录始终在前面
+            directories = [f for f in files if f["dir"]]
+            normal_files = [f for f in files if not f["dir"]]
+            sorted_files = directories + normal_files
+        
+        # 分页
+        start_idx = (page - 1) * page_size
+        end_idx = min(start_idx + page_size, total)
+        paginated_files = sorted_files[start_idx:end_idx]
+        
+        return jsonify({
+            "success": True, 
+            "data": {
+                "list": paginated_files,
+                "total": total,
+                "paths": paths
+            }
+        })
+        
+    except Exception as e:
+        logging.error(f">>> 获取文件列表时出错: {str(e)}")
+        return jsonify({"success": False, "message": f"获取文件列表时出错: {str(e)}"})
+
+
+# 预览重命名
+@app.route("/preview_rename")
+def preview_rename():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+    
+    # 获取请求参数
+    folder_id = request.args.get("folder_id", "root")
+    pattern = request.args.get("pattern", "")
+    replace = request.args.get("replace", "")
+    naming_mode = request.args.get("naming_mode", "regex")  # regex, sequence, episode
+    include_folders = request.args.get("include_folders", "false") == "true"
+    filterwords = request.args.get("filterwords", "")
+    
+    if not pattern:
+        pattern = ".*"
+    
+    try:
+        # 初始化夸克网盘客户端
+        account = Quark(config_data["cookie"][0], 0)
+        
+        # 获取文件列表
+        if folder_id == "root":
+            folder_id = "0"  # 根目录的ID为0
+        
+        files = account.ls_dir(folder_id)
+        if isinstance(files, dict) and files.get("error"):
+            return jsonify({"success": False, "message": f"获取文件列表失败: {files.get('error', '未知错误')}"})
+        
+        # 过滤要排除的文件
+        # 替换中文逗号为英文逗号
+        filterwords = filterwords.replace("，", ",") 
+        filter_list = [keyword.strip() for keyword in filterwords.split(",") if keyword.strip()]
+        filtered_files = []
+        for file in files:
+            # 如果不包含文件夹且当前项是文件夹，跳过
+            if not include_folders and file["dir"]:
+                continue
+                
+            # 检查是否包含过滤关键词
+            should_filter = False
+            for keyword in filter_list:
+                if keyword and keyword in file["file_name"]:
+                    should_filter = True
+                    break
+                    
+            if not should_filter:
+                filtered_files.append(file)
+        
+        # 按不同命名模式处理
+        preview_results = []
+        
+        if naming_mode == "sequence":
+            # 顺序命名模式
+            # 排序文件（按文件名或修改时间）
+            filtered_files.sort(key=lambda x: sort_file_by_name(x["file_name"]))
+            
+            sequence = 1
+            for file in filtered_files:
+                extension = os.path.splitext(file["file_name"])[1] if not file["dir"] else ""
+                new_name = pattern.replace("{}", f"{sequence:02d}") + extension
+                preview_results.append({
+                    "original_name": file["file_name"],
+                    "new_name": new_name,
+                    "file_id": file["fid"]
+                })
+                sequence += 1
+                
+        elif naming_mode == "episode":
+            # 剧集命名模式
+            # 获取默认的剧集模式
+            default_episode_pattern = {"regex": '第(\\d+)集|第(\\d+)期|第(\\d+)话|(\\d+)集|(\\d+)期|(\\d+)话|[Ee][Pp]?(\\d+)|(\\d+)[-_\\s]*4[Kk]|\\[(\\d+)\\]|【(\\d+)】|_?(\\d+)_?'}
+            
+            # 获取配置的剧集模式，确保每个模式都是字典格式
+            episode_patterns = []
+            raw_patterns = config_data.get("episode_patterns", [default_episode_pattern])
+            for p in raw_patterns:
+                if isinstance(p, dict) and p.get("regex"):
+                    episode_patterns.append(p)
+                elif isinstance(p, str):
+                    episode_patterns.append({"regex": p})
+            
+            # 如果没有有效的模式，使用默认模式
+            if not episode_patterns:
+                episode_patterns = [default_episode_pattern]
+                
+            # 添加中文数字匹配模式
+            chinese_patterns = [
+                {"regex": r'第([一二三四五六七八九十百千万零两]+)集'},
+                {"regex": r'第([一二三四五六七八九十百千万零两]+)期'},
+                {"regex": r'第([一二三四五六七八九十百千万零两]+)话'},
+                {"regex": r'([一二三四五六七八九十百千万零两]+)集'},
+                {"regex": r'([一二三四五六七八九十百千万零两]+)期'},
+                {"regex": r'([一二三四五六七八九十百千万零两]+)话'}
+            ]
+            episode_patterns.extend(chinese_patterns)
+            
+            # 处理每个文件
+            for file in filtered_files:
+                extension = os.path.splitext(file["file_name"])[1] if not file["dir"] else ""
+                # 从文件名中提取集号
+                episode_num = extract_episode_number(file["file_name"], episode_patterns=episode_patterns)
+                
+                if episode_num is not None:
+                    new_name = pattern.replace("[]", f"{episode_num:02d}") + extension
+                    preview_results.append({
+                        "original_name": file["file_name"],
+                        "new_name": new_name,
+                        "file_id": file["fid"]
+                    })
+                else:
+                    # 没有提取到集号，显示无法识别的提示
+                    preview_results.append({
+                        "original_name": file["file_name"],
+                        "new_name": "× 无法识别剧集编号",
+                        "file_id": file["fid"]
+                    })
+        
+        else:
+            # 正则命名模式
+            for file in filtered_files:
+                try:
+                    # 应用正则表达式
+                    if replace:
+                        new_name = re.sub(pattern, replace, file["file_name"])
+                    else:
+                        # 如果没有提供替换表达式，则检查是否匹配
+                        if re.search(pattern, file["file_name"]):
+                            new_name = file["file_name"]  # 匹配但不替换
+                        else:
+                            new_name = ""  # 表示不匹配
+                            
+                    preview_results.append({
+                        "original_name": file["file_name"],
+                        "new_name": new_name if new_name != file["file_name"] else "",  # 如果没有改变，返回空表示不重命名
+                        "file_id": file["fid"]
+                    })
+                except Exception as e:
+                    # 正则表达式错误
+                    preview_results.append({
+                        "original_name": file["file_name"],
+                        "new_name": "",  # 表示无法重命名
+                        "file_id": file["fid"],
+                        "error": str(e)
+                    })
+        
+        return jsonify({
+            "success": True, 
+            "data": preview_results
+        })
+        
+    except Exception as e:
+        logging.error(f">>> 预览重命名时出错: {str(e)}")
+        return jsonify({"success": False, "message": f"预览重命名时出错: {str(e)}"})
+
+
+# 批量重命名
+@app.route("/batch_rename", methods=["POST"])
+def batch_rename():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+    
+    # 获取请求参数
+    data = request.json
+    files = data.get("files", [])
+    
+    if not files:
+        return jsonify({"success": False, "message": "没有文件需要重命名"})
+    
+    try:
+        # 初始化夸克网盘客户端
+        account = Quark(config_data["cookie"][0], 0)
+        
+        # 批量重命名
+        success_count = 0
+        failed_files = []
+        save_path = data.get("save_path", "")
+        batch_time = int(time.time() * 1000)  # 批次时间戳，确保同一批transfer_time一致
+        for file_item in files:
+            file_id = file_item.get("file_id")
+            new_name = file_item.get("new_name")
+            original_name = file_item.get("old_name") or ""
+            if file_id and new_name:
+                try:
+                    result = account.rename(file_id, new_name)
+                    if result.get("code") == 0:
+                        success_count += 1
+                        # 记录重命名
+                        record_db.add_record(
+                            task_name="rename",
+                            original_name=original_name,
+                            renamed_to=new_name,
+                            file_size=0,
+                            modify_date=int(time.time()),
+                            file_id=file_id,
+                            file_type="file",
+                            save_path=save_path,
+                            transfer_time=batch_time
+                        )
+                    else:
+                        failed_files.append({
+                            "file_id": file_id,
+                            "new_name": new_name,
+                            "error": result.get("message", "未知错误")
+                        })
+                except Exception as e:
+                    failed_files.append({
+                        "file_id": file_id,
+                        "new_name": new_name,
+                        "error": str(e)
+                    })
+        
+        return jsonify({
+            "success": True, 
+            "message": f"成功重命名 {success_count} 个文件，失败 {len(failed_files)} 个",
+            "success_count": success_count,
+            "failed_files": failed_files
+        })
+        
+    except Exception as e:
+        logging.error(f">>> 批量重命名时出错: {str(e)}")
+        return jsonify({"success": False, "message": f"批量重命名时出错: {str(e)}"})
+
+
+# 撤销重命名接口
+@app.route("/undo_rename", methods=["POST"])
+def undo_rename():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+    data = request.json
+    save_path = data.get("save_path", "")
+    if not save_path:
+        return jsonify({"success": False, "message": "缺少目录参数"})
+    try:
+        account = Quark(config_data["cookie"][0], 0)
+        # 查询该目录下最近一次重命名（按transfer_time分组，task_name=rename）
+        records = record_db.get_records_by_save_path(save_path)
+        rename_records = [r for r in records if r["task_name"] == "rename"]
+        if not rename_records:
+            return jsonify({"success": False, "message": "没有可撤销的重命名记录"})
+        # 找到最近一批（transfer_time最大值）
+        latest_time = max(r["transfer_time"] for r in rename_records)
+        latest_batch = [r for r in rename_records if r["transfer_time"] == latest_time]
+        success_count = 0
+        failed_files = []
+        deleted_ids = []
+        for rec in latest_batch:
+            file_id = rec["file_id"]
+            old_name = rec["original_name"]
+            try:
+                result = account.rename(file_id, old_name)
+                if result.get("code") == 0:
+                    success_count += 1
+                    deleted_ids.append(rec["id"])
+                else:
+                    failed_files.append({
+                        "file_id": file_id,
+                        "old_name": old_name,
+                        "error": result.get("message", "未知错误")
+                    })
+            except Exception as e:
+                failed_files.append({
+                    "file_id": file_id,
+                    "old_name": old_name,
+                    "error": str(e)
+                })
+        # 撤销成功的，直接删除对应rename记录
+        for rid in deleted_ids:
+            record_db.delete_record(rid)
+        return jsonify({
+            "success": True,
+            "message": f"成功撤销 {success_count} 个文件重命名，失败 {len(failed_files)} 个",
+            "success_count": success_count,
+            "failed_files": failed_files
+        })
+    except Exception as e:
+        logging.error(f">>> 撤销重命名时出错: {str(e)}")
+        return jsonify({"success": False, "message": f"撤销重命名时出错: {str(e)}"})
+
+
+@app.route("/api/has_rename_record")
+def has_rename_record():
+    save_path = request.args.get("save_path", "")
+    db = RecordDB()
+    records = db.get_records_by_save_path(save_path)
+    has_rename = any(r["task_name"] == "rename" for r in records)
+    return jsonify({"has_rename": has_rename})
+
+
 if __name__ == "__main__":
     init()
     reload_tasks()
+    # 初始化全局db对象，确保所有接口可用
+    record_db = RecordDB()
     app.run(debug=DEBUG, host="0.0.0.0", port=PORT)

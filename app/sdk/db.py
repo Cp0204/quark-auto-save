@@ -15,7 +15,7 @@ class RecordDB:
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         
         # 创建数据库连接
-        self.conn = sqlite3.connect(self.db_path)
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = self.conn.cursor()
         
         # 创建表，如果不存在
@@ -49,13 +49,14 @@ class RecordDB:
             self.conn.close()
     
     def add_record(self, task_name, original_name, renamed_to, file_size, modify_date, 
-                  duration="", resolution="", file_id="", file_type="", save_path=""):
+                  duration="", resolution="", file_id="", file_type="", save_path="", transfer_time=None):
         """添加一条转存记录"""
         cursor = self.conn.cursor()
+        now_ms = int(time.time() * 1000) if transfer_time is None else transfer_time
         cursor.execute(
             "INSERT INTO transfer_records (transfer_time, task_name, original_name, renamed_to, file_size, "
             "duration, resolution, modify_date, file_id, file_type, save_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (int(time.time()), task_name, original_name, renamed_to, file_size, 
+            (now_ms, task_name, original_name, renamed_to, file_size, 
              duration, resolution, modify_date, file_id, file_type, save_path)
         )
         self.conn.commit()
@@ -123,7 +124,7 @@ class RecordDB:
         return 0
     
     def get_records(self, page=1, page_size=20, sort_by="transfer_time", order="desc", 
-                   task_name_filter="", keyword_filter=""):
+                   task_name_filter="", keyword_filter="", exclude_task_names=None):
         """获取转存记录列表，支持分页、排序和筛选
         
         Args:
@@ -133,6 +134,7 @@ class RecordDB:
             order: 排序方向（asc/desc）
             task_name_filter: 任务名称筛选条件（精确匹配）
             keyword_filter: 关键字筛选条件（模糊匹配任务名）
+            exclude_task_names: 需要排除的任务名称列表
         """
         cursor = self.conn.cursor()
         offset = (page - 1) * page_size
@@ -158,6 +160,10 @@ class RecordDB:
             where_clauses.append("(task_name LIKE ? OR original_name LIKE ?)")
             params.append(f"%{keyword_filter}%")
             params.append(f"%{keyword_filter}%")
+        
+        if exclude_task_names:
+            where_clauses.append("task_name NOT IN ({})".format(",".join(["?" for _ in exclude_task_names])))
+            params.extend(exclude_task_names)
         
         where_clause = " AND ".join(where_clauses)
         where_sql = f"WHERE {where_clause}" if where_clause else ""

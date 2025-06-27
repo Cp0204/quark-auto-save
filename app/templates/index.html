@@ -16,6 +16,7 @@
   <script src="./static/js/vue@2.js"></script>
   <script src="./static/js/axios.min.js"></script>
   <script src="./static/js/v-jsoneditor.min.js"></script>
+  <script src="./static/js/sort_file_by_name.js"></script>
   <script>
   // 添加检测文本溢出的自定义指令
   Vue.directive('check-overflow', {
@@ -62,6 +63,55 @@
           }
           // 设置对应字段的溢出状态
           vnode.context.$set(records[index]._isOverflowing, field, isOverflowing);
+        }
+      }
+    }
+  });
+  
+  // 添加检测文件整理页面文件名溢出的自定义指令
+  Vue.directive('check-file-overflow', {
+    inserted: function(el, binding, vnode) {
+      // 检查元素是否溢出
+      const isOverflowing = el.scrollWidth > el.clientWidth;
+      
+      // 如果绑定了值，则绑定到该值对应的文件属性上
+      if (binding.value) {
+        const indexAndField = binding.value.split('|');
+        const index = parseInt(indexAndField[0]);
+        const field = indexAndField[1];
+        
+        // 设置文件的_isOverflowing属性
+        const files = vnode.context.fileManager.fileList;
+        if (files && files[index]) {
+          // 初始化_isOverflowing属性（如果不存在）
+          if (!files[index]._isOverflowing) {
+            vnode.context.$set(files[index], '_isOverflowing', {});
+          }
+          // 设置对应字段的溢出状态
+          vnode.context.$set(files[index]._isOverflowing, field, isOverflowing);
+        }
+      }
+    },
+    // 添加update钩子，在DOM更新时重新检测溢出状态
+    update: function(el, binding, vnode) {
+      // 检查元素是否溢出
+      const isOverflowing = el.scrollWidth > el.clientWidth;
+      
+      // 如果绑定了值，则绑定到该值对应的文件属性上
+      if (binding.value) {
+        const indexAndField = binding.value.split('|');
+        const index = parseInt(indexAndField[0]);
+        const field = indexAndField[1];
+        
+        // 设置文件的_isOverflowing属性
+        const files = vnode.context.fileManager.fileList;
+        if (files && files[index]) {
+          // 初始化_isOverflowing属性（如果不存在）
+          if (!files[index]._isOverflowing) {
+            vnode.context.$set(files[index], '_isOverflowing', {});
+          }
+          // 设置对应字段的溢出状态
+          vnode.context.$set(files[index]._isOverflowing, field, isOverflowing);
         }
       }
     }
@@ -225,6 +275,11 @@
             <li class="nav-item">
               <a class="nav-link" href="#" :class="{active: activeTab === 'history'}" @click="changeTab('history')">
                 <i class="bi bi-clock-history"></i> <span class="nav-text">转存记录</span>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" :class="{active: activeTab === 'filemanager'}" @click="changeTab('filemanager')">
+                <i class="bi bi-archive"></i> <span class="nav-text">文件整理</span>
               </a>
             </li>
             <li class="nav-item">
@@ -678,7 +733,7 @@
                       </div>
                     </div>
                   </div>
-                  <div class="form-group row" :title="task.use_sequence_naming || task.use_episode_naming ? (task.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}、剧名.S03E{}等，{}将被替换为集序号（按文件名和上传时间智能排序），目录中的文件夹会被自动过滤' : '输入带[]占位符的重命名格式，如：剧名 - S01E[]、剧名.S03E[]等，[]将被替换为从文件名中提取的集编号，目录中的文件夹会被自动过滤') : '可用作筛选，只转存匹配到文件名的文件，留空则转存所有文件'">
+                  <div class="form-group row" :title="task.use_sequence_naming || task.use_episode_naming ? (task.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}、剧名.S03E{}等，{}将被替换为集序号（按文件名和修改日期智能排序），目录中的文件夹会被自动过滤' : '输入带[]占位符的重命名格式，如：剧名 - S01E[]、剧名.S03E[]等，[]将被替换为从文件名中提取的集编号，目录中的文件夹会被自动过滤') : '可用作筛选，只转存匹配到文件名的文件，留空则直接转存所有文件'">
                     <label class="col-sm-2 col-form-label">命名规则</label>
                     <div class="col-sm-10">
                       <div class="input-group">
@@ -689,7 +744,6 @@
                         </div>
                         <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" :placeholder="task.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}' : (task.use_episode_naming ? '输入带[]占位符的重命名格式，如：剧名 - S01E[]' : '匹配表达式')"  list="magicRegex" @input="detectNamingMode(task)">
                         <input v-if="!task.use_sequence_naming && !task.use_episode_naming" type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
-                        <input v-else type="text" class="form-control" disabled value="" style="background-color: #e9ecef;">
                         <div class="input-group-append" title="保存时只比较文件名的部分，01.mp4和01.mkv视同为同一文件，不重复转存">
                           <div class="input-group-text">
                             <input type="checkbox" v-model="task.ignore_extension">&nbsp;忽略后缀
@@ -812,7 +866,7 @@
                     <th style="width:18%" class="cursor-pointer" @click="sortHistory('task_name')">任务名称 <i v-if="historyParams.sortBy === 'task_name'" :class="historyParams.order === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
                     <th style="width:25%" class="cursor-pointer" @click="sortHistory('original_name')">原文件 <i v-if="historyParams.sortBy === 'original_name'" :class="historyParams.order === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
                     <th style="width:25%" class="cursor-pointer" @click="sortHistory('renamed_to')">转存为 <i v-if="historyParams.sortBy === 'renamed_to'" :class="historyParams.order === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
-                    <th style="width:7%" class="cursor-pointer file-size-column" @click="sortHistory('file_size')">大小 <i v-if="historyParams.sortBy === 'file_size'" :class="historyParams.order === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
+                    <th style="width:7%; min-width: 60px;" class="cursor-pointer file-size-column" @click="sortHistory('file_size')">大小 <i v-if="historyParams.sortBy === 'file_size'" :class="historyParams.order === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
                     <th style="width:10%" class="cursor-pointer" @click="sortHistory('modify_date')">修改日期 <i v-if="historyParams.sortBy === 'modify_date'" :class="historyParams.order === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
                   </tr>
                 </thead>
@@ -944,6 +998,189 @@
             </div>
           </div>
 
+          <div v-if="activeTab === 'filemanager'">
+            <div style="height: 20px;"></div>
+            <!-- 重命名规则设置栏 -->
+            <div class="row mb-3">
+              <div class="col-12">
+                <!-- 桌面端结构（原有） -->
+                <div class="d-flex align-items-center file-manager-rule-bar">
+                  <div class="input-group-prepend">
+                    <button class="btn btn-outline-secondary" type="button" @click="switchNamingMode"
+                      :title="fileManager.use_sequence_naming ? '预览顺序命名效果' : (fileManager.use_episode_naming ? '预览剧集命名效果' : '预览正则命名效果')">
+                      {{ fileManager.use_sequence_naming ? '顺序命名' : (fileManager.use_episode_naming ? '剧集命名' : '正则命名') }}
+                    </button>
+                  </div>
+                  <input type="text" class="form-control file-manager-input" v-model="fileManager.pattern"
+                    :placeholder="fileManager.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}' : (fileManager.use_episode_naming ? '输入带[]占位符的重命名格式，如：剧名 - S01E[]' : '匹配表达式')"
+                    @input="detectFileManagerNamingMode"
+                    :title="fileManager.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}、剧名.S03E{}等，{}将被替换为集序号（按文件名和修改日期智能排序）' : (fileManager.use_episode_naming ? '输入带[]占位符的重命名格式，如：剧名 - S01E[]、剧名.S03E[]等，[]将被替换为从文件名中提取的集编号' : '只重命名匹配到文件名的文件，留空不会进行重命名')">
+                  <input v-if="!fileManager.use_sequence_naming && !fileManager.use_episode_naming" type="text" class="form-control file-manager-input" v-model="fileManager.replace" placeholder="替换表达式" title="替换表达式">
+                  <input type="text" class="form-control file-manager-input" v-model="fileManager.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划" title="名称包含过滤词汇的项目不会被重命名，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹">
+                  <div class="input-group-append">
+                    <div class="input-group-text" title="勾选后，重命名和过滤规则也将应用于文件夹">
+                      <input type="checkbox" v-model="fileManager.include_folders">&nbsp;含文件夹
+                    </div>
+                  </div>
+                  <button type="button" class="btn btn-outline-primary batch-rename-btn" @click="switchNamingMode" title="预览并执行重命名">
+                    <i class="bi bi-pencil"></i>
+                  </button>
+                </div>
+                <!-- 移动端结构（还原为input-group风格，两行，样式与桌面端一致） -->
+                <div class="file-manager-rule-bar-responsive">
+                  <!-- 第一行：命名按钮+表达式+替换表达式 -->
+                  <div class="input-group mb-2">
+                    <div class="input-group-prepend">
+                      <button class="btn btn-outline-secondary" type="button" @click="switchNamingMode"
+                        :title="fileManager.use_sequence_naming ? '预览顺序命名效果' : (fileManager.use_episode_naming ? '预览剧集命名效果' : '预览正则命名效果')">
+                        {{ fileManager.use_sequence_naming ? '顺序命名' : (fileManager.use_episode_naming ? '剧集命名' : '正则命名') }}
+                      </button>
+                    </div>
+                    <input type="text" class="form-control" v-model="fileManager.pattern"
+                      :placeholder="fileManager.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}' : (fileManager.use_episode_naming ? '输入带[]占位符的重命名格式，如：剧名 - S01E[]' : '匹配表达式')"
+                      @input="detectFileManagerNamingMode"
+                      :title="fileManager.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}、剧名.S03E{}等，{}将被替换为集序号（按文件名和修改日期智能排序）' : (fileManager.use_episode_naming ? '输入带[]占位符的重命名格式，如：剧名 - S01E[]、剧名.S03E[]等，[]将被替换为从文件名中提取的集编号' : '只重命名匹配到文件名的文件，留空不会进行重命名')">
+                    <input v-if="!fileManager.use_sequence_naming && !fileManager.use_episode_naming" type="text" class="form-control" v-model="fileManager.replace" placeholder="替换表达式" title="替换表达式">
+                  </div>
+                  <!-- 第二行：过滤规则+含文件夹+按钮，flex包裹，含文件夹有圆角，按钮有8px间距和圆角 -->
+                  <div class="input-group d-flex align-items-center">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text">过滤规则</span>
+                    </div>
+                    <input type="text" class="form-control" v-model="fileManager.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划" title="名称包含过滤词汇的项目不会被重命名，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹">
+                    <span class="input-group-text file-folder-rounded">
+                      <input type="checkbox" v-model="fileManager.include_folders">&nbsp;含文件夹
+                    </span>
+                    <button type="button" class="btn btn-outline-primary batch-rename-btn" @click="switchNamingMode" title="预览并执行重命名">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 面包屑导航 -->
+            <nav aria-label="breadcrumb" class="file-manager-breadcrumb">
+              <ol class="breadcrumb">
+                <li class="breadcrumb-item cursor-pointer" @click="navigateToFolder('root')">全部文件</li>
+                <li v-for="(item, index) in fileManager.paths" :key="index" class="breadcrumb-item">
+                  <a v-if="index != fileManager.paths.length - 1" href="#" @click.prevent="navigateToFolder(item.fid, item.name)">{{ item.name }}</a>
+                  <span v-else class="text-muted">{{ item.name }}</span>
+                </li>
+              </ol>
+            </nav>
+
+            <!-- 文件表格 -->
+            <div class="table-responsive">
+              <table class="table table-hover selectable-files">
+                <thead>
+                  <tr>
+                    <th style="width:80%" class="cursor-pointer" @click="sortFiles('file_name')">文件名 <i v-if="fileManager.sortBy === 'file_name'" :class="fileManager.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
+                    <th style="width:10%; min-width: 60px;" class="cursor-pointer" @click="sortFiles('file_size')">大小 <i v-if="fileManager.sortBy === 'file_size'" :class="fileManager.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
+                    <th style="width:10%" class="cursor-pointer" @click="sortFiles('updated_at')">修改日期 <i v-if="fileManager.sortBy === 'updated_at'" :class="fileManager.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="fileManager.loading">
+                    <td colspan="3" class="text-center">
+                      <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">加载中...</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr v-else-if="fileManager.fileList.length === 0">
+                    <td colspan="3" class="text-center">当前文件夹为空</td>
+                  </tr>
+                  <template v-else>
+                    <tr v-for="(file, index) in fileManager.fileList" :key="file.fid" 
+                        @click="file.dir ? navigateToFolder(file.fid, file.file_name) : selectFileForManager($event, file)"
+                        :class="{'selected-file': fileManager.selectedFiles.includes(file.fid)}"
+                        class="cursor-pointer">
+                      <td class="position-relative">
+                        <div v-if="!file._expanded" class="d-flex align-items-center">
+                          <i class="bi mr-2" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i>
+                          <div class="text-truncate" 
+                              :title="file.file_name"
+                              v-check-file-overflow="index + '|file_name'">
+                            {{ file.file_name }}
+                          </div>
+                        </div>
+                        <div v-else style="white-space: normal; word-break: break-word; padding-right: 25px;">
+                          <i class="bi mr-2" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i>{{ file.file_name }}
+                        </div>
+                        <div class="expand-button" v-if="isFilenameTruncated(file.file_name, index, 'file_name')" @click.stop="toggleExpandFilename(file)">
+                          <i :class="file._expanded ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
+                        </div>
+                      </td>
+                      <td class="file-size-cell">
+                        <span class="file-size-value">{{ file.dir ? (file.include_items + ' 项') : formatFileSize(file.size || file.file_size) }}</span>
+                        <span class="delete-record-btn" @click.stop="deleteSelectedFilesForManager(file.fid, file.file_name, file.dir)" title="删除文件">
+                          <i class="bi bi-trash3"></i>
+                        </span>
+                      </td>
+                      <td>{{ formatDate(file.updated_at) }}</td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+            
+            <!-- 分页区域 -->
+            <div class="pagination-container d-flex justify-content-between align-items-center mt-3">
+              <div class="page-info text-secondary">
+                显示 {{ fileManager.currentPage > 0 ? ((fileManager.currentPage - 1) * fileManager.pageSize + 1) + '-' + Math.min(fileManager.currentPage * fileManager.pageSize, fileManager.total) : '0' }} 项，共 {{ fileManager.total }} 个项目{{ fileManager.selectedFiles.length > 0 ? '，已选中 ' + fileManager.selectedFiles.length + ' 项' : '' }}
+              </div>
+              <div class="pagination-controls d-flex align-items-center">
+                <button type="button" class="btn btn-outline-secondary btn-sm mx-1" :class="{ disabled: fileManager.currentPage <= 1 }" @click="changeFolderPage(fileManager.currentPage - 1)" :disabled="fileManager.currentPage <= 1">
+                  <i class="bi bi-chevron-left"></i>
+                </button>
+                
+                <template v-if="fileManager.totalPages > 0">
+                  <button type="button" class="btn btn-sm mx-1" 
+                          :class="fileManager.currentPage === 1 ? 'btn-primary' : 'btn-outline-secondary'" 
+                          @click="changeFolderPage(1)">1</button>
+                  
+                  <span class="mx-1" v-if="getVisibleFolderPageNumbers().length > 0 && getVisibleFolderPageNumbers()[0] > 2">...</span>
+                  
+                  <button v-for="page in getVisibleFolderPageNumbers()" :key="page" type="button" 
+                          class="btn btn-sm mx-1" 
+                          :class="fileManager.currentPage === page ? 'btn-primary' : 'btn-outline-secondary'" 
+                          @click="changeFolderPage(page)">
+                    {{ page }}
+                  </button>
+                  
+                  <span class="mx-1" v-if="getVisibleFolderPageNumbers().length > 0 && getVisibleFolderPageNumbers()[getVisibleFolderPageNumbers().length - 1] < fileManager.totalPages - 1">...</span>
+                  
+                  <button v-if="fileManager.totalPages > 1" type="button" class="btn btn-sm mx-1" 
+                          :class="fileManager.currentPage === fileManager.totalPages ? 'btn-primary' : 'btn-outline-secondary'" 
+                          @click="changeFolderPage(fileManager.totalPages)">
+                    {{ fileManager.totalPages }}
+                  </button>
+                </template>
+                
+                <button type="button" class="btn btn-outline-secondary btn-sm mx-1" :class="{ disabled: fileManager.currentPage >= fileManager.totalPages }" @click="changeFolderPage(fileManager.currentPage + 1)" :disabled="fileManager.currentPage >= fileManager.totalPages">
+                  <i class="bi bi-chevron-right"></i>
+                </button>
+              </div>
+              <div class="pagination-settings d-flex align-items-center">
+                <span class="text-secondary mr-1">跳到第</span>
+                <div class="input-group mx-1" style="width: 70px">
+                  <input type="number" class="form-control form-control-sm" v-model.number="fileManager.gotoPage" min="1" :max="fileManager.totalPages">
+                </div>
+                <span class="text-secondary mr-2">页</span>
+                <button type="button" class="btn btn-outline-secondary btn-sm mr-2" @click="changeFolderPage(fileManager.gotoPage)">确定</button>
+                <div class="dropdown">
+                  <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
+                    {{ fileManager.pageSize === 99999 ? '全部项目' : fileManager.pageSize + ' 项/页' }}
+                  </button>
+                  <div class="dropdown-menu">
+                    <a class="dropdown-item" href="#" v-for="size in [15, 30, 50, 100, 500, 1000, 'all']" :key="size" @click.prevent="changeFileManagerPageSize(size)">{{ size === 'all' ? '全部项目' : size + ' 项/页' }}</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </form>
       </main>
     </div>
@@ -973,7 +1210,8 @@
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">
-              <span v-if="fileSelect.previewRegex" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">{{ formData.tasklist[fileSelect.index].use_sequence_naming ? '顺序命名预览' : (formData.tasklist[fileSelect.index].use_episode_naming ? '剧集命名预览' : '正则命名预览') }}</span>
+              <span v-if="fileSelect.previewRegex && fileSelect.index >= 0" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">{{ formData.tasklist[fileSelect.index].use_sequence_naming ? '顺序命名预览' : (formData.tasklist[fileSelect.index].use_episode_naming ? '剧集命名预览' : '正则命名预览') }}</span>
+              <span v-else-if="fileSelect.previewRegex && fileSelect.index === -1" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">{{ fileManager.use_sequence_naming ? '顺序命名预览' : (fileManager.use_episode_naming ? '剧集命名预览' : '正则命名预览') }}</span>
               <span v-else-if="fileSelect.selectDir" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">选择{{fileSelect.selectShare ? '需转存的' : '保存到的'}}文件夹</span>
               <span v-else style="font-weight: 600; font-family: inherit; letter-spacing: normal;">选择起始文件</span>
               <div v-if="modalLoading" class="spinner-border spinner-border-sm m-1" role="status"></div>
@@ -997,25 +1235,49 @@
               </nav>
               <!-- 文件列表 -->
               <div class="mb-3" v-if="fileSelect.previewRegex">
-                <div v-if="formData.tasklist[fileSelect.index].use_sequence_naming">
-                  <div style="margin-bottom: 0; padding-left: 5px; display: flex; align-items: center;">
-                    <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">顺序命名表达式：</span><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                <!-- 任务配置的命名预览 -->
+                <div v-if="fileSelect.index >= 0">
+                  <div v-if="formData.tasklist[fileSelect.index].use_sequence_naming">
+                    <div style="margin-bottom: 1px; padding-left: 12px; display: flex; align-items: center;">
+                      <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">顺序命名表达式：</span><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                    </div>
+                    <div style="padding-left: 12px; display: flex; align-items: center;">
+                      <span class="text-muted" style="font-family: inherit; letter-spacing: normal;">预览结果仅供参考，新文件序号将基于网盘中已有文件的最大序号递增。若分享链接文件不完整，实际结果可能有所不同。</span>
+                    </div>
                   </div>
-                  <div style="padding-left: 5px; display: flex; align-items: center;">
-                    <span class="text-muted" style="font-family: inherit; letter-spacing: normal;">预览结果仅供参考，新文件序号将基于网盘中已有文件的最大序号递增。若分享链接文件不完整，实际结果可能有所不同。</span>
+                  <div v-else-if="formData.tasklist[fileSelect.index].use_episode_naming">
+                    <div style="padding-left: 12px; display: flex; align-items: center;">
+                      <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">剧集命名表达式：</span><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                    </div>
+                  </div>
+                  <div v-else>
+                    <div style="margin-bottom: 1px; padding-left: 12px; display: flex; align-items: center;">
+                      <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">匹配表达式：</span><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                    </div>
+                    <div style="padding-left: 12px; display: flex; align-items: center;">
+                      <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">替换表达式：</span><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].replace"></span>
+                    </div>
                   </div>
                 </div>
-                <div v-else-if="formData.tasklist[fileSelect.index].use_episode_naming">
-                  <div style="padding-left: 5px; display: flex; align-items: center;">
-                    <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">剧集命名表达式：</span><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                <!-- 文件管理器的命名预览 -->
+                <div v-else-if="fileSelect.index === -1">
+                  <div v-if="fileManager.use_sequence_naming">
+                    <div style="margin-bottom: 12px; padding-left: 12px; display: flex; align-items: center;">
+                      <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">顺序命名表达式：</span><span class="badge badge-info" v-html="fileManager.pattern"></span>
+                    </div>
                   </div>
-                </div>
-                <div v-else>
-                  <div style="margin-bottom: 0; padding-left: 5px; display: flex; align-items: center;">
-                    <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">匹配表达式：</span><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                  <div v-else-if="fileManager.use_episode_naming">
+                    <div style="padding-left: 12px; display: flex; align-items: center;">
+                      <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">剧集命名表达式：</span><span class="badge badge-info" v-html="fileManager.pattern"></span>
+                    </div>
                   </div>
-                  <div style="padding-left: 5px; display: flex; align-items: center;">
-                    <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">替换表达式：</span><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].replace"></span>
+                  <div v-else>
+                    <div style="margin-bottom: 1px; padding-left: 12px; display: flex; align-items: center;">
+                      <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">匹配表达式：</span><span class="badge badge-info" v-html="fileManager.pattern"></span>
+                    </div>
+                    <div style="padding-left: 12px; display: flex; align-items: center;">
+                      <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">替换表达式：</span><span class="badge badge-info" v-html="fileManager.replace"></span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1023,9 +1285,11 @@
                 <thead>
                   <tr>
                     <th scope="col" class="col-filename cursor-pointer" style="padding-left: 5px; font-family: inherit; letter-spacing: normal;" @click="sortFileList('file_name')">文件名 <i v-if="fileSelect.sortBy === 'file_name'" :class="fileSelect.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
-                    <th scope="col" class="col-rename cursor-pointer" v-if="fileSelect.selectShare" style="padding-left: 5px; font-family: inherit; letter-spacing: normal;" @click="sortFileList('file_name_re')">{{ fileSelect.index !== null && formData.tasklist[fileSelect.index] ? 
+                    <th scope="col" class="col-rename cursor-pointer" v-if="fileSelect.selectShare || fileSelect.previewRegex" style="padding-left: 5px; font-family: inherit; letter-spacing: normal;" @click="sortFileList('file_name_re')">{{ fileSelect.index !== null && fileSelect.index >= 0 && formData.tasklist[fileSelect.index] ? 
                       (formData.tasklist[fileSelect.index].use_sequence_naming ? '顺序命名' : 
-                      (formData.tasklist[fileSelect.index].use_episode_naming ? '剧集命名' : '正则命名')) : '重命名' }} <i v-if="fileSelect.sortBy === 'file_name_re'" :class="fileSelect.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
+                      (formData.tasklist[fileSelect.index].use_episode_naming ? '剧集命名' : '正则命名')) : 
+                      (fileManager.use_sequence_naming ? '顺序命名' : 
+                      (fileManager.use_episode_naming ? '剧集命名' : '正则命名')) }} <i v-if="fileSelect.sortBy === 'file_name_re'" :class="fileSelect.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
                     <template v-if="!fileSelect.previewRegex">
                       <th scope="col" class="col-size cursor-pointer" style="font-family: inherit; letter-spacing: normal;" @click="sortFileList('size')">大小 <i v-if="fileSelect.sortBy === 'size'" :class="fileSelect.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
                       <th scope="col" class="col-date cursor-pointer" style="font-family: inherit; letter-spacing: normal;" @click="sortFileList('updated_at')">修改日期 <i v-if="fileSelect.sortBy === 'updated_at'" :class="fileSelect.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
@@ -1037,7 +1301,7 @@
                   <tr v-for="(file, key) in fileSelect.fileList" :key="key" 
                       @click="fileSelect.selectDir ? (file.dir ? navigateTo(file.fid, file.file_name) : selectFileItem($event, file.fid)) : selectStartFid(file.fid)" 
                       :class="{
-                        'cursor-pointer': file.dir || !fileSelect.selectShare || (!fileSelect.selectDir && !file.dir),
+                        'cursor-pointer': (fileSelect.previewRegex ? file.dir : (file.dir || !fileSelect.selectShare || (!fileSelect.selectDir && !file.dir))),
                         'selected-file': fileSelect.selectedFiles.includes(file.fid)
                       }" 
                       style="vertical-align: top;" 
@@ -1056,18 +1320,28 @@
                         <i class="bi" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i> {{file.file_name}}
                       </div>
                     </td>
-                    <td class="col-rename position-relative" v-if="fileSelect.selectShare" :class="file.file_name_re ? 'text-success' : 'text-danger'" style="padding-left: 5px; vertical-align: top;">
+                    <td class="col-rename position-relative" v-if="fileSelect.selectShare || fileSelect.previewRegex" :class="{'text-success': file.file_name_re && !file.file_name_re.startsWith('×'), 'text-danger': !file.file_name_re || file.file_name_re === '×' || file.file_name_re.startsWith('× ')}" style="padding-left: 5px; vertical-align: top;">
                       <div v-if="!file._expandedFields || !file._expandedFields.includes('file_name_re')" 
-                           style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 25px;" 
+                           style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 25px; color: inherit;" 
                            :title="file.file_name_re || '×'" 
                            v-check-modal-overflow="key + '|file_name_re'">
-                        {{file.file_name_re || '&times;'}}
+                        <template v-if="file.file_name_re && file.file_name_re.startsWith('× ')">
+                          <span class="episode-x">×</span> <span class="episode-number-text">无法识别剧集编号</span>
+                        </template>
+                        <template v-else>
+                          <span class="episode-x">{{file.file_name_re || '×'}}</span>
+                        </template>
                       </div>
                       <div class="expand-button" v-if="isModalTextTruncated(file.file_name_re || '×', key, 'file_name_re')" @click.stop="toggleModalExpand(key, 'file_name_re')">
                         <i :class="file._expandedFields && file._expandedFields.includes('file_name_re') ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
                       </div>
-                      <div v-if="file._expandedFields && file._expandedFields.includes('file_name_re')" :class="file.file_name_re ? 'text-success' : 'text-danger'" style="white-space: normal; word-break: break-word; padding-right: 25px; display: block; width: 100%; position: relative;">
-                        {{file.file_name_re || '&times;'}}
+                      <div v-if="file._expandedFields && file._expandedFields.includes('file_name_re')" style="white-space: normal; word-break: break-word; padding-right: 25px; display: block; width: 100%; position: relative; color: inherit;">
+                        <template v-if="file.file_name_re && file.file_name_re.startsWith('× ')">
+                          <span class="episode-x">×</span> <span class="episode-number-text">无法识别剧集编号</span>
+                        </template>
+                        <template v-else>
+                          <span class="episode-x">{{file.file_name_re || '×'}}</span>
+                        </template>
                       </div>
                     </td>
                     <template v-if="!fileSelect.previewRegex">
@@ -1090,6 +1364,16 @@
             </div>
             <button type="button" class="btn btn-primary btn-sm" @click="selectCurrentFolder()">{{fileSelect.selectShare ? '转存当前文件夹' : '保存到当前文件夹'}}</button>
             <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="formData.tasklist[fileSelect.index].taskname"></span>」文件夹</button>
+          </div>
+          <div class="modal-footer" v-if="fileSelect.previewRegex && fileSelect.index === -1">
+            <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+              共 {{ fileSelect.fileList.filter(f => f.file_name_re && f.file_name_re !== '×' && !f.file_name_re.startsWith('×')).length }} 个项目可重命名
+            </div>
+            <button type="button" class="btn btn-primary btn-cancel" @click="cancelPreviewRename">取消</button>
+            <button type="button" class="btn btn-primary" :disabled="!fileSelect.canUndoRename || modalLoading" @click="undoPreviewRename">撤销</button>
+            <button type="button" class="btn btn-primary" :disabled="modalLoading || !fileSelect.fileList.some(f => f.file_name_re && f.file_name_re !== '×' && !f.file_name_re.startsWith('×'))" @click="applyPreviewRename">
+              重命名
+            </button>
           </div>
         </div>
       </div>
@@ -1189,7 +1473,8 @@
           sortBy: "updated_at", // 默认排序字段
           sortOrder: "desc", // 默认排序顺序
           selectedFiles: [], // 存储选中的文件ID
-          lastSelectedFileIndex: -1 // 记录最后选择的文件索引
+          lastSelectedFileIndex: -1, // 记录最后选择的文件索引
+          canUndoRename: false
         },
         historyParams: {
           sortBy: "transfer_time",
@@ -1210,6 +1495,69 @@
         toastMessage: "",
         selectedRecords: [],
         lastSelectedRecordIndex: -1, // 记录最后选择的记录索引，用于Shift选择
+        fileManager: {
+          loading: false,
+          // 当前文件夹ID - 根据localStorage决定初始目录
+          currentFolder: localStorage.getItem('quarkAutoSave_fileManagerLastFolder') || 'root',
+          // 面包屑导航路径
+          paths: [],
+          // 文件列表
+          fileList: [],
+          // 总数
+          total: 0,
+          // 当前页码
+          currentPage: 1,
+          // 页面大小
+          pageSize: 15,
+          // 总页数
+          totalPages: 1,
+          // 排序列 - 从localStorage读取，如果没有则使用默认值
+          sortBy: (() => {
+            const savedSort = localStorage.getItem('quarkAutoSave_fileManagerSort');
+            if (savedSort) {
+              try {
+                return JSON.parse(savedSort).sortBy || 'file_name';
+              } catch (e) {
+                return 'file_name';
+              }
+            }
+            return 'file_name';
+          })(),
+          // 排序方式 - 从localStorage读取，如果没有则使用默认值
+          sortOrder: (() => {
+            const savedSort = localStorage.getItem('quarkAutoSave_fileManagerSort');
+            if (savedSort) {
+              try {
+                return JSON.parse(savedSort).sortOrder || 'asc';
+              } catch (e) {
+                return 'asc';
+              }
+            }
+            return 'asc';
+          })(),
+          // 命名模式
+          use_sequence_naming: false,
+          use_episode_naming: false,
+          // 正则表达式
+          pattern: '',
+          replace: '',
+          // 过滤关键词
+          filterwords: '',
+          // 包含文件夹
+          include_folders: false,
+          // 选中的文件
+          selectedFiles: [],
+          // 上次选中的文件索引
+          lastSelectedFileIndex: -1,
+          // 跳转到页码
+          gotoPage: 1
+        },
+        batchRename: {
+          loading: false,
+          results: [],
+          namingMode: 'regex',
+          errors: []
+        }
       },
       computed: {
         episodePatternsText: {
@@ -1339,6 +1687,18 @@
             // 选择任务筛选条件后立即加载数据
             this.loadHistoryRecords();
           }
+        },
+        activeTab(newValue, oldValue) {
+          // 如果切换到文件整理页面，则加载文件列表
+          if (newValue === 'filemanager') {
+            this.loadFileListWithoutLoading(this.fileManager.currentFolder);
+          }
+        },
+        'fileManager.pattern': {
+          handler(newValue, oldValue) {
+            // 自动检测并切换命名模式
+            this.detectFileManagerNamingMode();
+          }
         }
       },
       mounted() {
@@ -1349,6 +1709,7 @@
         // 添加点击事件监听
         document.addEventListener('click', this.handleOutsideClick);
         document.addEventListener('click', this.handleModalOutsideClick);
+        document.addEventListener('click', this.handleFileManagerOutsideClick);
         
         // 添加模态框关闭事件监听
         $('#fileSelectModal').on('hidden.bs.modal', () => {
@@ -1372,6 +1733,12 @@
         const savedPageSize = localStorage.getItem('quarkAutoSave_pageSize');
         if (savedPageSize) {
           this.historyParams.page_size = savedPageSize === 'all' ? 99999 : parseInt(savedPageSize);
+        }
+        
+        // 从本地存储中恢复文件管理器的每页显示数
+        const savedFileManagerPageSize = localStorage.getItem('quarkAutoSave_fileManagerPageSize');
+        if (savedFileManagerPageSize) {
+          this.fileManager.pageSize = savedFileManagerPageSize === 'all' ? 99999 : parseInt(savedFileManagerPageSize);
         }
         
         // 从本地存储中恢复页面宽度设置
@@ -1451,6 +1818,11 @@
             this.loadHistoryRecords();
             // 加载所有任务名称用于筛选
             this.loadAllTaskNames();
+          }
+          
+          // 如果当前标签是文件整理，则加载文件列表
+          if (this.activeTab === 'filemanager') {
+            this.loadFileListWithoutLoading(this.fileManager.currentFolder);
           }
           
           // 添加对history.pagination的监听
@@ -1585,6 +1957,16 @@
             this.loadHistoryRecords();
             // 加载所有任务名称用于筛选
             this.loadAllTaskNames();
+          }
+          
+          // 当切换到文件整理标签时加载文件列表
+          if (tab === 'filemanager') {
+            // 从本地存储中恢复文件管理器的分页大小设置
+            const savedFileManagerPageSize = localStorage.getItem('quarkAutoSave_fileManagerPageSize');
+            if (savedFileManagerPageSize) {
+              this.fileManager.pageSize = savedFileManagerPageSize === 'all' ? 99999 : parseInt(savedFileManagerPageSize);
+            }
+            this.loadFileListWithoutLoading(this.fileManager.currentFolder);
           }
         },
         checkNewVersion() {
@@ -2425,8 +2807,7 @@
             this.$delete(this.formData.magic_regex, key);
           }
         },
-        deleteFile(fid, fname, isDir, deleteRecords = false) {
-          // 根据是否删除记录显示不同的确认提示
+        deleteFileForSelect(fid, fname, isDir, deleteRecords = false) {
           let confirmMessage = deleteRecords 
             ? `确定要删除此项目及其关联记录吗？` 
             : `确定要删除此项目吗？`;
@@ -2640,6 +3021,25 @@
           }
         },
         navigateTo(fid, name) {
+          // 新增：命名预览模式下（文件整理页面），切换目录时刷新预览
+          if (this.fileSelect.previewRegex && this.fileSelect.index === -1) {
+            // 更新fileManager当前目录
+            this.fileManager.currentFolder = fid;
+            // 更新面包屑路径
+            if (fid == "0") {
+              this.fileSelect.paths = [];
+            } else {
+              const index = this.fileSelect.paths.findIndex(item => item.fid === fid);
+              if (index !== -1) {
+                this.fileSelect.paths = this.fileSelect.paths.slice(0, index + 1);
+              } else {
+                this.fileSelect.paths.push({ fid: fid, name: name });
+              }
+            }
+            // 直接刷新命名预览（不关闭模态框）
+            this.showFileManagerNamingPreview(fid);
+            return;
+          }
           path = { fid: fid, name: name }
           if (this.fileSelect.selectShare) {
             this.fileSelect.shareurl = this.getShareurl(this.fileSelect.shareurl, path);
@@ -2695,92 +3095,48 @@
         },
         detectNamingMode(task) {
           // 检测是否为顺序命名模式或剧集命名模式
-          const sequencePatterns = ['第{}集', '第{}期', '第{}话', '{}集', '{}期', '{}话', 'E{}', 'EP{}', 'S\\d+E{}', '[{}]', '【{}】', '_{}_'];
-          const episodePatterns = ['第{% raw %}[]{% endraw %}集', '第{% raw %}[]{% endraw %}期', '第{% raw %}[]{% endraw %}话', '{% raw %}[]{% endraw %}集', '{% raw %}[]{% endraw %}期', '{% raw %}[]{% endraw %}话', 'E{% raw %}[]{% endraw %}', 'EP{% raw %}[]{% endraw %}', 'S\\d+E{% raw %}[]{% endraw %}', '[{% raw %}[]{% endraw %}', '【{% raw %}[]{% endraw %}】', '_{% raw %}[]{% endraw %}_'];
-          
           let isSequenceNaming = false;
           let isEpisodeNaming = false;
-          
-          // 保存当前值以支持撤销操作
           const currentValue = task.pattern;
-          
-          if (task.pattern !== undefined) {
-            // 检查是否包含完整的{}占位符（确保不是分开的{和}）
-            isSequenceNaming = task.pattern.includes('{}') && (!task.replace || task.replace === '');
-            
-            // 如果不是顺序命名模式，检查是否包含完整的[]占位符或就是单独的[]
-            if (!isSequenceNaming) {
-              isEpisodeNaming = (task.pattern === '[]' || task.pattern.includes('[]')) && (!task.replace || task.replace === '');
-            }
+
+          if (currentValue !== undefined) {
+            isSequenceNaming = currentValue.includes('{}');
+            isEpisodeNaming = !isSequenceNaming && currentValue.includes('[]');
           }
-          
-          // 处理模式切换
+
+          // 只要不是正则命名，强制清空 replace
+          if (isSequenceNaming || isEpisodeNaming) {
+            task.replace = '';
+          }
+
           if (isSequenceNaming) {
-            // 如果当前不是顺序命名模式，则保存现有的正则表达式
+            // 切换到顺序命名模式
             if (!task.use_sequence_naming) {
               task._pattern_backup = task.pattern;
               task._replace_backup = task.replace;
               task.use_sequence_naming = true;
               task.use_episode_naming = false;
             }
-            // 设置序列命名模式
             task.sequence_naming = task.pattern;
           } else if (isEpisodeNaming) {
-            // 如果当前不是剧集命名模式，则保存现有的正则表达式
+            // 切换到剧集命名模式
             if (!task.use_episode_naming) {
               task._pattern_backup = task.pattern;
               task._replace_backup = task.replace;
               task.use_episode_naming = true;
               task.use_sequence_naming = false;
             }
-            // 设置剧集命名模式
             task.episode_naming = task.pattern;
           } else {
-            // 如果当前是顺序命名模式或剧集命名模式，但现在检测不到相应的命名模式
+            // 切换回正则命名模式
             if (task.use_sequence_naming || task.use_episode_naming) {
-              // 如果用户正在删除内容（当前值为空或比上一次更短）
-              if (!currentValue || (task._lastPatternValue && currentValue.length < task._lastPatternValue.length)) {
-                // 保持当前编辑状态，不切换模式
-                if (task.use_sequence_naming) {
-                  task.sequence_naming = currentValue;
-                } else if (task.use_episode_naming) {
-                  task.episode_naming = currentValue;
-                }
-                
-                // 只有当完全删除后才切换回正则模式
-                if (!currentValue) {
-                  task.use_sequence_naming = false;
-                  task.use_episode_naming = false;
-                  if (task._pattern_backup) {
-                    task.pattern = "";
-                    task.replace = task._replace_backup || "";
-                  }
-                  task.sequence_naming = null;
-                  task.episode_naming = null;
-                }
-              } else if (task._pattern_backup && (!task.pattern.includes('{}') && !task.pattern.includes('[]'))) {
-                // 正常切换回正则命名模式（非删除操作）
-                task.use_sequence_naming = false;
-                task.use_episode_naming = false;
-                task.pattern = task._pattern_backup;
-                task.replace = task._replace_backup;
-                if (task.use_sequence_naming) {
-                  task._sequence_backup = task.sequence_naming;
-                  task.sequence_naming = null;
-                } else if (task.use_episode_naming) {
-                  task._episode_backup = task.episode_naming;
-                  task.episode_naming = null;
-                }
-              } else if (!task._pattern_backup && (!task.pattern.includes('{}') && !task.pattern.includes('[]'))) {
-                // 没有备份，但需要切换回正则模式
-                task.use_sequence_naming = false;
-                task.use_episode_naming = false;
-                task.sequence_naming = null;
-                task.episode_naming = null;
-              }
+              task.use_sequence_naming = false;
+              task.use_episode_naming = false;
+              task.sequence_naming = null;
+              task.episode_naming = null;
             }
           }
-          
+
           // 保存当前值，用于下次比较
           task._lastPatternValue = currentValue;
           
@@ -3246,103 +3602,203 @@
             // 默认降序（除了文件名外）
             this.fileSelect.sortOrder = field === 'file_name' ? 'asc' : 'desc';
           }
-          
+
           // 按选定字段和顺序对文件列表进行排序
           this.fileSelect.fileList.sort((a, b) => {
-            // 始终将文件夹排在文件前面
-            if (a.dir && !b.dir) return -1;
-            if (!a.dir && b.dir) return 1;
-            
-            let aValue, bValue;
-            
-            // 根据不同的字段选择不同的排序值
             if (field === 'file_name') {
-              aValue = a.file_name.toLowerCase();
-              bValue = b.file_name.toLowerCase();
-            } else if (field === 'file_name_re') {
-              // 对于重命名列，优先使用episode_number进行数值排序（如果存在）
-              if (a.episode_number !== undefined && b.episode_number !== undefined) {
-                aValue = a.episode_number;
-                bValue = b.episode_number;
+              // 文件夹始终在前
+              if (a.dir && !b.dir) return -1;
+              if (!a.dir && b.dir) return 1;
+              let aValue = a.file_name.toLowerCase();
+              let bValue = b.file_name.toLowerCase();
+              if (this.fileSelect.sortOrder === 'asc') {
+                return aValue > bValue ? 1 : -1;
               } else {
-                // 否则使用重命名后的文件名进行字符串排序
-                aValue = (a.file_name_re || '').toLowerCase();
-                bValue = (b.file_name_re || '').toLowerCase();
+                return aValue < bValue ? 1 : -1;
               }
+            }
+            if (field === 'file_name_re') {
+              const aHasValidRename = a.file_name_re && a.file_name_re !== '×' && !a.file_name_re.startsWith('×');
+              const bHasValidRename = b.file_name_re && b.file_name_re !== '×' && !b.file_name_re.startsWith('×');
+
+              // 有效重命名的项目排在前面
+              if (aHasValidRename && !bHasValidRename) return -1;
+              if (!aHasValidRename && bHasValidRename) return 1;
+
+              // 对于有效重命名的项目，按重命名结果排序
+              if (aHasValidRename && bHasValidRename) {
+                // 同类型内，文件夹排在文件前面
+                if (a.dir && !b.dir) return -1;
+                if (!a.dir && b.dir) return 1;
+
+                let aValue, bValue;
+                // 对于重命名列，优先使用episode_number进行数值排序（如果存在）
+                if (a.episode_number !== undefined && b.episode_number !== undefined) {
+                  aValue = a.episode_number;
+                  bValue = b.episode_number;
+                } else {
+                  // 否则使用重命名后的文件名进行字符串排序
+                  aValue = (a.file_name_re || '').toLowerCase();
+                  bValue = (b.file_name_re || '').toLowerCase();
+                }
+
+                if (this.fileSelect.sortOrder === 'asc') {
+                  return aValue > bValue ? 1 : -1;
+                } else {
+                  return aValue < bValue ? 1 : -1;
+                }
+              }
+
+              // 对于无效重命名的项目，按照特定优先级排序
+              if (!aHasValidRename && !bHasValidRename) {
+                // 定义无效重命名的优先级（数字越小优先级越高）
+                const getInvalidRenamePriority = (item) => {
+                  const renameResult = item.file_name_re || '×';
+                  if (renameResult.includes('无法识别剧集编号')) return 1;
+                  if (renameResult === '×') return 2;
+                  return 3; // 其他无效重命名
+                };
+
+                const aPriority = getInvalidRenamePriority(a);
+                const bPriority = getInvalidRenamePriority(b);
+
+                // 如果优先级不同，按优先级排序
+                if (aPriority !== bPriority) {
+                  return aPriority - bPriority;
+                }
+
+                // 同一优先级内，文件夹排在文件前面
+                if (a.dir && !b.dir) return -1;
+                if (!a.dir && b.dir) return 1;
+
+                // 同一优先级且同一类型内，使用智能排序
+                const ka = sortFileByName(a), kb = sortFileByName(b);
+                for (let i = 0; i < ka.length; ++i) {
+                  if (ka[i] !== kb[i]) return this.fileSelect.sortOrder === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
+                }
+                return 0;
+              }
+              return 0;
             } else if (field === 'size') {
-              // 对于文件大小，使用数字进行排序
-              if (a.dir && b.dir) {
-                aValue = a.include_items || 0;
-                bValue = b.include_items || 0;
+              // 文件夹始终在前
+              if (a.dir && !b.dir) return -1;
+              if (!a.dir && b.dir) return 1;
+
+              let aValue = a.dir ? 0 : (a.size || 0);
+              let bValue = b.dir ? 0 : (b.size || 0);
+              if (this.fileSelect.sortOrder === 'asc') {
+                return aValue > bValue ? 1 : -1;
               } else {
-                aValue = a.dir ? 0 : (a.size || 0);
-                bValue = b.dir ? 0 : (b.size || 0);
+                return aValue < bValue ? 1 : -1;
               }
             } else if (field === 'updated_at') {
-              // 对于日期，使用时间戳进行排序
-              aValue = a.updated_at || 0;
-              bValue = b.updated_at || 0;
-            } else {
-              // 默认字段
-              aValue = a[field] || '';
-              bValue = b[field] || '';
-            }
-            
-            // 根据排序顺序返回比较结果
-            if (this.fileSelect.sortOrder === 'asc') {
-              return aValue > bValue ? 1 : -1;
-            } else {
-              return aValue < bValue ? 1 : -1;
+              // 修改日期排序严格按照修改日期，不区分文件夹和文件
+              let aValue = a.updated_at || 0;
+              let bValue = b.updated_at || 0;
+              if (this.fileSelect.sortOrder === 'asc') {
+                return aValue > bValue ? 1 : -1;
+              } else {
+                return aValue < bValue ? 1 : -1;
+              }
             }
           });
         },
         manualSortFileList(field, order) {
-          // 按选定字段和顺序对文件列表进行排序，但不改变当前的排序顺序
           this.fileSelect.fileList.sort((a, b) => {
-            // 始终将文件夹排在文件前面
-            if (a.dir && !b.dir) return -1;
-            if (!a.dir && b.dir) return 1;
-            
-            let aValue, bValue;
-            
-            // 根据不同的字段选择不同的排序值
             if (field === 'file_name') {
-              aValue = a.file_name.toLowerCase();
-              bValue = b.file_name.toLowerCase();
-            } else if (field === 'file_name_re') {
-              // 对于重命名列，优先使用episode_number进行数值排序（如果存在）
-              if (a.episode_number !== undefined && b.episode_number !== undefined) {
-                aValue = a.episode_number;
-                bValue = b.episode_number;
+              if (a.dir && !b.dir) return -1;
+              if (!a.dir && b.dir) return 1;
+              let aValue = a.file_name.toLowerCase();
+              let bValue = b.file_name.toLowerCase();
+              if (order === 'asc') {
+                return aValue > bValue ? 1 : -1;
               } else {
-                // 否则使用重命名后的文件名进行字符串排序
-                aValue = (a.file_name_re || '').toLowerCase();
-                bValue = (b.file_name_re || '').toLowerCase();
+                return aValue < bValue ? 1 : -1;
               }
+            }
+            if (field === 'file_name_re') {
+              const aHasValidRename = a.file_name_re && a.file_name_re !== '×' && !a.file_name_re.startsWith('×');
+              const bHasValidRename = b.file_name_re && b.file_name_re !== '×' && !b.file_name_re.startsWith('×');
+
+              // 有效重命名的项目排在前面
+              if (aHasValidRename && !bHasValidRename) return -1;
+              if (!aHasValidRename && bHasValidRename) return 1;
+
+              // 对于有效重命名的项目，按重命名结果排序
+              if (aHasValidRename && bHasValidRename) {
+                // 同类型内，文件夹排在文件前面
+                if (a.dir && !b.dir) return -1;
+                if (!a.dir && b.dir) return 1;
+
+                let aValue, bValue;
+                // 对于重命名列，优先使用episode_number进行数值排序（如果存在）
+                if (a.episode_number !== undefined && b.episode_number !== undefined) {
+                  aValue = a.episode_number;
+                  bValue = b.episode_number;
+                } else {
+                  // 否则使用重命名后的文件名进行字符串排序
+                  aValue = (a.file_name_re || '').toLowerCase();
+                  bValue = (b.file_name_re || '').toLowerCase();
+                }
+
+                if (order === 'asc') {
+                  return aValue > bValue ? 1 : -1;
+                } else {
+                  return aValue < bValue ? 1 : -1;
+                }
+              }
+
+              // 对于无效重命名的项目，按照特定优先级排序
+              if (!aHasValidRename && !bHasValidRename) {
+                // 定义无效重命名的优先级（数字越小优先级越高）
+                const getInvalidRenamePriority = (item) => {
+                  const renameResult = item.file_name_re || '×';
+                  if (renameResult.includes('无法识别剧集编号')) return 1;
+                  if (renameResult === '×') return 2;
+                  return 3; // 其他无效重命名
+                };
+
+                const aPriority = getInvalidRenamePriority(a);
+                const bPriority = getInvalidRenamePriority(b);
+
+                // 如果优先级不同，按优先级排序
+                if (aPriority !== bPriority) {
+                  return aPriority - bPriority;
+                }
+
+                // 同一优先级内，文件夹排在文件前面
+                if (a.dir && !b.dir) return -1;
+                if (!a.dir && b.dir) return 1;
+
+                // 同一优先级且同一类型内，使用智能排序
+                const ka = sortFileByName(a), kb = sortFileByName(b);
+                for (let i = 0; i < ka.length; ++i) {
+                  if (ka[i] !== kb[i]) return order === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
+                }
+                return 0;
+              }
+              return 0;
             } else if (field === 'size') {
-              // 对于文件大小，使用数字进行排序
-              if (a.dir && b.dir) {
-                aValue = a.include_items || 0;
-                bValue = b.include_items || 0;
+              // 文件夹始终在前
+              if (a.dir && !b.dir) return -1;
+              if (!a.dir && b.dir) return 1;
+
+              let aValue = a.dir ? 0 : (a.size || 0);
+              let bValue = b.dir ? 0 : (b.size || 0);
+              if (order === 'asc') {
+                return aValue > bValue ? 1 : -1;
               } else {
-                aValue = a.dir ? 0 : (a.size || 0);
-                bValue = b.dir ? 0 : (b.size || 0);
+                return aValue < bValue ? 1 : -1;
               }
             } else if (field === 'updated_at') {
-              // 对于日期，使用时间戳进行排序
-              aValue = a.updated_at || 0;
-              bValue = b.updated_at || 0;
-            } else {
-              // 默认字段
-              aValue = a[field] || '';
-              bValue = b[field] || '';
-            }
-            
-            // 根据排序顺序返回比较结果
-            if (order === 'asc') {
-              return aValue > bValue ? 1 : -1;
-            } else {
-              return aValue < bValue ? 1 : -1;
+              // 修改日期排序严格按照修改日期，不区分文件夹和文件
+              let aValue = a.updated_at || 0;
+              let bValue = b.updated_at || 0;
+              if (order === 'asc') {
+                return aValue > bValue ? 1 : -1;
+              } else {
+                return aValue < bValue ? 1 : -1;
+              }
             }
           });
         },
@@ -3597,13 +4053,13 @@
         deleteSelectedFiles(clickedFid, clickedFname, isDir, deleteRecords = false) {
           // 如果是文件夹或者没有选中的文件，则按原来的方式删除单个文件
           if (isDir || this.fileSelect.selectedFiles.length === 0) {
-            this.deleteFile(clickedFid, clickedFname, isDir, deleteRecords);
+            this.deleteFileForSelect(clickedFid, clickedFname, isDir, deleteRecords);
             return;
           }
           
           // 如果点击的文件不在选中列表中，也按原来的方式删除单个文件
           if (!this.fileSelect.selectedFiles.includes(clickedFid)) {
-            this.deleteFile(clickedFid, clickedFname, isDir, deleteRecords);
+            this.deleteFileForSelect(clickedFid, clickedFname, isDir, deleteRecords);
             return;
           }
           
@@ -3673,7 +4129,7 @@
                   }
                 }
                 
-                // 如果同时删除了记录，无论当前在哪个页面都刷新历史记录
+                // 如果同时删除了记录，无论当前在哪个页面，都刷新历史记录
                 if (deleteRecords) {
                   this.loadHistoryRecords();
                 }
@@ -3794,6 +4250,979 @@
           // 重新加载记录
           this.loadHistoryRecords();
         },
+        navigateToFolder(folderId, folderName) {
+          this.fileManager.selectedFiles = []; // 清空选中的文件
+          
+          if (folderId === 'root') {
+            // 回到根目录
+            this.fileManager.paths = [];
+          } else {
+            // 查找是否已经在路径中
+            const index = this.fileManager.paths.findIndex(path => path.fid === folderId);
+            
+            if (index !== -1) {
+              // 如果已存在，截取到该位置
+              this.fileManager.paths = this.fileManager.paths.slice(0, index + 1);
+            } else {
+              // 否则添加到路径
+              this.fileManager.paths.push({
+                fid: folderId,
+                name: folderName
+              });
+            }
+          }
+          
+          // 保存当前目录到localStorage
+          localStorage.setItem('quarkAutoSave_fileManagerLastFolder', folderId);
+          
+          // 重置页码并加载新文件夹内容，不显示加载动画
+          this.fileManager.currentPage = 1;
+          this.loadFileListWithoutLoading(folderId);
+        },
+        selectFileForManager(event, file) {
+          // 如果是文件夹，不允许选择
+          if (file.dir) return;
+          
+          // 如果是Shift+点击，选择范围
+          if (event.shiftKey && this.fileManager.selectedFiles.length > 0) {
+            // 找出所有已选中文件的索引
+            const selectedIndices = this.fileManager.selectedFiles.map(id => 
+              this.fileManager.fileList.findIndex(file => file.fid === id)
+            ).filter(index => index !== -1); // 过滤掉未找到的文件
+            
+            if (selectedIndices.length > 0) {
+              // 找出已选中文件中最靠前的索引
+              const earliestSelectedIndex = Math.min(...selectedIndices);
+              // 确定最终的选择范围
+              const startIndex = Math.min(earliestSelectedIndex, this.fileManager.fileList.indexOf(file));
+              const endIndex = Math.max(earliestSelectedIndex, this.fileManager.fileList.indexOf(file));
+              
+              // 获取范围内所有文件的ID（排除文件夹）
+              this.fileManager.selectedFiles = this.fileManager.fileList
+                .slice(startIndex, endIndex + 1)
+                .filter(file => !file.dir) // 只选择文件，不选择文件夹
+                .map(file => file.fid);
+            } else {
+              // 如果没有有效的选中文件（可能是由于列表刷新），则只选择当前文件
+              this.fileManager.selectedFiles = [file.fid];
+            }
+          } 
+          // 如果是Ctrl/Cmd+点击，切换单个文件选择状态
+          else if (event.ctrlKey || event.metaKey) {
+            if (this.fileManager.selectedFiles.includes(file.fid)) {
+              this.fileManager.selectedFiles = this.fileManager.selectedFiles.filter(id => id !== file.fid);
+            } else {
+              this.fileManager.selectedFiles.push(file.fid);
+            }
+          } 
+          // 普通点击，清除当前选择并选择当前文件
+          else {
+            if (this.fileManager.selectedFiles.length === 1 && this.fileManager.selectedFiles.includes(file.fid)) {
+              this.fileManager.selectedFiles = [];
+            } else {
+              this.fileManager.selectedFiles = [file.fid];
+            }
+          }
+          
+          // 更新最后选择的文件索引，只有在有选择文件时才更新
+          if (this.fileManager.selectedFiles.length > 0) {
+            this.fileManager.lastSelectedFileIndex = this.fileManager.fileList.indexOf(file);
+          } else {
+            this.fileManager.lastSelectedFileIndex = -1;
+          }
+          
+          // 阻止事件冒泡
+          event.stopPropagation();
+        },
+        formatFileSize(fileSize) {
+          const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+          let size = fileSize;
+          let unitIndex = 0;
+          while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex++;
+          }
+          return `${size.toFixed(2)} ${units[unitIndex]}`;
+        },
+        formatDate(date) {
+          // 将时间戳转换为年-月-日 时:分:秒格式
+          const d = new Date(date);
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          const hours = String(d.getHours()).padStart(2, '0');
+          const minutes = String(d.getMinutes()).padStart(2, '0');
+          const seconds = String(d.getSeconds()).padStart(2, '0');
+          return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        },
+        changeFolderPage(page) {
+          if (page < 1) page = 1;
+          if (page > this.fileManager.totalPages) page = this.fileManager.totalPages;
+          
+          // 更新当前页码
+          this.fileManager.currentPage = page;
+          this.fileManager.gotoPage = page;
+          
+          // 使用不显示加载动画的方式加载文件列表
+          this.loadFileListWithoutLoading(this.fileManager.currentFolder);
+        },
+        getVisibleFolderPageNumbers() {
+          const current = parseInt(this.fileManager.currentPage) || 1;
+          const total = parseInt(this.fileManager.totalPages) || 1;
+          const delta = 2; // 当前页左右显示的页码数
+          
+          // 处理特殊情况
+          if (total <= 1) return [];
+          
+          let range = [];
+          
+          // 确定显示范围
+          let rangeStart = Math.max(2, current - delta);
+          let rangeEnd = Math.min(total - 1, current + delta);
+          
+          // 调整范围，确保显示足够的页码
+          if (rangeEnd - rangeStart < delta * 2) {
+            if (current - rangeStart < delta) {
+              // 当前页靠近开始，扩展结束范围
+              rangeEnd = Math.min(total - 1, rangeStart + delta * 2);
+            } else {
+              // 当前页靠近结束，扩展开始范围
+              rangeStart = Math.max(2, rangeEnd - delta * 2);
+            }
+          }
+          
+          // 生成页码数组
+          for (let i = rangeStart; i <= rangeEnd; i++) {
+            range.push(i);
+          }
+          
+          return range;
+        },
+        isFilenameTruncated(file_name, index, field) {
+          if (!this.fileManager.fileList[index]) return false;
+          
+          // 确保文本是字符串类型
+          const str = String(file_name || '');
+          
+          // 先检查文本是否有足够长度，太短的文本肯定不需要展开
+          if (str.length <= 20) return false;
+          
+          // 从文件的_isOverflowing属性中获取溢出状态
+          const file = this.fileManager.fileList[index];
+          
+          // 如果已经展开了，那么我们认为它可能是需要截断的
+          if (file._expanded) {
+            return true;
+          }
+          
+          return file._isOverflowing && file._isOverflowing[field];
+        },
+        toggleExpandFilename(file) {
+          // 切换展开状态
+          this.$set(file, '_expanded', !file._expanded);
+          
+          // 在下一个DOM更新周期中强制重新检测溢出状态
+          this.$nextTick(() => {
+            // 确保_isOverflowing属性存在
+            if (!file._isOverflowing) {
+              this.$set(file, '_isOverflowing', {});
+            }
+            
+            // 在收起状态下，通过设置为true确保展开按钮依然可见
+            if (!file._expanded) {
+              this.$set(file._isOverflowing, 'file_name', true);
+            }
+          });
+          
+          // 确保视图更新
+          this.$forceUpdate();
+        },
+        renameFile(file) {
+          // 单个文件重命名
+          const newName = prompt('请输入新的文件名：', file.file_name);
+          if (newName && newName !== file.file_name) {
+            axios.post('/batch_rename', {
+              files: [{
+                file_id: file.fid,
+                new_name: newName
+              }]
+            })
+              .then(response => {
+                if (response.data.success) {
+                  this.showToast('重命名成功');
+                  // 更新本地文件列表中的文件名
+                  const index = this.fileManager.fileList.findIndex(f => f.fid === file.fid);
+                  if (index !== -1) {
+                    this.fileManager.fileList[index].file_name = newName;
+                  }
+                } else {
+                  alert(response.data.message || '重命名失败');
+                }
+              })
+              .catch(error => {
+                console.error('重命名文件失败:', error);
+                alert('重命名文件失败');
+              });
+          }
+        },
+        switchNamingMode() {
+          // 不再切换命名模式，而是显示命名预览模态框
+          this.showFileManagerNamingPreview();
+        },
+        
+        showFileManagerNamingPreview(folderId) {
+          // 使用文件选择模态框，但设置为预览模式
+          this.fileSelect.selectShare = false;
+          this.fileSelect.selectDir = true;
+          this.fileSelect.previewRegex = true;
+          this.fileSelect.fileList = [];
+          this.fileSelect.paths = [];
+          this.fileSelect.error = undefined;
+          this.fileSelect.selectedFiles = [];
+          // 设置排序方式为按重命名结果降序排序
+          this.fileSelect.sortBy = "file_name_re";
+          this.fileSelect.sortOrder = "desc";
+          // 展示当前文件夹的文件
+          const currentFolderId = folderId || this.fileManager.currentFolder;
+          // 模拟一个任务，用于预览
+          const previewTask = {
+            pattern: this.fileManager.pattern,
+            replace: this.fileManager.replace,
+            use_sequence_naming: this.fileManager.use_sequence_naming,
+            use_episode_naming: this.fileManager.use_episode_naming,
+            filterwords: this.fileManager.filterwords
+          };
+          // 存储临时任务索引
+          this.fileSelect.index = -1; // 使用-1表示这是文件管理器的预览
+          // 设置模态框标题类型
+          document.getElementById('fileSelectModal').setAttribute('data-modal-type', 'preview-filemanager');
+          // 显示模态框
+          if (!folderId) $('#fileSelectModal').modal('toggle'); // 仅首次打开时toggle
+          // 获取文件列表并处理重命名预览
+          this.modalLoading = true;
+          // 获取重命名预览结果
+          axios.get('/preview_rename', {
+            params: {
+              folder_id: currentFolderId,
+              pattern: this.fileManager.pattern,
+              replace: this.fileManager.replace,
+              naming_mode: this.fileManager.use_sequence_naming ? 'sequence' : (this.fileManager.use_episode_naming ? 'episode' : 'regex'),
+              include_folders: this.fileManager.include_folders,
+              filterwords: this.fileManager.filterwords,
+              // 添加页面大小参数，获取所有文件
+              page_size: 99999
+            }
+          })
+          .then(response => {
+            if (response.data.success) {
+              // 处理预览结果
+              const previewData = response.data.data || [];
+              
+              // 获取当前文件夹信息，包括路径
+              axios.get('/file_list', {
+                params: {
+                  folder_id: currentFolderId,
+                  sort_by: this.fileSelect.sortBy,
+                  order: this.fileSelect.sortOrder,
+                  // 使用一个较大的值以获取全部文件，不使用分页
+                  page_size: 99999,
+                  page: 1,
+                  // 同时添加文件夹包含参数
+                  include_folders: this.fileManager.include_folders
+                }
+              })
+              .then(listResponse => {
+                if (listResponse.data.success) {
+                  // 获取文件列表和路径
+                  const fileList = listResponse.data.data.list;
+                  this.fileSelect.paths = listResponse.data.data.paths || [];
+                  
+                  // 将重命名结果添加到文件列表
+                  fileList.forEach(file => {
+                    // 尝试通过ID匹配预览结果
+                    let previewItem = previewData.find(item => item.file_id === file.fid);
+                    
+                    // 如果通过ID没有匹配到，尝试通过文件名匹配
+                    if (!previewItem) {
+                      previewItem = previewData.find(item => 
+                        item.original_name === file.file_name && 
+                        (!item.file_id || item.file_id === file.fid)
+                      );
+                    }
+                    
+                    if (previewItem) {
+                      // 设置重命名字段
+                      file.file_name_re = previewItem.new_name;
+                    } else {
+                      file.file_name_re = null;
+                    }
+                  });
+                  
+                  // 更新文件列表
+                  this.fileSelect.fileList = fileList;
+                  
+                  // 按照重命名结果排序，使用统一的排序逻辑
+                  if (this.fileSelect.sortBy === 'file_name_re') {
+                    this.manualSortFileList('file_name_re', this.fileSelect.sortOrder);
+                  }
+                } else {
+                  this.fileSelect.error = listResponse.data.message || '获取文件列表失败';
+                }
+                this.modalLoading = false;
+                
+                // 检查滚动条
+                this.$nextTick(() => {
+                  this.checkPreviewScrollbar();
+                });
+              })
+              .catch(error => {
+                console.error('获取文件列表失败:', error);
+                this.fileSelect.error = '获取文件列表失败，请稍后再试';
+                this.modalLoading = false;
+              });
+            } else {
+              this.fileSelect.error = response.data.message || '获取预览失败';
+              this.modalLoading = false;
+            }
+            // 判断当前目录下是否还有可撤销的rename记录
+            axios.get('/api/has_rename_record', {
+              params: { save_path: currentFolderId }
+            }).then(resp => {
+              this.fileSelect.canUndoRename = !!(resp.data && resp.data.has_rename);
+            }).catch(() => {
+              this.fileSelect.canUndoRename = false;
+            });
+          })
+          .catch(error => {
+            console.error('获取预览失败:', error);
+            this.fileSelect.error = '获取预览失败，请稍后再试';
+            this.modalLoading = false;
+          });
+        },
+        showBatchRenameModal() {
+          this.batchRename.loading = true;
+          this.batchRename.results = [];
+          this.batchRename.errors = [];
+          
+          // 设置命名模式
+          if (this.fileManager.use_sequence_naming) {
+            this.batchRename.namingMode = 'sequence';
+          } else if (this.fileManager.use_episode_naming) {
+            this.batchRename.namingMode = 'episode';
+          } else {
+            this.batchRename.namingMode = 'regex';
+          }
+          
+          // 调用后端API获取预览结果
+          const params = {
+            folder_id: this.fileManager.currentFolder,
+            pattern: this.fileManager.pattern,
+            replace: this.fileManager.replace,
+            naming_mode: this.batchRename.namingMode,
+            include_folders: this.fileManager.include_folders,
+            filterwords: this.fileManager.filterwords
+          };
+          
+          axios.get('/preview_rename', { params })
+            .then(response => {
+              if (response.data.success) {
+                this.batchRename.files = response.data.data.map(file => ({
+                  oldName: file.original_name,
+                  newName: file.new_name,
+                  fileId: file.file_id
+                }));
+              } else {
+                alert(response.data.message || '预览重命名失败');
+              }
+              this.batchRename.loading = false;
+              $('#batchRenameModal').modal('show');
+            })
+            .catch(error => {
+              console.error('预览重命名失败:', error);
+              alert('预览重命名失败，请检查命名规则是否正确');
+              this.batchRename.loading = false;
+            });
+        },
+        confirmBatchRename() {
+          this.batchRename.loading = true;
+          
+          // 发送批量重命名请求
+          const params = {
+            folder_id: this.fileManager.currentFolder,
+            pattern: this.fileManager.pattern,
+            replace: this.fileManager.replace,
+            naming_mode: this.batchRename.namingMode,
+            include_folders: this.fileManager.include_folders,
+            filterwords: this.fileManager.filterwords,
+            files: this.batchRename.files.filter(file => file.newName).map(file => ({
+              file_id: file.fileId,
+              new_name: file.newName
+            }))
+          };
+          
+          axios.post('/batch_rename', params)
+            .then(response => {
+              if (response.data.success) {
+                this.showToast('批量重命名成功');
+                $('#batchRenameModal').modal('hide');
+                // 刷新文件列表
+                this.loadFileList(this.fileManager.currentFolder);
+              } else {
+                alert(response.data.message || '批量重命名失败');
+              }
+              this.batchRename.loading = false;
+            })
+            .catch(error => {
+              console.error('批量重命名失败:', error);
+              alert('批量重命名失败');
+              this.batchRename.loading = false;
+            });
+        },
+        deleteFile(file) {
+          if (confirm(`确定要删除${file.dir ? '文件夹' : '文件'} "${file.file_name}" 吗？`)) {
+            // 获取当前路径作为save_path参数
+            let save_path = "";
+            if (this.fileManager && this.fileManager.paths) {
+              save_path = this.fileManager.paths.map(item => item.name).join("/");
+            }
+            
+            axios.post('/delete_file', { 
+              fid: file.fid, 
+              file_name: file.file_name, 
+              delete_records: false, 
+              save_path: save_path 
+            })
+              .then(response => {
+                if (response.data.code === 0) {
+                  this.showToast('成功删除 1 个项目');
+                  // 从列表中移除已删除的文件
+                  this.fileManager.fileList = this.fileManager.fileList.filter(f => f.fid !== file.fid);
+                  // 更新总数
+                  this.fileManager.total -= 1;
+                  // 从选中列表中移除
+                  this.fileManager.selectedFiles = this.fileManager.selectedFiles.filter(id => id !== file.fid);
+                } else {
+                  alert(response.data.message || '删除失败');
+                }
+              })
+              .catch(error => {
+                console.error('删除文件失败:', error);
+                alert('删除文件失败');
+              });
+          }
+        },
+        loadFileList(folderId) {
+          this.fileManager.loading = true;
+          this.fileManager.currentFolder = folderId || 'root';
+          
+          const params = {
+            folder_id: folderId || 'root',
+            sort_by: this.fileManager.sortBy,
+            order: this.fileManager.sortOrder,
+            page_size: this.fileManager.pageSize,
+            page: this.fileManager.currentPage
+          };
+          
+          axios.get('/file_list', { params })
+            .then(response => {
+              if (response.data.success) {
+                this.fileManager.fileList = response.data.data.list;
+                this.fileManager.total = response.data.data.total;
+                this.fileManager.totalPages = Math.ceil(response.data.data.total / this.fileManager.pageSize);
+                this.fileManager.paths = response.data.data.paths || [];
+                this.fileManager.gotoPage = this.fileManager.currentPage;
+              } else {
+                alert(response.data.message || '获取文件列表失败');
+              }
+              this.fileManager.loading = false;
+            })
+            .catch(error => {
+              console.error('获取文件列表失败:', error);
+              this.fileManager.loading = false;
+            });
+        },
+        sortFiles(field) {
+          if (this.fileManager.sortBy === field) {
+            // 如果已经按此字段排序，则切换排序方向
+            this.fileManager.sortOrder = this.fileManager.sortOrder === 'asc' ? 'desc' : 'asc';
+          } else {
+            // 否则切换排序字段，并设置默认排序方向
+            this.fileManager.sortBy = field;
+            // 文件名默认按字母升序，日期和大小默认按降序
+            this.fileManager.sortOrder = field === 'file_name' ? 'asc' : 'desc';
+          }
+
+          // 保存排序设置到localStorage
+          const sortSettings = {
+            sortBy: this.fileManager.sortBy,
+            sortOrder: this.fileManager.sortOrder
+          };
+          localStorage.setItem('quarkAutoSave_fileManagerSort', JSON.stringify(sortSettings));
+
+          // 使用不显示加载动画的方式加载文件列表
+          this.loadFileListWithoutLoading(this.fileManager.currentFolder);
+        },
+        changeFileManagerPageSize(size) {
+          // 先更新内存中的值
+          this.fileManager.pageSize = size === 'all' ? 99999 : size;
+          this.fileManager.currentPage = 1;
+          
+          // 然后保存到localStorage
+          localStorage.setItem('quarkAutoSave_fileManagerPageSize', size.toString());
+          
+          // 最后重新加载文件列表
+          this.loadFileListWithoutLoading(this.fileManager.currentFolder);
+        },
+        navigateToFolder(folderId, folderName) {
+          this.fileManager.selectedFiles = []; // 清空选中的文件
+          
+          if (folderId === 'root') {
+            // 回到根目录
+            this.fileManager.paths = [];
+          } else {
+            // 查找是否已经在路径中
+            const index = this.fileManager.paths.findIndex(path => path.fid === folderId);
+            
+            if (index !== -1) {
+              // 如果已存在，截取到该位置
+              this.fileManager.paths = this.fileManager.paths.slice(0, index + 1);
+            } else {
+              // 否则添加到路径
+              this.fileManager.paths.push({
+                fid: folderId,
+                name: folderName
+              });
+            }
+          }
+          
+          // 保存当前目录到localStorage
+          localStorage.setItem('quarkAutoSave_fileManagerLastFolder', folderId);
+          
+          // 重置页码并加载新文件夹内容，不显示加载动画
+          this.fileManager.currentPage = 1;
+          this.loadFileListWithoutLoading(folderId);
+        },
+        
+        // 添加一个不显示加载动画的文件列表加载方法
+        loadFileListWithoutLoading(folderId) {
+          this.fileManager.currentFolder = folderId || 'root';
+          
+          // 从localStorage读取分页大小设置（仅在初始化时使用）
+          // 在changeFileManagerPageSize方法中，我们已经确保了正确的执行顺序
+          const savedFileManagerPageSize = localStorage.getItem('quarkAutoSave_fileManagerPageSize');
+          if (savedFileManagerPageSize && this.fileManager.pageSize === 15) { // 只在默认值时读取
+            this.fileManager.pageSize = savedFileManagerPageSize === 'all' ? 99999 : parseInt(savedFileManagerPageSize);
+          }
+          
+          const params = {
+            folder_id: folderId || 'root',
+            sort_by: this.fileManager.sortBy,
+            order: this.fileManager.sortOrder,
+            page_size: this.fileManager.pageSize,
+            page: this.fileManager.currentPage
+          };
+          
+          axios.get('/file_list', { params })
+            .then(response => {
+              if (response.data.success) {
+                this.fileManager.fileList = response.data.data.list;
+                this.fileManager.total = response.data.data.total;
+                this.fileManager.totalPages = Math.ceil(response.data.data.total / this.fileManager.pageSize);
+                this.fileManager.paths = response.data.data.paths || [];
+                this.fileManager.gotoPage = this.fileManager.currentPage;
+              } else {
+                console.error('获取文件列表失败:', response.data.message);
+              }
+              
+              // 检测当前的命名模式
+              this.detectFileManagerNamingMode();
+            })
+            .catch(error => {
+              console.error('获取文件列表失败:', error);
+            });
+        },
+        getVisibleFolderPageNumbers() {
+          const current = parseInt(this.fileManager.currentPage) || 1;
+          const total = parseInt(this.fileManager.totalPages) || 1;
+          const delta = 2; // 当前页左右显示的页码数
+          
+          // 处理特殊情况
+          if (total <= 1) return [];
+          if (total <= 5) {
+            return Array.from({ length: total - 2 }, (_, i) => i + 2);
+          }
+          
+          let range = [];
+          
+          // 确定显示范围
+          let rangeStart = Math.max(2, current - delta);
+          let rangeEnd = Math.min(total - 1, current + delta);
+          
+          // 调整范围，确保显示足够的页码
+          if (rangeEnd - rangeStart < delta * 2) {
+            if (current - rangeStart < delta) {
+              // 当前页靠近开始，扩展结束范围
+              rangeEnd = Math.min(total - 1, rangeStart + delta * 2);
+            } else {
+              // 当前页靠近结束，扩展开始范围
+              rangeStart = Math.max(2, rangeEnd - delta * 2);
+            }
+          }
+          
+          // 生成页码数组
+          for (let i = rangeStart; i <= rangeEnd; i++) {
+            range.push(i);
+          }
+          
+          return range;
+        },
+        cancelBatchRename() {
+          this.batchRename.loading = false;
+          this.batchRename.results = [];
+          this.batchRename.errors = [];
+          $('#batchRenameModal').modal('hide');
+        },
+        applyBatchRename() {
+          this.batchRename.loading = true;
+          
+          // 发送批量重命名请求
+          const params = {
+            folder_id: this.fileManager.currentFolder,
+            pattern: this.fileManager.pattern,
+            replace: this.fileManager.replace,
+            naming_mode: this.batchRename.namingMode,
+            include_folders: this.fileManager.include_folders,
+            filterwords: this.fileManager.filterwords,
+            files: this.batchRename.files.filter(file => file.newName).map(file => ({
+              file_id: file.fileId,
+              new_name: file.newName
+            }))
+          };
+          
+          axios.post('/batch_rename', params)
+            .then(response => {
+              if (response.data.success) {
+                this.showToast('批量重命名成功');
+                $('#batchRenameModal').modal('hide');
+                // 刷新文件列表
+                this.loadFileList(this.fileManager.currentFolder);
+              } else {
+                alert(response.data.message || '批量重命名失败');
+              }
+              this.batchRename.loading = false;
+            })
+            .catch(error => {
+              console.error('批量重命名失败:', error);
+              alert('批量重命名失败');
+              this.batchRename.loading = false;
+            });
+        },
+        handleFileManagerOutsideClick(event) {
+          // 如果当前不是文件整理页面或者没有选中的文件，则不处理
+          if (this.activeTab !== 'filemanager' || this.fileManager.selectedFiles.length === 0) {
+            return;
+          }
+          
+          // 检查点击是否在表格内
+          const tableElement = document.querySelector('.table.selectable-files');
+          // 检查点击是否在分页控制区域
+          const paginationElement = document.querySelector('.pagination-container');
+          
+          // 如果点击不在表格内且不在分页控制区域内，则清除选择
+          if (tableElement && !tableElement.contains(event.target) && 
+              paginationElement && !paginationElement.contains(event.target)) {
+            this.fileManager.selectedFiles = [];
+            this.fileManager.lastSelectedFileIndex = -1;
+          }
+        },
+        deleteSelectedFilesForManager(clickedFid, clickedFname, isDir, deleteRecords = false) {
+          // 如果是文件夹或者没有选中的文件，则按原来的方式删除单个文件
+          if (isDir || this.fileManager.selectedFiles.length === 0) {
+            this.deleteFile({ fid: clickedFid, file_name: clickedFname, dir: isDir });
+            return;
+          }
+          
+          // 如果点击的文件不在选中列表中，也按原来的方式删除单个文件
+          if (!this.fileManager.selectedFiles.includes(clickedFid)) {
+            this.deleteFile({ fid: clickedFid, file_name: clickedFname, dir: isDir });
+            return;
+          }
+          
+          // 多选删除
+          const selectedCount = this.fileManager.selectedFiles.length;
+          
+          // 根据选中数量使用不同的确认提示
+          let confirmMessage = selectedCount === 1 
+            ? `确定要删除此项目吗？` 
+            : `确定要删除选中的 ${selectedCount} 个项目吗？`;
+            
+          if (confirm(confirmMessage)) {
+            // 获取当前路径作为save_path参数
+            let save_path = "";
+            if (this.fileManager && this.fileManager.paths) {
+              save_path = this.fileManager.paths.map(item => item.name).join("/");
+            }
+            
+            // 创建一个Promise数组来处理所有删除请求
+            const deletePromises = this.fileManager.selectedFiles.map(fid => {
+              // 查找对应的文件对象，获取文件名
+              const fileObj = this.fileManager.fileList.find(file => file.fid === fid);
+              const fileName = fileObj ? fileObj.file_name : '';
+              
+              return axios.post('/delete_file', { 
+                fid: fid, 
+                file_name: fileName, 
+                delete_records: deleteRecords, 
+                save_path: save_path 
+              })
+                .then(response => {
+                  return { fid: fid, success: response.data.code === 0, deleted_records: response.data.deleted_records || 0 };
+                })
+                .catch(error => {
+                  return { fid: fid, success: false, deleted_records: 0 };
+                });
+            });
+            
+            // 等待所有删除请求完成
+            Promise.all(deletePromises)
+              .then(results => {
+                // 统计成功和失败的数量
+                const successCount = results.filter(r => r.success).length;
+                const failCount = results.length - successCount;
+                
+                // 从文件列表中移除成功删除的文件
+                const successfullyDeletedFids = results.filter(r => r.success).map(r => r.fid);
+                this.fileManager.fileList = this.fileManager.fileList.filter(item => !successfullyDeletedFids.includes(item.fid));
+                
+                // 更新总数
+                this.fileManager.total -= successCount;
+                
+                // 清空选中文件列表
+                this.fileManager.selectedFiles = [];
+                
+                // 显示结果
+                if (failCount > 0) {
+                  alert(`成功删除 ${successCount} 个项目，${failCount} 个项目删除失败`);
+                } else {
+                  this.showToast(`成功删除 ${successCount} 个项目`);
+                }
+              });
+          }
+        },
+        detectFileManagerNamingMode() {
+          // 检测是否为顺序命名模式或剧集命名模式
+          const currentValue = this.fileManager.pattern;
+          
+          if (currentValue !== undefined) {
+            // 检查是否包含完整的{}占位符（确保不是分开的{和}）
+            const isSequenceNaming = currentValue.includes('{}');
+            
+            // 如果不是顺序命名模式，检查是否包含完整的[]占位符
+            const isEpisodeNaming = !isSequenceNaming && currentValue.includes('[]');
+            
+            // 处理模式切换
+            if (isSequenceNaming) {
+              // 切换到顺序命名模式
+              this.fileManager.use_sequence_naming = true;
+              this.fileManager.use_episode_naming = false;
+            } else if (isEpisodeNaming) {
+              // 切换到剧集命名模式
+              this.fileManager.use_sequence_naming = false;
+              this.fileManager.use_episode_naming = true;
+            } else {
+              // 切换到正则命名模式
+              this.fileManager.use_sequence_naming = false;
+              this.fileManager.use_episode_naming = false;
+            }
+          }
+        },
+        cancelPreviewRename() {
+          $('#fileSelectModal').modal('hide');
+        },
+        async applyPreviewRename() {
+          if (this.modalLoading) return;
+          this.modalLoading = true;
+          try {
+            const renameList = this.fileSelect.fileList.filter(f => f.file_name_re && f.file_name_re !== '×' && !f.file_name_re.startsWith('×'));
+            if (renameList.length === 0) {
+              this.showToast('没有可重命名的项目');
+              this.modalLoading = false;
+              return;
+            }
+            // 只传 file_id 和 new_name，并加上 save_path
+            const files = renameList.map(f => ({
+              file_id: f.fid,
+              new_name: f.file_name_re,
+              old_name: f.file_name // 传递原文件名，便于撤销
+            }));
+            const save_path = this.fileManager.currentFolder;
+            const response = await axios.post('/batch_rename', { files, save_path });
+            if (response.data.success) {
+              this.showToast(`成功重命名 ${response.data.success_count || files.length} 个项目`);
+              this.loadFileListWithoutLoading(this.fileManager.currentFolder);
+              $('#fileSelectModal').modal('hide');
+              this.fileSelect.canUndoRename = true; // 重命名后立即可撤销
+            } else {
+              this.showToast(response.data.message || '重命名失败');
+            }
+          } catch (e) {
+            this.showToast('重命名请求失败');
+          }
+          this.modalLoading = false;
+        },
+        async undoPreviewRename() {
+          if (this.modalLoading) return;
+          this.modalLoading = true;
+          try {
+            const save_path = this.fileManager.currentFolder;
+            const response = await axios.post('/undo_rename', { save_path });
+            if (response.data.success) {
+              this.showToast(`成功撤销 ${response.data.success_count} 个项目重命名`);
+              this.showFileManagerNamingPreview(save_path);
+              this.loadFileListWithoutLoading(this.fileManager.currentFolder);
+              // 撤销后如无可撤销项再设为false（由showFileManagerNamingPreview刷新）
+            } else {
+              this.showToast(response.data.message || '撤销失败');
+              this.fileSelect.canUndoRename = false;
+            }
+          } catch (e) {
+            this.showToast('撤销失败: ' + (e.message || e));
+            this.fileSelect.canUndoRename = false;
+          }
+          this.modalLoading = false;
+        }
+      },
+      mounted() {
+        this.fetchData();
+        this.checkNewVersion();
+        this.fetchUserInfo(); // 获取用户信息
+        
+        // 添加点击事件监听
+        document.addEventListener('click', this.handleOutsideClick);
+        document.addEventListener('click', this.handleModalOutsideClick);
+        document.addEventListener('click', this.handleFileManagerOutsideClick);
+        
+        // 添加模态框关闭事件监听
+        $('#fileSelectModal').on('hidden.bs.modal', () => {
+          this.fileSelect.selectedFiles = [];
+          this.fileSelect.lastSelectedFileIndex = -1;
+        });
+        
+        // 检查本地存储中的标签页状态
+        const savedTab = localStorage.getItem('quarkAutoSave_activeTab');
+        if (savedTab) {
+          this.activeTab = savedTab;
+        }
+        
+        // 从本地存储中恢复侧边栏折叠状态
+        const savedSidebarState = localStorage.getItem('quarkAutoSave_sidebarCollapsed');
+        if (savedSidebarState) {
+          this.sidebarCollapsed = savedSidebarState === 'true';
+        }
+        
+        // 从本地存储中恢复用户设置的每页记录数
+        const savedPageSize = localStorage.getItem('quarkAutoSave_pageSize');
+        if (savedPageSize) {
+          this.historyParams.page_size = savedPageSize === 'all' ? 99999 : parseInt(savedPageSize);
+        }
+        
+        // 从本地存储中恢复页面宽度设置
+        const savedPageWidthMode = localStorage.getItem('quarkAutoSave_pageWidthMode');
+        if (savedPageWidthMode) {
+          this.pageWidthMode = savedPageWidthMode;
+          document.body.classList.add('page-width-' + this.pageWidthMode);
+        } else {
+          // 默认使用中等宽度
+          document.body.classList.add('page-width-medium');
+        }
+        
+        $('[data-toggle="tooltip"]').tooltip();
+        document.addEventListener('keydown', this.handleKeyDown);
+        document.addEventListener('click', (e) => {
+          // 如果点击的是输入框、搜索按钮或下拉菜单本身，不关闭下拉菜单
+          if (e.target.closest('.input-group input') || 
+              e.target.closest('.btn-primary[type="button"]') || 
+              e.target.closest('.dropdown-menu.task-suggestions') ||
+              e.target.closest('.bi-search')) {
+            return;
+          }
+          // 只隐藏下拉菜单，不清空搜索结果，这样点击同一任务的输入框时还能看到之前的搜索结果
+          this.smart_param.showSuggestions = false;
+        });
+        
+        // 添加点击事件监听器，用于在点击表格外区域时取消选择记录
+        document.addEventListener('click', this.handleOutsideClick);
+        
+        // 添加点击事件监听器，用于在点击模态框表格外区域时取消选择文件
+        document.addEventListener('click', this.handleModalOutsideClick);
+        
+        // 添加模态框关闭事件监听，清空选中文件列表
+        $('#fileSelectModal').on('hidden.bs.modal', () => {
+          this.fileSelect.selectedFiles = [];
+          this.fileSelect.lastSelectedFileIndex = -1;
+        });
+        
+        window.addEventListener('beforeunload', this.handleBeforeUnload);
+        
+        // 监听模态框显示事件，检查滚动条状态
+        $('#fileSelectModal').on('shown.bs.modal', this.checkPreviewScrollbar);
+        // 监听窗口大小改变，重新检查滚动条状态
+        window.addEventListener('resize', this.checkPreviewScrollbar);
+        
+        // 初始化时检查所有任务的命名模式
+        setTimeout(() => {
+          if (this.formData.tasklist && this.formData.tasklist.length > 0) {
+            this.formData.tasklist.forEach(task => {
+              // 检查现有的顺序命名设置
+              if (task.use_sequence_naming && task.sequence_naming) {
+                // 已经设置过顺序命名的，将顺序命名模式转换为匹配表达式
+                if (!task.pattern || task._pattern_backup) {
+                  task.pattern = task.sequence_naming;
+                }
+              } else if (task.use_episode_naming && task.episode_naming) {
+                // 已经设置过剧集命名的，将剧集命名模式转换为匹配表达式
+                if (!task.pattern || task._pattern_backup) {
+                  task.pattern = task.episode_naming;
+                }
+              } else {
+                // 检测是否包含顺序命名或剧集命名模式
+                this.detectNamingMode(task);
+              }
+            });
+          }
+          
+          // 如果没有剧集识别模式，添加默认模式
+          if (!this.formData.episode_patterns || this.formData.episode_patterns.length === 0) {
+            this.formData.episode_patterns = [
+              { regex: '第(\\d+)集|第(\\d+)期|第(\\d+)话|(\\d+)集|(\\d+)期|(\\d+)话|[Ee][Pp]?(\\d+)|(\\d+)[-_\\s]*4[Kk]|\\[(\\d+)\\]|【(\\d+)】|_?(\\d+)_?' }
+            ];
+          }
+          
+          // 如果当前标签是历史记录，则加载历史记录
+          if (this.activeTab === 'history') {
+            this.loadHistoryRecords();
+            // 加载所有任务名称用于筛选
+            this.loadAllTaskNames();
+          }
+          
+          // 添加对history.pagination的监听
+          this.$watch('history.pagination', function(newVal) {
+            if (newVal && newVal.total_pages) {
+              this.$nextTick(() => {
+                // 强制Vue更新视图
+                this.$forceUpdate();
+              });
+            }
+          }, { deep: true });
+          
+          // 检查分享链接状态
+          this.checkShareUrlStatus();
+        }, 500);
+      },
+      beforeDestroy() {
+        window.removeEventListener('beforeunload', this.handleBeforeUnload);
+        // 移除点击事件监听器
+        document.removeEventListener('click', this.handleOutsideClick);
       }
     });
   </script>
