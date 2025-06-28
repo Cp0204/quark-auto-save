@@ -16,6 +16,9 @@ class Alist:
     # 缓存参数
     storage_mount_path = None
     quark_root_dir = None
+    # 多账号支持
+    storage_mount_paths = []
+    quark_root_dirs = []
 
     def __init__(self, **kwargs):
         """初始化AList插件"""
@@ -28,8 +31,17 @@ class Alist:
                 if key in kwargs:
                     setattr(self, key, kwargs[key])
                 else:
-                    print(f"{self.plugin_name} 模块缺少必要参数: {key}")
-            
+                    pass  # 不显示缺少参数的提示
+
+            # 处理多账号配置：支持数组形式的storage_id
+            if isinstance(self.storage_id, list):
+                self.storage_ids = self.storage_id
+                # 为了向后兼容，使用第一个ID作为默认值
+                self.storage_id = self.storage_ids[0] if self.storage_ids else ""
+            else:
+                # 单一配置转换为数组格式
+                self.storage_ids = [self.storage_id] if self.storage_id else []
+
             # 检查基本配置
             if not self.url or not self.token or not self.storage_id:
                 return
@@ -43,26 +55,55 @@ class Alist:
             
             # 验证AList连接
             if self.get_info():
-                # 解析存储ID
-                success, result = self.storage_id_to_path(self.storage_id)
-                if success:
-                    self.storage_mount_path, self.quark_root_dir = result
-                    
-                    # 确保路径格式正确
-                    if self.quark_root_dir != "/":
-                        if not self.quark_root_dir.startswith("/"):
-                            self.quark_root_dir = f"/{self.quark_root_dir}"
-                        self.quark_root_dir = self.quark_root_dir.rstrip("/")
-                    
-                    if not self.storage_mount_path.startswith("/"):
-                        self.storage_mount_path = f"/{self.storage_mount_path}"
-                    self.storage_mount_path = self.storage_mount_path.rstrip("/")
-                    
+                # 解析所有存储ID
+                for i, storage_id in enumerate(self.storage_ids):
+                    success, result = self.storage_id_to_path(storage_id)
+                    if success:
+                        mount_path, root_dir = result
+
+                        # 确保路径格式正确
+                        if root_dir != "/":
+                            if not root_dir.startswith("/"):
+                                root_dir = f"/{root_dir}"
+                            root_dir = root_dir.rstrip("/")
+
+                        if not mount_path.startswith("/"):
+                            mount_path = f"/{mount_path}"
+                        mount_path = mount_path.rstrip("/")
+
+                        self.storage_mount_paths.append(mount_path)
+                        self.quark_root_dirs.append(root_dir)
+
+                        if i == 0:
+                            # 设置默认值（向后兼容）
+                            self.storage_mount_path = mount_path
+                            self.quark_root_dir = root_dir
+
+
+                    else:
+                        print(f"AList 刷新: 存储ID [{i}] {storage_id} 解析失败")
+                        # 添加空值保持索引对应
+                        self.storage_mount_paths.append("")
+                        self.quark_root_dirs.append("")
+
+                # 只要有一个存储ID解析成功就激活插件
+                if any(self.storage_mount_paths):
                     self.is_active = True
                 else:
-                    print(f"AList 刷新: 存储信息解析失败")
+                    print(f"AList 刷新: 所有存储ID解析失败")
             else:
                 print(f"AList 刷新: 服务器连接失败")
+
+    def get_storage_config(self, account_index=0):
+        """根据账号索引获取对应的存储配置"""
+        if account_index < len(self.storage_mount_paths) and account_index < len(self.quark_root_dirs):
+            return self.storage_mount_paths[account_index], self.quark_root_dirs[account_index]
+        else:
+            # 如果索引超出范围，使用第一个配置作为默认值
+            if self.storage_mount_paths and self.quark_root_dirs:
+                return self.storage_mount_paths[0], self.quark_root_dirs[0]
+            else:
+                return "", ""
 
     def run(self, task, **kwargs):
         """

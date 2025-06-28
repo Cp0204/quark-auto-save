@@ -3965,14 +3965,14 @@ table.selectable-records .expand-button:hover {
 
 /* Plex图标样式 */
 .plex-icon {
-  width: 10.4px;
+  width: 10.3px;
   height: auto;
   object-fit: contain;
 }
 
 /* AList图标样式 */
 .alist-icon {
-  width: 17.8px;
+  width: 18px;
   height: auto;
   object-fit: contain;
   position: relative;
@@ -4201,9 +4201,30 @@ select.task-filter-select,
 }
 
 .batch-rename-btn {
-  margin-left: 8px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px !important;
   color: var(--dark-text-color) !important;
   border-color: var(--dark-text-color) !important;
+}
+
+/* 为相邻的batch-rename-btn按钮添加左边距 */
+.batch-rename-btn + .batch-rename-btn {
+  margin-left: 8px;
+}
+
+/* 文件整理页面按钮与前面元素的间距 */
+.file-manager-rule-bar .batch-rename-btn:first-of-type {
+  margin-left: 8px;
+}
+
+/* 移动端文件整理页面按钮与前面元素的间距 */
+.file-manager-rule-bar-responsive .batch-rename-btn:first-of-type {
+  margin-left: 8px;
 }
 
 .batch-rename-btn:hover {
@@ -4215,6 +4236,50 @@ select.task-filter-select,
 /* 文件整理页面刷新当前目录缓存按钮图标大小 */
 .batch-rename-btn .bi-arrow-clockwise {
   font-size: 1.15rem;
+}
+
+/* 确保文件整理页面的Plex和AList按钮样式与任务列表一致 */
+.batch-rename-btn.btn-outline-plex,
+.batch-rename-btn.btn-outline-alist {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px !important;
+}
+
+/* 文件整理页面Plex按钮样式 */
+.batch-rename-btn.btn-outline-plex {
+  border-color: #EBAF00 !important;
+  color: #EBAF00 !important;
+}
+
+.batch-rename-btn.btn-outline-plex:hover {
+  background-color: #EBAF00 !important;
+  border-color: #EBAF00 !important;
+  color: #fff !important;
+}
+
+.batch-rename-btn.btn-outline-plex:hover .plex-icon {
+  filter: brightness(0) invert(1);
+}
+
+/* 文件整理页面AList按钮样式 */
+.batch-rename-btn.btn-outline-alist {
+  border-color: #70C6BE !important;
+  color: #70C6BE !important;
+}
+
+.batch-rename-btn.btn-outline-alist:hover {
+  background-color: #70C6BE !important;
+  border-color: #70C6BE !important;
+  color: #fff !important;
+}
+
+.batch-rename-btn.btn-outline-alist:hover .alist-icon {
+  filter: brightness(0) invert(1);
 }
 
 /* 文件表格中的展开按钮 */
@@ -4274,8 +4339,24 @@ select.task-filter-select,
   }
   
   .batch-rename-btn {
-    margin-left: 0;
     margin-top: 10px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px !important;
+  }
+
+  /* 移动端按钮间距重置 */
+  .batch-rename-btn + .batch-rename-btn {
+    margin-left: 8px;
+  }
+
+  /* 移动端第一个按钮与前面元素的间距 */
+  .file-manager-rule-bar-responsive .batch-rename-btn:first-of-type {
+    margin-left: 8px;
   }
   
   #batchRenameModal .modal-dialog {
@@ -5126,6 +5207,13 @@ body .selectable-files tr.selected-file .file-size-cell .delete-record-btn {
     /* 只影响移动端的“预览并执行重命名”按钮上边距 */
     .file-manager-rule-bar-responsive .batch-rename-btn {
       margin-top: 0px; /* 你想要的上边距 */
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px !important;
     }
 
   /* 移动端预览并执行重命名按钮与含文件夹间距 */
@@ -5133,8 +5221,12 @@ body .selectable-files tr.selected-file .file-size-cell .delete-record-btn {
     margin-left: 8px !important;
   }
 
-  /* 移动端账号选择栏中的刷新按钮间距 */
-  .file-manager-rule-bar-responsive .d-flex .batch-rename-btn {
+  /* 移动端账号选择栏中的按钮间距 */
+  .file-manager-rule-bar-responsive .d-flex .batch-rename-btn:first-of-type {
+    margin-left: 8px !important;
+  }
+
+  .file-manager-rule-bar-responsive .d-flex .batch-rename-btn + .batch-rename-btn {
     margin-left: 8px !important;
   }
 }

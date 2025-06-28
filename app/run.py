@@ -241,6 +241,21 @@ def get_data():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
     data = Config.read_json(CONFIG_PATH)
+
+    # 处理插件配置中的多账号支持字段，将数组格式转换为逗号分隔的字符串用于显示
+    if "plugins" in data:
+        # 处理Plex的quark_root_path
+        if "plex" in data["plugins"] and "quark_root_path" in data["plugins"]["plex"]:
+            data["plugins"]["plex"]["quark_root_path"] = format_array_config_for_display(
+                data["plugins"]["plex"]["quark_root_path"]
+            )
+
+        # 处理AList的storage_id
+        if "alist" in data["plugins"] and "storage_id" in data["plugins"]["alist"]:
+            data["plugins"]["alist"]["storage_id"] = format_array_config_for_display(
+                data["plugins"]["alist"]["storage_id"]
+            )
+
     # 发送webui信息，但不发送密码原文
     data["webui"] = {
         "username": config_data["webui"]["username"],
@@ -307,6 +322,21 @@ def sync_task_plugins_config():
                         current_config[key] = default_value
 
 
+def parse_comma_separated_config(value):
+    """解析逗号分隔的配置字符串为数组"""
+    if isinstance(value, str) and value.strip():
+        # 分割字符串，去除空白字符
+        items = [item.strip() for item in value.split(',') if item.strip()]
+        # 如果只有一个项目，返回字符串（向后兼容）
+        return items[0] if len(items) == 1 else items
+    return value
+
+def format_array_config_for_display(value):
+    """将数组配置格式化为逗号分隔的字符串用于显示"""
+    if isinstance(value, list):
+        return ', '.join(value)
+    return value
+
 # 更新数据
 @app.route("/update", methods=["POST"])
 def update():
@@ -320,6 +350,19 @@ def update():
                 # 更新webui凭据
                 config_data["webui"]["username"] = value.get("username", config_data["webui"]["username"])
                 config_data["webui"]["password"] = value.get("password", config_data["webui"]["password"])
+            elif key == "plugins":
+                # 处理插件配置中的多账号支持字段
+                if "plex" in value and "quark_root_path" in value["plex"]:
+                    value["plex"]["quark_root_path"] = parse_comma_separated_config(
+                        value["plex"]["quark_root_path"]
+                    )
+
+                if "alist" in value and "storage_id" in value["alist"]:
+                    value["alist"]["storage_id"] = parse_comma_separated_config(
+                        value["alist"]["storage_id"]
+                    )
+
+                config_data.update({key: value})
             else:
                 config_data.update({key: value})
     
@@ -439,6 +482,142 @@ def refresh_alist_directory():
     alist.run(task)
     
     return jsonify({"success": True, "message": "成功刷新 AList 目录"})
+
+
+# 文件整理页面刷新Plex媒体库
+@app.route("/refresh_filemanager_plex_library", methods=["POST"])
+def refresh_filemanager_plex_library():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+
+    folder_path = request.json.get("folder_path")
+    account_index = request.json.get("account_index", 0)
+
+    if not folder_path:
+        return jsonify({"success": False, "message": "缺少文件夹路径"})
+
+    # 检查Plex插件配置
+    if not config_data.get("plugins", {}).get("plex", {}).get("url"):
+        return jsonify({"success": False, "message": "Plex 插件未配置"})
+
+    # 导入Plex插件
+    from plugins.plex import Plex
+
+    # 初始化Plex插件
+    plex = Plex(**config_data["plugins"]["plex"])
+    if not plex.is_active:
+        return jsonify({"success": False, "message": "Plex 插件未正确配置"})
+
+    # 获取夸克账号信息
+    try:
+        account = Quark(config_data["cookie"][account_index], account_index)
+
+        # 将文件夹路径转换为实际的保存路径
+        # folder_path是相对于夸克网盘根目录的路径
+        # quark_root_path是夸克网盘在本地文件系统中的挂载点
+        # 根据账号索引获取对应的夸克根路径
+        quark_root_path = plex.get_quark_root_path(account_index)
+        if not quark_root_path:
+            return jsonify({"success": False, "message": f"Plex 插件未配置账号 {account_index} 的夸克根路径"})
+
+        if folder_path == "" or folder_path == "/":
+            # 空字符串或根目录表示夸克网盘根目录
+            full_path = quark_root_path
+        else:
+            # 确保路径格式正确
+            if not folder_path.startswith("/"):
+                folder_path = "/" + folder_path
+
+            # 拼接完整路径：夸克根路径 + 相对路径
+            import os
+            full_path = os.path.normpath(os.path.join(quark_root_path, folder_path.lstrip("/"))).replace("\\", "/")
+
+        # 确保库信息已加载
+        if plex._libraries is None:
+            plex._libraries = plex._get_libraries()
+
+        # 执行刷新
+        success = plex.refresh(full_path)
+
+        if success:
+            return jsonify({"success": True, "message": "成功刷新 Plex 媒体库"})
+        else:
+            return jsonify({"success": False, "message": "刷新 Plex 媒体库失败，请检查路径配置"})
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"刷新 Plex 媒体库失败: {str(e)}"})
+
+
+# 文件整理页面刷新AList目录
+@app.route("/refresh_filemanager_alist_directory", methods=["POST"])
+def refresh_filemanager_alist_directory():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+
+    folder_path = request.json.get("folder_path")
+    account_index = request.json.get("account_index", 0)
+
+    if not folder_path:
+        return jsonify({"success": False, "message": "缺少文件夹路径"})
+
+    # 检查AList插件配置
+    if not config_data.get("plugins", {}).get("alist", {}).get("url"):
+        return jsonify({"success": False, "message": "AList 插件未配置"})
+
+    # 导入AList插件
+    from plugins.alist import Alist
+
+    # 初始化AList插件
+    alist = Alist(**config_data["plugins"]["alist"])
+    if not alist.is_active:
+        return jsonify({"success": False, "message": "AList 插件未正确配置"})
+
+    # 获取夸克账号信息
+    try:
+        account = Quark(config_data["cookie"][account_index], account_index)
+
+        # 将文件夹路径转换为实际的保存路径
+        # folder_path是相对于夸克网盘根目录的路径，如 "/" 或 "/测试/文件夹"
+        # 根据账号索引获取对应的存储配置
+        storage_mount_path, quark_root_dir = alist.get_storage_config(account_index)
+
+        if not storage_mount_path or not quark_root_dir:
+            return jsonify({"success": False, "message": f"AList 插件未配置账号 {account_index} 的存储信息"})
+
+        if folder_path == "/":
+            # 根目录，直接使用夸克根路径
+            full_path = quark_root_dir
+        else:
+            # 子目录，拼接路径
+            import os
+            # 移除folder_path开头的/，然后拼接
+            relative_path = folder_path.lstrip("/")
+            if quark_root_dir == "/":
+                full_path = "/" + relative_path
+            else:
+                full_path = os.path.normpath(os.path.join(quark_root_dir, relative_path)).replace("\\", "/")
+
+        # 检查路径是否在夸克根目录内
+        if quark_root_dir == "/" or full_path.startswith(quark_root_dir):
+            # 使用账号对应的存储配置映射到AList路径
+            # 构建AList路径
+            if quark_root_dir == "/":
+                relative_path = full_path.lstrip("/")
+            else:
+                relative_path = full_path.replace(quark_root_dir, "", 1).lstrip("/")
+
+            alist_path = os.path.normpath(
+                os.path.join(storage_mount_path, relative_path)
+            ).replace("\\", "/")
+
+            # 执行刷新
+            alist.refresh(alist_path)
+            return jsonify({"success": True, "message": "成功刷新 AList 目录"})
+        else:
+            return jsonify({"success": False, "message": "路径不在AList配置的夸克根目录内"})
+
+    except Exception as e:
+        return jsonify({"success": False, "message": f"刷新 AList 目录失败: {str(e)}"})
 
 
 @app.route("/task_suggestions")

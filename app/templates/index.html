@@ -451,9 +451,11 @@
               <div class="collapse" :id="'collapse_'+pluginName" style="margin-left: 26px;">
                 <div v-for="(value, key, keyIndex) in plugin" :key="key" class="input-group mb-2" :style="{ marginBottom: keyIndex === Object.keys(plugin).length - 1 && pluginName === Object.keys(getAvailablePlugins(formData.plugins)).pop() ? '8.5px !important' : '' }">
                   <div class="input-group-prepend">
-                    <span class="input-group-text" v-html="key"></span>
+                    <span class="input-group-text" v-html="key" :title="getPluginConfigHelp(pluginName, key)"></span>
                   </div>
-                  <input type="text" v-model="formData.plugins[pluginName][key]" class="form-control">
+                  <input type="text" v-model="formData.plugins[pluginName][key]" class="form-control"
+                    :placeholder="getPluginConfigPlaceholder(pluginName, key)"
+                    :title="getPluginConfigHelp(pluginName, key)">
                 </div>
               </div>
             </div>
@@ -1047,6 +1049,8 @@
                       <option v-for="(account, index) in accountsDetail" :key="index" :value="index">{{ account.display_text }}</option>
                     </select>
                   </div>
+                  <button type="button" class="btn btn-outline-plex batch-rename-btn" v-if="formData.plugins && formData.plugins.plex && formData.plugins.plex.url && formData.plugins.plex.token && formData.plugins.plex.quark_root_path && formData.button_display.refresh_plex !== 'disabled'" @click="refreshFileManagerPlexLibrary" title="刷新Plex媒体库"><img src="./static/Plex.svg" class="plex-icon"></button>
+                  <button type="button" class="btn btn-outline-alist batch-rename-btn" v-if="formData.plugins && formData.plugins.alist && formData.plugins.alist.url && formData.plugins.alist.token && formData.plugins.alist.storage_id && formData.button_display.refresh_alist !== 'disabled'" @click="refreshFileManagerAlistDirectory" title="刷新AList目录"><img src="https://cdn.jsdelivr.net/gh/alist-org/logo@main/logo.svg" class="alist-icon"></button>
                   <button type="button" class="btn btn-outline-primary batch-rename-btn" @click="refreshCurrentFolderCache" title="刷新当前目录缓存">
                     <i class="bi bi-arrow-clockwise"></i>
                   </button>
@@ -1062,6 +1066,8 @@
                         <option v-for="(account, index) in accountsDetail" :key="index" :value="index">{{ account.display_text }}</option>
                       </select>
                     </div>
+                    <button type="button" class="btn btn-outline-plex batch-rename-btn" v-if="formData.plugins && formData.plugins.plex && formData.plugins.plex.url && formData.plugins.plex.token && formData.plugins.plex.quark_root_path && formData.button_display.refresh_plex !== 'disabled'" @click="refreshFileManagerPlexLibrary" title="刷新Plex媒体库"><img src="./static/Plex.svg" class="plex-icon"></button>
+                    <button type="button" class="btn btn-outline-alist batch-rename-btn" v-if="formData.plugins && formData.plugins.alist && formData.plugins.alist.url && formData.plugins.alist.token && formData.plugins.alist.storage_id && formData.button_display.refresh_alist !== 'disabled'" @click="refreshFileManagerAlistDirectory" title="刷新AList目录"><img src="https://cdn.jsdelivr.net/gh/alist-org/logo@main/logo.svg" class="alist-icon"></button>
                     <button type="button" class="btn btn-outline-primary batch-rename-btn" @click="refreshCurrentFolderCache" title="刷新当前目录缓存">
                       <i class="bi bi-arrow-clockwise"></i>
                     </button>
@@ -1946,7 +1952,27 @@
           
           return message;
         },
-        
+
+        // 获取插件配置的占位符文本
+        getPluginConfigPlaceholder(pluginName, key) {
+          if (pluginName === 'plex' && key === 'quark_root_path') {
+            return '输入夸克根目录相对于 Plex 媒体库目录的路径，多个路径用逗号分隔';
+          } else if (pluginName === 'alist' && key === 'storage_id') {
+            return '输入 AList 服务器夸克存储的 ID，多个 ID 用逗号分隔';
+          }
+          return '';
+        },
+
+        // 获取插件配置的帮助文本
+        getPluginConfigHelp(pluginName, key) {
+          if (pluginName === 'plex' && key === 'quark_root_path') {
+            return '多账号支持：多个路径用逗号分隔，顺序与Cookie顺序对应，如：/path1, /path2';
+          } else if (pluginName === 'alist' && key === 'storage_id') {
+            return '多账号支持：多个存储ID用逗号分隔，顺序与Cookie顺序对应，如：1, 2, 3';
+          }
+          return '';
+        },
+
         fetchUserInfo() {
           // 获取所有cookie对应的用户信息
           axios.get('/get_user_info')
@@ -3093,7 +3119,7 @@
               // 短暂延迟后重试
               setTimeout(() => {
                 this.getSavepathDetail(params, retryCount + 1, maxRetries);
-              }, 2000); // 2秒后重试
+              }, 1000); // 1秒后重试
             } else {
               // 超过最大重试次数，显示错误信息
               this.fileSelect.error = "获取文件夹列表失败，请关闭窗口再试一次";
@@ -3178,7 +3204,7 @@
               // 短暂延迟后重试
               setTimeout(() => {
                 this.getShareDetail(retryCount + 1, maxRetries);
-              }, 2000); // 2秒后重试
+              }, 1000); // 1秒后重试
             } else {
               // 超过最大重试次数，显示错误信息
               this.fileSelect.error = "获取文件夹列表失败，请关闭窗口再试一次";
@@ -4439,6 +4465,59 @@
             .catch(error => {
               alert("刷新 AList 目录失败: " + (error.response?.data?.message || error.message || "未知错误"));
             });
+        },
+        // 文件整理页面刷新Plex媒体库
+        refreshFileManagerPlexLibrary() {
+          // 获取当前目录路径
+          const currentPath = this.getCurrentFolderPath();
+
+          axios.post('/refresh_filemanager_plex_library', {
+            folder_path: currentPath,
+            account_index: this.fileManager.selectedAccountIndex
+          })
+            .then(response => {
+              if (response.data.success) {
+                this.showToast(response.data.message);
+              } else {
+                alert(response.data.message);
+              }
+            })
+            .catch(error => {
+              alert("刷新 Plex 媒体库失败: " + (error.response?.data?.message || error.message || "未知错误"));
+            });
+        },
+        // 文件整理页面刷新AList目录
+        refreshFileManagerAlistDirectory() {
+          // 获取当前目录路径
+          const currentPath = this.getCurrentFolderPath();
+
+          axios.post('/refresh_filemanager_alist_directory', {
+            folder_path: currentPath,
+            account_index: this.fileManager.selectedAccountIndex
+          })
+            .then(response => {
+              if (response.data.success) {
+                this.showToast(response.data.message);
+              } else {
+                alert(response.data.message);
+              }
+            })
+            .catch(error => {
+              alert("刷新 AList 目录失败: " + (error.response?.data?.message || error.message || "未知错误"));
+            });
+        },
+        // 获取当前文件夹路径（相对于夸克网盘根目录）
+        getCurrentFolderPath() {
+          if (this.fileManager.currentFolder === 'root') {
+            return '/';  // 根目录返回 /，表示夸克网盘根目录
+          }
+
+          // 构建完整路径（相对于夸克网盘根目录）
+          let path = '';
+          for (const pathItem of this.fileManager.paths) {
+            path += '/' + pathItem.name;
+          }
+          return path || '/';
         },
         filterByTaskName(taskName, event) {
           // 防止事件冒泡，避免触发行选择
