@@ -4037,6 +4037,21 @@ table.selectable-records .expand-button:hover {
   margin-right: -4px !important;
 }
 
+/* 文件整理性能设置样式 */
+.performance-setting-row > [class*='col-'] {
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
+.performance-setting-row {
+  margin-left: -4px !important;
+  margin-right: -4px !important;
+}
+
+/* 性能设置板块标题上移8px，统一与其他设置板块的间距 */
+.row.title[title*="文件整理页面的请求参数"] {
+  margin-top: 12px !important; /* 从默认的20px减少到12px，上移8px */
+}
+
 /* 任务单元基础样式 */
 .task {
   position: relative;
@@ -4187,6 +4202,19 @@ select.task-filter-select,
 
 .batch-rename-btn {
   margin-left: 8px;
+  color: var(--dark-text-color) !important;
+  border-color: var(--dark-text-color) !important;
+}
+
+.batch-rename-btn:hover {
+  background-color: var(--dark-text-color) !important;
+  border-color: var(--dark-text-color) !important;
+  color: white !important;
+}
+
+/* 文件整理页面刷新当前目录缓存按钮图标大小 */
+.batch-rename-btn .bi-arrow-clockwise {
+  font-size: 1.15rem;
 }
 
 /* 文件表格中的展开按钮 */
@@ -4420,6 +4448,28 @@ tr.selected-file .file-size-cell .delete-record-btn {
 /* 文件整理规则栏样式 */
 .file-manager-rule-bar {
   width: 100%;
+}
+
+/* 文件整理账号选择栏样式 */
+.file-manager-account-selector {
+  margin-bottom: 8px !important;
+}
+
+/* 账号选择下拉框样式 */
+.file-manager-account-select {
+  padding-left: 8px !important;
+  text-indent: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  line-height: 1.5 !important;
+  padding-right: 24px !important;
+}
+
+/* 账号选择框右侧圆角 - 需要更高优先级覆盖file-manager-input的圆角设置 */
+.file-manager-rule-bar .file-manager-account-select,
+.file-manager-rule-bar-responsive .file-manager-account-select {
+  border-top-right-radius: 6px !important;
+  border-bottom-right-radius: 6px !important;
 }
 
 /* 禁止在表格中选择文本，以便更好地支持点击选择 */
@@ -4860,6 +4910,12 @@ body .selectable-files tr.selected-file .file-size-cell .delete-record-btn {
   border-radius: 0 !important; /* 去除圆角 */
 }
 
+/* 账号选择框例外 - 保持右侧圆角 */
+.file-manager-rule-bar .file-manager-input.file-manager-account-select {
+  border-top-right-radius: 6px !important;
+  border-bottom-right-radius: 6px !important;
+}
+
 /* 文件整理页面重命名配置框输入框相邻边框重叠样式 */
 .file-manager-rule-bar .file-manager-input:not(:first-child) {
   margin-left: -1px; /* 向左移动1px，使边框重叠 */
@@ -5033,6 +5089,15 @@ body .selectable-files tr.selected-file .file-size-cell .delete-record-btn {
   .file-manager-rule-bar-responsive { display: block !important; }
   .file-manager-rule-bar-responsive .input-group { width: 100%; }
   .file-manager-rule-bar-responsive .input-group + .input-group { margin-top: 8px; }
+
+  /* 移动端账号选择栏下边距 - 确保与命名规则栏有8px间距 */
+  .file-manager-account-selector {
+    margin-bottom: 8px !important;
+  }
+
+  .file-manager-account-selector .file-manager-rule-bar-responsive {
+    margin-bottom: 0 !important; /* 移除内部边距，使用外部容器的边距 */
+  }
   /* 含文件夹样式调整 */
   .file-manager-rule-bar-responsive .input-group-text.file-folder-rounded {
     border-top-left-radius: 0 !important; /* 左侧不要圆角 */
@@ -5065,6 +5130,11 @@ body .selectable-files tr.selected-file .file-size-cell .delete-record-btn {
 
   /* 移动端预览并执行重命名按钮与含文件夹间距 */
   .file-manager-rule-bar-responsive .input-group .batch-rename-btn {
+    margin-left: 8px !important;
+  }
+
+  /* 移动端账号选择栏中的刷新按钮间距 */
+  .file-manager-rule-bar-responsive .d-flex .batch-rename-btn {
     margin-left: 8px !important;
   }
 }

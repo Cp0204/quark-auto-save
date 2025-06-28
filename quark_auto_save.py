@@ -932,6 +932,9 @@ class Quark:
     def ls_dir(self, pdir_fid, **kwargs):
         file_list = []
         page = 1
+        # 优化：增加每页大小，减少API调用次数
+        page_size = kwargs.get("page_size", 200)  # 从50增加到200
+
         while True:
             url = f"{self.BASE_URL}/1/clouddrive/file/sort"
             querystring = {
@@ -940,7 +943,7 @@ class Quark:
                 "uc_param_str": "",
                 "pdir_fid": pdir_fid,
                 "_page": page,
-                "_size": "50",
+                "_size": str(page_size),
                 "_fetch_total": "1",
                 "_fetch_sub_dirs": "0",
                 "_sort": "file_type:asc,updated_at:desc",

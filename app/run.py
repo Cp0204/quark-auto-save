@@ -28,6 +28,8 @@ import re
 import random
 import time
 import treelib
+from functools import lru_cache
+from threading import Lock
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
@@ -95,6 +97,45 @@ PORT = int(os.environ.get("PORT", "5005"))
 
 config_data = {}
 task_plugins_config_default = {}
+
+# 文件列表缓存
+file_list_cache = {}
+cache_lock = Lock()
+
+# 默认性能参数（如果配置中没有设置）
+DEFAULT_PERFORMANCE_CONFIG = {
+    "api_page_size": 200,
+    "cache_expire_time": 30
+}
+
+def get_performance_config():
+    """获取性能配置参数"""
+    try:
+        if config_data and "file_performance" in config_data:
+            perf_config = config_data["file_performance"]
+            # 确保所有值都是整数类型
+            result = {}
+            for key, default_value in DEFAULT_PERFORMANCE_CONFIG.items():
+                try:
+                    result[key] = int(perf_config.get(key, default_value))
+                except (ValueError, TypeError):
+                    result[key] = default_value
+            return result
+    except Exception as e:
+        print(f"获取性能配置失败: {e}")
+    return DEFAULT_PERFORMANCE_CONFIG
+
+def cleanup_expired_cache():
+    """清理所有过期缓存"""
+    current_time = time.time()
+    perf_config = get_performance_config()
+    cache_expire_time = perf_config.get("cache_expire_time", 30)
+
+    with cache_lock:
+        expired_keys = [k for k, (_, t) in file_list_cache.items() if current_time - t > cache_expire_time]
+        for k in expired_keys:
+            del file_list_cache[k]
+        return len(expired_keys)
 
 app = Flask(__name__)
 app.config["APP_VERSION"] = get_app_ver()
@@ -683,7 +724,15 @@ def get_share_detail():
 def get_savepath_detail():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
-    account = Quark(config_data["cookie"][0], 0)
+
+    # 获取账号索引参数
+    account_index = int(request.args.get("account_index", 0))
+
+    # 验证账号索引
+    if account_index < 0 or account_index >= len(config_data["cookie"]):
+        return jsonify({"success": False, "message": "账号索引无效"})
+
+    account = Quark(config_data["cookie"][account_index], account_index)
     paths = []
     if path := request.args.get("path"):
         if path == "/":
@@ -718,7 +767,15 @@ def get_savepath_detail():
 def delete_file():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
-    account = Quark(config_data["cookie"][0], 0)
+
+    # 获取账号索引参数
+    account_index = int(request.json.get("account_index", 0))
+
+    # 验证账号索引
+    if account_index < 0 or account_index >= len(config_data["cookie"]):
+        return jsonify({"success": False, "message": "账号索引无效"})
+
+    account = Quark(config_data["cookie"][account_index], account_index)
     if fid := request.json.get("fid"):
         response = account.delete([fid])
         
@@ -805,6 +862,15 @@ def add_task():
 # 定时任务执行的函数
 def run_python(args):
     logging.info(f">>> 定时运行任务")
+
+    # 在定时任务开始前清理过期缓存
+    try:
+        cleaned_count = cleanup_expired_cache()
+        if cleaned_count > 0:
+            logging.info(f">>> 清理了 {cleaned_count} 个过期缓存项")
+    except Exception as e:
+        logging.warning(f">>> 清理缓存时出错: {e}")
+
     # 检查是否需要随机延迟执行
     if delay := config_data.get("crontab_delay"):
         try:
@@ -816,7 +882,7 @@ def run_python(args):
                 time.sleep(random_delay)
         except (ValueError, TypeError):
             logging.warning(f">>> 延迟执行设置无效: {delay}")
-    
+
     os.system(f"{PYTHON_PATH} {args}")
 
 
@@ -1075,7 +1141,7 @@ def format_records(records):
 def get_user_info():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
-    
+
     user_info_list = []
     for idx, cookie in enumerate(config_data["cookie"]):
         account = Quark(cookie, idx)
@@ -1095,8 +1161,79 @@ def get_user_info():
                 "is_active": False,
                 "has_mparam": has_mparam
             })
-    
+
     return jsonify({"success": True, "data": user_info_list})
+
+
+@app.route("/get_accounts_detail")
+def get_accounts_detail():
+    """获取所有账号的详细信息，包括昵称和空间使用情况"""
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+
+    accounts_detail = []
+    for idx, cookie in enumerate(config_data["cookie"]):
+        account = Quark(cookie, idx)
+        account_info = account.init()
+
+        # 如果无法获取账号信息，检查是否有移动端参数
+        if not account_info:
+            has_mparam = bool(account.mparam)
+            # 如果只有移动端参数，跳过此账号（不显示在文件整理页面的账号选择栏中）
+            if has_mparam:
+                continue
+            else:
+                # 如果既没有账号信息也没有移动端参数，显示为未登录
+                account_detail = {
+                    "index": idx,
+                    "nickname": "",
+                    "is_active": False,
+                    "used_space": 0,
+                    "total_space": 0,
+                    "usage_rate": 0,
+                    "display_text": f"账号{idx + 1}（未登录）"
+                }
+                accounts_detail.append(account_detail)
+                continue
+
+        # 成功获取账号信息的情况
+        account_detail = {
+            "index": idx,
+            "nickname": account_info["nickname"],
+            "is_active": account.is_active,
+            "used_space": 0,
+            "total_space": 0,
+            "usage_rate": 0,
+            "display_text": ""
+        }
+
+        # 检查是否有移动端参数
+        has_mparam = bool(account.mparam)
+        
+        if has_mparam:
+            # 同时有cookie和移动端参数，尝试获取空间信息
+            try:
+                growth_info = account.get_growth_info()
+                if growth_info:
+                    total_capacity = growth_info.get("total_capacity", 0)
+                    account_detail["total_space"] = total_capacity
+                    # 显示昵称和总容量
+                    total_str = format_bytes(total_capacity)
+                    account_detail["display_text"] = f"{account_info['nickname']} · {total_str}"
+                else:
+                    # 获取空间信息失败，只显示昵称
+                    account_detail["display_text"] = account_info["nickname"]
+            except Exception as e:
+                logging.error(f"获取账号 {idx} 空间信息失败: {str(e)}")
+                # 获取空间信息失败，只显示昵称
+                account_detail["display_text"] = account_info["nickname"]
+        else:
+            # 只有cookie，没有移动端参数，只显示昵称
+            account_detail["display_text"] = account_info["nickname"]
+
+        accounts_detail.append(account_detail)
+
+    return jsonify({"success": True, "data": accounts_detail})
 
 
 # 重置文件夹（删除文件夹内所有文件和相关记录）
@@ -1104,17 +1241,21 @@ def get_user_info():
 def reset_folder():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
-    
+
     # 获取请求参数
     save_path = request.json.get("save_path", "")
-    task_name = request.json.get("task_name", "")
-    
+    account_index = int(request.json.get("account_index", 0))  # 新增账号索引参数
+
     if not save_path:
         return jsonify({"success": False, "message": "保存路径不能为空"})
-    
+
     try:
+        # 验证账号索引
+        if account_index < 0 or account_index >= len(config_data["cookie"]):
+            return jsonify({"success": False, "message": "账号索引无效"})
+
         # 初始化夸克网盘客户端
-        account = Quark(config_data["cookie"][0], 0)
+        account = Quark(config_data["cookie"][account_index], account_index)
         
         # 1. 获取文件夹ID
         # 先检查是否已有缓存的文件夹ID
@@ -1182,18 +1323,24 @@ def reset_folder():
 def get_file_list():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
-    
+
     # 获取请求参数
     folder_id = request.args.get("folder_id", "root")
     sort_by = request.args.get("sort_by", "file_name")
     order = request.args.get("order", "asc")
     page = int(request.args.get("page", 1))
     page_size = int(request.args.get("page_size", 15))
-    
+    account_index = int(request.args.get("account_index", 0))
+    force_refresh = request.args.get("force_refresh", "false").lower() == "true"  # 新增账号索引参数
+
     try:
+        # 验证账号索引
+        if account_index < 0 or account_index >= len(config_data["cookie"]):
+            return jsonify({"success": False, "message": "账号索引无效"})
+
         # 初始化夸克网盘客户端
-        account = Quark(config_data["cookie"][0], 0)
-        
+        account = Quark(config_data["cookie"][account_index], account_index)
+
         # 获取文件列表
         if folder_id == "root":
             folder_id = "0"  # 根目录的ID为0
@@ -1201,43 +1348,92 @@ def get_file_list():
         else:
             # 获取当前文件夹的路径
             paths = account.get_paths(folder_id)
-        
-        # 获取文件列表
-        files = account.ls_dir(folder_id)
+
+        # 获取性能配置
+        perf_config = get_performance_config()
+        api_page_size = perf_config.get("api_page_size", 200)
+        cache_expire_time = perf_config.get("cache_expire_time", 30)
+
+        # 缓存键
+        cache_key = f"{account_index}_{folder_id}_{sort_by}_{order}"
+        current_time = time.time()
+
+        # 检查缓存（除非强制刷新）
+        if not force_refresh:
+            with cache_lock:
+                if cache_key in file_list_cache:
+                    cache_data, cache_time = file_list_cache[cache_key]
+                    if current_time - cache_time < cache_expire_time:
+                        # 使用缓存数据
+                        cached_files = cache_data
+                        total = len(cached_files)
+                        start_idx = (page - 1) * page_size
+                        end_idx = min(start_idx + page_size, total)
+                        paginated_files = cached_files[start_idx:end_idx]
+
+                        return jsonify({
+                            "success": True,
+                            "data": {
+                                "list": paginated_files,
+                                "total": total,
+                                "paths": paths
+                            }
+                        })
+        else:
+            # 强制刷新时，清除当前目录的缓存
+            with cache_lock:
+                if cache_key in file_list_cache:
+                    del file_list_cache[cache_key]
+
+        # 无论分页还是全部模式，都必须获取所有文件才能进行正确的全局排序
+        files = account.ls_dir(folder_id, page_size=api_page_size)
+
         if isinstance(files, dict) and files.get("error"):
-            return jsonify({"success": False, "message": f"获取文件列表失败: {files.get('error', '未知错误')}"})
-        
+            # 检查是否是目录不存在的错误
+            error_msg = files.get('error', '未知错误')
+            if "不存在" in error_msg or "无效" in error_msg or "找不到" in error_msg:
+                return jsonify({"success": False, "message": f"目录不存在或无权限访问: {error_msg}"})
+            else:
+                return jsonify({"success": False, "message": f"获取文件列表失败: {error_msg}"})
+
         # 计算总数
         total = len(files)
-        
-        # 排序
-        if sort_by == "file_name":
-            files.sort(key=lambda x: x["file_name"].lower())
-        elif sort_by == "file_size":
-            files.sort(key=lambda x: x["size"] if not x["dir"] else 0)
-        else:  # updated_at
-            files.sort(key=lambda x: x["updated_at"])
 
-        if order == "desc":
-            files.reverse()
+        # 优化排序：使用更高效的排序方法
+        def get_sort_key(file_item):
+            if sort_by == "file_name":
+                return file_item["file_name"].lower()
+            elif sort_by == "file_size":
+                return file_item["size"] if not file_item["dir"] else 0
+            else:  # updated_at
+                return file_item["updated_at"]
 
-        # 根据排序字段决定是否将目录放在前面
+        # 分离文件夹和文件以优化排序
         if sort_by == "updated_at":
             # 修改日期排序时严格按照日期排序，不区分文件夹和文件
+            files.sort(key=get_sort_key, reverse=(order == "desc"))
             sorted_files = files
         else:
-            # 其他排序时目录始终在前面
+            # 其他排序时目录始终在前面，分别排序以提高效率
             directories = [f for f in files if f["dir"]]
             normal_files = [f for f in files if not f["dir"]]
+
+            directories.sort(key=get_sort_key, reverse=(order == "desc"))
+            normal_files.sort(key=get_sort_key, reverse=(order == "desc"))
+
             sorted_files = directories + normal_files
-        
+
+        # 更新缓存
+        with cache_lock:
+            file_list_cache[cache_key] = (sorted_files, current_time)
+
         # 分页
         start_idx = (page - 1) * page_size
         end_idx = min(start_idx + page_size, total)
         paginated_files = sorted_files[start_idx:end_idx]
-        
+
         return jsonify({
-            "success": True, 
+            "success": True,
             "data": {
                 "list": paginated_files,
                 "total": total,
@@ -1263,13 +1459,18 @@ def preview_rename():
     naming_mode = request.args.get("naming_mode", "regex")  # regex, sequence, episode
     include_folders = request.args.get("include_folders", "false") == "true"
     filterwords = request.args.get("filterwords", "")
-    
+    account_index = int(request.args.get("account_index", 0))  # 新增账号索引参数
+
     if not pattern:
         pattern = ".*"
-    
+
     try:
+        # 验证账号索引
+        if account_index < 0 or account_index >= len(config_data["cookie"]):
+            return jsonify({"success": False, "message": "账号索引无效"})
+
         # 初始化夸克网盘客户端
-        account = Quark(config_data["cookie"][0], 0)
+        account = Quark(config_data["cookie"][account_index], account_index)
         
         # 获取文件列表
         if folder_id == "root":
@@ -1415,13 +1616,18 @@ def batch_rename():
     # 获取请求参数
     data = request.json
     files = data.get("files", [])
-    
+    account_index = int(data.get("account_index", 0))  # 新增账号索引参数
+
     if not files:
         return jsonify({"success": False, "message": "没有文件需要重命名"})
-    
+
     try:
+        # 验证账号索引
+        if account_index < 0 or account_index >= len(config_data["cookie"]):
+            return jsonify({"success": False, "message": "账号索引无效"})
+
         # 初始化夸克网盘客户端
-        account = Quark(config_data["cookie"][0], 0)
+        account = Quark(config_data["cookie"][account_index], account_index)
         
         # 批量重命名
         success_count = 0
@@ -1481,10 +1687,17 @@ def undo_rename():
         return jsonify({"success": False, "message": "未登录"})
     data = request.json
     save_path = data.get("save_path", "")
+    account_index = int(data.get("account_index", 0))  # 新增账号索引参数
+
     if not save_path:
         return jsonify({"success": False, "message": "缺少目录参数"})
+
     try:
-        account = Quark(config_data["cookie"][0], 0)
+        # 验证账号索引
+        if account_index < 0 or account_index >= len(config_data["cookie"]):
+            return jsonify({"success": False, "message": "账号索引无效"})
+
+        account = Quark(config_data["cookie"][account_index], account_index)
         # 查询该目录下最近一次重命名（按transfer_time分组，task_name=rename）
         records = record_db.get_records_by_save_path(save_path)
         rename_records = [r for r in records if r["task_name"] == "rename"]

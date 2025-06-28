@@ -363,7 +363,7 @@
                 </span>
               </div>
             </div>
-            <p style="margin-top: -4px; margin-bottom: 4px;">所有账号都会进行签到（纯签到只需填写移动端参数），只有第一个账号会进行转存，请自行确认顺序。如需签到，请在 Cookie 后方添加签到参数。</p>
+            <p style="margin-top: -4px; margin-bottom: 4px;">所有账号都会进行签到（纯签到只需填写移动端参数），只有第一个账号会进行转存，请自行确认账号顺序；所有填写了 Cookie 的账号均支持文件整理，如需签到请在 Cookie 后方添加签到参数。</p>
             <div v-for="(value, index) in formData.cookie" :key="index" class="input-group mb-2">
               <div class="input-group-prepend" v-if="userInfoList[index]">
                 <span class="input-group-text" :style="userInfoList[index].nickname ? (userInfoList[index].is_active ? 'color: var(--dark-text-color);' : 'color: red;') : 'color: var(--dark-text-color);'">
@@ -398,7 +398,7 @@
                 </div>
               </div>
               <div class="col-sm-6 pl-1">
-                <div class="input-group" title="添加随机延迟时间：定时任务将在0到设定秒数之间随机延迟执行，可设范围：0–3600秒，0表示不延迟">
+                <div class="input-group" title="添加随机延迟时间：定时任务将在0到设定秒数之间随机延迟执行。建议值：0–3600，0表示不延迟">
                   <div class="input-group-prepend">
                     <span class="input-group-text">延迟执行</span>
                   </div>
@@ -608,6 +608,40 @@
                     <option value="hover">悬停显示</option>
                     <option value="disabled">禁用</option>
                   </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- 性能设置 -->
+            <div class="row title" title="调整文件整理页面的请求参数和缓存时长，可提升大文件夹的加载速度和数据刷新效率。合理配置可减少API请求次数，同时保证数据及时更新">
+              <div class="col">
+                <h2 style="display: inline-block; font-size: 1.5rem;">性能设置</h2>
+                <span class="badge badge-pill badge-light">
+                  <a href="#"><i class="bi bi-question-circle"></i></a>
+                </span>
+              </div>
+            </div>
+            <div class="row mb-2 performance-setting-row">
+              <div class="col-lg-6 col-md-6 mb-2">
+                <div class="input-group" title="每次请求夸克API时获取的文件数量，适当增大该数值可减少请求次数，提升大文件夹的加载效率。建议值：100–500">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">单次请求文件数量</span>
+                  </div>
+                  <input type="text" class="form-control no-spinner" v-model="formData.file_performance.api_page_size" placeholder="200">
+                  <div class="input-group-append">
+                    <span class="input-group-text square-append">个</span>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-6 col-md-6 mb-2">
+                <div class="input-group" title="文件列表在本地缓存的持续时间，过期后将自动清除。设置过短会增加API请求次数，设置过长可能无法及时反映最新变动。建议值：0-300，0表示不缓存">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">文件列表缓存时长</span>
+                  </div>
+                  <input type="text" class="form-control no-spinner" v-model="formData.file_performance.cache_expire_time" placeholder="30">
+                  <div class="input-group-append">
+                    <span class="input-group-text square-append">秒</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1000,13 +1034,48 @@
 
           <div v-if="activeTab === 'filemanager'">
             <div style="height: 20px;"></div>
+            <!-- 账号选择栏 -->
+            <div class="row file-manager-account-selector">
+              <div class="col-12">
+                <!-- 桌面端账号选择 -->
+                <div class="d-flex align-items-center file-manager-rule-bar">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">夸克账号</span>
+                  </div>
+                  <div class="position-relative" style="flex: 1;">
+                    <select class="form-control task-filter-select file-manager-input file-manager-account-select" v-model="fileManager.selectedAccountIndex" @change="onAccountChange">
+                      <option v-for="(account, index) in accountsDetail" :key="index" :value="index">{{ account.display_text }}</option>
+                    </select>
+                  </div>
+                  <button type="button" class="btn btn-outline-primary batch-rename-btn" @click="refreshCurrentFolderCache" title="刷新当前目录缓存">
+                    <i class="bi bi-arrow-clockwise"></i>
+                  </button>
+                </div>
+                <!-- 移动端账号选择 -->
+                <div class="file-manager-rule-bar-responsive">
+                  <div class="d-flex align-items-center">
+                    <div class="input-group" style="flex: 1;">
+                      <div class="input-group-prepend">
+                        <span class="input-group-text">夸克账号</span>
+                      </div>
+                      <select class="form-control task-filter-select file-manager-account-select" v-model="fileManager.selectedAccountIndex" @change="onAccountChange">
+                        <option v-for="(account, index) in accountsDetail" :key="index" :value="index">{{ account.display_text }}</option>
+                      </select>
+                    </div>
+                    <button type="button" class="btn btn-outline-primary batch-rename-btn" @click="refreshCurrentFolderCache" title="刷新当前目录缓存">
+                      <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
             <!-- 重命名规则设置栏 -->
             <div class="row mb-3">
               <div class="col-12">
                 <!-- 桌面端结构（原有） -->
                 <div class="d-flex align-items-center file-manager-rule-bar">
                   <div class="input-group-prepend">
-                    <button class="btn btn-outline-secondary" type="button" @click="switchNamingMode"
+                    <button class="btn btn-outline-secondary" type="button" @click="previewAndRename"
                       :title="fileManager.use_sequence_naming ? '预览顺序命名效果' : (fileManager.use_episode_naming ? '预览剧集命名效果' : '预览正则命名效果')">
                       {{ fileManager.use_sequence_naming ? '顺序命名' : (fileManager.use_episode_naming ? '剧集命名' : '正则命名') }}
                     </button>
@@ -1022,7 +1091,7 @@
                       <input type="checkbox" v-model="fileManager.include_folders">&nbsp;含文件夹
                     </div>
                   </div>
-                  <button type="button" class="btn btn-outline-primary batch-rename-btn" @click="switchNamingMode" title="预览并执行重命名">
+                  <button type="button" class="btn btn-outline-primary batch-rename-btn" @click="previewAndRename" title="预览并执行重命名">
                     <i class="bi bi-pencil"></i>
                   </button>
                 </div>
@@ -1031,7 +1100,7 @@
                   <!-- 第一行：命名按钮+表达式+替换表达式 -->
                   <div class="input-group mb-2">
                     <div class="input-group-prepend">
-                      <button class="btn btn-outline-secondary" type="button" @click="switchNamingMode"
+                      <button class="btn btn-outline-secondary" type="button" @click="previewAndRename"
                         :title="fileManager.use_sequence_naming ? '预览顺序命名效果' : (fileManager.use_episode_naming ? '预览剧集命名效果' : '预览正则命名效果')">
                         {{ fileManager.use_sequence_naming ? '顺序命名' : (fileManager.use_episode_naming ? '剧集命名' : '正则命名') }}
                       </button>
@@ -1051,7 +1120,7 @@
                     <span class="input-group-text file-folder-rounded">
                       <input type="checkbox" v-model="fileManager.include_folders">&nbsp;含文件夹
                     </span>
-                    <button type="button" class="btn btn-outline-primary batch-rename-btn" @click="switchNamingMode" title="预览并执行重命名">
+                    <button type="button" class="btn btn-outline-primary batch-rename-btn" @click="previewAndRename" title="预览并执行重命名">
                       <i class="bi bi-pencil"></i>
                     </button>
                   </div>
@@ -1417,9 +1486,14 @@
             delete_task: "always",
             refresh_plex: "always",
             refresh_alist: "always"
+          },
+          file_performance: {
+            api_page_size: 200,
+            cache_expire_time: 30
           }
         },
         userInfoList: [], // 用户信息列表
+        accountsDetail: [], // 账号详细信息列表
         newTask: {
           taskname: "",
           shareurl: "",
@@ -1497,8 +1571,13 @@
         lastSelectedRecordIndex: -1, // 记录最后选择的记录索引，用于Shift选择
         fileManager: {
           loading: false,
-          // 当前文件夹ID - 根据localStorage决定初始目录
-          currentFolder: localStorage.getItem('quarkAutoSave_fileManagerLastFolder') || 'root',
+          // 当前文件夹ID - 根据localStorage和账号索引决定初始目录
+          currentFolder: (() => {
+            const selectedAccountIndex = parseInt(localStorage.getItem('quarkAutoSave_selectedAccountIndex') || '0');
+            return localStorage.getItem(`quarkAutoSave_fileManagerLastFolder_${selectedAccountIndex}`) || 'root';
+          })(),
+          // 选中的账号索引 - 从localStorage读取，默认为0
+          selectedAccountIndex: parseInt(localStorage.getItem('quarkAutoSave_selectedAccountIndex') || '0'),
           // 面包屑导航路径
           paths: [],
           // 文件列表
@@ -1691,6 +1770,7 @@
         activeTab(newValue, oldValue) {
           // 如果切换到文件整理页面，则加载文件列表
           if (newValue === 'filemanager') {
+            this.fetchAccountsDetail();
             this.loadFileListWithoutLoading(this.fileManager.currentFolder);
           }
         },
@@ -1705,7 +1785,11 @@
         this.fetchData();
         this.checkNewVersion();
         this.fetchUserInfo(); // 获取用户信息
-        
+        this.fetchAccountsDetail(); // 获取账号详细信息
+
+        // 迁移旧的localStorage数据到新格式（为每个账号单独存储目录）
+        this.migrateFileManagerFolderData();
+
         // 添加点击事件监听
         document.addEventListener('click', this.handleOutsideClick);
         document.addEventListener('click', this.handleModalOutsideClick);
@@ -1822,6 +1906,7 @@
           
           // 如果当前标签是文件整理，则加载文件列表
           if (this.activeTab === 'filemanager') {
+            this.fetchAccountsDetail();
             this.loadFileListWithoutLoading(this.fileManager.currentFolder);
           }
           
@@ -1872,6 +1957,92 @@
             })
             .catch(error => {
               console.error('获取用户信息失败:', error);
+            });
+        },
+
+        fetchAccountsDetail() {
+          // 获取所有账号的详细信息，包括空间使用情况
+          axios.get('/get_accounts_detail')
+            .then(response => {
+              if (response.data.success) {
+                this.accountsDetail = response.data.data;
+                // 验证当前选中的账号索引是否有效
+                if (this.fileManager.selectedAccountIndex >= this.accountsDetail.length) {
+                  this.fileManager.selectedAccountIndex = 0;
+                  localStorage.setItem('quarkAutoSave_selectedAccountIndex', '0');
+                }
+              }
+            })
+            .catch(error => {
+              console.error('获取账号详细信息失败:', error);
+            });
+        },
+
+        // 迁移旧的localStorage数据到新格式（为每个账号单独存储目录）
+        migrateFileManagerFolderData() {
+          const oldFolderKey = 'quarkAutoSave_fileManagerLastFolder';
+          const oldFolderValue = localStorage.getItem(oldFolderKey);
+
+          if (oldFolderValue) {
+            // 如果存在旧数据，将其迁移到当前选中账号的新格式
+            const currentAccountIndex = this.fileManager.selectedAccountIndex;
+            const newFolderKey = `quarkAutoSave_fileManagerLastFolder_${currentAccountIndex}`;
+
+            // 只有当新格式的数据不存在时才进行迁移
+            if (!localStorage.getItem(newFolderKey)) {
+              localStorage.setItem(newFolderKey, oldFolderValue);
+              console.log(`已将文件管理器目录数据迁移到账号 ${currentAccountIndex}: ${oldFolderValue}`);
+            }
+
+            // 删除旧的数据
+            localStorage.removeItem(oldFolderKey);
+          }
+        },
+
+        onAccountChange() {
+          // 保存选中的账号索引到localStorage
+          localStorage.setItem('quarkAutoSave_selectedAccountIndex', this.fileManager.selectedAccountIndex.toString());
+
+          // 获取新账号最后一次访问的目录
+          const newAccountLastFolder = localStorage.getItem(`quarkAutoSave_fileManagerLastFolder_${this.fileManager.selectedAccountIndex}`) || 'root';
+
+          // 重置页码并切换到新账号的最后访问目录
+          this.fileManager.currentPage = 1;
+          this.loadFileListWithFallback(newAccountLastFolder);
+        },
+
+        refreshCurrentFolderCache() {
+          // 刷新当前目录的缓存，强制重新请求最新的文件列表
+          // 调用后端接口，添加强制刷新参数
+          const params = {
+            folder_id: this.fileManager.currentFolder || 'root',
+            sort_by: this.fileManager.sortBy,
+            order: this.fileManager.sortOrder,
+            page_size: this.fileManager.pageSize,
+            page: this.fileManager.currentPage,
+            account_index: this.fileManager.selectedAccountIndex,
+            force_refresh: true  // 强制刷新参数
+          };
+
+          axios.get('/file_list', { params })
+            .then(response => {
+              if (response.data.success) {
+                this.fileManager.fileList = response.data.data.list;
+                this.fileManager.total = response.data.data.total;
+                this.fileManager.totalPages = Math.ceil(response.data.data.total / this.fileManager.pageSize);
+                this.fileManager.paths = response.data.data.paths || [];
+                this.fileManager.gotoPage = this.fileManager.currentPage;
+                // 移除成功通知
+              } else {
+                this.showToast('刷新失败：' + response.data.message);
+              }
+
+              // 检测当前的命名模式
+              this.detectFileManagerNamingMode();
+            })
+            .catch(error => {
+              console.error('刷新缓存失败:', error);
+              this.showToast('刷新缓存失败，请稍后重试');
             });
         },
         // 添加一个检查分享链接状态的方法
@@ -1966,6 +2137,8 @@
             if (savedFileManagerPageSize) {
               this.fileManager.pageSize = savedFileManagerPageSize === 'all' ? 99999 : parseInt(savedFileManagerPageSize);
             }
+            // 获取账号详细信息
+            this.fetchAccountsDetail();
             this.loadFileListWithoutLoading(this.fileManager.currentFolder);
           }
         },
@@ -2041,6 +2214,24 @@
                   refresh_plex: "always",
                   refresh_alist: "always"
                 };
+              }
+              // 确保文件整理性能配置存在
+              if (!config_data.file_performance) {
+                config_data.file_performance = {
+                  api_page_size: 200,
+                  cache_expire_time: 30
+                };
+              } else {
+                // 确保必要的字段存在，移除废弃的字段
+                if (!config_data.file_performance.api_page_size) {
+                  config_data.file_performance.api_page_size = 200;
+                }
+                if (!config_data.file_performance.cache_expire_time) {
+                  config_data.file_performance.cache_expire_time = 30;
+                }
+                // 移除废弃的字段
+                delete config_data.file_performance.large_page_size;
+                delete config_data.file_performance.cache_cleanup_interval;
               }
               this.formData = config_data;
               setTimeout(() => {
@@ -2869,6 +3060,22 @@
             params = { fid: params }
           }
           this.modalLoading = true;
+
+          // 根据模态框类型决定使用哪个账号
+          // 任务配置相关的模态框始终使用主账号（索引0）
+          // 文件整理页面的预览模态框使用选中的账号
+          const modalType = document.getElementById('fileSelectModal').getAttribute('data-modal-type');
+          const accountIndex = (modalType === 'preview-filemanager') ? this.fileManager.selectedAccountIndex : 0;
+
+          // 添加账号索引参数
+          if (typeof params === 'object' && params !== null) {
+            params.account_index = accountIndex;
+          } else {
+            params = {
+              fid: params,
+              account_index: accountIndex
+            };
+          }
           axios.get('/get_savepath_detail', {
             params: params
           }).then(response => {
@@ -4090,7 +4297,7 @@
               // 查找对应的文件对象，获取文件名
               const fileObj = this.fileSelect.fileList.find(file => file.fid === fid);
               const fileName = fileObj ? fileObj.file_name : '';
-              
+
               return axios.post('/delete_file', { fid: fid, file_name: fileName, delete_records: deleteRecords, save_path: save_path })
                 .then(response => {
                   return { fid: fid, success: response.data.code === 0, deleted_records: response.data.deleted_records || 0 };
@@ -4272,8 +4479,8 @@
             }
           }
           
-          // 保存当前目录到localStorage
-          localStorage.setItem('quarkAutoSave_fileManagerLastFolder', folderId);
+          // 保存当前目录到localStorage（为每个账号单独保存）
+          localStorage.setItem(`quarkAutoSave_fileManagerLastFolder_${this.fileManager.selectedAccountIndex}`, folderId);
           
           // 重置页码并加载新文件夹内容，不显示加载动画
           this.fileManager.currentPage = 1;
@@ -4445,15 +4652,18 @@
               files: [{
                 file_id: file.fid,
                 new_name: newName
-              }]
+              }],
+              // 添加账号索引参数，使用文件整理页面选中的账号
+              account_index: this.fileManager.selectedAccountIndex
             })
               .then(response => {
                 if (response.data.success) {
                   this.showToast('重命名成功');
-                  // 更新本地文件列表中的文件名
-                  const index = this.fileManager.fileList.findIndex(f => f.fid === file.fid);
-                  if (index !== -1) {
-                    this.fileManager.fileList[index].file_name = newName;
+                  // 刷新文件列表以确保缓存同步
+                  this.refreshCurrentFolderCache();
+                  // 如果命名预览模态框是打开的，也要刷新它
+                  if ($('#fileSelectModal').hasClass('show')) {
+                    this.showFileManagerNamingPreview(this.fileManager.currentFolder);
                   }
                 } else {
                   alert(response.data.message || '重命名失败');
@@ -4465,13 +4675,13 @@
               });
           }
         },
-        switchNamingMode() {
-          // 不再切换命名模式，而是显示命名预览模态框
+        previewAndRename() {
+          // 显示文件整理页面的命名预览模态框
           this.showFileManagerNamingPreview();
         },
         
         showFileManagerNamingPreview(folderId) {
-          // 使用文件选择模态框，但设置为预览模式
+          // 显示文件整理页面的命名预览模态框（区别于任务配置的命名预览）
           this.fileSelect.selectShare = false;
           this.fileSelect.selectDir = true;
           this.fileSelect.previewRegex = true;
@@ -4510,7 +4720,9 @@
               include_folders: this.fileManager.include_folders,
               filterwords: this.fileManager.filterwords,
               // 添加页面大小参数，获取所有文件
-              page_size: 99999
+              page_size: 99999,
+              // 添加账号索引参数，使用文件整理页面选中的账号
+              account_index: this.fileManager.selectedAccountIndex
             }
           })
           .then(response => {
@@ -4528,7 +4740,11 @@
                   page_size: 99999,
                   page: 1,
                   // 同时添加文件夹包含参数
-                  include_folders: this.fileManager.include_folders
+                  include_folders: this.fileManager.include_folders,
+                  // 添加账号索引参数，使用文件整理页面选中的账号
+                  account_index: this.fileManager.selectedAccountIndex,
+                  // 强制刷新缓存
+                  force_refresh: true
                 }
               })
               .then(listResponse => {
@@ -4599,85 +4815,8 @@
             this.modalLoading = false;
           });
         },
-        showBatchRenameModal() {
-          this.batchRename.loading = true;
-          this.batchRename.results = [];
-          this.batchRename.errors = [];
-          
-          // 设置命名模式
-          if (this.fileManager.use_sequence_naming) {
-            this.batchRename.namingMode = 'sequence';
-          } else if (this.fileManager.use_episode_naming) {
-            this.batchRename.namingMode = 'episode';
-          } else {
-            this.batchRename.namingMode = 'regex';
-          }
-          
-          // 调用后端API获取预览结果
-          const params = {
-            folder_id: this.fileManager.currentFolder,
-            pattern: this.fileManager.pattern,
-            replace: this.fileManager.replace,
-            naming_mode: this.batchRename.namingMode,
-            include_folders: this.fileManager.include_folders,
-            filterwords: this.fileManager.filterwords
-          };
-          
-          axios.get('/preview_rename', { params })
-            .then(response => {
-              if (response.data.success) {
-                this.batchRename.files = response.data.data.map(file => ({
-                  oldName: file.original_name,
-                  newName: file.new_name,
-                  fileId: file.file_id
-                }));
-              } else {
-                alert(response.data.message || '预览重命名失败');
-              }
-              this.batchRename.loading = false;
-              $('#batchRenameModal').modal('show');
-            })
-            .catch(error => {
-              console.error('预览重命名失败:', error);
-              alert('预览重命名失败，请检查命名规则是否正确');
-              this.batchRename.loading = false;
-            });
-        },
-        confirmBatchRename() {
-          this.batchRename.loading = true;
-          
-          // 发送批量重命名请求
-          const params = {
-            folder_id: this.fileManager.currentFolder,
-            pattern: this.fileManager.pattern,
-            replace: this.fileManager.replace,
-            naming_mode: this.batchRename.namingMode,
-            include_folders: this.fileManager.include_folders,
-            filterwords: this.fileManager.filterwords,
-            files: this.batchRename.files.filter(file => file.newName).map(file => ({
-              file_id: file.fileId,
-              new_name: file.newName
-            }))
-          };
-          
-          axios.post('/batch_rename', params)
-            .then(response => {
-              if (response.data.success) {
-                this.showToast('批量重命名成功');
-                $('#batchRenameModal').modal('hide');
-                // 刷新文件列表
-                this.loadFileList(this.fileManager.currentFolder);
-              } else {
-                alert(response.data.message || '批量重命名失败');
-              }
-              this.batchRename.loading = false;
-            })
-            .catch(error => {
-              console.error('批量重命名失败:', error);
-              alert('批量重命名失败');
-              this.batchRename.loading = false;
-            });
-        },
+        // showBatchRenameModal方法已删除，功能已整合到showFileManagerNamingPreview中
+        // confirmBatchRename方法已删除，功能已整合到applyPreviewRename中
         deleteFile(file) {
           if (confirm(`确定要删除${file.dir ? '文件夹' : '文件'} "${file.file_name}" 吗？`)) {
             // 获取当前路径作为save_path参数
@@ -4686,21 +4825,22 @@
               save_path = this.fileManager.paths.map(item => item.name).join("/");
             }
             
-            axios.post('/delete_file', { 
-              fid: file.fid, 
-              file_name: file.file_name, 
-              delete_records: false, 
-              save_path: save_path 
+            axios.post('/delete_file', {
+              fid: file.fid,
+              file_name: file.file_name,
+              delete_records: false,
+              save_path: save_path,
+              account_index: this.fileManager.selectedAccountIndex
             })
               .then(response => {
                 if (response.data.code === 0) {
                   this.showToast('成功删除 1 个项目');
-                  // 从列表中移除已删除的文件
-                  this.fileManager.fileList = this.fileManager.fileList.filter(f => f.fid !== file.fid);
-                  // 更新总数
-                  this.fileManager.total -= 1;
-                  // 从选中列表中移除
-                  this.fileManager.selectedFiles = this.fileManager.selectedFiles.filter(id => id !== file.fid);
+                  // 刷新文件列表以确保缓存同步
+                  this.refreshCurrentFolderCache();
+                  // 如果命名预览模态框是打开的，也要刷新它
+                  if ($('#fileSelectModal').hasClass('show')) {
+                    this.showFileManagerNamingPreview(this.fileManager.currentFolder);
+                  }
                 } else {
                   alert(response.data.message || '删除失败');
                 }
@@ -4714,13 +4854,14 @@
         loadFileList(folderId) {
           this.fileManager.loading = true;
           this.fileManager.currentFolder = folderId || 'root';
-          
+
           const params = {
             folder_id: folderId || 'root',
             sort_by: this.fileManager.sortBy,
             order: this.fileManager.sortOrder,
             page_size: this.fileManager.pageSize,
-            page: this.fileManager.currentPage
+            page: this.fileManager.currentPage,
+            account_index: this.fileManager.selectedAccountIndex
           };
           
           axios.get('/file_list', { params })
@@ -4795,8 +4936,8 @@
             }
           }
           
-          // 保存当前目录到localStorage
-          localStorage.setItem('quarkAutoSave_fileManagerLastFolder', folderId);
+          // 保存当前目录到localStorage（为每个账号单独保存）
+          localStorage.setItem(`quarkAutoSave_fileManagerLastFolder_${this.fileManager.selectedAccountIndex}`, folderId);
           
           // 重置页码并加载新文件夹内容，不显示加载动画
           this.fileManager.currentPage = 1;
@@ -4806,22 +4947,23 @@
         // 添加一个不显示加载动画的文件列表加载方法
         loadFileListWithoutLoading(folderId) {
           this.fileManager.currentFolder = folderId || 'root';
-          
+
           // 从localStorage读取分页大小设置（仅在初始化时使用）
           // 在changeFileManagerPageSize方法中，我们已经确保了正确的执行顺序
           const savedFileManagerPageSize = localStorage.getItem('quarkAutoSave_fileManagerPageSize');
           if (savedFileManagerPageSize && this.fileManager.pageSize === 15) { // 只在默认值时读取
             this.fileManager.pageSize = savedFileManagerPageSize === 'all' ? 99999 : parseInt(savedFileManagerPageSize);
           }
-          
+
           const params = {
             folder_id: folderId || 'root',
             sort_by: this.fileManager.sortBy,
             order: this.fileManager.sortOrder,
             page_size: this.fileManager.pageSize,
-            page: this.fileManager.currentPage
+            page: this.fileManager.currentPage,
+            account_index: this.fileManager.selectedAccountIndex
           };
-          
+
           axios.get('/file_list', { params })
             .then(response => {
               if (response.data.success) {
@@ -4833,13 +4975,62 @@
               } else {
                 console.error('获取文件列表失败:', response.data.message);
               }
-              
+
               // 检测当前的命名模式
               this.detectFileManagerNamingMode();
             })
             .catch(error => {
               console.error('获取文件列表失败:', error);
             });
+        },
+
+        // 添加带fallback机制的文件列表加载方法，用于账号切换
+        loadFileListWithFallback(folderId) {
+          this.fileManager.currentFolder = folderId || 'root';
+
+          const params = {
+            folder_id: folderId || 'root',
+            sort_by: this.fileManager.sortBy,
+            order: this.fileManager.sortOrder,
+            page_size: this.fileManager.pageSize,
+            page: this.fileManager.currentPage,
+            account_index: this.fileManager.selectedAccountIndex
+          };
+
+          axios.get('/file_list', { params })
+            .then(response => {
+              if (response.data.success) {
+                this.fileManager.fileList = response.data.data.list;
+                this.fileManager.total = response.data.data.total;
+                this.fileManager.totalPages = Math.ceil(response.data.data.total / this.fileManager.pageSize);
+                this.fileManager.paths = response.data.data.paths || [];
+                this.fileManager.gotoPage = this.fileManager.currentPage;
+
+                // 检测当前的命名模式
+                this.detectFileManagerNamingMode();
+              } else {
+                // 如果获取文件列表失败，可能是目录在新账号中不存在
+                console.warn('当前目录在新账号中不存在，自动切换到根目录:', response.data.message);
+                this.fallbackToRoot();
+              }
+            })
+            .catch(error => {
+              console.error('获取文件列表失败，自动切换到根目录:', error);
+              this.fallbackToRoot();
+            });
+        },
+
+        // fallback到根目录的方法
+        fallbackToRoot() {
+          this.fileManager.currentFolder = 'root';
+          this.fileManager.paths = [];
+          this.fileManager.currentPage = 1;
+
+          // 更新localStorage中的当前目录（为每个账号单独保存）
+          localStorage.setItem(`quarkAutoSave_fileManagerLastFolder_${this.fileManager.selectedAccountIndex}`, 'root');
+
+          // 重新加载根目录
+          this.loadFileListWithoutLoading('root');
         },
         getVisibleFolderPageNumbers() {
           const current = parseInt(this.fileManager.currentPage) || 1;
@@ -4876,47 +5067,7 @@
           
           return range;
         },
-        cancelBatchRename() {
-          this.batchRename.loading = false;
-          this.batchRename.results = [];
-          this.batchRename.errors = [];
-          $('#batchRenameModal').modal('hide');
-        },
-        applyBatchRename() {
-          this.batchRename.loading = true;
-          
-          // 发送批量重命名请求
-          const params = {
-            folder_id: this.fileManager.currentFolder,
-            pattern: this.fileManager.pattern,
-            replace: this.fileManager.replace,
-            naming_mode: this.batchRename.namingMode,
-            include_folders: this.fileManager.include_folders,
-            filterwords: this.fileManager.filterwords,
-            files: this.batchRename.files.filter(file => file.newName).map(file => ({
-              file_id: file.fileId,
-              new_name: file.newName
-            }))
-          };
-          
-          axios.post('/batch_rename', params)
-            .then(response => {
-              if (response.data.success) {
-                this.showToast('批量重命名成功');
-                $('#batchRenameModal').modal('hide');
-                // 刷新文件列表
-                this.loadFileList(this.fileManager.currentFolder);
-              } else {
-                alert(response.data.message || '批量重命名失败');
-              }
-              this.batchRename.loading = false;
-            })
-            .catch(error => {
-              console.error('批量重命名失败:', error);
-              alert('批量重命名失败');
-              this.batchRename.loading = false;
-            });
-        },
+        // cancelBatchRename和applyBatchRename方法已删除，功能已整合到fileSelectModal中
         handleFileManagerOutsideClick(event) {
           // 如果当前不是文件整理页面或者没有选中的文件，则不处理
           if (this.activeTab !== 'filemanager' || this.fileManager.selectedFiles.length === 0) {
@@ -4969,11 +5120,12 @@
               const fileObj = this.fileManager.fileList.find(file => file.fid === fid);
               const fileName = fileObj ? fileObj.file_name : '';
               
-              return axios.post('/delete_file', { 
-                fid: fid, 
-                file_name: fileName, 
-                delete_records: deleteRecords, 
-                save_path: save_path 
+              return axios.post('/delete_file', {
+                fid: fid,
+                file_name: fileName,
+                delete_records: deleteRecords,
+                save_path: save_path,
+                account_index: this.fileManager.selectedAccountIndex
               })
                 .then(response => {
                   return { fid: fid, success: response.data.code === 0, deleted_records: response.data.deleted_records || 0 };
@@ -4990,21 +5142,20 @@
                 const successCount = results.filter(r => r.success).length;
                 const failCount = results.length - successCount;
                 
-                // 从文件列表中移除成功删除的文件
-                const successfullyDeletedFids = results.filter(r => r.success).map(r => r.fid);
-                this.fileManager.fileList = this.fileManager.fileList.filter(item => !successfullyDeletedFids.includes(item.fid));
-                
-                // 更新总数
-                this.fileManager.total -= successCount;
-                
-                // 清空选中文件列表
-                this.fileManager.selectedFiles = [];
-                
                 // 显示结果
                 if (failCount > 0) {
                   alert(`成功删除 ${successCount} 个项目，${failCount} 个项目删除失败`);
                 } else {
                   this.showToast(`成功删除 ${successCount} 个项目`);
+                }
+
+                // 如果有成功删除的文件，刷新文件列表以确保缓存同步
+                if (successCount > 0) {
+                  this.refreshCurrentFolderCache();
+                  // 如果命名预览模态框是打开的，也要刷新它
+                  if ($('#fileSelectModal').hasClass('show')) {
+                    this.showFileManagerNamingPreview(this.fileManager.currentFolder);
+                  }
                 }
               });
           }
@@ -5056,10 +5207,16 @@
               old_name: f.file_name // 传递原文件名，便于撤销
             }));
             const save_path = this.fileManager.currentFolder;
-            const response = await axios.post('/batch_rename', { files, save_path });
+            const response = await axios.post('/batch_rename', {
+              files,
+              save_path,
+              // 添加账号索引参数，使用文件整理页面选中的账号
+              account_index: this.fileManager.selectedAccountIndex
+            });
             if (response.data.success) {
               this.showToast(`成功重命名 ${response.data.success_count || files.length} 个项目`);
-              this.loadFileListWithoutLoading(this.fileManager.currentFolder);
+              // 强制刷新文件列表缓存
+              this.refreshCurrentFolderCache();
               $('#fileSelectModal').modal('hide');
               this.fileSelect.canUndoRename = true; // 重命名后立即可撤销
             } else {
@@ -5075,11 +5232,16 @@
           this.modalLoading = true;
           try {
             const save_path = this.fileManager.currentFolder;
-            const response = await axios.post('/undo_rename', { save_path });
+            const response = await axios.post('/undo_rename', {
+              save_path,
+              // 添加账号索引参数，使用文件整理页面选中的账号
+              account_index: this.fileManager.selectedAccountIndex
+            });
             if (response.data.success) {
               this.showToast(`成功撤销 ${response.data.success_count} 个项目重命名`);
               this.showFileManagerNamingPreview(save_path);
-              this.loadFileListWithoutLoading(this.fileManager.currentFolder);
+              // 强制刷新文件列表缓存
+              this.refreshCurrentFolderCache();
               // 撤销后如无可撤销项再设为false（由showFileManagerNamingPreview刷新）
             } else {
               this.showToast(response.data.message || '撤销失败');
