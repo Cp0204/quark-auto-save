@@ -46,12 +46,10 @@ class Alist_strm_gen:
                 missing_configs.append(key)
         
         if missing_configs:
-            print(f"{self.plugin_name} 模块缺少必要参数: {', '.join(missing_configs)}")
-            return
-            
+            return  # 不显示缺少参数的提示
+
         if not self.url or not self.token or not self.storage_id:
-            print(f"{self.plugin_name} 模块配置不完整，请检查配置")
-            return
+            return  # 不显示配置不完整的提示
             
         # 检查 strm_save_dir 是否存在
         if not os.path.exists(self.strm_save_dir):

@@ -18,10 +18,28 @@ class Plex:
                 if key in kwargs:
                     setattr(self, key, kwargs[key])
                 else:
-                    print(f"{self.__class__.__name__} 模块缺少必要参数: {key}")
+                    pass  # 不显示缺少参数的提示
+
+            # 处理多账号配置：支持数组形式的quark_root_path
+            if isinstance(self.quark_root_path, list):
+                self.quark_root_paths = self.quark_root_path
+                # 为了向后兼容，使用第一个路径作为默认值
+                self.quark_root_path = self.quark_root_paths[0] if self.quark_root_paths else ""
+            else:
+                # 单一配置转换为数组格式
+                self.quark_root_paths = [self.quark_root_path] if self.quark_root_path else []
+
             if self.url and self.token and self.quark_root_path:
                 if self.get_info():
                     self.is_active = True
+
+    def get_quark_root_path(self, account_index=0):
+        """根据账号索引获取对应的quark_root_path"""
+        if account_index < len(self.quark_root_paths):
+            return self.quark_root_paths[account_index]
+        else:
+            # 如果索引超出范围，使用第一个路径作为默认值
+            return self.quark_root_paths[0] if self.quark_root_paths else ""
 
     def run(self, task, **kwargs):
         if task.get("savepath"):
@@ -59,10 +77,8 @@ class Plex:
         try:
             for library in self._libraries:
                 for location in library.get("Location", []):
-                    if (
-                        os.path.commonpath([folder_path, location["path"]])
-                        == location["path"]
-                    ):
+                    location_path = location.get("path", "")
+                    if folder_path.startswith(location_path):
                         refresh_url = f"{self.url}/library/sections/{library['key']}/refresh?path={folder_path}"
                         refresh_response = requests.get(refresh_url, headers=headers)
                         if refresh_response.status_code == 200:

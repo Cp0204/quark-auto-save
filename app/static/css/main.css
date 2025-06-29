@@ -94,15 +94,17 @@ body.login-page {
   z-index: 9999;
   width: auto;
   max-width: 80%;
+  pointer-events: none;
 }
 
 .toast-custom {
-  min-width: 134px;
+  min-width: 120px;
   background-color: var(--focus-border-color);
   box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
   border: none;
   border-radius: 6px;
   margin: 0 auto;
+  width: fit-content;
 }
 
 .toast-body-custom {
@@ -1131,8 +1133,8 @@ textarea.form-control {
 .expand-button {
   position: absolute;
   right: 5px;
-  top: 10.5px; /* 恢复为固定位置 */
-  transform: none; /* 移除垂直居中的转换 */
+  top: 11px; /* 固定位置，不再使用百分比定位 */
+  transform: none; /* 移除垂直居中转换 */
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.2s;
@@ -1152,12 +1154,11 @@ textarea.form-control {
 
 .expanded-text {
   white-space: normal;
-  padding: 0 0; /* 展开时的上下内边距 */
   word-break: break-all;
   display: block; /* 确保展开的内容是块级元素 */
-  line-height: 1.5; /* 设置合理的行高 */
-  margin-top: 4px; /* 与上方内容保持一定间距 */
-  margin-bottom: 4px; /* 添加底部边距，与表格底部分割线保持一致的距离 */
+  line-height: 24px !important; /* 与表头保持一致的行高 */
+  margin-top: 0; /* 移除顶部边距 */
+  margin-bottom: 0; /* 移除底部边距 */
   position: relative; /* 确保定位准确 */
   padding-right: 25px; /* 为展开按钮预留空间 */
 }
@@ -1174,25 +1175,18 @@ textarea.form-control {
   overflow-x: auto;
 }
 
-.table th {
-  white-space: nowrap;
-  background-color: #f8f9fa;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
 /* 表头样式调整 */
-.table thead th {
+.table thead th,
+table.table thead th {
   vertical-align: middle;
-  border-bottom: 1px solid var(--border-color); /* 修改底部边框为1px */
-  border-top: 1px solid var(--border-color); /* 添加上边框线 */
-  padding-top: 8.5px; /* 增加上内边距 */
-  padding-bottom: 8.5px; /* 增加下内边距 */
-  padding-left: 9px !important; /* 表头左内边距，与按钮一致 */
-  padding-right: 9px !important; /* 表头右内边距，与按钮一致 */
-  background-color: var(--button-gray-background-color); /* 表头背景色 */
-  color: var(--dark-text-color); /* 表头文字颜色 */
+  border-bottom: 1px solid var(--border-color) !important; /* 修改底部边框为1px */
+  border-top: 1px solid var(--border-color) !important; /* 添加上边框线 */
+  padding: 8px 9px !important; /* 统一表头内边距 */
+  background-color: var(--button-gray-background-color) !important; /* 表头背景色 */
+  color: var(--dark-text-color) !important; /* 表头文字颜色 */
+  height: 40px !important; /* 确保表头高度为40px */
+  line-height: 24px !important; /* 设置行高以确保文字垂直居中 */
+  box-sizing: border-box !important; /* 确保边框包含在总高度内 */
 }
 
 /* 表头悬停样式 */
@@ -1202,18 +1196,17 @@ textarea.form-control {
 
 /* 表格单元格样式 */
 .table td {
-  vertical-align: top; /* 改为顶部对齐，避免内容居中问题 */
-  height: auto; /* 根据内容自动调整高度 */
+  vertical-align: middle !important; /* 统一使用垂直居中对齐 */
+  height: 40px !important; /* 与表头保持一致的高度 */
   max-width: 300px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding-top: 8px; /* 单元格上内边距 */
-  padding-bottom: 8px; /* 单元格下内边距 */
-  padding-left: 9px !important; /* 单元格左内边距，与按钮一致 */
-  padding-right: 9px !important; /* 单元格右内边距，与按钮一致 */
+  padding: 8px 9px !important; /* 统一单元格内边距 */
   border-bottom: 1px solid var(--border-color); /* 单元格分割线颜色 */
-  transform: translateY(0.5px); /* 文本下移0.5px，不影响元素实际高度 */
+  border-top: none !important; /* 确保没有上边框 */
+  box-sizing: border-box !important; /* 确保边框包含在总高度内 */
+  line-height: 24px !important; /* 与表头保持一致的行高 */
 }
 
 /* 表格行悬停样式 */
@@ -1227,23 +1220,22 @@ textarea.form-control {
   word-break: break-word;
 }
 
-/* 新增：设置表格单元格中的position-relative样式，以便正确定位内容 */
+/* 设置表格单元格中的position-relative样式，以便正确定位内容 */
 .table td.position-relative {
   position: relative; /* 确保相对定位生效 */
-  padding-top: 4px; /* 减少顶部内边距 */
-  padding-bottom: 4px; /* 减少底部内边距 */
+  padding: 8px 9px !important; /* 保持与其他单元格一致的内边距 */
+  vertical-align: top !important; /* 确保内容顶部对齐 */
 }
 
-/* 新增：调整text-truncate在表格单元格中的布局 */
+/* 调整text-truncate在表格单元格中的布局 */
 .table td .text-truncate {
   display: block; /* 使其成为块级元素 */
   max-width: 100%; /* 确保不超出单元格宽度 */
   padding-right: 25px; /* 为展开按钮留出空间 */
-  padding-top: 4px; /* 与单元格顶部保持一定距离 */
-  padding-bottom: 4px; /* 与单元格底部保持一定距离 */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 24px !important; /* 与表头保持一致的行高 */
 }
 
 /* --------------- 模态框样式 --------------- */
@@ -1606,7 +1598,7 @@ button.close:focus,
   top: 0;
   z-index: 5;
   vertical-align: middle; /* 添加：垂直居中对齐 */
-  height: auto; /* 添加：自动高度，确保与内容一致 */
+  height: 40px !important; /* 添加：自动高度，确保与内容一致 */
 }
 
 /* 模态框表格列宽设置 - 基于内容类型 */
@@ -1687,15 +1679,6 @@ button.close:focus,
 #fileSelectModal .table tr.cursor-pointer:hover {
   background-color: var(--button-gray-background-color);
   cursor: pointer;
-}
-
-/* 弹窗内文件夹和文件图标样式 */
-#fileSelectModal .bi-folder-fill {
-  color: #ffc107;
-  font-size: 0.9rem;
-  margin-right: 5px;
-  position: relative;
-  top: 1px; /* 负值向上移动，正值向下移动 */
 }
 
 #fileSelectModal .bi-file-earmark {
@@ -2147,6 +2130,10 @@ div.jsoneditor-tree button.jsoneditor-button:focus {
 }
 
 .sidebar .nav-link .bi-clock-history {
+  font-size: 1rem;
+}
+
+.sidebar .nav-link .bi-archive {
   font-size: 1rem;
 }
 
@@ -3345,7 +3332,7 @@ div[id^="collapse_"][id*="plugin"] .input-group {
 #fileSelectModal .badge-info {
   background-color: var(--focus-border-color) !important;
   color: white !important;
-  font-size: 0.84rem !important;
+  font-size: 0.83rem !important;
   padding: 6px 3px !important;
   font-weight: normal !important;
   border-radius: 4px !important;
@@ -3386,7 +3373,7 @@ div[id^="collapse_"][id*="plugin"] .input-group {
 
 /* 多行表达式间距 - 针对预览区域显示的多行表达式 */
 #fileSelectModal .mb-3[v-if="fileSelect.previewRegex"] > div > span.badge-info + span.badge-info {
-  margin-top: 1px !important; /* 减少多行表达式之间的间距 */
+  margin-top: 5px !important; /* 减少多行表达式之间的间距 */
   display: inline-block;
 }
 
@@ -3602,8 +3589,20 @@ input::-moz-list-button {
     padding-right: 16px !important; /* 强制设置右边距为16px */
     box-sizing: border-box;
   }
-  
+
   #fileSelectModal[data-modal-type="preview"] .table {
+    width: 460px;
+  }
+
+  /* 针对文件整理页面命名预览模式 - 2列表格 */
+  #fileSelectModal[data-modal-type="preview-filemanager"] .breadcrumb {
+    min-width: 460px; /* 2列表格总宽度: 230px + 230px */
+    margin-right: 0;
+    padding-right: 16px !important; /* 强制设置右边距为16px */
+    box-sizing: border-box;
+  }
+
+  #fileSelectModal[data-modal-type="preview-filemanager"] .table {
     width: 460px;
   }
   
@@ -3688,7 +3687,7 @@ input::-moz-list-button {
 #fileSelectModal .expand-button {
   position: absolute;
   right: 5px;
-  top: 7.5px; /* 固定高度，不再使用百分比定位 */
+  top: 7.5px; /* 固定位置 */
   transform: none; /* 移除垂直居中转换 */
   cursor: pointer;
   opacity: 0;
@@ -3717,6 +3716,7 @@ input::-moz-list-button {
 /* 确保模态框中的表格单元格可以正确显示展开按钮 */
 #fileSelectModal .table td.position-relative {
   position: relative;
+  vertical-align: top !important; /* 确保内容顶部对齐 */
 }
 
 /* 当表格行被点击时，防止展开按钮的点击事件冒泡 */
@@ -3728,6 +3728,8 @@ input::-moz-list-button {
 #fileSelectModal .table td [style*="white-space: normal"] {
   display: block;
   width: 100%;
+  margin-top: 0; /* 移除顶部边距 */
+  margin-bottom: 7px;
 }
 
 /* 确保表格行内容保持顶部对齐 */
@@ -3799,24 +3801,8 @@ input.no-spinner {
 
 /* 文件大小值的文本位置调整 */
 .file-size-cell .file-size-value {
-  transform: translateY(-1px); /* 文本下移 */
   display: inline-block; /* 确保transform生效 */
-}
-
-/* 转存记录删除按钮样式 */
-.delete-record-btn {
-  color: #dc3545;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
-  visibility: hidden; /* 默认隐藏 */
-  position: relative; /* 添加相对定位 */
-  top: -0.5px; /* 上移 */
+  transform: translateY(0px);
 }
 
 /* 删除按钮图标大小 */
@@ -3845,6 +3831,7 @@ table.selectable-records {
 
 table.selectable-records tbody tr {
   cursor: pointer;
+  transition: none;
 }
 
 /* 修改表格行悬停样式，使用变量保持一致性 */
@@ -3857,10 +3844,14 @@ tr.selected-record .expand-button {
   z-index: 2;
 }
 
-/* 当鼠标悬停在展开按钮或删除按钮上时，不改变按钮的背景色 */
-table.selectable-records .expand-button:hover,
-table.selectable-records .delete-record-btn:hover {
+/* 当鼠标悬停在展开按钮上时，不改变按钮的背景色 */
+table.selectable-records .expand-button:hover {
   background-color: transparent !important;
+}
+
+/* 转存记录页面删除按钮悬停效果 */
+table.selectable-records .delete-record-btn:hover {
+  color: #b02a37 !important;
 }
 
 /* 选中行或鼠标悬停行的大小列样式 */
@@ -3878,6 +3869,10 @@ tr.selected-record .file-size-cell .delete-record-btn,
   height: 100%;
   margin-left: 0; /* 确保没有左边距 */
   padding-left: 0; /* 确保没有左内边距 */
+  left: 9px; /* 与大小值保持相同的左边距 */
+  position: absolute; /* 使用绝对定位 */
+  top: 8px; /* 固定位置 */
+  transform: none; /* 移除垂直居中转换 */
 }
 
 /* 当鼠标悬停在展开按钮或删除按钮上时，不改变按钮的背景色 */
@@ -3898,24 +3893,38 @@ table.selectable-records .expand-button:hover {
 /* 特别调整红色"×"符号的位置 */
 #fileSelectModal .table td.col-rename.text-danger div:not(.expand-button) {
   position: relative;
-  top: -1px; /* 将"×"标记上移1px */
+  top: 2px !important; /* 将"×"标记上移1px */
 }
 
-/* 文件名列已经通过图标微调过，保持原样或细微调整 */
+#fileSelectModal[data-modal-type="preview"] .table td.col-rename > * {
+  position: relative;
+  top: 3px !important;
+}
+
+/* 文件整理页面命名预览模式下的重命名列通用样式 */
+#fileSelectModal[data-modal-type="preview-filemanager"] .table td.col-rename > * {
+  position: relative;
+  top: 3px !important; /* 与任务配置页面保持一致 */
+}
+
+/* 模态框通用文件夹图标样式 */
 #fileSelectModal .bi-folder-fill {
   color: #ffc107;
-  font-size: 0.9rem;
-  margin-right: 5px;
+  font-size: 0.95rem;
+  margin-right: 4px !important;
   position: relative;
-  top: 1px; /* 负值向上移动，正值向下移动 */
+  top: 0.5px !important; /* 负值向上移动，正值向下移动 */
+  left: -0.55px; /* 整体向左移动 */
 }
 
+/* 模态框通用文件图标样式 */
 #fileSelectModal .bi-file-earmark {
   color: var(--dark-text-color);
-  font-size: 0.9rem;
-  margin-right: 5px;
+  font-size: 0.95rem;
+  margin-right: 4px !important;
   position: relative;
-  top: 0px; /* 负值向上移动，正值向下移动 */
+  top: 0.5px !important; /* 负值向上移动，正值向下移动 */
+  left: -0.4px;
 }
 
 /* 添加选中文件的样式 */
@@ -3962,14 +3971,14 @@ table.selectable-records .expand-button:hover {
 
 /* Plex图标样式 */
 .plex-icon {
-  width: 10.4px;
+  width: 10.3px;
   height: auto;
   object-fit: contain;
 }
 
 /* AList图标样式 */
 .alist-icon {
-  width: 17.8px;
+  width: 18px;
   height: auto;
   object-fit: contain;
   position: relative;
@@ -4032,6 +4041,21 @@ table.selectable-records .expand-button:hover {
 .display-setting-row {
   margin-left: -4px !important;
   margin-right: -4px !important;
+}
+
+/* 文件整理性能设置样式 */
+.performance-setting-row > [class*='col-'] {
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
+.performance-setting-row {
+  margin-left: -4px !important;
+  margin-right: -4px !important;
+}
+
+/* 性能设置板块标题上移8px，统一与其他设置板块的间距 */
+.row.title[title*="文件整理页面的请求参数"] {
+  margin-top: 12px !important; /* 从默认的20px减少到12px，上移8px */
 }
 
 /* 任务单元基础样式 */
@@ -4128,4 +4152,1150 @@ select.task-filter-select,
 
 .task-name-hover:hover {
   color: var(--focus-border-color) !important;
+}
+
+/* 文件整理页面样式 */
+.file-manager-card {
+  display: none; /* 隐藏卡片 */
+}
+
+.file-manager-card .card-body {
+  padding: 0; /* 移除内边距 */
+}
+
+.file-manager-input {
+  flex: 1;
+}
+
+/* 文件整理页面面包屑导航样式 */
+.file-manager-breadcrumb {
+  margin-top: 20px;
+}
+
+.file-manager-breadcrumb .breadcrumb-item {
+  color: var(--dark-text-color);
+  padding: 0;
+  position: relative; /* 添加相对定位 */
+}
+
+.file-manager-breadcrumb .breadcrumb-item a {
+  color: var(--dark-text-color);
+  text-decoration: none;
+}
+
+.file-manager-breadcrumb .breadcrumb-item a:hover {
+  color: var(--focus-border-color);
+}
+
+/* 隐藏Bootstrap默认的面包屑分隔符 */
+.file-manager-breadcrumb .breadcrumb-item + .breadcrumb-item::before {
+  color: var(--dark-text-color);
+  content: "/"; /* 使用斜杠作为分隔符 */
+  position: relative;
+  display: inline-block;
+  vertical-align: middle; /* 垂直居中 */
+  padding: 0 8px; /* 在斜杠两侧添加间距 */
+  top: -1px; /* 将分隔符上移1px */
+}
+
+.file-actions {
+  white-space: nowrap;
+}
+
+.selectable-files tr.selected-file {
+  background-color: rgba(var(--primary-rgb), 0.1);
+}
+
+.batch-rename-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px !important;
+  color: var(--dark-text-color) !important;
+  border-color: var(--dark-text-color) !important;
+}
+
+/* 为相邻的batch-rename-btn按钮添加左边距 */
+.batch-rename-btn + .batch-rename-btn {
+  margin-left: 8px;
+}
+
+/* 文件整理页面按钮与前面元素的间距 */
+.file-manager-rule-bar .batch-rename-btn:first-of-type {
+  margin-left: 8px;
+}
+
+/* 移动端文件整理页面按钮与前面元素的间距 */
+.file-manager-rule-bar-responsive .batch-rename-btn:first-of-type {
+  margin-left: 8px;
+}
+
+.batch-rename-btn:hover {
+  background-color: var(--dark-text-color) !important;
+  border-color: var(--dark-text-color) !important;
+  color: white !important;
+}
+
+/* 文件整理页面刷新当前目录缓存按钮图标大小 */
+.batch-rename-btn .bi-arrow-clockwise {
+  font-size: 1.17rem;
+}
+
+/* 确保文件整理页面的Plex和AList按钮样式与任务列表一致 */
+.batch-rename-btn.btn-outline-plex,
+.batch-rename-btn.btn-outline-alist {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px !important;
+}
+
+/* 文件整理页面Plex按钮样式 */
+.batch-rename-btn.btn-outline-plex {
+  border-color: #EBAF00 !important;
+  color: #EBAF00 !important;
+}
+
+.batch-rename-btn.btn-outline-plex:hover {
+  background-color: #EBAF00 !important;
+  border-color: #EBAF00 !important;
+  color: #fff !important;
+}
+
+.batch-rename-btn.btn-outline-plex:hover .plex-icon {
+  filter: brightness(0) invert(1);
+}
+
+/* 文件整理页面AList按钮样式 */
+.batch-rename-btn.btn-outline-alist {
+  border-color: #70C6BE !important;
+  color: #70C6BE !important;
+}
+
+.batch-rename-btn.btn-outline-alist:hover {
+  background-color: #70C6BE !important;
+  border-color: #70C6BE !important;
+  color: #fff !important;
+}
+
+.batch-rename-btn.btn-outline-alist:hover .alist-icon {
+  filter: brightness(0) invert(1);
+}
+
+/* 文件表格中的展开按钮 */
+.expand-button {
+  position: absolute;
+  right: 5px;
+  top: 11px; /* 固定位置，与其他表格保持一致 */
+  transform: none; /* 移除垂直居中转换 */
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+  background: #fff;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  text-align: center;
+  line-height: 18px;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.2);
+  z-index: 2;
+}
+
+.expand-button:hover {
+  opacity: 1;
+}
+
+/* 批量重命名模态框样式 */
+#batchRenameModal .modal-dialog {
+  max-width: 80%;
+}
+
+#batchRenameModal .table {
+  margin-bottom: 0;
+}
+
+#batchRenameModal .badge {
+  font-size: 90%;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+#batchRenameModal .alert {
+  margin-bottom: 15px;
+}
+
+#batchRenameModal .text-danger {
+  background-color: rgba(var(--danger-rgb), 0.05);
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .file-manager-rule-bar {
+    flex-direction: column;
+  }
+  
+  .file-manager-rule-bar .input-group {
+    margin-bottom: 10px;
+  }
+  
+  .batch-rename-btn {
+    margin-top: 10px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px !important;
+  }
+
+  /* 移动端按钮间距重置 */
+  .batch-rename-btn + .batch-rename-btn {
+    margin-left: 8px;
+  }
+
+  /* 移动端第一个按钮与前面元素的间距 */
+  .file-manager-rule-bar-responsive .batch-rename-btn:first-of-type {
+    margin-left: 8px;
+  }
+  
+  #batchRenameModal .modal-dialog {
+    max-width: 95%;
+  }
+}
+
+/* 文件大小单元格样式 */
+.file-size-cell {
+  position: relative;
+}
+
+.file-size-cell .file-size-value {
+  display: inline-block;
+}
+
+.delete-record-btn .bi-trash3 {
+  font-size: 1rem;
+}
+
+/* 当行被选中或鼠标悬停时显示删除按钮 */
+tr:hover .delete-record-btn,
+tr.selected-file .delete-record-btn {
+  display: inline-block;
+}
+
+/* 表格标题行不显示删除按钮 */
+table th .delete-record-btn {
+  display: none !important;
+}
+
+/* 可选择的表格样式 */
+table.selectable-files {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+table.selectable-files tbody tr {
+  transition: none;
+}
+
+table.selectable-files tbody tr:hover {
+  background-color: rgba(var(--primary-rgb), 0.05);
+}
+
+/* 选中行时展开按钮的样式 */
+tr.selected-file .expand-button {
+  background-color: var(--button-gray-background-color);
+}
+
+/* 展开按钮悬停样式 */
+table.selectable-files .expand-button:hover,
+tr.selected-file .expand-button:hover {
+  background-color: #fff;
+  opacity: 1;
+}
+
+/* 选中行时文件大小和删除按钮的样式 */
+tr.selected-file .file-size-cell .file-size-value,
+tr.selected-file .file-size-cell .delete-record-btn {
+  position: relative;
+  z-index: 1;
+}
+
+/* 文件整理页面表格样式 */
+.selectable-files {
+  border-collapse: collapse !important;
+}
+
+.selectable-files td, 
+.selectable-files th {
+  border: none !important;
+  border-top: 1px solid var(--border-color) !important; /* 添加顶部边框线 */
+  border-bottom: 1px solid var(--border-color) !important; /* 添加底部分割线 */
+}
+
+.selectable-files tbody tr {
+  cursor: pointer;
+  transition: none;
+}
+
+.selectable-files tbody tr:hover {
+  background-color: var(--button-gray-background-color) !important;
+}
+
+/* 删除按钮样式调整 */
+.selectable-files .delete-record-btn {
+  color: #dc3545;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: flex-start; /* 居左对齐 */
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  position: absolute;
+  right: auto; /* 移除右对齐 */
+  left: 9px; /* 与大小值保持相同的左边距 */
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.selectable-files tr:hover .delete-record-btn,
+.selectable-files tr.selected-file .delete-record-btn {
+  display: inline-flex;
+}
+
+.selectable-files tr:hover .file-size-value,
+.selectable-files tr.selected-file .file-size-value {
+  visibility: hidden;
+}
+
+/* 确保选中行的样式正确 */
+.selectable-files tr.selected-file {
+  background-color: var(--button-gray-background-color) !important;
+}
+
+/* 使面包屑导航样式与表头一致 */
+.file-manager-breadcrumb .breadcrumb {
+  background-color: var(--button-gray-background-color) !important;
+  border-radius: 0px;
+  font-size: 0.95rem;
+  padding: 0 9px !important;
+  margin-bottom: 8px;
+  border-top: 1px solid var(--border-color) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+  display: flex;
+  align-items: center;
+  height: 42px !important; /* 确保面包屑导航内容区域高度为42px（包含上下边框） */
+  line-height: 23px !important; /* 设置行高以确保文字垂直居中 */
+  box-sizing: border-box !important; /* 确保边框包含在总高度内 */
+}
+
+.file-manager-breadcrumb .breadcrumb-item {
+  color: var(--dark-text-color);
+  padding: 0;
+  position: relative; /* 添加相对定位 */
+}
+
+.file-manager-breadcrumb .breadcrumb-item a {
+  color: var(--dark-text-color);
+  text-decoration: none;
+}
+
+.file-manager-breadcrumb .breadcrumb-item a:hover {
+  color: var(--focus-border-color);
+}
+
+/* 让"全部文件"链接悬停时文字变为蓝色 */
+.file-manager-breadcrumb .breadcrumb-item.cursor-pointer:hover {
+  background-color: transparent; /* 移除背景色 */
+  color: var(--focus-border-color);
+}
+
+.file-manager-breadcrumb .breadcrumb-item.cursor-pointer:hover {
+  color: var(--focus-border-color);
+}
+
+/* 文件整理页面样式 */
+.file-manager-input {
+  flex: 1;
+}
+
+/* 文件整理页面面包屑导航样式 */
+.file-manager-breadcrumb {
+  margin-top: 20px;
+}
+
+/* 文件整理规则栏样式 */
+.file-manager-rule-bar {
+  width: 100%;
+}
+
+/* 文件整理账号选择栏样式 */
+.file-manager-account-selector {
+  margin-bottom: 8px !important;
+}
+
+/* 账号选择下拉框样式 */
+.file-manager-account-select {
+  padding-left: 8px !important;
+  text-indent: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  line-height: 1.5 !important;
+  padding-right: 24px !important;
+}
+
+/* 账号选择框右侧圆角 - 需要更高优先级覆盖file-manager-input的圆角设置 */
+.file-manager-rule-bar .file-manager-account-select,
+.file-manager-rule-bar-responsive .file-manager-account-select {
+  border-top-right-radius: 6px !important;
+  border-bottom-right-radius: 6px !important;
+}
+
+/* 禁止在表格中选择文本，以便更好地支持点击选择 */
+table.selectable-files {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* 确保展开按钮在选中状态下仍然可见 */
+tr.selected-file .expand-button {
+  z-index: 2;
+}
+
+/* 当鼠标悬停在展开按钮上时，不改变按钮的背景色 */
+table.selectable-files .expand-button:hover {
+  background-color: transparent !important;
+}
+
+/* 文件整理页面重命名按钮悬停效果 */
+table.selectable-files .rename-record-btn:hover {
+  color: #0A42CC !important;
+}
+
+/* 文件整理页面删除按钮悬停效果 */
+table.selectable-files .delete-record-btn:hover {
+  color: #b02a37 !important;
+}
+
+/* 选中行或鼠标悬停行的大小列样式 */
+tr.selected-file .file-size-cell .file-size-value,
+.selectable-files tbody tr:hover .file-size-cell .file-size-value {
+  display: none; /* 隐藏文件大小信息 */
+}
+
+tr.selected-file .file-size-cell .delete-record-btn,
+.selectable-files tbody tr:hover .file-size-cell .delete-record-btn {
+  display: flex;
+  justify-content: flex-start; /* 居左对齐 */
+  align-items: center;
+  width: auto;
+  height: 100%;
+  margin-left: 0; /* 确保没有左边距 */
+  padding-left: 0; /* 确保没有左内边距 */
+  left: 9px; /* 与大小值保持相同的左边距 */
+  position: absolute; /* 使用绝对定位 */
+  top: 50%; /* 垂直居中 */
+  transform: translateY(-50%); /* 确保垂直居中 */
+}
+
+/* 当鼠标悬停在展开按钮或删除按钮上时，不改变按钮的背景色 */
+table.selectable-files .expand-button:hover {
+  background-color: #fff !important; /* 保持展开按钮原有的白色背景 */
+}
+
+/* 文件整理页面表头样式，与转存记录页面保持一致 */
+.selectable-files th,
+table.selectable-files th {
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-color) !important; /* 修改底部边框为1px */
+  border-top: 1px solid var(--border-color) !important; /* 添加上边框线 */
+  padding: 8px 9px !important; /* 统一表头内边距 */
+  background-color: var(--button-gray-background-color) !important; /* 表头背景色 */
+  color: var(--dark-text-color) !important; /* 表头文字颜色 */
+  height: 40px !important; /* 确保表头高度为40px */
+  line-height: 24px !important; /* 设置行高以确保文字垂直居中 */
+  box-sizing: border-box !important; /* 确保边框包含在总高度内 */
+}
+
+/* 文件整理页面表格单元格样式，与转存记录页面保持一致 */
+.selectable-files td,
+table.selectable-files td {
+  vertical-align: middle !important; /* 统一使用垂直居中对齐 */
+  height: 40px !important; /* 与表头保持一致的高度 */
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 8px 9px !important; /* 统一单元格内边距 */
+  border-bottom: 1px solid var(--border-color); /* 单元格分割线颜色 */
+  border-top: none !important; /* 确保没有上边框 */
+  box-sizing: border-box !important; /* 确保边框计入总高度 */
+  line-height: 24px !important; /* 与表头保持一致的行高 */
+}
+
+/* 确保文件大小列的垂直对齐保持一致 */
+.table .file-size-cell,
+.selectable-files .file-size-cell,
+table.selectable-files .file-size-cell {
+  vertical-align: middle !important;
+}
+
+/* 表头悬停样式 */
+.table thead th.cursor-pointer:hover {
+  background-color: #f7f7fa; /* 表头悬停背景色 */
+}
+
+/* 确保所有表格的表头悬停样式一致 */
+.table th.cursor-pointer:hover,
+.selectable-files th.cursor-pointer:hover,
+table.selectable-files th.cursor-pointer:hover,
+table.selectable-records th.cursor-pointer:hover {
+  background-color: #f7f7fa !important; /* 表头悬停背景色 */
+  cursor: pointer;
+}
+
+/* 添加表头排序列的鼠标指针样式 */
+.table th.sortable,
+.selectable-files th.sortable,
+table.selectable-files th.sortable,
+table.selectable-records th.sortable {
+  cursor: pointer;
+}
+
+/* 确保展开后其他列（如转存日期、大小、修改日期）的内容保持在原始位置 */
+.table tr td {
+  vertical-align: top !important; /* 确保所有单元格内容顶部对齐 */
+}
+
+/* 确保文件整理页面和模态框中的表格也应用相同的规则 */
+#fileSelectModal .table tr td,
+.selectable-files tr td,
+table.selectable-files tr td,
+table.selectable-records tr td {
+  vertical-align: top !important; /* 确保所有单元格内容顶部对齐 */
+}
+
+/* 确保展开后的行中所有单元格内容保持原位 */
+.table tr:has(.expanded-text) td,
+#fileSelectModal .table tr:has([style*="white-space: normal"]) td,
+.selectable-files tr:has([style*="white-space: normal"]) td {
+  vertical-align: top !important; /* 确保展开后所有单元格内容顶部对齐 */
+}
+
+
+
+/* 文件大小列中展开行的删除按钮特殊处理 */
+tr:has(.expanded-text) .file-size-cell .delete-record-btn,
+.selectable-records tbody tr:has(.expanded-text) .file-size-cell .delete-record-btn,
+#fileSelectModal .table tr:has([style*="white-space: normal"]) .file-size-cell .delete-record-btn,
+.selectable-files tr:has([style*="white-space: normal"]) .file-size-cell .delete-record-btn {
+  top: 8px !important; /* 强制固定位置 */
+  transform: none !important; /* 确保不使用任何转换 */
+  left: 32px !important; /* 确保左边距固定，在重命名按钮右侧 */
+  /* 不设置display，保持默认的隐藏状态 */
+}
+
+/* 文件大小列中展开行的重命名按钮特殊处理 */
+tr:has(.expanded-text) .file-size-cell .rename-record-btn,
+.selectable-records tbody tr:has(.expanded-text) .file-size-cell .rename-record-btn,
+#fileSelectModal .table tr:has([style*="white-space: normal"]) .file-size-cell .rename-record-btn,
+.selectable-files tr:has([style*="white-space: normal"]) .file-size-cell .rename-record-btn {
+  top: 8px !important; /* 强制固定位置 */
+  transform: none !important; /* 确保不使用任何转换 */
+  left: 5px !important; /* 确保左边距固定 */
+  /* 不设置display，保持默认的隐藏状态 */
+}
+
+/* 修复删除按钮位置问题 - 使用更强制的方法 */
+.delete-record-btn {
+  color: #dc3545;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  visibility: hidden;
+  position: absolute !important; /* 强制绝对定位 */
+  top: 8px !important; /* 强制固定位置 */
+  transform: none !important; /* 强制禁用任何转换 */
+  left: 0;
+}
+
+/* 删除按钮图标大小 */
+.delete-record-btn .bi-trash3 {
+  font-size: 1rem;
+}
+
+/* 选中行或鼠标悬停行时显示删除按钮 */
+tr.selected-record .delete-record-btn,
+.selectable-records tbody tr:hover .delete-record-btn {
+  visibility: visible;
+}
+
+/* 表头中的删除按钮仅在有选中行时显示 */
+table th .delete-record-btn {
+  visibility: hidden;
+}
+
+/* 选中行或鼠标悬停行的大小列样式 */
+tr.selected-record .file-size-cell .file-size-value,
+.selectable-records tbody tr:hover .file-size-cell .file-size-value {
+  display: none; /* 隐藏文件大小信息 */
+}
+
+/* 文件大小列中的删除按钮特殊处理 - 完全重写这部分规则 */
+tr .file-size-cell .delete-record-btn,
+tr.selected-record .file-size-cell .delete-record-btn,
+.selectable-records tbody tr .file-size-cell .delete-record-btn,
+.selectable-records tbody tr:hover .file-size-cell .delete-record-btn {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  width: auto;
+  height: 24px;
+  margin-left: 0;
+  padding-left: 0;
+  left: 9px !important; /* 强制固定左边距 */
+  position: absolute !important; /* 强制绝对定位 */
+  top: 8px !important; /* 强制固定位置 */
+  transform: none !important; /* 强制禁用任何转换 */
+}
+
+
+
+
+/* 文件整理页面表格行悬停样式 */
+.selectable-files tbody tr:hover {
+  background-color: var(--button-gray-background-color);
+}
+
+/* --------------- 文件整理页面样式 --------------- */
+
+/* 重命名按钮样式 */
+.selectable-files .rename-record-btn {
+  color: var(--focus-border-color);
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  position: absolute;
+  left: 5px; /* 靠左放置 */
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+}
+
+/* 文件整理页面的重命名文件按钮图标大小 */
+.selectable-files .rename-record-btn .bi-pencil {
+  font-size: 0.98rem;
+  position: relative;
+  left: 0.5px;
+}
+
+/* 删除按钮样式调整 */
+.selectable-files .delete-record-btn {
+  color: #dc3545;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  position: absolute;
+  right: auto; /* 移除右对齐 */
+  left: 32px; /* 在重命名按钮右侧，调整间距 */
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+}
+
+/* 文件大小单元格需要相对定位以容纳绝对定位的按钮 */
+.selectable-files .file-size-cell {
+  position: relative;
+  min-width: 80px;
+}
+
+/* 修复：确保在悬停和选中状态下重命名和删除按钮显示 */
+.selectable-files tr:hover .file-size-cell .rename-record-btn,
+.selectable-files tr.selected-file .file-size-cell .rename-record-btn,
+.selectable-files tr:hover .file-size-cell .delete-record-btn,
+.selectable-files tr.selected-file .file-size-cell .delete-record-btn {
+  display: inline-flex !important;
+  visibility: visible !important;
+}
+
+/* 修复：确保在悬停和选中状态下文件大小值隐藏 */
+.selectable-files tr:hover .file-size-cell .file-size-value,
+.selectable-files tr.selected-file .file-size-cell .file-size-value {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* 重命名输入框样式 - 使用更高优先级 */
+.selectable-files .rename-input {
+  flex: 1 !important;
+  min-width: 0 !important;
+  font-size: 0.94rem !important;
+  padding: 4px 5.5px !important;
+  border: 1px solid var(--focus-border-color) !important;
+  border-radius: 6px !important;
+  outline: none !important;
+  background-color: #fff !important;
+  height: auto !important;
+  line-height: 1.2 !important;
+  box-sizing: border-box !important;
+  margin-top: -2px !important;
+  margin-bottom: -2px !important;
+}
+
+.selectable-files .rename-input:focus {
+  border-color: var(--focus-border-color) !important;
+  box-shadow: none !important;
+}
+
+/* 确保文件整理页面的重命名按钮在悬停和选中状态下始终可见 - 最高优先级 */
+body .selectable-files tbody tr:hover .file-size-cell .rename-record-btn,
+body .selectable-files tr.selected-file .file-size-cell .rename-record-btn {
+  display: inline-flex !important;
+  visibility: visible !important;
+  position: absolute !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  left: 5px !important;
+  width: 24px !important;
+  height: 24px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 5 !important;
+  opacity: 1 !important;
+}
+
+/* 确保文件整理页面的删除按钮在悬停和选中状态下始终可见 - 最高优先级 */
+body .selectable-files tbody tr:hover .file-size-cell .delete-record-btn,
+body .selectable-files tr.selected-file .file-size-cell .delete-record-btn {
+  display: inline-flex !important;
+  visibility: visible !important;
+  position: absolute !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  left: 32px !important;
+  width: 24px !important;
+  height: 24px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 5 !important;
+  opacity: 1 !important;
+}
+
+/* 展开状态下的重命名按钮悬停和选中状态 - 最高优先级 */
+body .selectable-files tbody tr:hover:has([style*="white-space: normal"]) .file-size-cell .rename-record-btn,
+body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .file-size-cell .rename-record-btn {
+  display: inline-flex !important;
+  visibility: visible !important;
+  position: absolute !important;
+  top: 8px !important;
+  transform: none !important;
+  left: 5px !important;
+  width: 24px !important;
+  height: 24px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 5 !important;
+  opacity: 1 !important;
+}
+
+/* 展开状态下的删除按钮悬停和选中状态 - 最高优先级 */
+body .selectable-files tbody tr:hover:has([style*="white-space: normal"]) .file-size-cell .delete-record-btn,
+body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .file-size-cell .delete-record-btn {
+  display: inline-flex !important;
+  visibility: visible !important;
+  position: absolute !important;
+  top: 8px !important;
+  transform: none !important;
+  left: 32px !important;
+  width: 24px !important;
+  height: 24px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 5 !important;
+  opacity: 1 !important;
+}
+
+/* 文件整理页面的文件名单元格样式 */
+.selectable-files td .text-truncate {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 25px; /* 为展开按钮预留空间 */
+  line-height: inherit; /* 使用继承的行高 */
+}
+
+/* 文件整理页面展开后的文本样式 */
+.selectable-files td div:not(.text-truncate):not(.expand-button):not(.d-flex) {
+  white-space: normal;
+  word-break: break-all;
+  display: block;
+  line-height: inherit; /* 使用继承的行高 */
+  margin-top: 0;
+  margin-bottom: -1px;
+  position: relative;
+  padding-right: 25px;
+  max-width: 100%; /* 确保不超出单元格宽度 */
+  top: -1px;
+}
+
+/* 展开按钮悬停状态 */
+.selectable-files .expand-button:hover {
+  background-color: #fff !important; /* 保持白色背景 */
+  opacity: 1 !important;
+}
+
+/* 展开按钮样式 */
+.selectable-files .expand-button {
+  position: absolute;
+  right: 5px;
+  top: 11px; /* 固定位置，不使用垂直居中 */
+  transform: none; /* 移除垂直居中转换 */
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+  background: #fff;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  text-align: center;
+  line-height: 18px;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.2);
+  z-index: 2;
+  pointer-events: auto; /* 确保点击事件不被阻止 */
+}
+
+/* 展开按钮悬停时可见 */
+.selectable-files .position-relative:hover .expand-button {
+  opacity: 1;
+}
+
+/* 展开按钮中的图标样式 */
+.selectable-files .expand-button .bi {
+  font-size: 0.7em;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+
+/* 确保单元格垂直居中 */
+.selectable-files td {
+  vertical-align: middle !important;
+}
+
+/* 确保图标与文本垂直对齐 */
+.selectable-files .d-flex.align-items-center {
+  align-items: center !important;
+}
+
+/* 确保图标固定大小不变形 */
+.selectable-files .d-flex.align-items-center i.bi {
+  flex-shrink: 0;
+}
+
+/* 确保图标与文本垂直对齐 - 使用固定高度 */
+.selectable-files .d-flex.align-items-center {
+  align-items: flex-start !important; /* 改为顶部对齐，使用固定高度 */
+}
+
+/* 确保图标固定大小不变形，使用固定位置 */
+.selectable-files .d-flex.align-items-center i.bi {
+  flex-shrink: 0;
+  position: relative;
+  top: 0px; /* 固定图标位置，向下移动4px */
+}
+
+/* 修复文件整理页面展开后文件大小列的垂直对齐问题 */
+/* 确保展开后的行中所有单元格都使用顶部对齐 */
+.selectable-files tr:has([style*="white-space: normal"]) td,
+.selectable-files tr:has(div:not(.text-truncate):not(.expand-button):not(.d-flex)) td {
+  vertical-align: top !important; /* 强制展开后所有单元格顶部对齐 */
+}
+
+/* 特别处理文件大小列，确保展开后也使用顶部对齐 */
+.selectable-files tr:has([style*="white-space: normal"]) .file-size-cell,
+.selectable-files tr:has(div:not(.text-truncate):not(.expand-button):not(.d-flex)) .file-size-cell {
+  vertical-align: top !important; /* 强制文件大小列顶部对齐 */
+}
+
+
+
+/* 确保选中状态下文件整理页面的展开按钮也保持白色背景 */
+.selectable-files .expand-button {
+  background-color: #fff !important;
+}
+
+/* 文件整理页面重命名配置框输入框样式 - 去除圆角 */
+.file-manager-rule-bar .file-manager-input {
+  border-radius: 0 !important; /* 去除圆角 */
+}
+
+/* 账号选择框例外 - 保持右侧圆角 */
+.file-manager-rule-bar .file-manager-input.file-manager-account-select {
+  border-top-right-radius: 6px !important;
+  border-bottom-right-radius: 6px !important;
+}
+
+/* 文件整理页面重命名配置框输入框相邻边框重叠样式 */
+.file-manager-rule-bar .file-manager-input:not(:first-child) {
+  margin-left: -1px; /* 向左移动1px，使边框重叠 */
+}
+
+/* 确保输入框在输入组中的边框重叠 */
+.file-manager-rule-bar .input-group .file-manager-input:not(:first-child) {
+  border-left: 1px solid var(--border-color) !important; /* 确保左边框显示 */
+  margin-left: -1px; /* 向左移动1px，使边框重叠 */
+}
+
+/* 文件整理页面正则命名按钮样式 - 保持左边圆角，去除右边圆角 */
+.file-manager-rule-bar .input-group-prepend .btn {
+  position: relative; /* 添加相对定位以应用z-index */
+  z-index: 2; /* 确保边框在顶层 */
+  border-top-left-radius: 6px !important; /* 保持左上角圆角 */
+  border-bottom-left-radius: 6px !important; /* 保持左下角圆角 */
+  border-top-right-radius: 0 !important; /* 去除右上角圆角 */
+  border-bottom-right-radius: 0 !important; /* 去除右下角圆角 */
+  border-right: 1px solid var(--dark-text-color) !important; /* 确保右边框显示 */
+}
+
+/* 文件整理页面匹配表达式输入框左边框与正则命名按钮右边框重叠 */
+.file-manager-rule-bar .input-group-prepend + input.file-manager-input {
+  margin-left: 0px;
+}
+
+/* 文件整理页面激活的输入框边框置顶 */
+.file-manager-rule-bar .file-manager-input:focus {
+  position: relative;
+  z-index: 3;
+}
+
+/* 仅影响文件选择模态框表格的表头和单元格高度，减少5px */
+#fileSelectModal .table th {
+  padding-top: 4.5px !important;  /* 原7px，减少2.5px */
+  padding-bottom: 4px !important; /* 原6.5px，减少2.5px */
+  height: 35px !important;        /* 原40px，减少5px */
+  line-height: 19px !important;   /* 原24px，减少5px */
+}
+
+#fileSelectModal .table td {
+  padding-top: 3px !important;    /* 原5.5px，减少2.5px */
+  padding-bottom: 4.5px !important; /* 原7px，减少2.5px */
+  height: 35px !important;        /* 原40px，减少5px */
+  line-height: 19px !important;   /* 原24px，减少5px */
+}
+
+#fileSelectModal .table td {
+  vertical-align: middle !important;
+  position: relative;
+}
+
+#fileSelectModal .table td > *:not(.expand-button) {
+  position: relative;
+  top: 3.5px;
+}
+
+#fileSelectModal .table td.col-size,
+#fileSelectModal .table td.col-date {
+  padding-top: 6px !important;
+}
+
+#fileSelectModal .table td.col-rename,
+#fileSelectModal .table td.col-action {
+  padding-top: 2.5px !important;
+}
+
+#fileSelectModal[data-modal-type="preview"] .table td.col-rename {
+  padding-top: 3px !important;
+}
+
+/* 文件整理页面的文件图标样式 */
+.selectable-files .bi-file-earmark {
+  font-size: 1.06rem;   /* 比模态框的0.95rem大一些 */
+  margin-right: 7px !important;    /* 图标距离文本的距离 */
+  position: relative;
+  top: 1px;             /* 可微调垂直对齐 */
+  left: -1px;           /* 可微调水平对齐 */
+}
+
+/* 文件整理页面的文件夹图标样式 */
+.bi-folder-fill {
+  font-size: 1.06rem;   /* 比模态框的0.95rem大一些 */
+  margin-right: 7px !important;    /* 图标距离文本的距离 */
+  position: relative;
+  top: 1px;             /* 可微调垂直对齐 */
+  left: -1px;           /* 可微调水平对齐 */
+  color: #ffc107;       /* 保持黄色 */
+}
+
+/* 文件整理页面无法识别剧集编号样式 */
+#fileSelectModal[data-modal-type="preview-filemanager"] .episode-number-text {
+  position: relative;
+  top: 1.5px; /* 或你想要的像素 */
+  display: inline-block;
+}
+
+/* 任务配置页面无法识别剧集编号样式 */
+#fileSelectModal[data-modal-type="preview"] .episode-number-text {
+  position: relative;
+  top: 1px;
+  display: inline-block;
+  left: 2px;
+}
+
+/* 文件整理页面无法识别剧集编号前面的 × 样式 */
+#fileSelectModal[data-modal-type="preview-filemanager"] .episode-x {
+  position: relative;
+  top: 0.5px;
+  display: inline-block;
+  margin-right: 2px;
+}
+
+/* 文件整理页面命名预览模式下的绿色重命名文本上移0.5px */
+#fileSelectModal[data-modal-type="preview-filemanager"] .table td.col-rename.text-success > * {
+  position: relative;
+  top: 3px !important; /* 原来是3px，上移0.5px */
+}
+
+/* 文件整理页面命名预览模式下的取消按钮样式 */
+#fileSelectModal[data-modal-type="preview-filemanager"] .modal-footer .btn-cancel {
+  background-color: var(--button-gray-background-color) !important;
+  border-color: var(--button-gray-background-color) !important;
+  color: var(--dark-text-color) !important;
+}
+#fileSelectModal[data-modal-type="preview-filemanager"] .modal-footer .btn-cancel:hover {
+  background-color: #e0e2e6 !important;
+  border-color: #e0e2e6 !important;
+  color: var(--dark-text-color) !important;
+}
+
+@media (max-width: 767.98px) {
+  .file-manager-rule-bar-responsive {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+  .file-manager-rule-bar-responsive .rule-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 8px;
+    gap: 8px;
+    width: 100%;
+  }
+  .file-manager-rule-bar-responsive .rule-row:last-child {
+    margin-bottom: 0;
+  }
+  .file-manager-rule-bar-responsive .rule-row input,
+  .file-manager-rule-bar-responsive .rule-row button,
+  .file-manager-rule-bar-responsive .rule-row .input-group-text,
+  .file-manager-rule-bar-responsive .rule-row label {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .file-manager-rule-bar-responsive .rule-row .input-group-prepend,
+  .file-manager-rule-bar-responsive .rule-row .input-group-text {
+    flex: 0 0 auto;
+  }
+  .file-manager-rule-bar-responsive .filter-label {
+    flex: 0 0 auto;
+    margin-right: 4px;
+    white-space: nowrap;
+  }
+}
+
+.file-manager-rule-bar-responsive { display: none; }
+.file-manager-rule-bar { display: flex; }
+@media (max-width: 767.98px) {
+  .file-manager-rule-bar { display: none !important; }
+  .file-manager-rule-bar-responsive { display: block !important; }
+  .file-manager-rule-bar-responsive .input-group { width: 100%; }
+  .file-manager-rule-bar-responsive .input-group + .input-group { margin-top: 8px; }
+
+  /* 移动端账号选择栏下边距 - 确保与命名规则栏有8px间距 */
+  .file-manager-account-selector {
+    margin-bottom: 8px !important;
+  }
+
+  .file-manager-account-selector .file-manager-rule-bar-responsive {
+    margin-bottom: 0 !important; /* 移除内部边距，使用外部容器的边距 */
+  }
+  /* 含文件夹样式调整 */
+  .file-manager-rule-bar-responsive .input-group-text.file-folder-rounded {
+    border-top-left-radius: 0 !important; /* 左侧不要圆角 */
+    border-bottom-left-radius: 0 !important; /* 左侧不要圆角 */
+    border-top-right-radius: 6px !important; /* 右侧圆角6px */
+    border-bottom-right-radius: 6px !important; /* 右侧圆角6px */
+    margin-left: -1px; /* 左边框与过滤规则输入框重叠 */
+    position: relative;
+    z-index: 1; /* 确保边框显示正确 */
+  }
+
+  /* 过滤规则输入框在含文件夹前面时去除右侧圆角 */
+  .file-manager-rule-bar-responsive .input-group .form-control + .input-group-text.file-folder-rounded {
+    border-left: 1px solid #ced4da; /* 确保左边框显示 */
+  }
+
+  /* 过滤规则输入框右侧圆角调整 */
+  .file-manager-rule-bar-responsive .input-group .form-control:not(:last-child) {
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+  }
+  /* 预览并执行重命名按钮与含文件夹间距8px，且与上方input-group间距8px */
+  .file-manager-rule-bar-responsive .input-group-append .btn {
+    margin-left: 8px;
+  }
+    /* 只影响移动端的“预览并执行重命名”按钮上边距 */
+    .file-manager-rule-bar-responsive .batch-rename-btn {
+      margin-top: 0px; /* 你想要的上边距 */
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px !important;
+    }
+
+  /* 移动端预览并执行重命名按钮与含文件夹间距 */
+  .file-manager-rule-bar-responsive .input-group .batch-rename-btn {
+    margin-left: 8px !important;
+  }
+
+  /* 移动端账号选择栏中的按钮间距 */
+  .file-manager-rule-bar-responsive .d-flex .batch-rename-btn:first-of-type {
+    margin-left: 8px !important;
+  }
+
+  .file-manager-rule-bar-responsive .d-flex .batch-rename-btn + .batch-rename-btn {
+    margin-left: 8px !important;
+  }
+}
+@media (min-width: 768px) {
+  .file-manager-rule-bar { display: flex !important; }
+  .file-manager-rule-bar-responsive { display: none !important; }
 }

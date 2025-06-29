@@ -229,6 +229,9 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
     Returns:
         int: 提取到的剧集号，如果无法提取则返回None
     """
+    # 首先去除文件扩展名
+    file_name_without_ext = os.path.splitext(filename)[0]
+    
     # 预处理：排除文件名中可能是日期的部分，避免误识别
     date_patterns = [
         # YYYY-MM-DD 或 YYYY.MM.DD 或 YYYY/MM/DD 或 YYYY MM DD格式（四位年份）
@@ -245,10 +248,10 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
         r'(?<!\d)(\d{1,2})[-./\s](\d{1,2})(?!\d)',
     ]
     
-    # 从文件名中移除日期部分，创建一个不含日期的文件名副本用于提取剧集号
-    filename_without_dates = filename
+    # 从不含扩展名的文件名中移除日期部分
+    filename_without_dates = file_name_without_ext
     for pattern in date_patterns:
-        matches = re.finditer(pattern, filename)
+        matches = re.finditer(pattern, filename_without_dates)
         for match in matches:
             # 检查匹配的内容是否确实是日期
             date_str = match.group(0)
@@ -369,13 +372,9 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
         except:
             continue
     
-    # 如果从不含日期的文件名中没有找到剧集号，尝试从原始文件名中提取
-    # 这是为了兼容某些特殊情况，但要检查提取的数字不是日期
-    file_name_without_ext = os.path.splitext(filename)[0]
-    
     # 如果文件名是纯数字，且不是日期格式，则可能是剧集号
-    if file_name_without_ext.isdigit() and not is_date_format(file_name_without_ext):
-        return int(file_name_without_ext)
+    if filename_without_dates.isdigit() and not is_date_format(filename_without_dates):
+        return int(filename_without_dates)
     
     # 最后尝试提取任何数字，但要排除日期可能性
     num_match = re.search(r'(\d+)', filename_without_dates)
@@ -933,6 +932,9 @@ class Quark:
     def ls_dir(self, pdir_fid, **kwargs):
         file_list = []
         page = 1
+        # 优化：增加每页大小，减少API调用次数
+        page_size = kwargs.get("page_size", 200)  # 从50增加到200
+
         while True:
             url = f"{self.BASE_URL}/1/clouddrive/file/sort"
             querystring = {
@@ -941,7 +943,7 @@ class Quark:
                 "uc_param_str": "",
                 "pdir_fid": pdir_fid,
                 "_page": page,
-                "_size": "50",
+                "_size": str(page_size),
                 "_fetch_total": "1",
                 "_fetch_sub_dirs": "0",
                 "_sort": "file_type:asc,updated_at:desc",
@@ -958,6 +960,48 @@ class Quark:
             if len(file_list) >= response["metadata"]["_total"]:
                 break
         return file_list
+
+    def get_paths(self, folder_id):
+        """
+        获取指定文件夹ID的完整路径信息
+        
+        Args:
+            folder_id: 文件夹ID
+            
+        Returns:
+            list: 路径信息列表，每个元素包含fid和name
+        """
+        if folder_id == "0" or folder_id == 0:
+            return []
+            
+        url = f"{self.BASE_URL}/1/clouddrive/file/sort"
+        querystring = {
+            "pr": "ucpro",
+            "fr": "pc",
+            "uc_param_str": "",
+            "pdir_fid": folder_id,
+            "_page": 1,
+            "_size": "50",
+            "_fetch_total": "1",
+            "_fetch_sub_dirs": "0",
+            "_sort": "file_type:asc,updated_at:desc",
+            "_fetch_full_path": 1,
+        }
+        
+        try:
+            response = self._send_request("GET", url, params=querystring).json()
+            if response["code"] == 0 and "full_path" in response["data"]:
+                paths = []
+                for item in response["data"]["full_path"]:
+                    paths.append({
+                        "fid": item["fid"],
+                        "name": item["file_name"]
+                    })
+                return paths
+        except Exception as e:
+            print(f"获取文件夹路径出错: {str(e)}")
+            
+        return []
 
     def save_file(self, fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken):
         url = f"{self.BASE_URL}/1/clouddrive/share/sharepage/save"
