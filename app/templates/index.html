@@ -6,462 +6,610 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>夸克自动转存</title>
   <!-- CSS -->
-  <link rel="stylesheet" href="./static/css/bootstrap.min.css">
-  <link rel="stylesheet" href="./static/css/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="./static/css/dashboard.css">
-  <!-- Bootstrap JS -->
-  <script src="./static/js/jquery-3.5.1.slim.min.js"></script>
-  <script src="./static/js/bootstrap.bundle.min.js"></script>
-  <!-- Vue.js -->
-  <script src="./static/js/vue@2.js"></script>
-  <script src="./static/js/axios.min.js"></script>
-  <script src="./static/js/v-jsoneditor.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <!-- Vue.js & Libs -->
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.slim.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.7.14/dist/vue.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios@0.21.4/dist/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/v-jsoneditor@1.4.1/dist/v-jsoneditor.min.js"></script>
+  <style>
+    /* --- 1. 配色方案: 深蓝与灰 --- */
+    :root {
+      --primary-color: #4f46e5;      /* 主色 (靛蓝) */
+      --primary-hover: #4338ca;      /* 主色悬浮 */
+      --background-color: #f8fafc;  /* 背景色 (最浅灰) */
+      --surface-color: #ffffff;      /* 表面色 (白) */
+      --border-color: #e2e8f0;       /* 边框色 (浅灰) */
+      --text-primary: #1e293b;       /* 主要文字 (深灰) */
+      --text-secondary: #64748b;     /* 次要文字 (中灰) */
+      --highlight-bg: #eef2ff;       /* 高亮背景 (浅靛蓝) */
+      --status-active: #22c55e;      /* 状态: 启用 (绿) */
+      --status-disabled: #9ca3af;     /* 状态: 禁用 (灰) */
+      --status-warning: #f59e0b;      /* 状态: 警告 (黄) */
+    }
+
+    /* --- 2. 布局与滚动修复 --- */
+    html, body {
+      height: 100%;
+      overflow: hidden; /* 防止body滚动 */
+    }
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .navbar {
+      flex-shrink: 0; /* 防止导航栏收缩 */
+      z-index: 1030;
+    }
+    .container-fluid, .row {
+      flex-grow: 1;
+      height: 100%;
+      min-height: 0;
+    }
+    #sidebarMenu {
+      height: calc(100vh - 56px); /* 视口高度减去导航栏高度 */
+      background-color: var(--surface-color);
+      border-right: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+    main {
+      height: calc(100vh - 56px); /* 关键样式：仅主内容区可滚动 */
+      overflow-y: auto; 
+      flex-grow: 1;
+    }
+
+    /* --- 3. 通用UI优化 --- */
+    body { background-color: var(--background-color); color: var(--text-primary); }
+    .card {
+      border: 1px solid var(--border-color); border-radius: .75rem;
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    }
+    .card-header { background-color: var(--surface-color); font-weight: 500; border-bottom: 1px solid var(--border-color); cursor: pointer; }
+    .btn-primary { background-color: var(--primary-color); border-color: var(--primary-color); }
+    .btn-primary:hover, .btn-primary:focus { background-color: var(--primary-hover); border-color: var(--primary-hover); }
+    .nav-link { color: var(--text-secondary); }
+    .nav-link.active {
+      font-weight: 600; color: var(--primary-color) !important;
+      background-color: var(--highlight-bg) !important; border-radius: .5rem;
+    }
+    .nav-link:hover { color: var(--primary-color); }
+    .sidebar .nav-link i { width: 24px; }
+    .nav-bottom {
+      position: absolute; bottom: 15px; left: 0; right: 0; padding: 0 1rem;
+      text-align: center; font-size: 0.8rem;
+    }
+    .nav-bottom p { margin-bottom: 0.5rem; }
+    .nav-bottom a { color: var(--text-secondary); }
+    .nav-bottom a:hover { color: var(--primary-color); }
+    .cursor-pointer { cursor: pointer; }
+    
+    /* --- 4. 任务状态指示灯 --- */
+    .task-status-indicator {
+        display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 0.75rem;
+        vertical-align: middle; transition: background-color 0.2s;
+    }
+    .status-active { background-color: var(--status-active); }
+    .status-disabled { background-color: var(--status-disabled); }
+    .status-warning { background-color: var(--status-warning); }
+    
+    /* --- 自定义复选框样式 --- */
+    .custom-checkbox-wrapper {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        cursor: pointer;
+    }
+    .custom-checkbox-wrapper input[type="checkbox"] {
+        position: absolute;
+        opacity: 0;
+        cursor: pointer;
+    }
+    .custom-checkbox {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        background-color: #fff;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        margin-right: 5px;
+        transition: all 0.2s;
+    }
+    .custom-checkbox i {
+        color: white;
+        font-size: 12px;
+        visibility: hidden;
+    }
+    .custom-checkbox-wrapper input[type="checkbox"]:checked ~ .custom-checkbox {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+    }
+    .custom-checkbox-wrapper input[type="checkbox"]:checked ~ .custom-checkbox i {
+        visibility: visible;
+    }
+    .custom-checkbox-wrapper input[type="checkbox"]:focus ~ .custom-checkbox {
+        box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.25);
+    }
+
+    /* --- 5. 日志与返回顶部按钮 --- */
+    .log-panel {
+      background-color: var(--surface-color); /* 日志背景改为白色 */
+      color: var(--text-primary); /* 日志文字改为深色 */
+      border: 1px solid var(--border-color);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.875rem; border-radius: 0.5rem; padding: 1rem; height: 65vh; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+    }
+    .log-highlight { background-color: #fef9c3; color: #713a0a; }
+    #backToTopBtn {
+      position: fixed; bottom: 20px; right: 20px; z-index: 1030; width: 45px; height: 45px; border-radius: 50%;
+      background-color: var(--surface-color); border: 1px solid var(--border-color);
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,.1); display: none; align-items: center; justify-content: center; font-size: 1.2rem;
+    }
+    
+    /* 自动保存提示 */
+    #autoSaveNotification {
+      position: fixed;
+      top: 20px; /* 改为顶部 */
+      left: 50%; /* 居中显示 */
+      transform: translateX(-50%) translateY(-20px); /* 水平居中并初始位置在上方 */
+      background-color: var(--primary-color);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 0.875rem;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      opacity: 0;
+      transition: opacity 0.3s, transform 0.3s;
+      z-index: 1050; /* 提高层级确保显示在最上方 */
+    }
+    #autoSaveNotification.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0); /* 显示时移入视图 */
+    }
+    #autoSaveNotification.hide {
+      opacity: 0;
+      transform: translateX(-50%) translateY(-20px); /* 隐藏时向上移出 */
+    }
+    
+    /* 操作反馈动画 */
+    .action-notification {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background-color: var(--primary-color);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 0.875rem;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      opacity: 0;
+      transition: opacity 0.3s, transform 0.3s;
+      z-index: 1050;
+    }
+    .action-notification.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .action-notification.hide {
+      opacity: 0;
+      transform: translateX(-50%) translateY(-20px);
+    }
+    
+    main { padding-bottom: 3rem; }
+  </style>
 </head>
 
 <body>
   <div id="app">
-
-    <nav class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0">
-      <a class="navbar-brand col-md-3 col-lg-2 mr-0 px-3" href="#"><i class="bi bi-clouds"></i> 夸克自动转存</a>
-      <button class="navbar-toggler position-absolute d-md-none collapsed" type="button" data-toggle="collapse" data-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false">
-        <span class="navbar-toggler-icon"></span>
-      </button>
+    <nav class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow-sm">
+      <a class="navbar-brand col-md-3 col-lg-2 mr-0 px-3" href="#"><i class="bi bi-clouds-fill"></i> 夸克自动转存</a>
+      <button class="navbar-toggler position-absolute d-md-none collapsed" type="button" data-toggle="collapse" data-target="#sidebarMenu"><span class="navbar-toggler-icon"></span></button>
+      
+      <div class="d-flex align-items-center ml-auto pr-3">
+        <button class="btn btn-success btn-sm mr-2" @click.prevent="saveConfig" title="保存配置 (Ctrl+S)">
+          <i class="bi bi-save-fill"></i> 保存
+        </button>
+        <button class="btn btn-primary btn-sm" @click.prevent="runScriptNow()" title="运行所有任务 (Ctrl+R)">
+          <i class="bi bi-play-circle-fill"></i> 运行
+        </button>
+      </div>
     </nav>
 
     <div class="container-fluid">
-      <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
-        <div class="sidebar-sticky pt-3">
-          <ul class="nav flex-column">
-            <li class="nav-item">
-              <a class="nav-link" href="#" :class="{active: activeTab === 'config'}" @click="changeTab('config')">
-                <i class="bi bi-gear-fill"></i> 系统配置
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="#" :class="{active: activeTab === 'tasklist'}" @click="changeTab('tasklist')">
-                <i class="bi bi-list-task"></i> 任务列表
-              </a>
-            </li>
-            <h6 class="sidebar-heading px-3 mt-4 mb-1 text-muted">dashboard</h6>
-            <li class="nav-item">
-              <a class="nav-link" href="/logout">
-                <i class="bi bi-box-arrow-right"></i></i> 退出
-              </a>
-            </li>
-          </ul>
-          <div class="nav-bottom text-center">
-            <p class="position-relative" hidden>
-              <b class="text-success"><i class="bi bi-record-circle mr-1"></i>视频教程</b>
-              <span class="position-absolute qrcode-tutorial">
-                使用夸克扫码查看<br>
-                <img src="./static/img/qrcode_tutorial.png">
-              </span>
-            </p>
-            <p><a target="_blank" href="https://github.com/Cp0204/quark-auto-save/wiki"><i class="bi bi-wechat mr-1"></i>使用交流</a></p>
-            <p><a href="./static/js/qas.addtask.user.js"><i class="bi bi-cloud-plus-fill mr-1"></i>推送任务油猴脚本</a></p>
-            <p><a target="_blank" href="https://github.com/Cp0204/quark-auto-save"><i class="bi bi-github mr-1"></i>quark-auto-save</a></p>
-            <p><span v-html="versionTips"></span></p>
+      <div class="row">
+        <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+          <div class="sidebar-sticky pt-3 px-2">
+            <ul class="nav flex-column">
+              <li class="nav-item mb-1"><a class="nav-link" href="#" :class="{active: activeTab === 'tasklist'}" @click="changeTab('tasklist')"><i class="bi bi-list-task"></i> 任务列表 <span class="badge badge-pill ml-1" style="background-color: var(--primary-color); color: white;" v-if="formData.tasklist.length">{{ formData.tasklist.length }}</span></a></li>
+              <li class="nav-item mb-1"><a class="nav-link" href="#" :class="{active: activeTab === 'config'}" @click="changeTab('config')"><i class="bi bi-gear-fill"></i> 系统配置</a></li>
+              <li class="nav-item mb-1"><a class="nav-link" href="#" :class="{active: activeTab === 'logs'}" @click="changeTab('logs')"><i class="bi bi-body-text"></i> 日志</a></li>
+            </ul>
+            
+            <div class="nav-bottom text-center">
+                <p><a href="/logout"><i class="bi bi-box-arrow-right mr-1"></i>退出</a></p>
+                <p><a target="_blank" href="https://github.com/Cp0204/quark-auto-save/wiki"><i class="bi bi-wechat mr-1"></i>使用交流</a></p>
+                <p><a href="./static/js/qas.addtask.user.js"><i class="bi bi-cloud-plus-fill mr-1"></i>推送任务油猴脚本</a></p>
+                <p><a target="_blank" href="https://github.com/Cp0204/quark-auto-save"><i class="bi bi-github mr-1"></i>quark-auto-save</a></p>
+                <p style="position: relative;" v-html="versionTips"></p>
+            </div>
           </div>
-        </div>
-      </nav>
+        </nav>
 
-      <main class="col-md-9 col-lg-10 ml-sm-auto">
-        <form @submit.prevent="saveConfig" @keydown.enter.prevent>
-
-          <div v-if="activeTab === 'config'">
-            <div class="row title">
-              <div class="col-10">
-                <h2><i class="bi bi-cookie"></i> Cookie</h2>
-              </div>
-              <div class="col-2 text-right">
-                <button type="button" class="btn btn-outline-primary" @click="addCookie()">+</button>
-              </div>
-            </div>
-            <p>1. 所有账号执行签到，纯<a class="" href="https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦#每日签到领空间">签到</a>只需移动端参数即可！</p>
-            <p>2. 仅第一个账号执行转存，请自行确认顺序。<b>最好是手机验证码<a target="_blank" href="https://pan.quark.cn/">登录</a>，CK比较完整！</b>如需签到参数附在CK后面。</p>
-            <div v-for="(value, index) in formData.cookie" :key="index" class="input-group mb-2">
-              <input type="text" v-model="formData.cookie[index]" class="form-control" placeholder="打开 pan.quark.com 按 F12 抓取">
-              <div class="input-group-append">
-                <button type="button" class="btn btn-outline-danger" @click="removeCookie(index)">-</button>
-              </div>
-            </div>
-
-            <div class="row title">
-              <div class="col">
-                <h2 style="display: inline-block;"><i class="bi bi-clock"></i> 定时规则</h2>
-                <span class="badge badge-pill badge-light">
-                  <a target="_blank" href="https://tool.lu/crontab/" title="CRON时间计算器">?</a>
-                </span>
-              </div>
-            </div>
-            <div class="input-group mb-2">
-              <div class="input-group-prepend">
-                <span class="input-group-text">Crontab</span>
-              </div>
-              <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
-            </div>
-
-            <div class="row title" title="通知推送，支持多个渠道，见Wiki">
-              <div class="col-8">
-                <h2 style="display: inline-block;"><i class="bi bi-bell"></i> 通知</h2>
-                <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/Cp0204/quark-auto-save/wiki/通知推送服务配置" target="_blank">?</a>
-                </span>
-              </div>
-              <div class="col-4 text-right">
-                <button type="button" class="btn btn-success" title="通知推送测试" @click="testPush()"><i class="bi bi-lightning"></i></button>
-                <button type="button" class="btn btn-outline-primary" @click="addPush()">+</button>
-              </div>
-            </div>
-            <div v-for="(value, key) in formData.push_config" :key="key" class="input-group mb-2">
-              <div class="input-group-prepend">
-                <span class="input-group-text" v-html="key"></span>
-              </div>
-              <div class="input-group-prepend" v-if="(key == 'DEER_KEY' || key == 'PUSH_KEY')">
-                <a type="button" class="btn btn-warning" target="_blank" href="https://sct.ftqq.com/r/13249" title="Server酱推荐计划"><i class="bi bi-award"></i></a>
-              </div>
-              <input type="text" v-model="formData.push_config[key]" class="form-control">
-              <div class="input-group-append">
-                <button type="button" class="btn btn-outline-danger" @click="removePush(key)">-</button>
-              </div>
-            </div>
-
-            <div class="row title" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" title="各插件的配置选项，具体键值由插件定义，见Wiki">
-              <div class="col">
-                <h2 style="display: inline-block;"><i class="bi bi-plug"></i> 插件</h2>
-                <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/Cp0204/quark-auto-save/wiki/插件配置" target="_blank">?</a>
-                </span>
-              </div>
-            </div>
-            <div v-for="(plugin, pluginName) in getAvailablePlugins(formData.plugins)" :key="pluginName">
-              <div class="form-group row mb-0" style="display:flex; align-items:center;">
-                <div data-toggle="collapse" :data-target="'#collapse_'+pluginName" aria-expanded="true" :aria-controls="'collapse_'+pluginName">
-                  <div class="btn btn-block text-left">
-                    <i class="bi bi-caret-right-fill"></i> <span v-html="`${pluginName}`"></span>
-                  </div>
+        <main role="main" class="col-md-9 ml-sm-auto col-lg-10 px-md-4 py-4">
+          <form @submit.prevent="saveConfig" @keydown.enter.prevent>
+            
+            <div v-if="activeTab === 'config'">
+                <!-- 配置页内容 -->
+                <div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+                    <h1 class="h2">系统配置</h1>
                 </div>
-              </div>
-              <div class="collapse ml-3" :id="'collapse_'+pluginName">
-                <div v-for="(value, key) in plugin" :key="key" class="form-group row">
-                  <label class="col-sm-2 col-form-label" v-html="key"></label>
-                  <div class="col-sm-10">
-                    <input type="text" v-model="formData.plugins[pluginName][key]" class="form-control">
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="row title" title="预定义的正则匹配规则，在任务列表中可直接点击使用">
-              <div class="col-10">
-                <h2 style="display: inline-block;"><i class="bi bi-magic"></i> 魔法匹配</h2>
-                <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/Cp0204/quark-auto-save/wiki/正则处理教程#21-魔法匹配" target="_blank">?</a>
-                </span>
-              </div>
-              <div class="col-2 text-right">
-                <button type="button" class="btn btn-outline-primary" @click="addMagicRegex()">+</button>
-              </div>
-            </div>
-            <div v-for="(value, key) in formData.magic_regex" :key="key" class="form-group mb-2">
-              <div class="input-group">
-                <div class="input-group-prepend">
-                  <span class="input-group-text">魔法名</span>
-                </div>
-                <input type="text" :data-oldkey="key" v-model="key" class="form-control" @change="updateMagicRegexKey($event.target.dataset.oldkey, $event.target.value)" placeholder="自定义名称">
-                <div class="input-group-prepend">
-                  <span class="input-group-text">正则处理</span>
-                </div>
-                <input type="text" v-model="value.pattern" class="form-control" placeholder="匹配表达式">
-                <input type="text" v-model="value.replace" class="form-control" placeholder="替换表达式">
-                <div class="input-group-append">
-                  <button type="button" class="btn btn-outline-danger" @click="removeMagicRegex(key)">-</button>
-                </div>
-              </div>
-            </div>
-
-
-            <div class="row title" title="API接口，用以第三方添加任务等操作，见Wiki">
-              <div class="col-10">
-                <h2 style="display: inline-block;"><i class="bi bi-link-45deg"></i> API</h2>
-                <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/Cp0204/quark-auto-save/wiki/API接口" target="_blank">?</a>
-                </span>
-              </div>
-            </div>
-            <div class="input-group">
-              <div class="input-group-prepend">
-                <span class="input-group-text">Token</span>
-              </div>
-              <input type="text" v-model="formData.api_token" class="form-control" style="background-color:white;" disabled>
-            </div>
-
-            <div class="row title" title="资源搜索服务配置，用于任务名称智能搜索">
-              <div class="col-10">
-                <h2 style="display: inline-block;"><i class="bi bi-search"></i> CloudSaver</h2>
-                <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/Cp0204/quark-auto-save/wiki/CloudSaver搜索源" target="_blank">?</a>
-                </span>
-              </div>
-            </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">服务器</label>
-              <div class="col-sm-10">
-                <input type="text" v-model="formData.source.cloudsaver.server" class="form-control" placeholder="资源搜索服务器地址，如 http://172.17.0.1:8008">
-              </div>
-            </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">用户名</label>
-              <div class="col-sm-10">
-                <input type="text" v-model="formData.source.cloudsaver.username" class="form-control" placeholder="用户名">
-              </div>
-            </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">密码</label>
-              <div class="col-sm-10">
-                <input type="password" v-model="formData.source.cloudsaver.password" class="form-control" placeholder="密码">
-              </div>
-            </div>
-
-          </div>
-
-          <div v-if="activeTab === 'tasklist'">
-            <div class="row title">
-              <div class="col">
-                <h2>任务列表</h2>
-              </div>
-            </div>
-            <hr>
-            <div class="row">
-              <div class="col-lg-6 col-md-12">
                 <div class="row">
-                  <label class="col-form-label col-md-3">名称筛选</label>
-                  <div class="input-group col-md-9">
-                    <input type="text" class="form-control" v-model="taskNameFilter" placeholder="名称 筛选/搜索">
-                    <div class="input-group-append">
-                      <button type="button" class="btn btn-outline-secondary" @click="clearData('taskNameFilter')"><i class="bi bi-x-lg"></i></button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="col-lg-6 col-md-12">
-                <div class="row">
-                  <label class="col-form-label col-md-3">路径筛选</label>
-                  <div class="input-group col-md-9">
-                    <select class="form-control" v-model="taskDirSelected">
-                      <option v-for="(dir, index) in taskDirs" :value="dir" v-html="dir"></option>
-                    </select>
-                    <div class="input-group-append">
-                      <button type="button" class="btn btn-outline-secondary" @click="clearData('taskDirSelected')"><i class="bi bi-x-lg"></i></button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div v-for="(task, index) in formData.tasklist" :key="index" class="task mb-3">
-              <template v-if="(taskDirSelected == '' || getParentDirectory(task.savepath) == taskDirSelected) && task.taskname.includes(taskNameFilter)">
-                <hr>
-                <div class="form-group row" style="align-items:center">
-                  <div class="col pl-0" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="true" :aria-controls="'collapse_'+index">
-                    <div class="btn btn-block text-left">
-                      <i class="bi bi-caret-right-fill"></i> #<span v-html="`${index+1}: ${task.taskname}`"></span>
-                    </div>
-                  </div>
-                  <div class="col-auto">
-                    <button class="btn btn-warning" v-if="task.shareurl_ban" :title="task.shareurl_ban" disabled><i class="bi bi-exclamation-triangle-fill"></i></button>
-                    <button type="button" class="btn btn-outline-primary" @click="runScriptNow(index)" title="运行此任务" v-else><i class="bi bi-play-fill"></i></button>
-                    <button type="button" class="btn btn-outline-danger" @click="removeTask(index)" title="删除此任务"><i class="bi bi-trash3-fill"></i></button>
-                  </div>
-                </div>
-                <div class="collapse ml-3" :id="'collapse_'+index">
-                  <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="task.shareurl_ban"></div>
-                  <div class="form-group row">
-                    <label class="col-sm-2 col-form-label">任务名称</label>
-                    <div class="col-sm-10">
-                      <div class="input-group">
-                        <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(index, task)" @input="changeTaskname(index, task)">
-                        <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.taskSuggestions.success && smart_param.index === index">
-                          <div class="dropdown-item text-muted text-center" style="font-size:12px;">{{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data.length ? `以下资源来自 ${smart_param.taskSuggestions.source} 搜索，请自行辨识，如有侵权请联系资源方` : "未搜索到资源" }}</div>
-                          <div v-for="suggestion in smart_param.taskSuggestions.data" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(index, suggestion)" style="font-size: 12px;" :title="suggestion.content">
-                            <span v-html="suggestion.verify ? '✅': '❔'"></span> {{ suggestion.taskname }}
-                            <small class="text-muted">
-                              <a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a>
-                            </small>
-                          </div>
+                    <div class="col-lg-6">
+                        <!-- Cookie Card -->
+                        <div class="card mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0"><i class="bi bi-cookie mr-2"></i>Cookie</h5>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" @click="addCookie()"><i class="bi bi-plus-lg"></i> 添加</button>
+                            </div>
+                            <div class="card-body p-4">
+                                <p class="card-text text-muted small">1. 所有账号执行签到，纯<a class="" href="https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦#每日签到领空间" target="_blank">签到</a>只需移动端参数即可！<br>2. 仅第一个账号执行转存，请自行确认顺序。<b>最好是手机验证码<a target="_blank" href="https://pan.quark.cn/">登录</a>，CK比较完整！</b>如需签到参数附在CK后面。</p>
+                                <transition-group name="list-anim" tag="div">
+                                    <div v-for="(value, index) in formData.cookie" :key="index" class="input-group mb-2">
+                                        <div class="input-group-prepend"><span class="input-group-text">#{{ index + 1 }}</span></div>
+                                        <input type="text" v-model="formData.cookie[index]" class="form-control" placeholder="打开 pan.quark.com 按 F12 抓取">
+                                        <div class="input-group-append">
+                                            <button type="button" class="btn btn-outline-secondary" @click="pasteCookie(index)" title="粘贴"><i class="bi bi-clipboard"></i></button>
+                                            <button type="button" class="btn btn-outline-danger" @click="removeCookie(index)" title="删除"><i class="bi bi-trash"></i></button>
+                                        </div>
+                                    </div>
+                                </transition-group>
+                                <div v-if="!formData.cookie.length" class="alert alert-light text-center small p-2">暂无Cookie</div>
+                            </div>
                         </div>
-                        <div class="input-group-append" title="深度搜索">
-                          <button class="btn btn-primary" type="button" @click="searchSuggestions(index, task.taskname)">
-                            <i v-if="smart_param.isSearching && smart_param.index === index" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
-                            <i v-else class="bi bi-search-heart"></i>
-                          </button>
-                          <div class="input-group-text" title="谷歌搜索">
-                            <a target="_blank" :href="`https://www.google.com/search?q=%22pan.quark.cn/s%22+${task.taskname}`"><i class="bi bi-google"></i></a>
-                          </div>
+                        <!-- Crontab Card -->
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="bi bi-clock-history mr-2"></i>定时规则</h5>
+                            </div>
+                            <div class="card-body p-4">
+                                <div class="input-group">
+                                    <input type="text" v-model="formData.crontab" class="form-control" placeholder="例如: 0 */2 * * * (每2小时运行一次)">
+                                    <div class="input-group-append">
+                                        <a href="https://tool.lu/crontab/" target="_blank" class="btn btn-outline-secondary" title="CRON表达式在线生成与校验">?</a>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="form-group row" title="支持子目录链接，Web端打开分享点入目录，复制浏览器的URL即可；支持带提取码链接，说明见Wiki">
-                    <label class="col-sm-2 col-form-label">分享链接</label>
-                    <div class="col-sm-10">
-                      <div class="input-group">
-                        <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @blur="changeShareurl(task)">
-                        <div class="input-group-append" v-if="task.shareurl">
-                          <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;fileSelect.previewRegex=false;fileSelect.sortBy='file_name';fileSelect.sortOrder='desc';showShareSelect(index)" title="选择文件夹"><i class="bi bi-folder"></i></button>
-                          <div class="input-group-text">
-                            <a target="_blank" :href="task.shareurl"><i class="bi bi-box-arrow-up-right"></i></a>
-                          </div>
+                        <!-- Push Config Card -->
+                        <div class="card mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0 d-inline-flex align-items-center"><i class="bi bi-bell-fill mr-2"></i>通知推送
+                                  <a href="https://github.com/Cp0204/quark-auto-save/wiki/通知推送服务配置" target="_blank" class="ml-2 badge badge-light font-weight-normal">?</a>
+                                </h5>
+                                <div>
+                                    <button type="button" class="btn btn-outline-info btn-sm mr-2" title="通知推送测试" @click="testPush()"><i class="bi bi-lightning-fill"></i> 测试</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" @click="addPush()"><i class="bi bi-plus-lg"></i> 添加</button>
+                                </div>
+                            </div>
+                            <div class="card-body p-4">
+                                <p class="card-text text-muted small">支持多个通知渠道。</p>
+                                <transition-group name="list-anim" tag="div">
+                                    <div v-for="(value, key) in formData.push_config" :key="key" class="input-group mb-2">
+                                        <div class="input-group-prepend"><span class="input-group-text" style="min-width: 120px;">{{ key }}</span></div>
+                                        <div class="input-group-prepend" v-if="(key == 'DEER_KEY' || key == 'PUSH_KEY')"><a type="button" class="btn btn-warning" target="_blank" href="https://sct.ftqq.com/r/13249" title="Server酱推荐计划"><i class="bi bi-award"></i></a></div>
+                                        <input type="text" v-model="formData.push_config[key]" class="form-control">
+                                        <div class="input-group-append">
+                                            <button type="button" class="btn btn-outline-danger" @click="removePush(key)"><i class="bi bi-trash"></i></button>
+                                        </div>
+                                    </div>
+                                </transition-group>
+                                <div v-if="!Object.keys(formData.push_config).length" class="alert alert-light text-center small p-2">暂无通知配置</div>
+                            </div>
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="form-group row">
-                    <label class="col-sm-2 col-form-label">保存路径</label>
-                    <div class="col-sm-10">
-                      <div class="input-group">
-                        <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填" @focus="focusTaskname(index, task)">
-                        <div class="input-group-append">
-                          <button class="btn btn-secondary" type="button" v-if="smart_param.savepath && smart_param.index == index && task.savepath != smart_param.origin_savepath" @click="task.savepath = smart_param.origin_savepath"><i class="bi bi-reply"></i></button>
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showSavepathSelect(index)">选择</button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="form-group row" title="可用作筛选，只转存匹配到的文件名的文件，留空则转存所有文件">
-                    <label class="col-sm-2 col-form-label">保存规则</label>
-                    <div class="col-sm-10">
-                      <div class="input-group">
-                        <div class="input-group-prepend">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.previewRegex=true;fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showShareSelect(index)" title="预览正则处理效果">正则处理</button>
-                        </div>
-                        <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex">
-                        <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
-                        <div class="input-group-append" title="保存时只比较文件名的部分，01.mp4 和 01.mkv 视同为同一文件，不重复转存">
-                          <div class="input-group-text">
-                            <input type="checkbox" v-model="task.ignore_extension">&nbsp;忽略后缀
-                          </div>
-                        </div>
-                      </div>
-                      <datalist id="magicRegex">
-                        <option v-for="(value, key) in formData.magic_regex" :key="key" :value="`${key}`" v-html="`${value.pattern.replace('<', '<\u200B')} → ${value.replace}`"></option>
-                      </datalist>
-                    </div>
-                  </div>
-                  <div class="form-group row" title="只转存修改日期>选中文件的文件，在容量不够或几百集动漫的场景下非常有用">
-                    <label class="col-sm-2 col-form-label">文件起始</label>
-                    <div class="col-sm-10">
-                      <div class="input-group">
-                        <input type="text" class="form-control" placeholder="可选，只转存修改日期>此文件的文件" name="startfid[]" v-model="task.startfid">
-                        <div class="input-group-append" v-if="task.shareurl">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.previewRegex=false;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index)">选择</button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="form-group row" title="需匹配到各级嵌套目录名才会更新，否则子目录在第一次转存后不会更新。注意：递归模式原理是逐级索引，深层嵌套目录的场景下效率非常低，慎用 .*">
-                    <label class="col-sm-2 col-form-label">更新目录</label>
-                    <div class="col-sm-10">
-                      <div class="input-group">
-                        <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，匹配需更新子目录（含各级嵌套目录）的正则表达式，多项以|分割，如 4k|1080p">
-                        <div class="input-group-append" title="重存模式：删除该目录下所有文件，重新转存，大资源包时推荐使用&#x0A;不勾选为递归模式：递归检查，逐级更新嵌套目录，效率低">
-                          <div class="input-group-text">
-                            <input type="checkbox" v-model="task.update_subdir_resave_mode">&nbsp;重存模式
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="form-group row">
-                    <label class="col-sm-2 col-form-label">截止日期</label>
-                    <div class="col-sm-10">
-                      <input type="date" name="enddate[]" class="form-control" v-model="task.enddate" placeholder="可选">
-                    </div>
-                  </div>
-                  <div class="form-group row" title="只在勾选的星期时才运行，在某些周更剧的场景下非常有用">
-                    <label class="col-sm-2 col-form-label">运行星期</label>
-                    <div class="col-sm-10 col-form-label">
-                      <div class="form-check form-check-inline" title="也可用作任务总开关">
-                        <input class="form-check-input" type="checkbox" :checked="task.runweek.length === 7" @change="toggleAllWeekdays(task)" :indeterminate.prop="task.runweek.length > 0 && task.runweek.length < 7">
-                        <label class="form-check-label">全选</label>
-                      </div>
-                      <div class="form-check form-check-inline" v-for="(day, index) in weekdays" :key="index">
-                        <input class="form-check-input" type="checkbox" v-model="task.runweek" :value="index+1">
-                        <label class="form-check-label" v-html="day"></label>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" title="单个任务的插件选项，具体键值由插件定义，见Wiki">
-                    <label class="col-sm-2 col-form-label">插件选项</label>
-                    <div class="col-sm-10">
-                      <v-jsoneditor v-model="task.addition" :options="{mode:'tree'}" :plus="false" height="180px"></v-jsoneditor>
-                    </div>
-                  </div>
-                </div>
-              </template>
-            </div>
-            <div class="row mt-5">
-              <div class="col-sm-12 text-center">
-                <button type="button" class="btn btn-primary" @click="addTask()"><i class="bi bi-plus"></i> 增加任务</button>
-              </div>
-            </div>
-          </div>
 
-          <div class="bottom-buttons">
-            <button class="btn btn-success" data-toggle="tooltip" data-placement="top" title="保存 CTRL+S"><i class="bi bi-floppy2-fill"></i></button>
-            <button type="button" class="btn btn-primary" data-toggle="tooltip" data-placement="top" title="运行 CTRL+R" @click="runScriptNow()"><i class="bi bi-play-fill"></i></button>
-            <button type="button" class="btn btn-info" data-toggle="tooltip" data-placement="top" title="单击回顶，双击到底" @click="scrollToX(0)" @dblclick="scrollToX()"><i class="bi bi-chevron-bar-up"></i></button>
-          </div>
-        </form>
-      </main>
-    </div>
+                    </div>
+                    <div class="col-lg-6">
+                         <!-- Blacklist Card -->
+                        <div class="card mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0"><i class="bi bi-slash-circle-fill mr-2"></i>文件黑名单</h5>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" @click="addBlacklistItem()"><i class="bi bi-plus-lg"></i> 添加</button>
+                            </div>
+                            <div class="card-body p-4">
+                                <p class="card-text text-muted small">匹配的文件名将被跳过，不支持正则。</p>
+                                <transition-group name="list-anim" tag="div">
+                                    <div v-for="(item, index) in formData.file_blacklist" :key="index" class="input-group mb-2">
+                                        <input type="text" v-model="formData.file_blacklist[index]" class="form-control" placeholder="输入要屏蔽的完整文件名">
+                                        <div class="input-group-append">
+                                            <button type="button" class="btn btn-outline-danger" @click="removeBlacklistItem(index)" title="删除"><i class="bi bi-trash"></i></button>
+                                        </div>
+                                    </div>
+                                </transition-group>
+                                <div v-if="!formData.file_blacklist || !formData.file_blacklist.length" class="alert alert-light text-center small p-2">暂无黑名单规则</div>
+                            </div>
+                        </div>
+                        <!-- CloudSaver Card -->
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="mb-0 d-inline-flex align-items-center"><i class="bi bi-search-heart-fill mr-2"></i>CloudSaver 资源搜索
+                                    <a href="https://github.com/Cp0204/quark-auto-save/wiki/CloudSaver搜索源" target="_blank" class="ml-2 badge badge-light font-weight-normal">?</a>
+                                </h5>
+                            </div>
+                            <div class="card-body p-4">
+                                <p class="card-text text-muted small">用于任务名称智能搜索，需要部署<a href="https://github.com/Cp0204/CloudSaver" target="_blank">CloudSaver</a>服务。</p>
+                                <div class="form-group row mb-2"><label class="col-sm-3 col-form-label">服务器</label><div class="col-sm-9"><input type="text" v-model="formData.source.cloudsaver.server" class="form-control" placeholder="http://127.0.0.1:8008"></div></div>
+                                <div class="form-group row mb-2"><label class="col-sm-3 col-form-label">用户名</label><div class="col-sm-9"><input type="text" v-model="formData.source.cloudsaver.username" class="form-control"></div></div>
+                                <div class="form-group row mb-0"><label class="col-sm-3 col-form-label">密码</label><div class="col-sm-9"><input type="password" v-model="formData.source.cloudsaver.password" class="form-control"></div></div>
+                            </div>
+                        </div>
+                        <!-- Shortcuts Card -->
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="bi bi-keyboard-fill mr-2"></i>快捷键设置</h5>
+                            </div>
+                            <div class="card-body p-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <label for="saveShortcutSwitch" class="mb-0">保存配置 (Ctrl/Cmd + S)</label>
+                                    <div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input" id="saveShortcutSwitch" v-model="formData.shortcuts.saveEnabled"><label class="custom-control-label" for="saveShortcutSwitch"></label></div>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <label for="autoSaveSwitch" class="mb-0">自动保存配置</label>
+                                    <div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input" id="autoSaveSwitch" v-model="formData.shortcuts.autoSaveEnabled"><label class="custom-control-label" for="autoSaveSwitch"></label></div>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <label for="runShortcutSwitch" class="mb-0">运行任务 (Ctrl/Cmd + R)</label>
+                                    <div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input" id="runShortcutSwitch" v-model="formData.shortcuts.runEnabled"><label class="custom-control-label" for="runShortcutSwitch"></label></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <!-- Regex Card -->
+                        <div class="card mb-4">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0"><i class="bi bi-magic mr-2"></i>正则设置</h5>
+                            </div>
+                            <div class="card-body p-4">
+                                <!-- Global Regex -->
+                                <div class="card mb-3">
+                                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0">全局正则</h6>
+                                        <div class="custom-control custom-switch">
+                                            <input type="checkbox" class="custom-control-input" id="globalRegexSwitch" v-model="formData.global_regex.enabled">
+                                            <label class="custom-control-label" for="globalRegexSwitch">{{ formData.global_regex.enabled ? '已启用' : '已禁用' }}</label>
+                                        </div>
+                                    </div>
+                                    <div class="card-body p-3">
+                                        <p class="text-muted small">启用后，所有任务将使用此处设置的正则表达式，忽略任务中的正则设置。</p>
+                                        <div class="input-group mb-2">
+                                            <div class="input-group-prepend"><span class="input-group-text">匹配表达式</span></div>
+                                            <input type="text" v-model="formData.global_regex.pattern" class="form-control" placeholder="输入正则表达式..." :disabled="!formData.global_regex.enabled">
+                                        </div>
+                                        <div class="input-group">
+                                            <div class="input-group-prepend"><span class="input-group-text">替换表达式</span></div>
+                                            <input type="text" v-model="formData.global_regex.replace" class="form-control" placeholder="输入替换表达式..." :disabled="!formData.global_regex.enabled">
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Magic Regex -->
+                                <div class="card">
+                                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0 d-inline-flex align-items-center">预设正则(魔法匹配)
+                                          <a href="https://github.com/Cp0204/quark-auto-save/wiki/正则处理教程#21-魔法匹配" target="_blank" class="ml-2 badge badge-light font-weight-normal">?</a>
+                                        </h6>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" @click="addMagicRegex()"><i class="bi bi-plus-lg"></i> 添加</button>
+                                    </div>
+                                    <div class="card-body p-3">
+                                        <p class="text-muted small">预定义正则匹配规则，可在任务中引用。</p>
+                                        <div v-for="(value, key) in formData.magic_regex" :key="key" class="form-group mb-2">
+                                            <div class="input-group">
+                                                <div class="input-group-prepend"><span class="input-group-text">魔法名</span></div>
+                                                <input type="text" :data-oldkey="key" :value="key" class="form-control" @change="updateMagicRegexKey($event.target.dataset.oldkey, $event.target.value)" placeholder="自定义名称">
+                                                <div class="input-group-prepend"><span class="input-group-text">正则处理</span></div>
+                                                <input type="text" v-model="value.pattern" class="form-control" placeholder="匹配表达式">
+                                                <input type="text" v-model="value.replace" class="form-control" placeholder="替换表达式">
+                                                <div class="input-group-append">
+                                                    <button type="button" class="btn btn-outline-danger" @click="removeMagicRegex(key)"><i class="bi bi-trash"></i></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div v-if="!Object.keys(formData.magic_regex).length" class="alert alert-light text-center small p-2">暂无魔法匹配规则</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Plugins Card -->
+                        <div class="card mb-4" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0 d-inline-flex align-items-center"><i class="bi bi-plugs-fill mr-2"></i>插件配置
+                                  <a href="https://github.com/Cp0204/quark-auto-save/wiki/插件配置" target="_blank" class="ml-2 badge badge-light font-weight-normal">?</a>
+                                </h5>
+                            </div>
+                            <div class="card-body p-4">
+                                <p class="card-text text-muted small">各插件的配置选项，具体键值由插件定义。</p>
+                                <div v-for="(plugin, pluginName) in getAvailablePlugins(formData.plugins)" :key="pluginName" class="mb-3">
+                                  <div class="card">
+                                    <div class="card-header bg-light" data-toggle="collapse" :data-target="'#collapse_'+pluginName">
+                                      <i class="bi bi-caret-right-fill"></i> <span class="font-weight-bold">{{ pluginName }}</span>
+                                    </div>
+                                    <div class="collapse" :id="'collapse_'+pluginName">
+                                      <div class="card-body">
+                                        <div v-for="(value, key) in plugin" :key="key" class="form-group row">
+                                          <label class="col-sm-3 col-lg-2 col-form-label">{{ key }}</label>
+                                          <div class="col-sm-9 col-lg-10">
+                                            <input type="text" v-model="formData.plugins[pluginName][key]" class="form-control">
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                            </div>
+                        </div>
+                         <!-- API Card -->
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="mb-0 d-inline-flex align-items-center"><i class="bi bi-link-45deg mr-2"></i>API
+                                  <a href="https://github.com/Cp0204/quark-auto-save/wiki/API接口" target="_blank" class="ml-2 badge badge-light font-weight-normal">?</a>
+                                </h5>
+                            </div>
+                            <div class="card-body p-4">
+                                <p class="card-text text-muted small">用于第三方添加任务等操作，Token由系统自动生成。</p>
+                                <div class="input-group">
+                                  <div class="input-group-prepend"><span class="input-group-text">Token</span></div>
+                                  <input type="text" v-model="formData.api_token" class="form-control" style="background-color: #e9ecef;" disabled>
+                                  <div class="input-group-append">
+                                    <button type="button" class="btn btn-outline-secondary" @click="copyToken()" title="复制"><i class="bi bi-clipboard"></i></button>
+                                  </div>
+                                </div>
+                            </div>
+                        </div>
 
-    <!-- 模态框 运行日志 -->
-    <div class="modal" tabindex="-1" id="logModal">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title"><b>运行日志</b>
-              <div v-if="modalLoading" class="spinner-border spinner-border-sm m-1" role="status"></div>
-            </h5>
-            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-              <span aria-hidden="true">&times;</span>
-            </button>
-          </div>
-          <div class="modal-body">
-            <pre v-html="run_log"></pre>
-          </div>
-        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div v-if="activeTab === 'logs'">
+                <!-- 日志页内容 -->
+                <div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+                  <h1 class="h2">运行日志</h1>
+                  <div class="col-5">
+                    <div class="input-group">
+                      <div class="input-group-prepend">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                      </div>
+                      <input type="text" class="form-control" v-model="logSearchQuery" placeholder="搜索日志...">
+                      <div class="input-group-append">
+                        <button type="button" class="btn btn-outline-primary" @click="fetchCurrentLog()" title="刷新日志">
+                          <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- 错误提示 -->
+                <div v-if="run_log_page.includes('任务异常结束')" class="alert alert-danger mb-3" role="alert">
+                  <i class="bi bi-exclamation-triangle-fill mr-2"></i> 任务异常结束！可能原因：网络问题、权限问题或其他错误。请检查日志详情。
+                  <button type="button" class="btn btn-sm btn-outline-danger ml-3" @click="resetTaskStatus()">
+                    <i class="bi bi-arrow-clockwise"></i> 重置任务状态
+                  </button>
+                </div>
+                <div class="card"><div class="card-body p-2"><pre class="log-panel" v-html="filteredLog || '暂无日志记录。'"></pre></div></div>
+            </div>
+
+            <div v-if="activeTab === 'tasklist'">
+              <!-- 任务列表页内容 -->
+              <div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+                <h1 class="h2">任务列表</h1>
+                <button type="button" class="btn btn-primary" @click="addTask()">
+                  <i class="bi bi-plus-circle-fill mr-1"></i> 增加新任务
+                </button>
+              </div>
+              <div class="card mb-4">
+                <div class="card-body p-3">
+                  <div class="row align-items-center">
+                    <div class="col-md-5 col-lg-4 mb-2 mb-md-0 d-flex align-items-center">
+                      <label class="custom-checkbox-wrapper mb-0 mr-3">
+                        <input type="checkbox" @change="toggleSelectAllTasks" :checked="allTasksSelected">
+                        <span class="custom-checkbox"><i class="bi bi-check"></i></span>
+                        全选
+                      </label>
+                      <div class="btn-group">
+                        <button type="button" class="btn btn-outline-secondary dropdown-toggle btn-sm" data-toggle="dropdown" :disabled="selectedTasks.length === 0">批量操作 ({{ selectedTasks.length }})</button>
+                        <div class="dropdown-menu dropdown-menu-right">
+                          <a class="dropdown-item" href="#" @click.prevent="bulkRunSelected()"><i class="bi bi-play-circle-fill text-primary"></i> 批量运行</a>
+                          <div class="dropdown-divider"></div>
+                          <a class="dropdown-item" href="#" @click.prevent="bulkToggleEnable(true)"><i class="bi bi-check-circle-fill text-success"></i> 批量启用</a>
+                          <a class="dropdown-item" href="#" @click.prevent="bulkToggleEnable(false)"><i class="bi bi-slash-circle-fill text-secondary"></i> 批量禁用</a>
+                          <div class="dropdown-divider"></div>
+                          <a class="dropdown-item" href="#" @click.prevent="bulkDelete()"><i class="bi bi-trash-fill text-danger"></i> 批量删除</a>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-md-7 col-lg-8">
+                      <div class="input-group">
+                        <div class="input-group-prepend"><span class="input-group-text"><i class="bi bi-search"></i></span></div>
+                        <input type="text" class="form-control" v-model="taskNameFilter" placeholder="按名称筛选/搜索...">
+                        <div class="input-group-append"><button type="button" class="btn btn-outline-secondary" @click="clearData('taskNameFilter')" title="清除"><i class="bi bi-x-lg"></i></button></div>
+                        <select class="form-control" v-model="taskDirSelected">
+                            <option value="">所有路径</option>
+                            <option v-for="(dir, index) in taskDirs" :key="index" :value="dir" v-html="dir"></option>
+                        </select>
+                        <div class="input-group-append"><button type="button" class="btn btn-outline-secondary" @click="clearData('taskDirSelected')" title="清除"><i class="bi bi-x-lg"></i></button></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div v-for="(task, index) in formData.tasklist" :key="task.id">
+                <template v-if="(taskDirSelected == '' || getParentDirectory(task.savepath) == taskDirSelected) && (task.taskname||'').toLowerCase().includes(taskNameFilter.toLowerCase())">
+                  <div class="card task-card mb-3">
+                    <div class="card-header d-flex align-items-center" data-toggle="collapse" :data-target="'#collapse_'+task.id">
+                        <label class="custom-checkbox-wrapper mb-0 mr-1" @click.stop>
+                            <input type="checkbox" v-model="selectedTasks" :value="task.id">
+                            <span class="custom-checkbox"><i class="bi bi-check"></i></span>
+                        </label>
+                        <span class="task-status-indicator" :class="getTaskStatusClass(task)" :title="getTaskStatusTitle(task)"></span>
+                        <span class="font-weight-bold flex-grow-1">#{{ index + 1 }}: {{ task.taskname || '未命名任务' }}</span>
+                        <div class="task-actions">
+                            <button class="btn btn-sm btn-outline-warning" v-if="task.shareurl_ban" :title="task.shareurl_ban" disabled @click.stop><i class="bi bi-exclamation-triangle-fill"></i></button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" @click.stop="runScriptNow([task.id])" title="运行此任务" v-else><i class="bi bi-play-fill"></i></button>
+                            <button type="button" class="btn btn-sm btn-outline-danger ml-2" @click.stop="removeTask(task.id)" title="删除此任务"><i class="bi bi-trash3-fill"></i></button>
+                        </div>
+                    </div>
+                    <div class="collapse" :id="'collapse_'+task.id"><div class="card-body">
+                        <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="task.shareurl_ban"></div>
+                        <div class="form-group row"><label class="col-sm-3 col-lg-2 col-form-label">任务名称</label><div class="col-sm-9 col-lg-10"><div class="input-group"><input type="text" class="form-control" v-model="task.taskname" @focus="focusTaskname(task)" @input="changeTaskname(task)"><div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.taskSuggestions.success && smart_param.task_id === task.id"><div class="dropdown-item text-muted text-center" style="font-size:12px;">{{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data.length ? `以下资源来自 ${smart_param.taskSuggestions.source} 搜索` : "未搜索到资源" }}</div><div v-for="suggestion in smart_param.taskSuggestions.data" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(task.id, suggestion)" style="font-size: 12px;" :title="suggestion.content"><span v-html="suggestion.verify ? '✅': '❔'"></span> {{ suggestion.taskname }} <small class="text-muted"><a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a></small></div></div><div class="input-group-append"><button class="btn btn-primary" type="button" @click="searchSuggestions(task.id, task.taskname)" title="深度搜索"><i v-if="smart_param.isSearching && smart_param.task_id === task.id" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i><i v-else class="bi bi-search-heart"></i></button><a target="_blank" :href="`https://www.google.com/search?q=%22pan.quark.cn/s%22+${task.taskname}`" class="btn btn-outline-secondary" title="Google搜索"><i class="bi bi-google"></i></a></div></div></div></div>
+                        <div class="form-group row"><label class="col-sm-3 col-lg-2 col-form-label">分享链接</label><div class="col-sm-9 col-lg-10"><div class="input-group"><input type="text" class="form-control" v-model="task.shareurl" @blur="changeShareurl(task)"><div class="input-group-append" v-if="task.shareurl"><button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;fileSelect.previewRegex=false;fileSelect.sortBy='file_name';fileSelect.sortOrder='desc';showShareSelect(task.id)" title="选择文件夹"><i class="bi bi-folder"></i></button><a target="_blank" :href="task.shareurl" class="btn btn-outline-secondary" title="打开链接"><i class="bi bi-box-arrow-up-right"></i></a></div></div></div></div>
+                        <div class="form-group row"><label class="col-sm-3 col-lg-2 col-form-label">保存路径</label><div class="col-sm-9 col-lg-10"><div class="input-group"><input type="text" class="form-control" v-model="task.savepath" placeholder="必填" @focus="focusTaskname(task, index)"><div class="input-group-append"><button class="btn btn-secondary" type="button" v-if="smart_param.savepath && smart_param.index == index && task.savepath != smart_param.origin_savepath" @click="task.savepath = smart_param.origin_savepath"><i class="bi bi-reply"></i></button><button class="btn btn-outline-secondary" type="button" @click="fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showSavepathSelect(index)">选择</button></div></div></div></div>
+                        <div class="form-group row"><label class="col-sm-3 col-lg-2 col-form-label">保存规则</label><div class="col-sm-9 col-lg-10"><div class="input-group"><div class="input-group-prepend"><button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.previewRegex=true;fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showShareSelect(task.id)" title="预览正则处理效果">正则处理</button></div><input type="text" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex"><input type="text" class="form-control" v-model="task.replace" placeholder="替换表达式"><div class="input-group-append"><div class="input-group-text"><input type="checkbox" v-model="task.ignore_extension"> 忽略后缀</div></div></div><datalist id="magicRegex"><option v-for="(value, key) in formData.magic_regex" :key="key" :value="`${key}`" v-html="`${value.pattern.replace('<', '<\u200B')} → ${value.replace}`"></option></datalist></div></div>
+                        <div class="form-group row"><label class="col-sm-3 col-lg-2 col-form-label">文件起始</label><div class="col-sm-9 col-lg-10"><div class="input-group"><input type="text" class="form-control" v-model="task.startfid" placeholder="留空则转存分享链接中的所有文件"><div class="input-group-append" v-if="task.shareurl"><button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=false;fileSelect.previewRegex=false;fileSelect.sortBy='file_name';fileSelect.sortOrder='desc';showShareSelect(task.id)" title="选择起始文件"><i class="bi bi-file-earmark-check"></i></button></div></div></div></div>
+                        <div class="form-group row"><label class="col-sm-3 col-lg-2 col-form-label">运行星期</label><div class="col-sm-9 col-lg-10 col-form-label"><div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" :checked="task.runweek.length === 7" @change="toggleAllWeekdays(task)" :indeterminate.prop="task.runweek.length > 0 && task.runweek.length < 7"><label class="form-check-label">全选</label></div><div class="form-check form-check-inline" v-for="(day, d_index) in weekdays" :key="d_index"><input class="form-check-input" type="checkbox" v-model="task.runweek" :value="d_index+1"><label class="form-check-label" v-html="day"></label></div></div></div>
+                        <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length"><label class="col-sm-3 col-lg-2 col-form-label">插件选项</label><div class="col-sm-9 col-lg-10"><v-jsoneditor v-model="task.addition" :options="{mode:'tree'}" :plus="false" height="180px"></v-jsoneditor></div></div>
+                    </div></div>
+                  </div>
+                </template>
+              </div>
+              <div v-if="!formData.tasklist.some(task => (taskDirSelected == '' || getParentDirectory(task.savepath) == taskDirSelected) && (task.taskname||'').toLowerCase().includes(taskNameFilter.toLowerCase()))" class="text-center text-muted p-5"><i class="bi bi-journal-x" style="font-size: 3rem;"></i><p class="mt-3">没有找到匹配的任务。<br>可以尝试调整筛选条件或<a href="#" @click.prevent="addTask()">创建新任务</a>。</p></div>
+            </div>
+          </form>
+        </main>
       </div>
     </div>
+    
+    <button id="backToTopBtn" class="btn" @click="scrollToTop" title="返回顶部"><i class="bi bi-arrow-up"></i></button>
 
-    <!-- 模态框 文件选择 -->
-    <div class="modal" tabindex="-1" id="fileSelectModal">
+    <div id="autoSaveNotification">
+      <i class="bi bi-check-circle mr-1"></i> 已自动保存
+    </div>
+    
+    <div id="actionNotification" class="action-notification">
+      <i class="bi bi-check-circle mr-1"></i> <span id="actionMessage"></span>
+    </div>
+
+    <div class="modal fade" tabindex="-1" id="fileSelectModal">
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">
+              <i class="bi bi-folder2-open mr-2"></i>
               <b v-if="fileSelect.previewRegex">正则处理预览</b>
               <b v-else-if="fileSelect.selectDir">选择{{fileSelect.selectShare ? '需转存的' : '保存到的'}}文件夹</b>
               <b v-else>选择起始文件</b>
               <div v-if="modalLoading" class="spinner-border spinner-border-sm m-1" role="status"></div>
             </h5>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-              <span aria-hidden="true">&times;</span>
+              <span aria-hidden="true">×</span>
             </button>
           </div>
           <div class="modal-body small">
             <div class="alert alert-warning" v-if="fileSelect.error" v-html="fileSelect.error"></div>
             <div v-else>
-              <!-- 正则处理表达式 -->
-              <div class="mb-3" v-if="fileSelect.previewRegex && fileSelect.index<this.formData.tasklist.length">
-                <div><b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
-                  <span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].pattern }}</span>
-                </div>
-                <div><b>替换表达式：</b><span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].replace" v-html="formData.tasklist[fileSelect.index].replace"></span>
-                  <span class="badge badge-info" v-else-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].replace }}</span>
-                </div>
-              </div>
-              <!-- 面包屑导航 -->
               <nav aria-label="breadcrumb" v-if="fileSelect.selectDir">
                 <ol class="breadcrumb">
                   <li class="breadcrumb-item cursor-pointer" @click="navigateTo('0','/')"><i class="bi bi-house-door"></i></li>
@@ -471,7 +619,6 @@
                   </li>
                 </ol>
               </nav>
-              <!-- 文件列表 -->
               <table class="table table-hover table-sm">
                 <thead>
                   <tr>
@@ -479,27 +626,20 @@
                       文件名
                       <span v-if="fileSelect.sortBy === 'file_name'">{{ fileSelect.sortOrder === "asc" ? "↑" : "↓" }}</span>
                     </th>
-                    <th scope="col" v-if="fileSelect.selectShare">
-                      正则处理
-                    </th>
-                    <template v-if="!fileSelect.previewRegex">
-                      <th scope="col">
-                        大小
-                      </th>
+                    <th scope="col" v-if="fileSelect.previewRegex">预览结果</th>
+                    <template v-else>
+                      <th scope="col">大小</th>
                       <th scope="col" class="cursor-pointer" @click="sortFileList('updated_at')">
                         修改日期
                         <span v-if="fileSelect.sortBy === 'updated_at'">{{ fileSelect.sortOrder === "asc" ? "↑" : "↓" }}</span>
                       </th>
-                      <th scope="col" v-if="!fileSelect.selectShare">
-                        操作
-                      </th>
+                      <th scope="col" v-if="!fileSelect.selectShare">操作</th>
                     </template>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(file, key) in fileSelect.fileList" :key="key" @click="fileSelect.selectDir ? (file.dir ? navigateTo(file.fid, file.file_name) : null) : selectStartFid(file.fid)" :class="{'cursor-pointer': fileSelect.selectDir ? file.dir : true}">
                     <td><i class="bi mr-1" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i>{{file.file_name}}</td>
-                    <td v-if="fileSelect.selectShare" :class="file.file_name_re ? 'text-success' : file.file_name_saved ? 'text-muted' : 'text-danger'">{{file.file_name_re || file.file_name_saved || '&times;'}}</td>
                     <template v-if="!fileSelect.previewRegex">
                       <td v-if="file.dir">{{ file.include_items }}项</td>
                       <td v-else>{{file.size | size}}</td>
@@ -514,510 +654,265 @@
           <div class="modal-footer" v-if="fileSelect.selectDir && !fileSelect.previewRegex">
             <span v-html="fileSelect.selectShare ? '转存：' : '保存到：'"></span>
             <button type="button" class="btn btn-primary btn-sm" @click="selectCurrentFolder()">当前文件夹</button>
-            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare" @click="selectCurrentFolder(true)">当前文件夹<span class="badge badge-light" v-if="fileSelect.index<this.formData.tasklist.length" v-html="'/'+formData.tasklist[fileSelect.index].taskname"></span></button>
+            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && fileSelect.index < formData.tasklist.length" @click="selectCurrentFolder(true)">当前文件夹<span class="badge badge-light" v-html="'/'+formData.tasklist[fileSelect.index].taskname"></span></button>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-
   <script>
     var app = new Vue({
       el: '#app',
       data: {
-        version: "[[ version ]]",
-        versionTips: "",
+        version: "v0.7.0",
+        versionTips: "v0.7.0",
         plugin_flags: "[[ plugin_flags ]]",
         weekdays: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
         formData: {
           cookie: [],
+          crontab: "",
           push_config: {},
-          media_servers: {},
+          plugins: {},
           tasklist: [],
           magic_regex: {},
-          source: {
-            cloudsaver: {
-              server: "",
-              username: "",
-              password: "",
-              token: ""
-            }
-          },
+          file_blacklist: [],
+          api_token: "",
+          shortcuts: { saveEnabled: true, runEnabled: true, autoSaveEnabled: true },
+          source: { cloudsaver: { server: "", username: "", password: "", token: "" } },
+          global_regex: { enabled: false, pattern: "", replace: "" }
         },
-        newTask: {
-          taskname: "",
-          shareurl: "",
-          savepath: "/",
-          pattern: "",
-          replace: "",
-          enddate: "",
-          addition: {},
-          ignore_extension: false,
-          runweek: [1, 2, 3, 4, 5, 6, 7]
-        },
-        run_log: "",
-        taskDirs: [""],
-        taskDirSelected: "",
-        taskNameFilter: "",
-        modalLoading: false,
-        smart_param: {
-          index: null,
-          savepath: "",
-          origin_savepath: "",
-          taskSuggestions: {},
-          showSuggestions: false,
-          isSearching: false,
-          searchTimer: null,
-        },
+        newTask: { taskname: "", shareurl: "", savepath: "/", pattern: "", replace: "", enddate: "", addition: {}, ignore_extension: false, startfid: "", runweek: [1, 2, 3, 4, 5, 6, 7] },
+        run_log_page: "",
+        logSearchQuery: "",
         activeTab: 'tasklist',
+        taskNameFilter: "",
+        taskDirSelected: "",
+        selectedTasks: [],
+        modalLoading: false,
         configModified: false,
-        fileSelect: {
-          index: null,
-          shareurl: "",
-          stoken: "",
-          fileList: [],
-          paths: [],
-          selectDir: true,
-          selectShare: true,
-          previewRegex: false,
-          sortBy: "updated_at",
-          sortOrder: "desc"
-        },
+        autoSaveTimer: null,
+        notificationTimer: null,
+        logRefreshTimer: null,
+        errorNotified: false,
+        smart_param: { task_id: null, index: null, savepath: "", origin_savepath: "", taskSuggestions: {}, showSuggestions: false, isSearching: false, searchTimer: null },
+        fileSelect: { index: null, task_id: null, shareurl: "", stoken: "", fileList: [], paths: [], selectDir: true, selectShare: true, previewRegex: false, sortBy: "updated_at", sortOrder: "desc" },
       },
       filters: {
-        ts2date: function (value) {
-          const date = new Date(value);
-          return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
-        },
-        size: function (value) {
-          if (!value) return "";
-          const unitArr = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
-          const srcsize = parseFloat(value);
-          const index = srcsize ? Math.floor(Math.log(srcsize) / Math.log(1024)) : 0;
-          const size = (srcsize / Math.pow(1024, index)).toFixed(1).replace(/\.?0+$/, "");
-          return size + unitArr[index];
-        }
+        ts2date(value){if(!value)return'';const d=new Date(value);return`${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()} ${d.getHours()}:${d.getMinutes().toString().padStart(2,'0')}`},
+        size(value){if(!value)return"";const u=["B","KB","MB","GB","TB"],s=parseFloat(value),i=s?Math.floor(Math.log(s)/Math.log(1024)):0;return(s/Math.pow(1024,i)).toFixed(1).replace(/\.?0+$/,"")+u[i]}
       },
-      watch: {
-        formData: {
-          handler(newVal, oldVal) {
-            this.configModified = true;
-          },
-          deep: true
+      computed: {
+        // 注意: 主任务列表渲染现在使用带有内部v-if的v-for来确保索引稳定性。
+        // 这个计算属性现在只用于"全选"功能。
+        filteredTasks() { return this.formData.tasklist.filter(t=>(t.taskname||'').toLowerCase().includes(this.taskNameFilter.toLowerCase())&&(this.taskDirSelected===""||this.getParentDirectory(t.savepath)===this.taskDirSelected))},
+        allTasksSelected() { if(this.filteredTasks.length===0)return false;return this.selectedTasks.length===this.filteredTasks.length},
+        filteredLog() {
+            if (!this.logSearchQuery.trim()) return this.run_log_page;
+            const query = this.logSearchQuery.trim().replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+            const regex = new RegExp(query, 'gi');
+            return this.run_log_page.replace(regex, `<span class="log-highlight">$&</span>`);
         }
       },
       mounted() {
         this.fetchData();
         this.checkNewVersion();
-        $('[data-toggle="tooltip"]').tooltip();
+        document.querySelector('main').addEventListener('scroll', this.handleScroll);
         document.addEventListener('keydown', this.handleKeyDown);
-        document.addEventListener('click', (e) => {
-          if (!e.target.closest('.input-group')) {
-            this.smart_param.showSuggestions = false;
-          }
+        
+        // 添加表单输入监听
+        this.$nextTick(() => {
+          document.querySelectorAll('input, textarea, select').forEach(el => {
+            el.addEventListener('input', this.handleInputChange);
+          });
         });
-        window.addEventListener('beforeunload', this.handleBeforeUnload);
+        
+        // 获取当前运行的日志
+        this.fetchCurrentLog();
+      },
+      created() {
+        // 检查是否有任务正在运行，并自动启动日志刷新
+        this.checkRunningTask();
+        
+        // 添加页面关闭前的事件处理，停止计时器
+        window.addEventListener('beforeunload', this.stopLogRefresh);
       },
       beforeDestroy() {
-        window.removeEventListener('beforeunload', this.handleBeforeUnload);
+        document.querySelector('main').removeEventListener('scroll', this.handleScroll);
+        document.removeEventListener('keydown', this.handleKeyDown);
+        
+        // 移除表单输入监听
+        document.querySelectorAll('input, textarea, select').forEach(el => {
+          el.removeEventListener('input', this.handleInputChange);
+        });
+        
+        // 清除日志刷新定时器
+        this.stopLogRefresh();
+      },
+      watch: {
+        formData: {
+          handler: function(newVal, oldVal) {
+            // 仅在初始化后才触发自动保存
+            if (this.configModified && this.formData.shortcuts.autoSaveEnabled) {
+              // 使用防抖函数避免频繁保存
+              if (this.autoSaveTimer) clearTimeout(this.autoSaveTimer);
+              this.autoSaveTimer = setTimeout(() => {
+                this.autoSave();
+              }, 1500); // 1.5秒防抖
+            }
+          },
+          deep: true
+        },
+        activeTab: function(newTab) {
+          // 当切换到日志页面时，获取最新日志
+          if (newTab === 'logs') {
+            this.fetchCurrentLog();
+            // 开始定时刷新日志
+            this.startLogRefresh();
+          } else {
+            // 离开日志页面时，停止定时刷新
+            this.stopLogRefresh();
+          }
+        }
       },
       methods: {
-        changeTab(tab) {
-          this.activeTab = tab;
-          if (window.innerWidth <= 768) {
-            $('#sidebarMenu').collapse('toggle')
-          }
-        },
-        checkNewVersion() {
-          this.versionTips = this.version;
-          axios.get('https://api.github.com/repos/Cp0204/quark-auto-save/tags')
-            .then(response => {
-              latestVersion = response.data[0].name;
-              console.log(`检查版本：当前 ${this.version} 最新 ${latestVersion}`);
-              if (latestVersion != this.version) {
-                this.versionTips += ` <sup><span class="position-absolute badge badge-pill badge-danger">${latestVersion}</span></sup>`;
-              }
-            })
-            .catch(error => {
-              console.error('Error:', error);
-            });
-        },
-        fetchData() {
-          axios.get('/data')
-            .then(response => {
-              config_data = response.data.data
-              // cookie兼容
-              if (typeof config_data.cookie === 'string')
-                config_data.cookie = [config_data.cookie];
-              // 添加星期预设
-              config_data.tasklist = config_data.tasklist.map(task => {
-                if (!task.hasOwnProperty('runweek')) {
-                  task.runweek = [1, 2, 3, 4, 5, 6, 7];
-                }
-                return task;
-              });
-              // 获取所有任务父目录
-              config_data.tasklist.forEach(item => {
-                parentDir = this.getParentDirectory(item.savepath)
-                if (!this.taskDirs.includes(parentDir))
-                  this.taskDirs.push(parentDir);
-              });
-              this.newTask.addition = config_data.task_plugins_config_default;
-              // 确保source配置存在
-              if (!config_data.source) {
-                config_data.source = {};
-              }
-              if (!config_data.source.cloudsaver) {
-                config_data.source.cloudsaver = {
-                  server: "",
-                  username: "",
-                  password: "",
-                  token: ""
-                };
-              }
-              this.formData = config_data;
-              setTimeout(() => {
-                this.configModified = false;
-              }, 100);
-            })
-            .catch(error => {
-              console.error('Error fetching data:', error);
-            });
-        },
-        handleKeyDown(event) {
-          if (event.ctrlKey || event.metaKey) {
-            if (event.keyCode === 83 || event.key === 's') {
-              event.preventDefault();
-              this.saveConfig();
-            } else if (event.keyCode === 82 || event.key === 'r') {
-              event.preventDefault();
-              this.runScriptNow();
+        // --- 核心应用逻辑 ---
+        fetchData(){axios.get('/data').then(r=>{let d=r.data.data;d.tasklist=d.tasklist||[];d.tasklist.forEach((t,i)=>{t.id=t.id||`task_${Date.now()}_${i}`;if(!t.hasOwnProperty('runweek'))t.runweek=[1,2,3,4,5,6,7];if(!t.hasOwnProperty('addition'))t.addition={};if(!t.hasOwnProperty('startfid'))t.startfid="";});if(!d.shortcuts){d.shortcuts={saveEnabled:true,runEnabled:true,autoSaveEnabled:false};}this.formData=d;this.formData.plugins=d.plugins||{};this.formData.file_blacklist=d.file_blacklist||[];this.updateTaskDirs(d.tasklist);setTimeout(()=>this.configModified=false,100);}).catch(e=>console.error('获取数据出错:',e))},
+        saveConfig(){
+          axios.post('/update',this.formData).then(r=>{
+            if(r.data.success){
+              this.configModified=false;
+              this.showActionNotification("配置已成功保存！");
+            }else{
+              this.showActionNotification("保存失败: "+r.data.message, "error");
             }
-          }
+          }).catch(e=>{
+            console.error('保存配置出错:',e);
+            this.showActionNotification("保存配置出错", "error");
+          })
         },
-        handleBeforeUnload(e) {
-          if (this.configModified) {
-            e.preventDefault();
-            e.returnValue = '配置已修改但未保存，确定要离开吗？';
-            return e.returnValue;
-          }
-        },
-        saveConfig() {
-          axios.post('/update', this.formData)
-            .then(response => {
-              if (response.data.success) {
-                this.configModified = false;
-              }
-              alert(response.data.message);
-              console.log('Config saved result:', response.data);
-            })
-            .catch(error => {
-              console.error('Error saving config:', error);
-            });
-        },
-        addCookie() {
-          this.formData.cookie.push("");
-        },
-        removeCookie(index) {
-          if (this.formData.cookie[index] == "" || confirm("确认删除吗？"))
-            this.formData.cookie.splice(index, 1);
-        },
-        testPush() {
-          this.runScriptNow(1, true);
-        },
-        addPush() {
-          key = prompt("增加的键名", "");
-          if (key != "" && key != null)
-            this.$set(this.formData.push_config, key, "");
-        },
-        removePush(key) {
-          if (confirm("确认删除吗？"))
-            this.$delete(this.formData.push_config, key);
-        },
-        addTask() {
-          newTask = { ...this.newTask }
-          newTask.taskname = this.taskNameFilter;
-          if (this.formData.tasklist.length > 0) {
-            lastTask = this.formData.tasklist[this.formData.tasklist.length - 1];
-            if (this.taskDirSelected) {
-              newTask.savepath = this.taskDirSelected + '/TASKNAME';
-            } else {
-              if (newTask.taskname) {
-                newTask.savepath = lastTask.savepath.replace(lastTask.taskname, newTask.taskname);
-              } else {
-                newTask.savepath = lastTask.taskname ? lastTask.savepath.replace(lastTask.taskname, 'TASKNAME') : lastTask.savepath;
-              }
+        autoSave() {
+          axios.post('/update', this.formData).then(r => {
+            if (r.data.success) {
+              this.configModified = false;
+              this.showAutoSaveNotification();
             }
-          }
-          this.formData.tasklist.push(newTask);
-          // 滚到最下
-          setTimeout(() => {
-            $('#collapse_' + (this.formData.tasklist.length - 1)).collapse('show').on('shown.bs.collapse', () => {
-              this.scrollToX();
-            });
-          }, 1);
+          }).catch(e => console.error('自动保存配置出错:', e));
         },
-        focusTaskname(index, task) {
-          this.smart_param.index = index
-          this.smart_param.origin_savepath = task.savepath
-          regex = new RegExp(`/${task.taskname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(/|$)`)
-          if (task.savepath.includes('TASKNAME')) {
-            this.smart_param.savepath = task.savepath;
-          } else if (task.savepath.match(regex)) {
-            this.smart_param.savepath = task.savepath.replace(task.taskname, 'TASKNAME');
-          } else {
-            this.smart_param.savepath = undefined;
-          }
+        showAutoSaveNotification() {
+          const notification = document.getElementById('autoSaveNotification');
+          notification.classList.add('show');
+          notification.classList.remove('hide');
+          
+          if (this.notificationTimer) clearTimeout(this.notificationTimer);
+          this.notificationTimer = setTimeout(() => {
+            notification.classList.remove('show');
+            notification.classList.add('hide');
+          }, 3000);
         },
-        changeTaskname(index, task) {
-          if (this.smart_param.searchTimer) {
-            clearTimeout(this.smart_param.searchTimer);
-          }
-          this.smart_param.searchTimer = setTimeout(() => {
-            this.searchSuggestions(index, task.taskname, 0);
-          }, 1000);
-          if (this.smart_param.savepath)
-            task.savepath = this.smart_param.savepath.replace('TASKNAME', task.taskname);
+        handleInputChange() {
+          this.configModified = true;
         },
-        removeTask(index) {
-          if (confirm("确认删除任务 [#" + (index + 1) + ": " + this.formData.tasklist[index].taskname + "] 吗？"))
-            this.formData.tasklist.splice(index, 1);
-        },
-        changeShareurl(task) {
-          if (!task.shareurl)
-            return;
-          this.$set(task, "shareurl_ban", undefined);
-          // 从URL中提取任务名
-          try {
-            const matches = decodeURIComponent(task.shareurl).match(/\/(\w{32})-([^\/]+)$/);
-            if (matches) {
-              task.taskname = task.taskname == "" ? matches[2] : task.taskname;
-              task.savepath = task.savepath.replace(/TASKNAME/g, matches[2]);
-            }
-          } catch (e) {
-            console.error("Error decodeURIComponent:", e);
+        runScriptNow(taskIds=null,test=false){
+          let body={};
+          if(test){
+            body={quark_test:true,cookie:this.formData.cookie,push_config:this.formData.push_config};
+          }else if(taskIds){
+            const tasksToRun=this.formData.tasklist.filter(t=>taskIds.includes(t.id)).map(t=>({...t,id:undefined}));
+            if(tasksToRun.length===0)return;
+            body={tasklist:tasksToRun};
+          }else if(this.configModified){
+            this.showActionNotification("配置已修改但未保存，自动保存中...");
+            this.autoSave();
           }
-          // 从分享中提取任务名
-          axios.post('/get_share_detail', {
-            shareurl: task.shareurl
-          }).then(response => {
-            share_detail = response.data.data
-            if (!response.data.success) {
-              if (share_detail.error.includes("提取码")) {
-                const passcode = prompt("检查失败[" + share_detail.error + "]，请输入提取码：");
-                if (passcode != null) {
-                  task.shareurl = task.shareurl.replace(/pan.quark.cn\/s\/(\w+)(\?pwd=\w*)*/, `pan.quark.cn/s/$1?pwd=${passcode}`);
-                  this.changeShareurl(task);
+          
+          this.activeTab='logs';
+          this.run_log_page='';
+          // 重置错误通知状态
+          this.errorNotified = false;
+          
+          this.modalLoading=true;
+          fetch(`/run_script_now`,{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify(body)
+          }).then(r=>{
+            const reader=r.body.getReader();
+            const decoder=new TextDecoder();
+            const process=({done,value})=>{
+              if(done){
+                this.modalLoading=false;
+                return;
+              }
+              const chunk=decoder.decode(value,{stream:true});
+              const lines=chunk.split('\n').filter(l=>l.startsWith('data:'));
+              for(const line of lines){
+                const eventData=line.substring(5).trim();
+                if(eventData==='[DONE]'){
+                  this.modalLoading=false;
                   return;
                 }
+                const cleanData=eventData.replace(/</g,'<\u200B')+'\n';
+                this.run_log_page+=cleanData;
+                this.$nextTick(()=>{
+                  const el=document.querySelector('.log-panel');
+                  if(el)el.scrollTop=el.scrollHeight;
+                });
               }
-              this.$set(task, "shareurl_ban", share_detail.error);
-            } else {
-              task.taskname = task.taskname == "" ? share_detail.share.title : task.taskname;
-              task.savepath = task.savepath.replace(/TASKNAME/g, share_detail.share.title);
-              this.$set(task, "shareurl_ban", undefined);
-            }
-          }).catch(error => {
-            console.error('Error get_share_detail:', error);
-          });
-        },
-        clearData(target) {
-          this[target] = "";
-        },
-        async runScriptNow(task_index = null, test = false) {
-          body = {};
-          if (test) {
-            body = {
-              "quark_test": true,
-              "cookie": this.formData.cookie,
-              "push_config": this.formData.push_config
+              return reader.read().then(process);
             };
-          } else if (task_index != null) {
-            task = { ...this.formData.tasklist[task_index] };
-            delete task.runweek;
-            delete task.enddate;
-            body = {
-              "tasklist": [task]
-            };
-          } else if (this.configModified) {
-            if (!confirm('配置已修改但未保存，是否继续运行？')) {
-              return;
-            }
-          }
-          $('#logModal').modal('toggle');
-          this.modalLoading = true;
-          this.run_log = '';
-          try {
-            // 1. 发送 POST 请求
-            const response = await fetch(`/run_script_now`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(body)
-            });
-            if (!response.ok) {
-              throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-            // 2. 处理 SSE 流
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let partialData = '';
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) {
-                break;
-              }
-              partialData += decoder.decode(value);
-              const lines = partialData.split('\n').filter(line => line.trim() !== '');
-              for (const line of lines) {
-                if (line.startsWith('data:')) {
-                  const eventData = line.substring(5).trim();
-                  if (eventData === '[DONE]') {
-                    this.modalLoading = false;
-                    if (task_index == null) {
-                      this.fetchData();
-                    }
-                    break;
-                  }
-                  this.run_log += eventData.replace('<', '<\u200B') + '\n';
-                  // 在更新 run_log 后将滚动条滚动到底部
-                  this.$nextTick(() => {
-                    const modalBody = document.querySelector('.modal-body');
-                    modalBody.scrollTop = modalBody.scrollHeight;
-                  });
-                } else {
-                  console.warn('Unexpected line:', line);
-                }
-              }
-              partialData = '';
-            }
-          } catch (error) {
-            this.modalLoading = false;
-            console.error('Error:', error);
-          }
+            return reader.read().then(process);
+          }).catch(e=>{
+            this.modalLoading=false;
+            const err='运行出错: '+e;
+            this.run_log_page=err;
+          })
         },
-        getParentDirectory(path) {
-          parentDir = path.substring(0, path.lastIndexOf('/'))
-          if (parentDir == "")
-            parentDir = "/"
-          return parentDir;
-        },
-        scrollToX(top = undefined) {
-          if (top == undefined)
-            top = document.documentElement.scrollHeight
-          window.scrollTo({
-            top: top,
-            behavior: "smooth"
-          });
-        },
-        getAvailablePlugins(plugins) {
-          availablePlugins = {};
-          const pluginsFlagsArray = this.plugin_flags.split(',');
-          for (const pluginName in plugins) {
-            if (!pluginsFlagsArray.includes(`-${pluginName}`)) {
-              availablePlugins[pluginName] = plugins[pluginName];
-            }
-          }
-          return availablePlugins;
-        },
-        toggleAllWeekdays(task) {
-          if (task.runweek.length === 7) {
-            task.runweek = [];
-          } else {
-            task.runweek = [1, 2, 3, 4, 5, 6, 7];
-          }
-        },
-        searchSuggestions(index, taskname, deep = 1) {
-          if (taskname.length < 2) {
-            console.log(`任务名[${taskname}]过短${taskname.length} 不进行搜索`);
-            return;
-          }
-          this.smart_param.isSearching = true;
-          this.smart_param.index = index;
-          try {
-            axios.get('/task_suggestions', {
-              params: {
-                q: taskname,
-                d: deep
-              }
-            }).then(response => {
-              this.smart_param.taskSuggestions = response.data;
-              this.smart_param.showSuggestions = true;
-            }).catch(error => {
-              console.error('Error fetching suggestions:', error);
-            }).finally(() => {
-              this.smart_param.isSearching = false;
-            });
-          } catch (e) {
-            this.smart_param.taskSuggestions = {
-              error: "网络异常"
-            };
-          }
-        },
-        selectSuggestion(index, suggestion) {
-          this.smart_param.showSuggestions = false;
-          this.fileSelect.selectDir = true;
-          this.fileSelect.previewRegex = false;
-          this.showShareSelect(index, suggestion.shareurl);
-        },
-        addMagicRegex() {
-          const newKey = `$MAGIC_${Object.keys(this.formData.magic_regex).length + 1}`;
-          this.$set(this.formData.magic_regex, newKey, { pattern: '', replace: '' });
-        },
-        updateMagicRegexKey(oldKey, newKey) {
-          if (oldKey !== newKey) {
-            if (this.formData.magic_regex[newKey]) {
-              alert(`魔法名 [${newKey}] 已存在，请使用其他名称`);
-              return;
-            }
-            this.$set(this.formData.magic_regex, newKey, this.formData.magic_regex[oldKey]);
-            this.$delete(this.formData.magic_regex, oldKey);
-          }
-        },
-        removeMagicRegex(key) {
-          if (confirm(`确认删除魔法匹配规则 [${key}] 吗？`)) {
-            this.$delete(this.formData.magic_regex, key);
-          }
-        },
-        deleteFile(fid, fname, isDir) {
-          if (fid != "" && confirm(`确认删除${isDir ? '目录' : '文件'} [${fname}] 吗？`))
-            axios.post('/delete_file', {
-              fid: fid
-            }).then(response => {
-              if (response.data.code == 0) {
-                this.fileSelect.fileList = this.fileSelect.fileList.filter(item => item.fid != fid);
-              } else {
-                alert('删除失败：' + response.data.message);
-              }
-            }).catch(error => {
-              console.error('Error /delete_file:', error);
-            });
-        },
-        getSavepathDetail(params = 0) {
-          if (params.includes('/')) {
-            params = { path: params }
-          } else {
-            params = { fid: params }
-          }
-          this.modalLoading = true;
-          axios.get('/get_savepath_detail', {
-            params: params
-          }).then(response => {
-            this.fileSelect.fileList = response.data.data.list;
-            this.sortFileList(this.fileSelect.sortBy, this.fileSelect.sortOrder);
-            if (response.data.data.paths?.length > 0) {
-              this.fileSelect.paths = response.data.data.paths
-            }
-            this.modalLoading = false;
-          }).catch(error => {
-            console.error('Error /get_savepath_detail:', error);
-            this.fileSelect.error = "获取文件夹列表失败";
-            this.modalLoading = false;
-          });
-        },
+        checkNewVersion(){axios.get('https://api.github.com/repos/Cp0204/quark-auto-save/tags').then(r=>{const latest=r.data[0].name;if(latest!=this.version){this.versionTips=`${this.version} <sup><span class="badge badge-danger ml-1">${latest}</span></sup>`;}}).catch(e=>{console.error('检查新版本出错:',e);});},
+        handleKeyDown(event){if(event.ctrlKey||event.metaKey){if(event.key==='s'&&this.formData.shortcuts.saveEnabled){event.preventDefault();this.saveConfig();}else if(event.key==='r'&&this.formData.shortcuts.runEnabled){event.preventDefault();this.runScriptNow();}}},
+        changeTab(tab){this.activeTab=tab;if(window.innerWidth<=768)$('#sidebarMenu').collapse('toggle')},
+        // --- 配置页方法 ---
+        addCookie(){this.formData.cookie.push("");this.configModified=true},
+        removeCookie(idx){this.formData.cookie.splice(idx,1);this.configModified=true;this.showActionNotification("已删除Cookie");},
+        testPush(){this.runScriptNow(null,true)},
+        addPush(){const key=prompt("增加的键名","");if(key){this.$set(this.formData.push_config,key,"");this.configModified=true;this.showActionNotification("已添加通知推送");}},
+        removePush(key){this.$delete(this.formData.push_config,key);this.configModified=true;this.showActionNotification("已删除通知推送");},
+        addBlacklistItem(){if(!this.formData.file_blacklist)this.$set(this.formData,'file_blacklist',[]);this.formData.file_blacklist.push("");this.configModified=true},
+        removeBlacklistItem(idx){this.formData.file_blacklist.splice(idx,1);this.configModified=true;this.showActionNotification("已删除黑名单项");},
+        addMagicRegex(){const k=`$MAGIC_${Object.keys(this.formData.magic_regex).length+1}`;this.$set(this.formData.magic_regex,k,{pattern:'',replace:''});this.configModified=true},
+        updateMagicRegexKey(ok,nk){if(ok!==nk){this.$set(this.formData.magic_regex,nk,this.formData.magic_regex[ok]);this.$delete(this.formData.magic_regex,ok);this.configModified=true}},
+        removeMagicRegex(key){this.$delete(this.formData.magic_regex,key);this.configModified=true;this.showActionNotification(`已删除魔法匹配 [${key}]`);},
+        
+        // --- 任务列表与插件方法 ---
+        clearData(key) { if (key === 'taskNameFilter') {this.taskNameFilter = "";} else if (key === 'taskDirSelected') {this.taskDirSelected = "";}},
+        getTaskStatusClass(task){if(task.shareurl_ban)return'status-warning';if(task.runweek&&task.runweek.length>0)return'status-active';return'status-disabled'},
+        getTaskStatusTitle(task){if(task.shareurl_ban)return`警告: ${task.shareurl_ban}`;if(task.runweek&&task.runweek.length>0)return'已启用';return'已禁用'},
+        getAvailablePlugins(p){if(!p)return{};const aP={},pFA=this.plugin_flags.split(',');for(const pN in p){if(!pFA.includes(`-${pN}`))aP[pN]=p[pN];}return aP},
+        getTaskById(id){return this.formData.tasklist.find(t=>t.id===id)},
+        addTask(){const nT={...this.newTask,id:`task_${Date.now()}_${Math.random()}`};nT.taskname=this.taskNameFilter;this.formData.tasklist.push(nT);this.updateTaskDirs();this.$nextTick(()=>{const mainEl=document.querySelector('main');$(`#collapse_${nT.id}`).collapse('show');mainEl.scrollTo({top:mainEl.scrollHeight,behavior:"smooth"})})},
+        removeTask(id){const idx=this.formData.tasklist.findIndex(t=>t.id===id);if(idx>-1){const taskName=this.formData.tasklist[idx].taskname;this.formData.tasklist.splice(idx,1);this.updateTaskDirs();this.showActionNotification(`已删除任务 [${taskName}]`);}},
+        updateTaskDirs(tl=this.formData.tasklist){const d=new Set([""]);tl.forEach(i=>d.add(this.getParentDirectory(i.savepath)));this.taskDirs=Array.from(d).sort()},
+        focusTaskname(t, index){this.smart_param.task_id=t.id;this.smart_param.index=index;this.smart_param.origin_savepath=t.savepath;const r=new RegExp(`/${t.taskname.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(/|$)`);if(t.savepath.includes('TASKNAME'))this.smart_param.savepath=t.savepath;else if(t.savepath.match(r))this.smart_param.savepath=t.savepath.replace(t.taskname,'TASKNAME');else this.smart_param.savepath=undefined},
+        changeTaskname(t){if(this.smart_param.searchTimer)clearTimeout(this.smart_param.searchTimer);this.smart_param.searchTimer=setTimeout(()=>this.searchSuggestions(t.id,t.taskname),1000);if(this.smart_param.savepath)t.savepath=this.smart_param.savepath.replace('TASKNAME',t.taskname)},
+        changeShareurl(t){if(!t.shareurl)return;this.$set(t,"shareurl_ban",undefined);try{const m=decodeURIComponent(t.shareurl).match(/\/(\w{32})-([^\/]+)$/);if(m){t.taskname=t.taskname==""?m[2]:t.taskname;t.savepath=t.savepath.replace(/TASKNAME/g,m[2]);}}catch(e){console.error("解析URL出错:",e);}
+          axios.post('/get_share_detail',{shareurl:t.shareurl}).then(r=>{const d=r.data.data;if(!r.data.success){if(d.error.includes("提取码")){const p=prompt(`检查失败[${d.error}]，请输入提取码：`);if(p!=null){t.shareurl=t.shareurl.replace(/pan.quark.cn\/s\/(\w+)(\?pwd=\w*)*/,`pan.quark.cn/s/$1?pwd=${p}`);this.changeShareurl(t);return;}}this.$set(t,"shareurl_ban",d.error);this.showActionNotification(`分享链接检查失败: ${d.error}`,"error");}else{t.taskname=t.taskname==""?d.share.title:t.taskname;t.savepath=t.savepath.replace(/TASKNAME/g,d.share.title);this.$set(t,"shareurl_ban",undefined);this.showActionNotification("分享链接检查成功");}}).catch(e=>{console.error('获取分享详情出错:',e);this.showActionNotification("获取分享详情出错","error");})},
+        toggleAllWeekdays(t){t.runweek=t.runweek.length===7?[]:[1,2,3,4,5,6,7]},
+        toggleSelectAllTasks(e){this.selectedTasks=e.target.checked?this.filteredTasks.map(t=>t.id):[]},
+        bulkRunSelected(){if(this.selectedTasks.length>0){this.runScriptNow(this.selectedTasks);this.showActionNotification(`正在运行 ${this.selectedTasks.length} 个任务`);}},
+        bulkDelete(){if(this.selectedTasks.length>0){this.formData.tasklist=this.formData.tasklist.filter(t=>!this.selectedTasks.includes(t.id));this.showActionNotification(`已删除 ${this.selectedTasks.length} 个任务`);this.selectedTasks=[];this.updateTaskDirs();}},
+        bulkToggleEnable(e){if(this.selectedTasks.length>0){this.formData.tasklist.forEach(t=>{if(this.selectedTasks.includes(t.id))t.runweek=e?[1,2,3,4,5,6,7]:[];});this.selectedTasks=[]}},
+        getParentDirectory(p){const pd=p.substring(0,p.lastIndexOf('/'));return pd===""?"/":pd},
+        handleScroll(e){const btn=document.getElementById('backToTopBtn');if(btn)btn.style.display=e.target.scrollTop>300?'flex':'none'},
+        scrollToTop(){document.querySelector('main').scrollTo({top:0,behavior:'smooth'})},
+        searchSuggestions(id,q,d=0){if(q.length<2)return;this.smart_param.isSearching=true;this.smart_param.task_id=id;axios.get('/task_suggestions',{params:{q,d}}).then(r=>{this.smart_param.taskSuggestions=r.data;this.smart_param.showSuggestions=true;}).finally(()=>this.smart_param.isSearching=false)},
+        selectSuggestion(id,sug){this.smart_param.showSuggestions=false;this.fileSelect={...this.fileSelect,selectDir:true,previewRegex:false};this.showShareSelect(id,sug.shareurl)},
+        showShareSelect(id,url=null){const t=this.getTaskById(id);if(!t)return;this.fileSelect={...this.fileSelect,selectShare:true,fileList:[],paths:[],error:undefined,task_id:id};const nU=url||t.shareurl;if(this.getShareurl(this.fileSelect.shareurl)!=this.getShareurl(nU))this.fileSelect.stoken="";this.fileSelect.shareurl=nU;$('#fileSelectModal').modal('show');this.getShareDetail()},
+        getShareDetail(){this.modalLoading=true;axios.post('/get_share_detail',{shareurl:this.fileSelect.shareurl,stoken:this.fileSelect.stoken,task:this.getTaskById(this.fileSelect.task_id),magic_regex:this.formData.magic_regex,global_regex:this.formData.global_regex}).then(r=>{if(r.data.success){this.fileSelect.fileList=r.data.data.list;this.sortFileList('file_name','desc');this.fileSelect.paths=r.data.data.paths;this.fileSelect.stoken=r.data.data.stoken;}else{this.fileSelect.error=r.data.data.error;}this.modalLoading=false;}).catch(e=>{this.fileSelect.error="获取失败";this.modalLoading=false;})},
+        
+        // --- 开始: 带有日志记录的路径选择旧逻辑 ---
         showSavepathSelect(index) {
+          console.log(`[showSavepathSelect] 为索引 ${index} 调用函数`);
+          console.log(`[showSavepathSelect] 目标任务:`, this.formData.tasklist[index]);
           this.fileSelect.selectShare = false;
           this.fileSelect.selectDir = true;
           this.fileSelect.previewRegex = false;
@@ -1029,114 +924,224 @@
           this.formData.tasklist[index].savepath = this.formData.tasklist[index].savepath.replace(/\/+/g, "/");
           this.getSavepathDetail(this.formData.tasklist[index].savepath);
         },
-        getShareDetail() {
+        getSavepathDetail(params = 0) {
+          if (typeof params === 'string' && params.includes('/')) {
+            params = { path: params };
+          } else {
+            params = { fid: params };
+          }
+          console.log("[getSavepathDetail] 使用参数请求路径详细信息:", params);
           this.modalLoading = true;
-          axios.post('/get_share_detail', {
-            shareurl: this.fileSelect.shareurl,
-            stoken: this.fileSelect.stoken,
-            task: this.formData.tasklist[this.fileSelect.index],
-            magic_regex: this.formData.magic_regex,
-          }).then(response => {
-            if (response.data.success) {
+          axios.get('/get_savepath_detail', { params: params })
+            .then(response => {
+              console.log("[getSavepathDetail] [成功] 接收到数据:", response.data);
               this.fileSelect.fileList = response.data.data.list;
               this.sortFileList(this.fileSelect.sortBy, this.fileSelect.sortOrder);
-              this.fileSelect.paths = response.data.data.paths;
-              this.fileSelect.stoken = response.data.data.stoken;
-            } else {
-              this.fileSelect.error = response.data.data.error
-            }
-            this.modalLoading = false;
-          }).catch(error => {
-            console.error('Error getting folders:', error);
-            this.fileSelect.error = "获取文件夹列表失败";
-            this.modalLoading = false;
-          });
-        },
-        showShareSelect(index, shareurl = null) {
-          this.fileSelect.selectShare = true;
-          this.fileSelect.fileList = [];
-          this.fileSelect.paths = [];
-          this.fileSelect.error = undefined;
-          // 如果分享链接发生变化，则重置 stoken
-          const newShareurl = shareurl || this.formData.tasklist[index].shareurl
-          if (this.getShareurl(this.fileSelect.shareurl) != this.getShareurl(newShareurl)) {
-            this.fileSelect.stoken = "";
-          }
-          this.fileSelect.shareurl = newShareurl;
-          this.fileSelect.index = index;
-          $('#fileSelectModal').modal('toggle');
-          this.getShareDetail();
+              if (response.data.data.paths?.length > 0) {
+                this.fileSelect.paths = response.data.data.paths;
+              }
+              this.modalLoading = false;
+            }).catch(error => {
+              console.error("[getSavepathDetail] [错误] 获取路径详细信息失败:", error);
+              this.fileSelect.error = "获取文件夹列表失败，请检查浏览器控制台(F12)中的错误信息。";
+              this.modalLoading = false;
+            });
         },
         navigateTo(fid, name) {
-          dir = { fid: fid, name: name }
-          if (this.fileSelect.selectShare) {
-            this.fileSelect.shareurl = this.getShareurl(this.fileSelect.shareurl, dir);
-            this.getShareDetail();
-          } else {
-            if (fid == "0") {
-              this.fileSelect.paths = []
+            const dir = { fid: fid, name: name };
+            if (this.fileSelect.selectShare) {
+                if (dir.fid == 0) {
+                    this.fileSelect.shareurl = this.fileSelect.shareurl.match(`.*s/[a-z0-9]+(\\?pwd=[^#]+)?`)[0]
+                } else if (this.fileSelect.shareurl.includes(dir.fid)) {
+                    this.fileSelect.shareurl = this.fileSelect.shareurl.match(`.*/${dir.fid}[^/]*`)[0]
+                } else if (this.fileSelect.shareurl.includes('#/list/share')) {
+                    this.fileSelect.shareurl = `${this.fileSelect.shareurl}/${dir.fid}-${dir.name?.replace('-', '*101')}`
+                } else {
+                    this.fileSelect.shareurl = `${this.fileSelect.shareurl}#/list/share/${dir.fid}-${dir.name?.replace('-', '*101')}`
+                }
+                this.getShareDetail();
             } else {
-              index = this.fileSelect.paths.findIndex(item => item.fid === fid);
-              if (index !== -1) {
-                this.fileSelect.paths = this.fileSelect.paths.slice(0, index + 1)
-              } else {
-                this.fileSelect.paths.push({ fid: fid, name: name })
-              }
+                if (fid === "0") {
+                    this.fileSelect.paths = [];
+                } else {
+                    let index = this.fileSelect.paths.findIndex(item => item.fid === fid);
+                    if (index !== -1) {
+                        this.fileSelect.paths = this.fileSelect.paths.slice(0, index + 1);
+                    } else {
+                        this.fileSelect.paths.push({ fid: fid, name: name });
+                    }
+                }
+                this.getSavepathDetail(fid);
             }
-            this.getSavepathDetail(fid);
-          }
         },
         selectCurrentFolder(addTaskname = false) {
-          if (this.fileSelect.selectShare) {
-            this.formData.tasklist[this.fileSelect.index].shareurl_ban = undefined;
-            this.formData.tasklist[this.fileSelect.index].shareurl = this.fileSelect.shareurl;
-          } else {
-            this.formData.tasklist[this.fileSelect.index].savepath = "/" + this.fileSelect.paths.map(item => item.name).join("/");
-            if (addTaskname) {
-              this.formData.tasklist[this.fileSelect.index].savepath += "/" + this.formData.tasklist[this.fileSelect.index].taskname
-            }
+          let newPath = "/" + this.fileSelect.paths.map(item => item.name).join("/");
+          if (addTaskname) {
+            newPath += "/" + this.formData.tasklist[this.fileSelect.index].taskname;
           }
-          $('#fileSelectModal').modal('hide')
-        },
-        selectStartFid(fid) {
-          Vue.set(this.formData.tasklist[this.fileSelect.index], 'startfid', fid);
-          $('#fileSelectModal').modal('hide')
-        },
-        getShareurl(shareurl, dir = {}) {
-          if (dir == {} || dir.fid == 0) {
-            shareurl = shareurl.match(`.*s/[a-z0-9]+(\\?pwd=[^#]+)?`)[0]
-          } else if (shareurl.includes(dir.fid)) {
-            shareurl = shareurl.match(`.*/${dir.fid}[^/]*`)[0]
-          } else if (shareurl.includes('#/list/share')) {
-            shareurl = `${shareurl}/${dir.fid}-${dir.name?.replace('-', '*101')}`
-          } else {
-            shareurl = `${shareurl}#/list/share/${dir.fid}-${dir.name?.replace('-', '*101')}`
-          }
-          return shareurl;
+          console.log(`[selectCurrentFolder] 为索引 ${this.fileSelect.index} 设置路径: "${newPath}"`);
+          this.formData.tasklist[this.fileSelect.index].savepath = newPath || "/";
+          this.updateTaskDirs();
+          $('#fileSelectModal').modal('hide');
         },
         sortFileList(column, order) {
-          if (this.fileSelect.sortBy === column && !order) {
-            this.fileSelect.sortOrder = this.fileSelect.sortOrder === "asc" ? "desc" : "asc";
-          } else {
-            this.fileSelect.sortBy = column;
-            this.fileSelect.sortOrder = order || "asc";
+            if (this.fileSelect.sortBy === column && !order) {
+                this.fileSelect.sortOrder = this.fileSelect.sortOrder === "asc" ? "desc" : "asc";
+            } else {
+                this.fileSelect.sortBy = column;
+                this.fileSelect.sortOrder = order || "asc";
+            }
+            this.fileSelect.fileList.sort((a, b) => {
+                let valA = a[this.fileSelect.sortBy];
+                let valB = b[this.fileSelect.sortBy];
+                if (typeof valA === "string") valA = valA.toLowerCase();
+                if (typeof valB === "string") valB = valB.toLowerCase();
+                if (valA < valB) return this.fileSelect.sortOrder === "asc" ? -1 : 1;
+                if (valA > valB) return this.fileSelect.sortOrder === "asc" ? 1 : -1;
+                return 0;
+            });
+        },
+        // --- 结束: 带有日志记录的路径选择旧逻辑 ---
+
+        selectStartFid(fid){const t=this.getTaskById(this.fileSelect.task_id);if(t){this.$set(t,'startfid',fid);$('#fileSelectModal').modal('hide')}},
+        getShareurl(url,dir={}){if(Object.keys(dir).length===0||dir.fid==0){url=url.match(`.*s/[a-z0-9]+(\\?pwd=[^#]+)?`)[0]}else if(url.includes(dir.fid)){url=url.match(`.*/${dir.fid}[^/]*`)[0]}else if(url.includes('#/list/share')){url=`${url}/${dir.fid}-${dir.name?.replace('-','*101')}`}else{url=`${url}#/list/share/${dir.fid}-${dir.name?.replace('-','*101')}`}return url;},
+        deleteFile(fid,fname,isDir){if(fid!=""){axios.post('/delete_file',{fid:fid}).then(r=>{if(r.data.code==0){this.fileSelect.fileList=this.fileSelect.fileList.filter(i=>i.fid!=fid);this.showActionNotification(`已删除${isDir?'目录':'文件'} [${fname}]`);}else{this.showActionNotification('删除失败：'+r.data.message,"error");}}).catch(e=>{console.error('删除文件出错:',e);this.showActionNotification('删除文件出错',"error");});}},
+        fetchCurrentLog() {
+          axios.get('/get_current_log')
+            .then(response => {
+              if (response.data.success) {
+                if (response.data.log) {
+                  if (this.run_log_page !== response.data.log) {
+                    console.log('日志已更新');
+                    const oldLog = this.run_log_page;
+                    this.run_log_page = response.data.log;
+                    
+                    if (this.run_log_page.includes('任务异常结束') && !this.errorNotified) {
+                      this.errorNotified = true;
+                      this.showActionNotification("任务异常结束，请查看日志获取详情", "error");
+                    }
+                    
+                    if (this.run_log_page.trim() !== '') {
+                      this.$nextTick(() => {
+                        const el = document.querySelector('.log-panel');
+                        if (el) el.scrollTop = el.scrollHeight;
+                      });
+                    }
+                  }
+                }
+                
+                if (response.data.running) {
+                  console.log('任务仍在运行中');
+                  this.modalLoading = true;
+                } else {
+                  console.log('任务已完成或未运行');
+                  this.modalLoading = false;
+                  
+                  if (this.run_log_page.includes('任务异常结束') && !this.errorNotified) {
+                    this.errorNotified = true;
+                    this.showActionNotification("任务异常结束，请查看日志获取详情", "error");
+                  }
+                }
+              }
+            })
+            .catch(error => {
+              console.error('获取当前日志失败:', error);
+            });
+        },
+        startLogRefresh() {
+          console.log('开始日志刷新');
+          this.stopLogRefresh();
+          this.logRefreshTimer = setInterval(() => {
+            console.log('定时刷新日志');
+            this.fetchCurrentLog();
+          }, 3000);
+        },
+        stopLogRefresh() {
+          if (this.logRefreshTimer) {
+            console.log('停止日志刷新');
+            clearInterval(this.logRefreshTimer);
+            this.logRefreshTimer = null;
           }
-
-          this.fileSelect.fileList.sort((a, b) => {
-            let valA = a[this.fileSelect.sortBy];
-            let valB = b[this.fileSelect.sortBy];
-
-            if (typeof valA === "string") valA = valA.toLowerCase();
-            if (typeof valB === "string") valB = valB.toLowerCase();
-
-            if (valA < valB) return this.fileSelect.sortOrder === "asc" ? -1 : 1;
-            if (valA > valB) return this.fileSelect.sortOrder === "asc" ? 1 : -1;
-            return 0;
-          });
-        }
+        },
+        showActionNotification(message,type="success"){const notification=document.getElementById('actionNotification');const messageEl=document.getElementById('actionMessage');messageEl.textContent=message;if(type==="error"){notification.style.backgroundColor="#dc3545";}else{notification.style.backgroundColor="var(--primary-color)";}
+          notification.classList.add('show');notification.classList.remove('hide');setTimeout(()=>{notification.classList.remove('show');notification.classList.add('hide');},3000);},
+        copyToken() {
+          const tokenInput = document.querySelector('input[v-model="formData.api_token"]');
+          if (tokenInput) {
+            const textarea = document.createElement('textarea');
+            textarea.value = this.formData.api_token;
+            textarea.style.position = 'absolute';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            this.showActionNotification('Token已复制到剪贴板');
+          }
+        },
+        pasteCookie(index) {
+          // 使用Vue的方式先清空输入框
+          this.$set(this.formData.cookie, index, "");
+          
+          // 然后读取剪贴板内容并粘贴
+          navigator.clipboard.readText()
+            .then(text => {
+              this.$set(this.formData.cookie, index, text);
+              this.configModified = true;
+              this.showActionNotification('已成功粘贴Cookie');
+            })
+            .catch(err => {
+              console.error('粘贴失败:', err);
+              this.showActionNotification('粘贴失败，请手动粘贴', 'error');
+            });
+        },
+        checkRunningTask() {
+          axios.get('/get_current_log')
+            .then(response => {
+              if (response.data.success) {
+                if (response.data.log && response.data.log.trim() !== '') {
+                  this.run_log_page = response.data.log;
+                  this.activeTab = 'logs';
+                  this.startLogRefresh();
+                }
+                if (response.data.running) {
+                  console.log('检测到任务正在运行，自动切换到日志页面');
+                  this.modalLoading = true;
+                  this.activeTab = 'logs';
+                  this.startLogRefresh();
+                }
+              }
+            })
+            .catch(error => {
+              console.error('检查运行任务失败:', error);
+              setTimeout(() => this.checkRunningTask(), 3000);
+            });
+        },
+        resetTaskStatus() {
+          if (confirm("确定要重置任务状态吗？这将终止所有正在运行的任务。")) {
+            this.modalLoading = true;
+            this.errorNotified = false;
+            axios.post('/reset_task_status')
+              .then(response => {
+                if (response.data.success) {
+                  this.showActionNotification("任务状态已重置");
+                  this.activeTab = 'logs';
+                  this.fetchCurrentLog();
+                } else {
+                  this.showActionNotification("重置失败: " + response.data.message, "error");
+                }
+              })
+              .catch(error => {
+                console.error('重置任务状态失败:', error);
+                this.showActionNotification("重置任务状态失败", "error");
+              })
+              .finally(() => {
+                this.modalLoading = false;
+              });
+          }
+        },
       }
     });
   </script>
 </body>
-
 </html>

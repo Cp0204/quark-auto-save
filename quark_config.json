@@ -1,15 +1,51 @@
 {
   "cookie": [
-    "Your pan.quark.cn Cookie1, Only this one will do save task."
+    "在此处填写你的夸克网盘Cookie。第一个Cookie将用于执行转存任务。",
+    "可以填写多个Cookie作为备用，以防第一个Cookie失效。"
   ],
   "push_config": {
     "QUARK_SIGN_NOTIFY": true,
+    "PUSH_PLUS_TOKEN": "",
     "其他推送渠道//此项可删": "配置方法同青龙"
   },
   "plugins": {
+    "alist": {
+      "url": "",
+      "token": "",
+      "storage_id": ""
+    },
+    "alist_strm": {
+      "url": "",
+      "cookie": "",
+      "config_id": ""
+    },
+    "alist_strm_gen": {
+      "url": "",
+      "token": "",
+      "storage_id": "",
+      "strm_save_dir": "/media",
+      "strm_replace_host": ""
+    },
+    "alist_sync": {
+      "url": "",
+      "token": "",
+      "quark_storage_id": "",
+      "save_storage_id": "",
+      "tv_mode": ""
+    },
+    "aria2": {
+      "host_port": "http://127.0.0.1:6800/jsonrpc",
+      "secret": "",
+      "dir": "/Downloads"
+    },
     "emby": {
       "url": "",
       "token": ""
+    },
+    "plex": {
+      "url": "",
+      "token": "",
+      "quark_root_path": ""
     }
   },
   "magic_regex": {
@@ -30,43 +66,81 @@
       "replace": "{TASKNAME}.{SXX}E{E}.{EXT}"
     }
   },
+  "global_regex": {
+    "enabled": false,
+    "pattern": "^(.*?)(广告内容1|广告内容2)?(\\.\\w+)?$",
+    "replace": "\\1\\3"
+  },
+  "file_blacklist": [
+    "要全局忽略的文件名或关键词1",
+    "要全局忽略的文件名或关键词2.txt"
+  ],
   "tasklist": [
     {
+      "id": "task_example_1",
       "taskname": "测试-魔法匹配剧集（这是一组有效分享，配置CK后可测试任务是否正常）",
       "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-夸克自动转存测试",
       "savepath": "/夸克自动转存测试/剧集",
       "pattern": "$TV",
       "replace": "",
       "enddate": "2099-01-30",
-      "update_subdir": "4k|1080p"
+      "update_subdir": "4k|1080p",
+      "runweek": [1, 2, 3, 4, 5, 6, 7],
+      "addition": {
+        "aria2": {
+          "auto_download": false
+        }
+      }
     },
     {
+      "id": "task_example_2",
       "taskname": "测试-综艺命名",
       "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-%E5%A4%B8%E5%85%8B%E8%87%AA%E5%8A%A8%E8%BD%AC%E5%AD%98%E6%B5%8B%E8%AF%95/71df3902f42d4270a58c0eb12aa2b014-%E7%BB%BC%E8%89%BA%E5%91%BD%E5%90%8D",
       "savepath": "/夸克自动转存测试/综艺命名",
       "pattern": "^(?!.*纯享)(?!.*加更)(?!.*抢先)(?!.*预告).*?第\\d+期.*",
-      "replace": "{II}.{TASKNAME}.{DATE}.第{E}期{PART}.{EXT}"
+      "replace": "{II}.{TASKNAME}.{DATE}.第{E}期{PART}.{EXT}",
+      "runweek": [1, 2, 3, 4, 5, 6, 7],
+      "addition": {}
     },
     {
+      "id": "task_example_3",
       "taskname": "测试-去广告字符",
       "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-夸克自动转存测试/680d91e490814da0927c38b432f88edc-带广告文件夹",
       "savepath": "/夸克自动转存测试/去广告字符",
       "pattern": "【XX电影网】(.*)\\.(mp4|mkv)",
       "replace": "\\1.\\2",
-      "enddate": "2099-01-30"
+      "enddate": "2099-01-30",
+      "runweek": [1, 2, 3, 4, 5, 6, 7],
+      "addition": {}
     },
     {
+      "id": "task_example_4",
       "taskname": "测试-超期任务",
       "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-夸克自动转存测试",
       "savepath": "/夸克自动转存测试/不会运行",
       "pattern": "",
       "replace": "",
       "enddate": "2000-01-30",
-      "runweek": [
-        2,
-        4,
-        6
-      ]
+      "runweek": [2, 4, 6],
+      "addition": {}
     }
-  ]
+  ],
+  "webui": {
+    "username": "admin",
+    "password": "admin123"
+  },
+  "crontab": "0 7-23/2 * * *",
+  "source": {
+    "cloudsaver": {
+      "server": "",
+      "username": "",
+      "password": "",
+      "token": ""
+    }
+  },
+  "shortcuts": {
+    "saveEnabled": true,
+    "runEnabled": false,
+    "autoSaveEnabled": true
+  }
 }

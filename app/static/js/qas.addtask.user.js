@@ -2,14 +2,15 @@
 // @name         QAS一键推送助手
 // @namespace    https://github.com/Cp0204/quark-auto-save
 // @license      AGPL
-// @version      0.4
-// @description  在夸克网盘分享页面添加推送到 QAS 的按钮
+// @version      0.7-custom
+// @description  在夸克网盘分享页面添加推送到 QAS 的按钮。修改为直接获取文件名作为任务名，且不将任务名附加到保存路径。
 // @icon         https://pan.quark.cn/favicon.ico
-// @author       Cp0204
+// @author       Cp0204 (Modified by Gemini)
 // @match        https://pan.quark.cn/s/*
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_xmlhttpRequest
+// @grant        GM_registerMenuCommand
 // @require      https://cdn.jsdelivr.net/npm/sweetalert2@11
 // @downloadURL  https://cdn.jsdelivr.net/gh/Cp0204/quark-auto-save@refs/heads/main/app/static/js/qas.addtask.user.js
 // @updateURL    https://cdn.jsdelivr.net/gh/Cp0204/quark-auto-save@refs/heads/main/app/static/js/qas.addtask.user.js
@@ -30,23 +31,24 @@
             showCancelButton: true,
             html: `
                 <label for="qas_base">QAS 地址</label>
-                <input id="qas_base" class="swal2-input" placeholder="如: http://192.168.1.8:5005" value="${qas_base}"><br>
+                <input id="qas_base" class="swal2-input" placeholder="如: http://192.168.1.8:5005" value="${qas_base}">
                 <label for="qas_token">QAS Token</label>
-                <input id="qas_token" class="swal2-input" placeholder="v0.5+ 系统配置中查找" value="${qas_token}"><br>
-                <label for="qas_token">默认正则</label>
-                <input id="default_pattern" class="swal2-input" placeholder="如 $TV" value="${default_pattern}"><br>
-                <label for="qas_token">默认替换</label><input id="default_replace" class="swal2-input" value="${default_replace}">
+                <input id="qas_token" class="swal2-input" placeholder="v0.5+ 系统配置中查找" value="${qas_token}">
+                <label for="default_pattern">默认正则</label>
+                <input id="default_pattern" class="swal2-input" placeholder="如 $TV" value="${default_pattern}">
+                <label for="default_replace">默认替换</label>
+                <input id="default_replace" class="swal2-input" value="${default_replace}">
             `,
             focusConfirm: false,
             preConfirm: () => {
-                qas_base = document.getElementById('qas_base').value;
-                qas_token = document.getElementById('qas_token').value;
-                default_pattern = document.getElementById('default_pattern').value;
-                default_replace = document.getElementById('default_replace').value;
-                if (!qas_base || !qas_token) {
+                const base = document.getElementById('qas_base').value;
+                const token = document.getElementById('qas_token').value;
+                const pattern = document.getElementById('default_pattern').value;
+                const replace = document.getElementById('default_replace').value;
+                if (!base || !token) {
                     Swal.showValidationMessage('请填写 QAS 地址和 Token');
                 }
-                return { qas_base: qas_base, qas_token: qas_token, default_pattern: default_pattern, default_replace: default_replace }
+                return { qas_base: base, qas_token: token, default_pattern: pattern, default_replace: replace }
             }
         }).then((result) => {
             if (result.isConfirmed) {
@@ -54,38 +56,24 @@
                 GM_setValue('qas_token', result.value.qas_token);
                 GM_setValue('default_pattern', result.value.default_pattern);
                 GM_setValue('default_replace', result.value.default_replace);
+
+                // Update live variables
                 qas_base = result.value.qas_base;
                 qas_token = result.value.qas_token;
                 default_pattern = result.value.default_pattern;
                 default_replace = result.value.default_replace;
+
                 if (callback) {
-                    callback(); // 执行回调函数
+                    callback(); // Execute the callback function if it exists
                 }
             }
         });
     }
 
-    // 添加 QAS 设置按钮
-    function addQASSettingButton() {
-        function waitForElement(selector, callback) {
-            const element = document.querySelector(selector);
-            if (element) {
-                callback(element);
-            } else {
-                setTimeout(() => waitForElement(selector, callback), 500);
-            }
-        }
-
-        waitForElement('.DetailLayout--client-download--FpyCkdW.ant-dropdown-trigger', (clientDownloadButton) => {
-            const qasSettingButton = document.createElement('div');
-            qasSettingButton.className = 'DetailLayout--client-download--FpyCkdW ant-dropdown-trigger';
-            qasSettingButton.innerHTML = 'QAS设置';
-
-            qasSettingButton.addEventListener('click', () => {
-                showQASSettingDialog();
-            });
-
-            clientDownloadButton.parentNode.insertBefore(qasSettingButton, clientDownloadButton.nextSibling);
+    // 注册油猴菜单命令
+    function registerMenuCommands() {
+        GM_registerMenuCommand('QAS 设置', () => {
+            showQASSettingDialog();
         });
     }
 
@@ -107,31 +95,36 @@
             qasButton.style.marginLeft = '10px';
             qasButton.innerHTML = '<span class="share-save-ico"></span><span>创建QAS任务</span>';
 
-            let taskname, shareurl, savepath; // 声明变量
+            let taskname, shareurl, savepath; // Declare variables
 
-            // 获取数据函数
             function getData() {
                 const currentUrl = window.location.href;
-                taskname = currentUrl.lastIndexOf('-') > 0 ? decodeURIComponent(currentUrl.match(/.*\/[^-]+-(.+)$/)[1]).replace('*101', '-') : document.querySelector('.author-name').textContent;
+
+                // ==================== 修改点 1: taskname 获取方式 ====================
+                // 直接从页面文件列表的第一个文件名中获取任务名
+                const fileNameElement = document.querySelector('.filename-text');
+                taskname = fileNameElement ? fileNameElement.title : '未知任务'; // 使用 .title 以获取完整文件名
+
                 shareurl = currentUrl;
-                let pathElement = document.querySelector('.path-name');
+
+                // ==================== 修改点 2: savepath 获取方式 ====================
+                const pathElement = document.querySelector('.path-name');
+                // 只获取路径，不附加任务名
                 savepath = pathElement ? pathElement.title.replace('全部文件', '').trim() : "";
-                savepath += "/" + taskname;
+
+                // 如果 savepath 为空（即根目录），则设置为 "/"
+                if (savepath === "") {
+                    savepath = "/";
+                }
+
                 qasButton.title = `任务名称: ${taskname}\n分享链接: ${shareurl}\n保存路径: ${savepath}`;
             }
 
+            qasButton.addEventListener('mouseover', getData);
 
-            // 添加鼠标悬停事件
-            qasButton.addEventListener('mouseover', () => {
-                getData(); // 鼠标悬停时获取数据
-            });
+            function createQASTask() {
+                getData();
 
-
-            // 添加点击事件
-            qasButton.addEventListener('click', () => {
-                getData(); // 点击时重新获取数据，确保最新
-
-                // 检查 qas_base 是否包含 http 或 https，如果没有则添加 http://
                 let qasApiBase = qas_base;
                 if (!qasApiBase.startsWith('http')) {
                     qasApiBase = 'http://' + qasApiBase;
@@ -163,7 +156,7 @@
                                            <b>任务名称:</b> ${taskname}<br><br>
                                            <b>保存路径:</b> ${savepath}<br><br>
                                            <a href="${qasApiBase}" target="_blank">去 QAS 查看</a>
-                                           <small>`,
+                                           </small>`,
                                     icon: 'success'
                                 });
                             } else {
@@ -182,29 +175,35 @@
                         }
                     },
                     onerror: function (error) {
+                        console.error("QAS Connection Error Details:", error);
                         Swal.fire({
                             title: '任务创建失败',
-                            text: error,
-                            icon: 'error'
+                            html: '无法连接到您的 QAS 服务器。<br>这很可能是一个网络或配置问题。',
+                            icon: 'error',
+                            footer: '<div style="text-align: left; font-size: 0.9em; line-height: 1.5;"><b>请检查以下几点：</b><br>' +
+                                    '1. QAS 地址 (<code>' + qas_base + '</code>) 是否填写正确？<br>' +
+                                    '2. 运行 QAS 的设备（如NAS、电脑）是否已开机并在同一网络下？<br>' +
+                                    '3. QAS 服务程序是否已正常启动？<br>' +
+                                    '4. 您能否在浏览器新标签页中直接访问您的 QAS 地址？</div>'
                         });
                     }
                 });
+            }
+
+            qasButton.addEventListener('click', () => {
+                if (!qas_base || !qas_token) {
+                    showQASSettingDialog(createQASTask);
+                } else {
+                    createQASTask();
+                }
             });
 
             saveButton.parentNode.insertBefore(qasButton, saveButton.nextSibling);
         });
     }
 
-    // 初始化
     (function init() {
-        addQASSettingButton();
-
-        if (!qas_base || !qas_token) {
-            showQASSettingDialog(() => {
-                addQASButton(); // 在设置后添加 QAS 按钮
-            });
-        } else {
-            addQASButton(); // 如果配置存在，则直接添加 QAS 按钮
-        }
-    })(); // 立即执行初始化
+        registerMenuCommands();
+        addQASButton();
+    })();
 })();
