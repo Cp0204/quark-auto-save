@@ -4187,6 +4187,11 @@ select.task-filter-select,
   color: var(--focus-border-color);
 }
 
+/* 文件整理页面面包屑导航当前目录样式 */
+.file-manager-breadcrumb .breadcrumb-item .text-muted {
+  color: var(--dark-text-color) !important;
+}
+
 /* 隐藏Bootstrap默认的面包屑分隔符 */
 .file-manager-breadcrumb .breadcrumb-item + .breadcrumb-item::before {
   color: var(--dark-text-color);
