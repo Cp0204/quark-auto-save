@@ -98,12 +98,13 @@ body.login-page {
 }
 
 .toast-custom {
-  min-width: 134px;
+  min-width: 120px;
   background-color: var(--focus-border-color);
   box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
   border: none;
   border-radius: 6px;
   margin: 0 auto;
+  width: fit-content;
 }
 
 .toast-body-custom {
@@ -3843,10 +3844,14 @@ tr.selected-record .expand-button {
   z-index: 2;
 }
 
-/* 当鼠标悬停在展开按钮或删除按钮上时，不改变按钮的背景色 */
-table.selectable-records .expand-button:hover,
-table.selectable-records .delete-record-btn:hover {
+/* 当鼠标悬停在展开按钮上时，不改变按钮的背景色 */
+table.selectable-records .expand-button:hover {
   background-color: transparent !important;
+}
+
+/* 转存记录页面删除按钮悬停效果 */
+table.selectable-records .delete-record-btn:hover {
+  color: #b02a37 !important;
 }
 
 /* 选中行或鼠标悬停行的大小列样式 */
@@ -4235,7 +4240,7 @@ select.task-filter-select,
 
 /* 文件整理页面刷新当前目录缓存按钮图标大小 */
 .batch-rename-btn .bi-arrow-clockwise {
-  font-size: 1.15rem;
+  font-size: 1.17rem;
 }
 
 /* 确保文件整理页面的Plex和AList按钮样式与任务列表一致 */
@@ -4566,10 +4571,19 @@ tr.selected-file .expand-button {
   z-index: 2;
 }
 
-/* 当鼠标悬停在展开按钮或删除按钮上时，不改变按钮的背景色 */
-table.selectable-files .expand-button:hover,
-table.selectable-files .delete-record-btn:hover {
+/* 当鼠标悬停在展开按钮上时，不改变按钮的背景色 */
+table.selectable-files .expand-button:hover {
   background-color: transparent !important;
+}
+
+/* 文件整理页面重命名按钮悬停效果 */
+table.selectable-files .rename-record-btn:hover {
+  color: #0A42CC !important;
+}
+
+/* 文件整理页面删除按钮悬停效果 */
+table.selectable-files .delete-record-btn:hover {
+  color: #b02a37 !important;
 }
 
 /* 选中行或鼠标悬停行的大小列样式 */
@@ -4677,13 +4691,7 @@ table.selectable-records tr td {
   vertical-align: top !important; /* 确保展开后所有单元格内容顶部对齐 */
 }
 
-/* 确保删除按钮在展开行中的位置保持不变 */
-tr:has(.expanded-text) .delete-record-btn,
-#fileSelectModal .table tr:has([style*="white-space: normal"]) .delete-record-btn,
-.selectable-files tr:has([style*="white-space: normal"]) .delete-record-btn {
-  top: 8px !important; /* 强制固定位置 */
-  transform: none !important; /* 确保不使用任何转换 */
-}
+
 
 /* 文件大小列中展开行的删除按钮特殊处理 */
 tr:has(.expanded-text) .file-size-cell .delete-record-btn,
@@ -4692,8 +4700,19 @@ tr:has(.expanded-text) .file-size-cell .delete-record-btn,
 .selectable-files tr:has([style*="white-space: normal"]) .file-size-cell .delete-record-btn {
   top: 8px !important; /* 强制固定位置 */
   transform: none !important; /* 确保不使用任何转换 */
-  display: flex !important; /* 确保显示 */
-  left: 9px !important; /* 确保左边距固定 */
+  left: 32px !important; /* 确保左边距固定，在重命名按钮右侧 */
+  /* 不设置display，保持默认的隐藏状态 */
+}
+
+/* 文件大小列中展开行的重命名按钮特殊处理 */
+tr:has(.expanded-text) .file-size-cell .rename-record-btn,
+.selectable-records tbody tr:has(.expanded-text) .file-size-cell .rename-record-btn,
+#fileSelectModal .table tr:has([style*="white-space: normal"]) .file-size-cell .rename-record-btn,
+.selectable-files tr:has([style*="white-space: normal"]) .file-size-cell .rename-record-btn {
+  top: 8px !important; /* 强制固定位置 */
+  transform: none !important; /* 确保不使用任何转换 */
+  left: 5px !important; /* 确保左边距固定 */
+  /* 不设置display，保持默认的隐藏状态 */
 }
 
 /* 修复删除按钮位置问题 - 使用更强制的方法 */
@@ -4754,29 +4773,8 @@ tr.selected-record .file-size-cell .delete-record-btn,
   transform: none !important; /* 强制禁用任何转换 */
 }
 
-/* 确保在展开行中删除按钮位置保持不变 - 对所有可能的情况进行覆盖 */
-tr:has(.expanded-text) .delete-record-btn,
-tr.selected-record:has(.expanded-text) .delete-record-btn,
-.selectable-records tbody tr:has(.expanded-text) .delete-record-btn,
-.selectable-records tbody tr:hover:has(.expanded-text) .delete-record-btn,
-#fileSelectModal .table tr:has([style*="white-space: normal"]) .delete-record-btn,
-.selectable-files tr:has([style*="white-space: normal"]) .delete-record-btn {
-  top: 8px !important; /* 强制固定位置 */
-  transform: none !important; /* 强制禁用任何转换 */
-}
 
-/* 文件大小列中展开行的删除按钮特殊处理 - 对所有可能的情况进行覆盖 */
-tr:has(.expanded-text) .file-size-cell .delete-record-btn,
-tr.selected-record:has(.expanded-text) .file-size-cell .delete-record-btn,
-.selectable-records tbody tr:has(.expanded-text) .file-size-cell .delete-record-btn,
-.selectable-records tbody tr:hover:has(.expanded-text) .file-size-cell .delete-record-btn,
-#fileSelectModal .table tr:has([style*="white-space: normal"]) .file-size-cell .delete-record-btn,
-.selectable-files tr:has([style*="white-space: normal"]) .file-size-cell .delete-record-btn {
-  top: 8px !important; /* 强制固定位置 */
-  transform: none !important; /* 强制禁用任何转换 */
-  display: flex !important; /* 确保显示 */
-  left: 9px !important; /* 确保左边距固定 */
-}
+
 
 /* 文件整理页面表格行悬停样式 */
 .selectable-files tbody tr:hover {
@@ -4785,25 +4783,57 @@ tr.selected-record:has(.expanded-text) .file-size-cell .delete-record-btn,
 
 /* --------------- 文件整理页面样式 --------------- */
 
+/* 重命名按钮样式 */
+.selectable-files .rename-record-btn {
+  color: var(--focus-border-color);
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  position: absolute;
+  left: 5px; /* 靠左放置 */
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+}
+
+/* 文件整理页面的重命名文件按钮图标大小 */
+.selectable-files .rename-record-btn .bi-pencil {
+  font-size: 0.98rem;
+  position: relative;
+  left: 0.5px;
+}
+
 /* 删除按钮样式调整 */
 .selectable-files .delete-record-btn {
   color: #dc3545;
   cursor: pointer;
   display: none;
   align-items: center;
-  justify-content: flex-start; /* 居左对齐 */
+  justify-content: center;
   width: 24px;
   height: 24px;
   border-radius: 4px;
-  transition: background-color 0.2s ease;
   position: absolute;
   right: auto; /* 移除右对齐 */
-  left: 9px; /* 与大小值保持相同的左边距 */
+  left: 32px; /* 在重命名按钮右侧，调整间距 */
   top: 50%;
   transform: translateY(-50%);
+  font-size: 14px;
 }
 
-/* 修复：确保在悬停和选中状态下删除按钮显示 */
+/* 文件大小单元格需要相对定位以容纳绝对定位的按钮 */
+.selectable-files .file-size-cell {
+  position: relative;
+  min-width: 80px;
+}
+
+/* 修复：确保在悬停和选中状态下重命名和删除按钮显示 */
+.selectable-files tr:hover .file-size-cell .rename-record-btn,
+.selectable-files tr.selected-file .file-size-cell .rename-record-btn,
 .selectable-files tr:hover .file-size-cell .delete-record-btn,
 .selectable-files tr.selected-file .file-size-cell .delete-record-btn {
   display: inline-flex !important;
@@ -4817,52 +4847,92 @@ tr.selected-record:has(.expanded-text) .file-size-cell .delete-record-btn,
   visibility: hidden !important;
 }
 
-/* 修复：确保在悬停和选中状态下删除按钮显示 */
-.selectable-files tbody tr:hover .file-size-cell .delete-record-btn,
-.selectable-files tr.selected-file .file-size-cell .delete-record-btn {
-  display: flex !important;
+/* 重命名输入框样式 - 使用更高优先级 */
+.selectable-files .rename-input {
+  flex: 1 !important;
+  min-width: 0 !important;
+  font-size: 0.94rem !important;
+  padding: 4px 5.5px !important;
+  border: 1px solid var(--focus-border-color) !important;
+  border-radius: 6px !important;
+  outline: none !important;
+  background-color: #fff !important;
+  height: auto !important;
+  line-height: 1.2 !important;
+  box-sizing: border-box !important;
+  margin-top: -2px !important;
+  margin-bottom: -2px !important;
+}
+
+.selectable-files .rename-input:focus {
+  border-color: var(--focus-border-color) !important;
+  box-shadow: none !important;
+}
+
+/* 确保文件整理页面的重命名按钮在悬停和选中状态下始终可见 - 最高优先级 */
+body .selectable-files tbody tr:hover .file-size-cell .rename-record-btn,
+body .selectable-files tr.selected-file .file-size-cell .rename-record-btn {
+  display: inline-flex !important;
   visibility: visible !important;
   position: absolute !important;
-  top: 8px !important;
-  left: 9px !important;
-  transform: none !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  left: 5px !important;
+  width: 24px !important;
   height: 24px !important;
-  width: auto !important;
   align-items: center !important;
-  justify-content: flex-start !important;
-  z-index: 5 !important; /* 确保删除按钮在其他元素之上 */
-}
-
-/* 修复文件大小列中的删除按钮特殊处理 */
-.selectable-files .file-size-cell .delete-record-btn {
-  position: absolute !important;
-  left: 9px !important;
-  top: 8px !important;
-  transform: none !important;
-  display: none; /* 默认隐藏 */
-  visibility: hidden; /* 默认隐藏 */
-}
-
-/* 修复：确保在悬停和选中状态下文件大小值隐藏 */
-.selectable-files tbody tr:hover .file-size-cell .file-size-value,
-.selectable-files tr.selected-file .file-size-cell .file-size-value {
-  display: none !important;
-  visibility: hidden !important;
+  justify-content: center !important;
+  z-index: 5 !important;
+  opacity: 1 !important;
 }
 
 /* 确保文件整理页面的删除按钮在悬停和选中状态下始终可见 - 最高优先级 */
 body .selectable-files tbody tr:hover .file-size-cell .delete-record-btn,
 body .selectable-files tr.selected-file .file-size-cell .delete-record-btn {
-  display: flex !important;
+  display: inline-flex !important;
+  visibility: visible !important;
+  position: absolute !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  left: 32px !important;
+  width: 24px !important;
+  height: 24px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 5 !important;
+  opacity: 1 !important;
+}
+
+/* 展开状态下的重命名按钮悬停和选中状态 - 最高优先级 */
+body .selectable-files tbody tr:hover:has([style*="white-space: normal"]) .file-size-cell .rename-record-btn,
+body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .file-size-cell .rename-record-btn {
+  display: inline-flex !important;
   visibility: visible !important;
   position: absolute !important;
   top: 8px !important;
-  left: 9px !important;
   transform: none !important;
+  left: 5px !important;
+  width: 24px !important;
   height: 24px !important;
-  width: auto !important;
   align-items: center !important;
-  justify-content: flex-start !important;
+  justify-content: center !important;
+  z-index: 5 !important;
+  opacity: 1 !important;
+}
+
+/* 展开状态下的删除按钮悬停和选中状态 - 最高优先级 */
+body .selectable-files tbody tr:hover:has([style*="white-space: normal"]) .file-size-cell .delete-record-btn,
+body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .file-size-cell .delete-record-btn {
+  display: inline-flex !important;
+  visibility: visible !important;
+  position: absolute !important;
+  top: 8px !important;
+  transform: none !important;
+  left: 32px !important;
+  width: 24px !important;
+  height: 24px !important;
+  align-items: center !important;
+  justify-content: center !important;
   z-index: 5 !important;
   opacity: 1 !important;
 }
@@ -4971,15 +5041,7 @@ body .selectable-files tr.selected-file .file-size-cell .delete-record-btn {
   vertical-align: top !important; /* 强制文件大小列顶部对齐 */
 }
 
-/* 确保文件大小列中的删除按钮在展开状态下位置正确 */
-.selectable-files tr:has([style*="white-space: normal"]) .file-size-cell .delete-record-btn,
-.selectable-files tr:has(div:not(.text-truncate):not(.expand-button):not(.d-flex)) .file-size-cell .delete-record-btn {
-  top: 8px !important; /* 强制固定位置 */
-  transform: none !important; /* 强制禁用任何转换 */
-  display: flex !important; /* 确保显示 */
-  left: 9px !important; /* 确保左边距固定 */
-  position: absolute !important; /* 强制绝对定位 */
-}
+
 
 /* 确保选中状态下文件整理页面的展开按钮也保持白色背景 */
 .selectable-files .expand-button {

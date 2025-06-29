@@ -1151,7 +1151,7 @@
                 <thead>
                   <tr>
                     <th style="width:80%" class="cursor-pointer" @click="sortFiles('file_name')">文件名 <i v-if="fileManager.sortBy === 'file_name'" :class="fileManager.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
-                    <th style="width:10%; min-width: 60px;" class="cursor-pointer" @click="sortFiles('file_size')">大小 <i v-if="fileManager.sortBy === 'file_size'" :class="fileManager.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
+                    <th style="width:10%; min-width: 80px;" class="cursor-pointer" @click="sortFiles('file_size')">大小 <i v-if="fileManager.sortBy === 'file_size'" :class="fileManager.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
                     <th style="width:10%" class="cursor-pointer" @click="sortFiles('updated_at')">修改日期 <i v-if="fileManager.sortBy === 'updated_at'" :class="fileManager.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
                   </tr>
                 </thead>
@@ -1167,14 +1167,28 @@
                     <td colspan="3" class="text-center">当前文件夹为空</td>
                   </tr>
                   <template v-else>
-                    <tr v-for="(file, index) in fileManager.fileList" :key="file.fid" 
-                        @click="file.dir ? navigateToFolder(file.fid, file.file_name) : selectFileForManager($event, file)"
+                    <tr v-for="(file, index) in fileManager.fileList" :key="file.fid"
+                        @click="handleFileRowClick(file, $event)"
                         :class="{'selected-file': fileManager.selectedFiles.includes(file.fid)}"
                         class="cursor-pointer">
                       <td class="position-relative">
-                        <div v-if="!file._expanded" class="d-flex align-items-center">
+                        <!-- 编辑状态 -->
+                        <div v-if="file._editing" class="d-flex align-items-center" @click.stop>
                           <i class="bi mr-2" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i>
-                          <div class="text-truncate" 
+                          <input
+                            type="text"
+                            class="form-control form-control-sm rename-input"
+                            v-model="file._editingName"
+                            @keyup.enter="saveRenameFile(file)"
+                            @keyup.escape="cancelRenameFile(file)"
+                            @blur="saveRenameFile(file)"
+                            @click.stop
+                            :ref="'renameInput_' + file.fid">
+                        </div>
+                        <!-- 正常显示状态 -->
+                        <div v-else-if="!file._expanded" class="d-flex align-items-center">
+                          <i class="bi mr-2" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i>
+                          <div class="text-truncate"
                               :title="file.file_name"
                               v-check-file-overflow="index + '|file_name'">
                             {{ file.file_name }}
@@ -1183,12 +1197,15 @@
                         <div v-else style="white-space: normal; word-break: break-word; padding-right: 25px;">
                           <i class="bi mr-2" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i>{{ file.file_name }}
                         </div>
-                        <div class="expand-button" v-if="isFilenameTruncated(file.file_name, index, 'file_name')" @click.stop="toggleExpandFilename(file)">
+                        <div class="expand-button" v-if="!file._editing && isFilenameTruncated(file.file_name, index, 'file_name')" @click.stop="toggleExpandFilename(file)">
                           <i :class="file._expanded ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
                         </div>
                       </td>
                       <td class="file-size-cell">
                         <span class="file-size-value">{{ file.dir ? (file.include_items + ' 项') : formatFileSize(file.size || file.file_size) }}</span>
+                        <span class="rename-record-btn" @click.stop="startRenameFile(file)" title="重命名文件">
+                          <i class="bi bi-pencil"></i>
+                        </span>
                         <span class="delete-record-btn" @click.stop="deleteSelectedFilesForManager(file.fid, file.file_name, file.dir)" title="删除文件">
                           <i class="bi bi-trash3"></i>
                         </span>
@@ -4215,6 +4232,31 @@
             this.lastSelectedRecordIndex = -1;
           }
         },
+        // 处理重命名编辑状态的外部点击事件
+        handleRenameOutsideClick(event) {
+          // 如果当前不是文件整理页面，则不处理
+          if (this.activeTab !== 'filemanager') {
+            return;
+          }
+
+          // 检查是否有文件正在编辑状态
+          const editingFile = this.fileManager.fileList.find(file => file._editing);
+          if (!editingFile) {
+            return;
+          }
+
+          // 检查点击是否在重命名按钮上
+          const renameButton = event.target.closest('.rename-record-btn');
+          if (renameButton) {
+            return; // 点击在重命名按钮上，不处理
+          }
+
+          // 点击在任何地方（包括输入框内），都保存重命名并关闭输入框
+          this.saveRenameFile(editingFile);
+
+          // 阻止事件继续传播，避免与其他点击事件处理器冲突
+          event.stopPropagation();
+        },
         selectFileItem(event, fileId) {
           // 如果是在预览模式或选择分享模式，不允许选择
           if (this.fileSelect.previewRegex || this.fileSelect.selectShare) return;
@@ -4930,6 +4972,101 @@
               });
           }
         },
+        // 开始重命名文件
+        startRenameFile(file) {
+          // 设置编辑状态
+          this.$set(file, '_editing', true);
+          this.$set(file, '_editingName', file.file_name);
+
+          // 下一个tick后聚焦输入框并全选文本
+          this.$nextTick(() => {
+            const input = this.$refs['renameInput_' + file.fid];
+            if (input) {
+              input.focus();
+              input.select();
+            }
+          });
+        },
+        // 保存重命名
+        saveRenameFile(file) {
+          if (!file._editing) return;
+
+          const newName = file._editingName.trim();
+
+          // 如果名称没有变化，直接取消编辑
+          if (newName === file.file_name) {
+            this.cancelRenameFile(file);
+            return;
+          }
+
+          // 如果新名称为空，提示错误并恢复原始文件名，然后退出编辑状态
+          if (!newName) {
+            this.showToast('文件名不能为空');
+            // 恢复原始文件名并退出编辑状态
+            this.cancelRenameFile(file);
+            return;
+          }
+
+          // 调用重命名API
+          axios.post('/batch_rename', {
+            files: [{
+              file_id: file.fid,
+              new_name: newName,
+              old_name: file.file_name
+            }],
+            account_index: this.fileManager.selectedAccountIndex
+          })
+            .then(response => {
+              if (response.data.success) {
+                // 更新文件名
+                file.file_name = newName;
+                this.showToast('重命名成功');
+                // 刷新文件列表以确保缓存同步
+                this.refreshCurrentFolderCache();
+                // 如果命名预览模态框是打开的，也要刷新它
+                if ($('#fileSelectModal').hasClass('show')) {
+                  this.showFileManagerNamingPreview(this.fileManager.currentFolder);
+                }
+              } else {
+                this.showToast(response.data.message || '重命名失败');
+              }
+            })
+            .catch(error => {
+              console.error('重命名文件失败:', error);
+              this.showToast('重命名文件失败');
+            })
+            .finally(() => {
+              // 无论成功失败都退出编辑状态
+              this.cancelRenameFile(file);
+            });
+        },
+        // 取消重命名
+        cancelRenameFile(file) {
+          this.$set(file, '_editing', false);
+          this.$set(file, '_editingName', '');
+        },
+        // 处理文件行点击事件
+        handleFileRowClick(file, event) {
+          // 如果文件正在编辑状态，不处理点击事件
+          if (file._editing) {
+            return;
+          }
+
+          // 检查是否有任何文件正在编辑状态
+          const editingFile = this.fileManager.fileList.find(f => f._editing);
+          if (editingFile) {
+            // 如果有其他文件正在编辑，先保存编辑状态
+            this.saveRenameFile(editingFile);
+            return;
+          }
+
+          // 正常处理点击事件
+          if (file.dir) {
+            this.navigateToFolder(file.fid, file.file_name);
+          } else {
+            this.selectFileForManager(event, file);
+          }
+        },
         loadFileList(folderId) {
           this.fileManager.loading = true;
           this.fileManager.currentFolder = folderId || 'root';
@@ -5152,14 +5289,20 @@
           if (this.activeTab !== 'filemanager' || this.fileManager.selectedFiles.length === 0) {
             return;
           }
-          
+
+          // 如果有文件正在编辑状态，不处理文件选择逻辑，让重命名处理器优先处理
+          const editingFile = this.fileManager.fileList.find(file => file._editing);
+          if (editingFile) {
+            return;
+          }
+
           // 检查点击是否在表格内
           const tableElement = document.querySelector('.table.selectable-files');
           // 检查点击是否在分页控制区域
           const paginationElement = document.querySelector('.pagination-container');
-          
+
           // 如果点击不在表格内且不在分页控制区域内，则清除选择
-          if (tableElement && !tableElement.contains(event.target) && 
+          if (tableElement && !tableElement.contains(event.target) &&
               paginationElement && !paginationElement.contains(event.target)) {
             this.fileManager.selectedFiles = [];
             this.fileManager.lastSelectedFileIndex = -1;
@@ -5393,9 +5536,12 @@
         
         // 添加点击事件监听器，用于在点击表格外区域时取消选择记录
         document.addEventListener('click', this.handleOutsideClick);
-        
+
         // 添加点击事件监听器，用于在点击模态框表格外区域时取消选择文件
         document.addEventListener('click', this.handleModalOutsideClick);
+
+        // 添加点击事件监听器，用于处理重命名编辑状态
+        document.addEventListener('click', this.handleRenameOutsideClick);
         
         // 添加模态框关闭事件监听，清空选中文件列表
         $('#fileSelectModal').on('hidden.bs.modal', () => {
@@ -5464,6 +5610,7 @@
         window.removeEventListener('beforeunload', this.handleBeforeUnload);
         // 移除点击事件监听器
         document.removeEventListener('click', this.handleOutsideClick);
+        document.removeEventListener('click', this.handleRenameOutsideClick);
       }
     });
   </script>
