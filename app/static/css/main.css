@@ -3898,7 +3898,7 @@ table.selectable-records .expand-button:hover {
 
 #fileSelectModal[data-modal-type="preview"] .table td.col-rename > * {
   position: relative;
-  top: 3px !important; /* 原来是3.5px，上移0.5px */
+  top: 3px !important;
 }
 
 /* 文件整理页面命名预览模式下的重命名列通用样式 */
@@ -3907,20 +3907,21 @@ table.selectable-records .expand-button:hover {
   top: 3px !important; /* 与任务配置页面保持一致 */
 }
 
-/* 文件名列已经通过图标微调过，保持原样或细微调整 */
+/* 模态框通用文件夹图标样式 */
 #fileSelectModal .bi-folder-fill {
   color: #ffc107;
   font-size: 0.95rem;
-  margin-right: 4.5px;
+  margin-right: 4px !important;
   position: relative;
   top: 0.5px !important; /* 负值向上移动，正值向下移动 */
-  left: -0.55px;
+  left: -0.55px; /* 整体向左移动 */
 }
 
+/* 模态框通用文件图标样式 */
 #fileSelectModal .bi-file-earmark {
   color: var(--dark-text-color);
   font-size: 0.95rem;
-  margin-right: 4.5px;
+  margin-right: 4px !important;
   position: relative;
   top: 0.5px !important; /* 负值向上移动，正值向下移动 */
   left: -0.4px;
@@ -5131,17 +5132,19 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   padding-top: 3px !important;
 }
 
+/* 文件整理页面的文件图标样式 */
 .selectable-files .bi-file-earmark {
   font-size: 1.06rem;   /* 比模态框的0.95rem大一些 */
-  margin-right: 5px;    /* 可适当调整间距 */
+  margin-right: 7px !important;    /* 图标距离文本的距离 */
   position: relative;
   top: 1px;             /* 可微调垂直对齐 */
   left: -1px;           /* 可微调水平对齐 */
 }
 
+/* 文件整理页面的文件夹图标样式 */
 .bi-folder-fill {
   font-size: 1.06rem;   /* 比模态框的0.95rem大一些 */
-  margin-right: 5px;    /* 可适当调整间距 */
+  margin-right: 7px !important;    /* 图标距离文本的距离 */
   position: relative;
   top: 1px;             /* 可微调垂直对齐 */
   left: -1px;           /* 可微调水平对齐 */
