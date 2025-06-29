@@ -56,7 +56,7 @@
 - 其它
   - [x] 每日签到领空间 <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/使用技巧集锦#每日签到领空间)</sup>
   - [x] 支持多个通知推送渠道 <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/通知推送服务配置)</sup>
-  - [x] 支持多账号（多账号签到，仅首账号转存、**文件管理**）
+  - [x] 支持多账号（多账号签到、**文件管理**，仅首账号转存）
   - [x] 支持网盘文件下载、strm 文件生成等功能 <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/插件配置)</sup>
 
 ## 部署
