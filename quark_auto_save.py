@@ -576,40 +576,59 @@ def get_file_icon(file_name, is_dir=False):
     # 如果是文件夹，直接返回文件夹图标
     if is_dir:
         return "📁"
-    
+
     # 文件名转小写便于匹配
     lower_name = file_name.lower()
-    
+
     # 视频文件
     if any(lower_name.endswith(ext) for ext in ['.mp4', '.mkv', '.avi', '.mov', '.rmvb', '.flv', '.wmv', '.m4v', '.ts']):
         return "🎞️"
-    
+
     # 图片文件
     if any(lower_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.svg']):
         return "🖼️"
-    
+
     # 音频文件
     if any(lower_name.endswith(ext) for ext in ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a', '.wma']):
         return "🎵"
-    
+
     # 文档文件
     if any(lower_name.endswith(ext) for ext in ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.md', '.csv']):
         return "📄"
-    
+
     # 压缩文件
     if any(lower_name.endswith(ext) for ext in ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2']):
         return "📦"
-    
+
     # 代码文件
     if any(lower_name.endswith(ext) for ext in ['.py', '.js', '.html', '.css', '.java', '.c', '.cpp', '.php', '.go', '.json']):
         return "📝"
-    
+
     # 字幕文件
     if any(lower_name.endswith(ext) for ext in ['.srt', '.ass', '.ssa', '.vtt']):
         return "💬"
-    
+
+    # 歌词文件
+    if any(lower_name.endswith(ext) for ext in ['.lrc']):
+        return "💬"
+
     # 默认图标（其他文件类型）
     return ""
+
+# 定义一个函数来去除文件名中的所有图标
+def remove_file_icons(filename):
+    """去除文件名开头的所有图标"""
+    # 定义所有可能的文件图标
+    icons = ["🎞️", "🖼️", "🎵", "📄", "📦", "📝", "💬", "📁"]
+
+    # 去除开头的图标和空格
+    clean_name = filename
+    for icon in icons:
+        if clean_name.startswith(icon):
+            clean_name = clean_name[len(icon):].lstrip()
+            break
+
+    return clean_name
 
 
 class Config:
@@ -2445,13 +2464,14 @@ class Quark:
                         # 检查节点是否已存在于树中，避免重复添加
                         if not tree.contains(item["fid"]):
                             tree.create_node(
-                                f"{icon}{display_name}",
+                                display_name,  # 只存储文件名，不包含图标
                                 item["fid"],
                                 parent=pdir_fid,
                                 data={
                                     "fid": f"{query_task_return['data']['save_as']['save_as_top_fids'][index]}",
                                     "path": f"{savepath}/{item['save_name']}",
                                     "is_dir": item["dir"],
+                                    "icon": icon,  # 将图标存储在data中
                                 },
                             )
                             
@@ -3574,7 +3594,7 @@ def do_save(account, tasklist=[]):
                         # 只显示重命名的文件
                         for node in file_nodes:
                             # 获取原始文件名（去除已有图标）
-                            orig_filename = node.tag.lstrip("🎞️")
+                            orig_filename = remove_file_icons(node.tag)
                             # 检查此文件是否在重命名日志中
                             if orig_filename in renamed_files:
                                 # 使用重命名后的文件名
@@ -3594,7 +3614,7 @@ def do_save(account, tasklist=[]):
                                 # 提取序号（从1开始）
                                 file_num = i + 1
                                 # 获取原始文件的扩展名
-                                orig_filename = node.tag.lstrip("🎞️")
+                                orig_filename = remove_file_icons(node.tag)
                                 file_ext = os.path.splitext(orig_filename)[1]
                                 # 生成新的文件名（使用顺序命名模式）
                                 if sequence_pattern == "{}":
@@ -3608,7 +3628,7 @@ def do_save(account, tasklist=[]):
                                 display_files.append((f"{icon} {new_filename}", node))
                             
                             # 按数字排序
-                            display_files.sort(key=lambda x: int(os.path.splitext(x[0].lstrip("🎞️"))[0]) if os.path.splitext(x[0].lstrip("🎞️"))[0].isdigit() else float('inf'))
+                            display_files.sort(key=lambda x: int(os.path.splitext(remove_file_icons(x[0]))[0]) if os.path.splitext(remove_file_icons(x[0]))[0].isdigit() else float('inf'))
                         # 对于剧集命名模式
                         elif task.get("use_episode_naming") and task.get("episode_naming"):
                             # 从重命名日志提取新旧文件名 (备用)
@@ -3632,7 +3652,7 @@ def do_save(account, tasklist=[]):
                             # 只显示重命名的文件
                             for node in file_nodes:
                                 # 获取原始文件名（去除已有图标）
-                                orig_filename = node.tag.lstrip("🎞️")
+                                orig_filename = remove_file_icons(node.tag)
                                 # 检查此文件是否在重命名日志中
                                 if orig_filename in renamed_files:
                                     # 使用重命名后的文件名
@@ -3646,9 +3666,9 @@ def do_save(account, tasklist=[]):
                     if not display_files:
                         for node in sorted(file_nodes, key=lambda node: node.tag):
                             # 获取原始文件名（去除已有图标）
-                            orig_filename = node.tag.lstrip("🎞️")
-                            # 添加适当的图标
-                            icon = get_file_icon(orig_filename, is_dir=node.data.get("is_dir", False))
+                            orig_filename = remove_file_icons(node.tag)
+                            # 优先使用存储在data中的图标，否则重新计算
+                            icon = node.data.get("icon") if node.data else get_file_icon(orig_filename, is_dir=node.data.get("is_dir", False) if node.data else False)
                             display_files.append((f"{icon} {orig_filename}", node))
                 else:
                     # 其他模式：显示原始文件名
@@ -3759,7 +3779,7 @@ def do_save(account, tasklist=[]):
                     
                     for node in sorted(all_file_nodes, key=lambda node: node.tag):
                         # 获取原始文件名（去除已有图标）
-                        orig_filename = node.tag.lstrip("🎞️")
+                        orig_filename = remove_file_icons(node.tag)
                         # 添加适当的图标
                         icon = get_file_icon(orig_filename, is_dir=False)
                         
@@ -3872,7 +3892,7 @@ def do_save(account, tasklist=[]):
                 
                 # 排序函数，使用文件节点作为输入
                 def sort_nodes(nodes):
-                    return sorted(nodes, key=lambda node: sort_file_by_name(node.tag.lstrip("🎞️")))
+                    return sorted(nodes, key=lambda node: sort_file_by_name(remove_file_icons(node.tag)))
                 
                 # 初始化最终显示文件的字典
                 final_display_files = {
@@ -3905,7 +3925,7 @@ def do_save(account, tasklist=[]):
                 # 检查根目录是否有新增文件
                 root_new_files = []
                 for node in files_by_dir["root"]:
-                    file_name = node.tag.lstrip("🎞️")
+                    file_name = remove_file_icons(node.tag)
                     # 判断是否为新增文件
                     is_new_file = False
                     
@@ -3954,7 +3974,7 @@ def do_save(account, tasklist=[]):
                     
                     # 检查该目录下的文件是否是新文件
                     for file_node in dir_files:
-                        file_name = file_node.tag.lstrip("🎞️")
+                        file_name = remove_file_icons(file_node.tag)
                         # 判断是否为新增文件
                         is_new_file = False
                         
@@ -4223,7 +4243,7 @@ def do_save(account, tasklist=[]):
                             
                             # 显示文件
                             file_prefix = prefix + ("└── " if is_file_last else "├── ")
-                            file_name = file_node.tag.lstrip("🎞️")
+                            file_name = remove_file_icons(file_node.tag)
                             icon = get_file_icon(file_name, is_dir=False)
                             add_notify(format_file_display(file_prefix, icon, file_name))
                     
