@@ -8,6 +8,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
     from quark_auto_save import sort_file_by_name
+    from app.utils.pinyin_sort import get_filename_pinyin_sort_key
 except ImportError:
     # 如果无法导入，提供一个简单的排序函数作为替代
     def sort_file_by_name(file):
@@ -15,8 +16,21 @@ except ImportError:
             filename = file.get("file_name", "")
         else:
             filename = file
-        # 简单排序，主要通过文件名进行
-        return filename
+        # 简单排序，主要通过文件名进行（使用拼音排序）
+        try:
+            from pypinyin import lazy_pinyin, Style
+            pinyin_list = lazy_pinyin(filename, style=Style.NORMAL, errors='ignore')
+            return ''.join(pinyin_list).lower()
+        except ImportError:
+            return filename.lower()
+
+    def get_filename_pinyin_sort_key(filename):
+        try:
+            from pypinyin import lazy_pinyin, Style
+            pinyin_list = lazy_pinyin(filename, style=Style.NORMAL, errors='ignore')
+            return ''.join(pinyin_list).lower()
+        except ImportError:
+            return filename.lower()
 
 
 class Aria2:

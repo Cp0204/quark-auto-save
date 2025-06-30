@@ -17,6 +17,7 @@
   <script src="./static/js/axios.min.js"></script>
   <script src="./static/js/v-jsoneditor.min.js"></script>
   <script src="./static/js/sort_file_by_name.js"></script>
+  <script src="./static/js/pinyin-pro.min.js"></script>
   <script>
   // 添加检测文本溢出的自定义指令
   Vue.directive('check-overflow', {
@@ -1700,7 +1701,7 @@
             }
           });
           
-          return [...taskNames].sort();
+          return this.sortTaskNamesByPinyin([...taskNames]);
         },
         taskNames() {
           // 从任务列表中提取唯一的任务名称
@@ -1715,7 +1716,7 @@
             }
           });
           
-          return [...taskNames].sort();
+          return this.sortTaskNamesByPinyin([...taskNames]);
         },
         totalPages() {
           // 直接使用后端返回的total_pages
@@ -1953,6 +1954,14 @@
         document.removeEventListener('click', this.handleOutsideClick);
       },
       methods: {
+        // 拼音排序辅助函数
+        sortTaskNamesByPinyin(taskNames) {
+          return taskNames.sort((a, b) => {
+            const aKey = pinyinPro.pinyin(a, { toneType: 'none', type: 'string' }).toLowerCase();
+            const bKey = pinyinPro.pinyin(b, { toneType: 'none', type: 'string' }).toLowerCase();
+            return aKey > bKey ? 1 : -1;
+          });
+        },
         // 添加格式化分享链接警告信息的方法
         formatShareUrlBanMessage(message) {
           if (!message) return message;
@@ -3705,7 +3714,7 @@
             }
           }).then(response => {
             if (response.data.success && response.data.data.all_task_names) {
-              this.allTaskNames = response.data.data.all_task_names.sort();
+              this.allTaskNames = this.sortTaskNamesByPinyin(response.data.data.all_task_names);
             } else {
               // 如果API失败，回退到从当前页记录中提取任务名称
               if (this.history.records && this.history.records.length > 0) {
@@ -3715,7 +3724,7 @@
                     taskNames.add(record.task_name);
                   }
                 });
-                this.allTaskNames = [...taskNames].sort();
+                this.allTaskNames = this.sortTaskNamesByPinyin([...taskNames]);
               }
             }
           }).catch(error => {
@@ -3727,7 +3736,7 @@
                   taskNames.add(record.task_name);
                 }
               });
-              this.allTaskNames = [...taskNames].sort();
+              this.allTaskNames = this.sortTaskNamesByPinyin([...taskNames]);
             }
           });
         },
@@ -3859,8 +3868,9 @@
               // 文件夹始终在前
               if (a.dir && !b.dir) return -1;
               if (!a.dir && b.dir) return 1;
-              let aValue = a.file_name.toLowerCase();
-              let bValue = b.file_name.toLowerCase();
+              // 使用拼音排序
+              let aValue = pinyinPro.pinyin(a.file_name, { toneType: 'none', type: 'string' }).toLowerCase();
+              let bValue = pinyinPro.pinyin(b.file_name, { toneType: 'none', type: 'string' }).toLowerCase();
               if (this.fileSelect.sortOrder === 'asc') {
                 return aValue > bValue ? 1 : -1;
               } else {
@@ -3887,9 +3897,9 @@
                   aValue = a.episode_number;
                   bValue = b.episode_number;
                 } else {
-                  // 否则使用重命名后的文件名进行字符串排序
-                  aValue = (a.file_name_re || '').toLowerCase();
-                  bValue = (b.file_name_re || '').toLowerCase();
+                  // 否则使用重命名后的文件名进行拼音排序
+                  aValue = pinyinPro.pinyin(a.file_name_re || '', { toneType: 'none', type: 'string' }).toLowerCase();
+                  bValue = pinyinPro.pinyin(b.file_name_re || '', { toneType: 'none', type: 'string' }).toLowerCase();
                 }
 
                 if (this.fileSelect.sortOrder === 'asc') {
@@ -3934,8 +3944,9 @@
               if (a.dir && !b.dir) return -1;
               if (!a.dir && b.dir) return 1;
 
-              let aValue = a.dir ? 0 : (a.size || 0);
-              let bValue = b.dir ? 0 : (b.size || 0);
+              // 文件夹按项目数量排序，文件按大小排序
+              let aValue = a.dir ? (a.include_items || 0) : (a.size || 0);
+              let bValue = b.dir ? (b.include_items || 0) : (b.size || 0);
               if (this.fileSelect.sortOrder === 'asc') {
                 return aValue > bValue ? 1 : -1;
               } else {
@@ -3958,8 +3969,9 @@
             if (field === 'file_name') {
               if (a.dir && !b.dir) return -1;
               if (!a.dir && b.dir) return 1;
-              let aValue = a.file_name.toLowerCase();
-              let bValue = b.file_name.toLowerCase();
+              // 使用拼音排序
+              let aValue = pinyinPro.pinyin(a.file_name, { toneType: 'none', type: 'string' }).toLowerCase();
+              let bValue = pinyinPro.pinyin(b.file_name, { toneType: 'none', type: 'string' }).toLowerCase();
               if (order === 'asc') {
                 return aValue > bValue ? 1 : -1;
               } else {
@@ -3986,9 +3998,9 @@
                   aValue = a.episode_number;
                   bValue = b.episode_number;
                 } else {
-                  // 否则使用重命名后的文件名进行字符串排序
-                  aValue = (a.file_name_re || '').toLowerCase();
-                  bValue = (b.file_name_re || '').toLowerCase();
+                  // 否则使用重命名后的文件名进行拼音排序
+                  aValue = pinyinPro.pinyin(a.file_name_re || '', { toneType: 'none', type: 'string' }).toLowerCase();
+                  bValue = pinyinPro.pinyin(b.file_name_re || '', { toneType: 'none', type: 'string' }).toLowerCase();
                 }
 
                 if (order === 'asc') {
@@ -4033,8 +4045,9 @@
               if (a.dir && !b.dir) return -1;
               if (!a.dir && b.dir) return 1;
 
-              let aValue = a.dir ? 0 : (a.size || 0);
-              let bValue = b.dir ? 0 : (b.size || 0);
+              // 文件夹按项目数量排序，文件按大小排序
+              let aValue = a.dir ? (a.include_items || 0) : (a.size || 0);
+              let bValue = b.dir ? (b.include_items || 0) : (b.size || 0);
               if (order === 'asc') {
                 return aValue > bValue ? 1 : -1;
               } else {

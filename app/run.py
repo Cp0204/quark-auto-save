@@ -40,6 +40,14 @@ from quark_auto_save import Config, format_bytes
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from quark_auto_save import extract_episode_number, sort_file_by_name, chinese_to_arabic, is_date_format
 
+# 导入拼音排序工具
+try:
+    from utils.pinyin_sort import get_filename_pinyin_sort_key
+except ImportError:
+    # 如果导入失败，使用简单的小写排序作为备用
+    def get_filename_pinyin_sort_key(filename):
+        return filename.lower()
+
 # 导入数据库模块
 try:
     # 先尝试相对导入
@@ -1581,9 +1589,11 @@ def get_file_list():
         # 优化排序：使用更高效的排序方法
         def get_sort_key(file_item):
             if sort_by == "file_name":
-                return file_item["file_name"].lower()
+                # 使用拼音排序
+                return get_filename_pinyin_sort_key(file_item["file_name"])
             elif sort_by == "file_size":
-                return file_item["size"] if not file_item["dir"] else 0
+                # 文件夹按项目数量排序，文件按大小排序
+                return file_item.get("include_items", 0) if file_item["dir"] else file_item["size"]
             else:  # updated_at
                 return file_item["updated_at"]
 
