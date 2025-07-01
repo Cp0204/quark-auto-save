@@ -14,15 +14,19 @@ except ImportError:
     def sort_file_by_name(file):
         if isinstance(file, dict):
             filename = file.get("file_name", "")
+            update_time = file.get("updated_at", 0)
         else:
             filename = file
+            update_time = 0
         # 简单排序，主要通过文件名进行（使用拼音排序）
         try:
             from pypinyin import lazy_pinyin, Style
             pinyin_list = lazy_pinyin(filename, style=Style.NORMAL, errors='ignore')
-            return ''.join(pinyin_list).lower()
+            pinyin_sort_key = ''.join(pinyin_list).lower()
         except ImportError:
-            return filename.lower()
+            pinyin_sort_key = filename.lower()
+        # 返回五级排序元组：(日期, 期数, 上中下, 修改时间, 拼音排序)
+        return (float('inf'), float('inf'), 0, update_time, pinyin_sort_key)
 
     def get_filename_pinyin_sort_key(filename):
         try:

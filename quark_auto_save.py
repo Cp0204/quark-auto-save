@@ -42,19 +42,27 @@ def sort_file_by_name(file):
     通用的文件排序函数，用于根据文件名智能排序
     支持多种格式的日期、期数、集数等提取和排序
     使用多级排序键，按日期、期数、上中下顺序排序
-    如果以上均无法提取，则使用文件更新时间作为最后排序依据
+    如果以上均无法提取，则使用文件更新时间和拼音排序作为最后排序依据
     """
     if isinstance(file, dict) and file.get("dir", False):  # 跳过文件夹
-        return (float('inf'), float('inf'), float('inf'), 0)
-    
+        return (float('inf'), float('inf'), float('inf'), 0, "")
+
     # 获取文件名，支持字符串或文件对象
     if isinstance(file, dict):
         filename = file.get("file_name", "")
-        # 获取更新时间作为最后排序依据
+        # 获取更新时间作为第四级排序依据
         update_time = file.get("updated_at", 0)
     else:
         filename = file
         update_time = 0
+
+    # 导入拼音排序工具用于第五级排序
+    try:
+        from app.utils.pinyin_sort import get_filename_pinyin_sort_key
+        pinyin_sort_key = get_filename_pinyin_sort_key(filename)
+    except ImportError:
+        # 如果导入失败，使用简单的小写排序作为备用
+        pinyin_sort_key = filename.lower()
     
     # 提取文件名，不含扩展名
     file_name_without_ext = os.path.splitext(filename)[0]
@@ -212,8 +220,8 @@ def sort_file_by_name(file):
     elif re.search(r'下[集期话部篇]?|[集期话部篇]下', filename):
         segment_value = 3
     
-    # 返回多级排序元组，加入更新时间作为第四级排序键
-    return (date_value, episode_value, segment_value, update_time)
+    # 返回多级排序元组，加入更新时间作为第四级排序键，拼音排序作为第五级排序键
+    return (date_value, episode_value, segment_value, update_time, pinyin_sort_key)
 
 
 # 全局的剧集编号提取函数

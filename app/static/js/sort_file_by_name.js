@@ -30,6 +30,19 @@ function sortFileByName(file) {
     let file_name_without_ext = filename.replace(/\.[^/.]+$/, '');
     let date_value = Infinity, episode_value = Infinity, segment_value = 0;
 
+    // 生成拼音排序键（第五级排序）
+    let pinyin_sort_key;
+    try {
+        // 尝试使用 pinyinPro 库进行拼音转换
+        if (typeof pinyinPro !== 'undefined') {
+            pinyin_sort_key = pinyinPro.pinyin(filename, { toneType: 'none', type: 'string' }).toLowerCase();
+        } else {
+            pinyin_sort_key = filename.toLowerCase();
+        }
+    } catch (e) {
+        pinyin_sort_key = filename.toLowerCase();
+    }
+
     // 1. 日期提取
     let match;
     // YYYY-MM-DD
@@ -142,7 +155,7 @@ function sortFileByName(file) {
     else if (/[中][集期话部篇]?|[集期话部篇]中/.test(filename)) segment_value = 2;
     else if (/[下][集期话部篇]?|[集期话部篇]下/.test(filename)) segment_value = 3;
 
-    return [date_value, episode_value, segment_value, update_time];
+    return [date_value, episode_value, segment_value, update_time, pinyin_sort_key];
 }
 
 // 用法：
