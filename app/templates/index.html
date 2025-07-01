@@ -802,11 +802,11 @@
                     </div>
                   </div>
                   
-                  <div class="form-group row" title="只转存修改日期大于选中文件的文件，请在符合筛选条件的文件中进行选择，在更换分享链接时非常有用">
+                  <div class="form-group row" title="只转存比选中文件更新的文件，请在符合筛选条件的文件中进行选择，在更换分享链接时非常有用">
                     <label class="col-sm-2 col-form-label">起始文件</label>
                     <div class="col-sm-10">
                       <div class="input-group">
-                        <input type="text" class="form-control" placeholder="可选，只转存修改日期大于此文件的文件，请在符合筛选条件的文件中进行选择" name="startfid[]" v-model="task.startfid">
+                        <input type="text" class="form-control" placeholder="可选，只转存比此文件更新的文件，请在符合筛选条件的文件中进行选择" name="startfid[]" v-model="task.startfid">
                         <div class="input-group-append" v-if="task.shareurl">
                           <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.previewRegex=false;showShareSelect(index)" title="选择文件"><i class="bi bi-folder"></i></button>
                         </div>
@@ -3249,8 +3249,8 @@
             this.fileSelect.sortBy = "file_name_re";
             this.fileSelect.sortOrder = "desc";
           } else {
-            // 其他情况使用修改日期倒序排序
-            this.fileSelect.sortBy = "updated_at";
+            // 其他情况使用文件名倒序排序（使用全局文件排序函数）
+            this.fileSelect.sortBy = "file_name";
             this.fileSelect.sortOrder = "desc";
           }
           if (this.getShareurl(this.fileSelect.shareurl) != this.getShareurl(this.formData.tasklist[index].shareurl)) {
@@ -3969,14 +3969,12 @@
             if (field === 'file_name') {
               if (a.dir && !b.dir) return -1;
               if (!a.dir && b.dir) return 1;
-              // 使用拼音排序
-              let aValue = pinyinPro.pinyin(a.file_name, { toneType: 'none', type: 'string' }).toLowerCase();
-              let bValue = pinyinPro.pinyin(b.file_name, { toneType: 'none', type: 'string' }).toLowerCase();
-              if (order === 'asc') {
-                return aValue > bValue ? 1 : -1;
-              } else {
-                return aValue < bValue ? 1 : -1;
+              // 使用智能排序函数
+              const ka = sortFileByName(a), kb = sortFileByName(b);
+              for (let i = 0; i < ka.length; ++i) {
+                if (ka[i] !== kb[i]) return order === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
               }
+              return 0;
             }
             if (field === 'file_name_re') {
               const aHasValidRename = a.file_name_re && a.file_name_re !== '×' && !a.file_name_re.startsWith('×');

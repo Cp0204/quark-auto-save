@@ -1686,26 +1686,30 @@ class Quark:
                 "dir_path": []  # 保存目录路径
             }
             
+        # 对文件列表进行排序，使用全局文件排序函数的倒序排序
+        # 这样可以确保起始文件过滤逻辑正确工作
+        share_file_list.sort(key=sort_file_by_name, reverse=True)
+
         # 应用过滤词过滤
         if task.get("filterwords"):
             # 记录过滤前的文件总数（包括文件夹）
             original_total_count = len(share_file_list)
-            
+
             # 同时支持中英文逗号分隔
             filterwords = task["filterwords"].replace("，", ",")
             filterwords_list = [word.strip().lower() for word in filterwords.split(',')]
-            
+
             # 改进过滤逻辑，同时检查文件名和扩展名
             filtered_files = []
             for file in share_file_list:
                 file_name = file['file_name'].lower()
                 # 提取文件扩展名（不带点）
                 file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
-                
+
                 # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
                 if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
                     filtered_files.append(file)
-                    
+
             share_file_list = filtered_files
             
             # 打印过滤信息（格式保持不变）
@@ -1835,6 +1839,9 @@ class Quark:
             # 预先过滤掉已经存在的文件（按大小和扩展名比对）
             # 只保留文件，不保留文件夹
             filtered_share_files = []
+            start_fid = task.get("startfid", "")
+            start_file_found = False
+
             for share_file in share_file_list:
                 if share_file["dir"]:
                     # 顺序命名模式下，未设置update_subdir时不处理文件夹
@@ -1846,9 +1853,15 @@ class Quark:
                     # 文件ID已存在于记录中，跳过处理
                     continue
 
-                # 指定文件开始订阅/到达指定文件（含）结束历遍
-                if share_file["fid"] == task.get("startfid", ""):
-                    break
+                # 改进的起始文件过滤逻辑
+                if start_fid:
+                    if share_file["fid"] == start_fid:
+                        start_file_found = True
+                        break  # 找到起始文件，停止遍历
+                    # 如果还没找到起始文件，继续添加到转存列表
+                else:
+                    # 没有设置起始文件，处理所有文件
+                    pass
 
                 file_size = share_file.get("size", 0)
                 file_ext = os.path.splitext(share_file["file_name"])[1].lower()
@@ -1920,9 +1933,7 @@ class Quark:
                     # print(f"跳过已存在的文件: {save_name}")
                     pass
                 
-                # 指定文件开始订阅/到达指定文件（含）结束历遍
-                if share_file["fid"] == task.get("startfid", ""):
-                    break
+                # 这里不需要再次检查起始文件，因为在前面的过滤中已经处理了
                     
             # 处理子文件夹
             for share_file in share_file_list:
@@ -2030,7 +2041,7 @@ class Quark:
         else:
             # 正则命名模式
             need_save_list = []
-            
+
             # 构建目标目录中所有文件的查重索引（按大小和修改时间）- 加入文件查重机制
             dir_files_map = {}
             for dir_file in dir_file_list:
@@ -2038,7 +2049,7 @@ class Quark:
                     file_size = dir_file.get("size", 0)
                     file_ext = os.path.splitext(dir_file["file_name"])[1].lower()
                     update_time = dir_file.get("updated_at", 0)
-                    
+
                     # 创建大小+扩展名的索引，用于快速查重
                     key = f"{file_size}_{file_ext}"
                     if key not in dir_files_map:
@@ -2047,7 +2058,21 @@ class Quark:
                         "file_name": dir_file["file_name"],
                         "updated_at": update_time,
                     })
-            
+
+            # 应用起始文件过滤逻辑
+            start_fid = task.get("startfid", "")
+            if start_fid:
+                # 找到起始文件的索引
+                start_index = -1
+                for i, share_file in enumerate(share_file_list):
+                    if share_file["fid"] == start_fid:
+                        start_index = i
+                        break
+
+                if start_index >= 0:
+                    # 只处理起始文件之前的文件（不包括起始文件本身）
+                    share_file_list = share_file_list[:start_index]
+
             # 添加符合的
             for share_file in share_file_list:
                 # 检查文件ID是否存在于转存记录中
@@ -2055,10 +2080,6 @@ class Quark:
                 if file_id and self.check_file_exists_in_records(file_id, task):
                     # 文件ID已存在于记录中，跳过处理
                     continue
-
-                # 指定文件开始订阅/到达指定文件（含）结束历遍
-                if share_file["fid"] == task.get("startfid", ""):
-                    break
                     
                 # 检查文件是否已存在（通过大小和扩展名）- 新增的文件查重逻辑
                 is_duplicate = False
@@ -2746,25 +2767,38 @@ class Quark:
                     if not share_file_list:
                         print("分享为空，文件已被分享者删除")
                         return False, []
-                    
+
+                    # 在剧集命名模式中，需要先对文件列表进行排序，然后再应用起始文件过滤
+                    # 使用全局排序函数进行排序（倒序，最新的在前）
+                    share_file_list = sorted(share_file_list, key=sort_file_by_name, reverse=True)
+
                     # 预先过滤分享文件列表，去除已存在的文件
                     filtered_share_files = []
+                    start_fid = task.get("startfid", "")
+                    start_file_found = False
+
                     for share_file in share_file_list:
                         if share_file["dir"]:
                             # 处理子目录
                             if task.get("update_subdir") and re.search(task["update_subdir"], share_file["file_name"]):
                                 filtered_share_files.append(share_file)
                             continue
-                        
+
                         # 检查文件ID是否存在于转存记录中
                         file_id = share_file.get("fid", "")
                         if file_id and self.check_file_exists_in_records(file_id, task):
                             # 文件ID已存在于记录中，跳过处理
                             continue
 
-                        # 指定文件开始订阅/到达指定文件（含）结束历遍
-                        if share_file["fid"] == task.get("startfid", ""):
-                            break
+                        # 改进的起始文件过滤逻辑
+                        if start_fid:
+                            if share_file["fid"] == start_fid:
+                                start_file_found = True
+                                break  # 找到起始文件，停止遍历
+                            # 如果还没找到起始文件，继续添加到转存列表
+                        else:
+                            # 没有设置起始文件，处理所有文件
+                            pass
                             
                         # 从共享文件中提取剧集号
                         episode_num = extract_episode_number_local(share_file["file_name"])
