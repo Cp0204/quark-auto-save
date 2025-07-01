@@ -1416,70 +1416,76 @@ class Quark:
             return False
     
     # 添加一个专门从重命名日志更新记录的方法
-    def update_transfer_record_from_log(self, task, rename_log):
+    def update_transfer_record_from_log(self, task, rename_log, actual_file_names=None):
         """从重命名日志中提取信息并更新记录
-        
+
         Args:
             task: 任务信息
             rename_log: 重命名日志，格式为 "重命名: 旧名 → 新名"
+            actual_file_names: 实际文件名映射字典，用于修正显示的文件名
         """
         try:
             # 使用字符串分割方法提取文件名，更可靠地获取完整文件名
             if "重命名:" not in rename_log or " → " not in rename_log:
                 return False
-                
+
             # 先分割出"重命名:"后面的部分
             parts = rename_log.split("重命名:", 1)[1].strip()
             # 再按箭头分割
             if " → " not in parts:
                 return False
-                
-            old_name, new_name = parts.split(" → ", 1)
-            
+
+            old_name, expected_new_name = parts.split(" → ", 1)
+
             # 如果新名称包含"失败"，则是失败的重命名，跳过
-            if "失败" in new_name:
+            if "失败" in expected_new_name:
                 return False
-                
+
             # 处理可能的截断标记，只保留实际文件名部分
             # 注意：只有明确是失败消息才应该截断
-            if " 失败，" in new_name:
-                new_name = new_name.split(" 失败，")[0]
-            
+            if " 失败，" in expected_new_name:
+                expected_new_name = expected_new_name.split(" 失败，")[0]
+
             # 去除首尾空格
             old_name = old_name.strip()
-            new_name = new_name.strip()
-            
+            expected_new_name = expected_new_name.strip()
+
             # 确保提取到的是完整文件名
-            if not old_name or not new_name:
+            if not old_name or not expected_new_name:
                 return False
-                
+
+            # 获取实际的文件名（如果提供了映射）
+            actual_new_name = expected_new_name
+            if actual_file_names and old_name in actual_file_names:
+                actual_new_name = actual_file_names[old_name]
+
             # 初始化数据库
             db = RecordDB()
-            
+
             # 使用原文件名和任务名查找记录
             task_name = task.get("taskname", "")
-            
+
             # 获取保存路径
             save_path = task.get("savepath", "")
             # 注意：从日志中无法获取子目录信息，只能使用任务的主保存路径
-            
+
             # 检查文件是否已存在于记录中
             # 先查询是否有匹配的记录
             cursor = db.conn.cursor()
             query = "SELECT file_id FROM transfer_records WHERE original_name = ? AND task_name = ? AND save_path = ?"
             cursor.execute(query, (old_name, task_name, save_path))
             result = cursor.fetchone()
-            
+
             # 如果找到了匹配的记录，使用file_id进行更新
             file_id = result[0] if result else ""
-            
-            # 更新记录
+
+            # 更新记录，使用实际的文件名
             if file_id:
                 # 使用file_id更新
                 updated = db.update_renamed_to(
                     file_id=file_id,
                     original_name="",  # 不使用原文件名，因为已有file_id
-                    renamed_to=new_name,
+                    renamed_to=actual_new_name,  # 使用实际的文件名
                     task_name=task_name,
                     save_path=save_path
                 )
@@ -1488,14 +1494,14 @@ class Quark:
                 updated = db.update_renamed_to(
                     file_id="",  # 不使用file_id查询，因为在日志中无法获取
                     original_name=old_name,
-                    renamed_to=new_name,
+                    renamed_to=actual_new_name,  # 使用实际的文件名
                     task_name=task_name,
                     save_path=save_path
                 )
-            
+
             # 关闭数据库连接
             db.close()
-            
+
             return updated > 0
         except Exception as e:
             print(f"根据日志更新转存记录失败: {e}")
@@ -1504,14 +1510,84 @@ class Quark:
     # 批量处理重命名日志
     def process_rename_logs(self, task, rename_logs):
         """处理重命名日志列表，更新数据库记录
-        
+
         Args:
             task: 任务信息
             rename_logs: 重命名日志列表
         """
+        # 获取实际的文件名映射
+        actual_file_names = self.get_actual_file_names_from_directory(task, rename_logs)
+
         for log in rename_logs:
             if "重命名:" in log and "→" in log and "失败" not in log:
-                self.update_transfer_record_from_log(task, log)
+                self.update_transfer_record_from_log(task, log, actual_file_names)
+
+    def get_actual_file_names_from_directory(self, task, rename_logs):
+        """从目录中获取实际的文件名，用于修正转存记录和日志显示
+
+        Args:
+            task: 任务信息
+            rename_logs: 重命名日志列表
+
+        Returns:
+            dict: 原文件名到实际文件名的映射
+        """
+        try:
+            # 获取保存路径
+            savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}")
+
+            # 获取当前目录的文件列表
+            if hasattr(self, 'savepath_fid') and self.savepath_fid.get(savepath):
+                dir_file_list = self.ls_dir(self.savepath_fid[savepath])
+            else:
+                return {}
+
+            # 从重命名日志中提取预期的重命名映射（包括失败的重命名）
+            expected_renames = {}
+            for log in rename_logs:
+                if "重命名:" in log and " → " in log:
+                    parts = log.split("重命名:", 1)[1].strip()
+                    if " → " in parts:
+                        old_name, new_name = parts.split(" → ", 1)
+                        # 处理可能的失败信息
+                        if " 失败，" in new_name:
+                            new_name = new_name.split(" 失败，")[0]
+                        old_name = old_name.strip()
+                        new_name = new_name.strip()
+                        expected_renames[old_name] = new_name
+
+            # 获取目录中实际存在的文件名
+            actual_files = [f["file_name"] for f in dir_file_list if not f["dir"]]
+
+            # 创建实际文件名映射
+            actual_renames = {}
+
+            # 对于每个预期的重命名，检查实际文件是否存在
+            for old_name, expected_new_name in expected_renames.items():
+                if expected_new_name in actual_files:
+                    # 预期的重命名成功了
+                    actual_renames[old_name] = expected_new_name
+                elif old_name in actual_files:
+                    # 重命名失败，文件保持原名
+                    actual_renames[old_name] = old_name
+                else:
+                    # 尝试模糊匹配，可能文件名有细微差异
+                    for actual_file in actual_files:
+                        # 简单的相似度检查：如果文件名包含预期名称的主要部分
+                        if (len(expected_new_name) > 10 and
+                            expected_new_name[:10] in actual_file and
+                            actual_file not in actual_renames.values()):
+                            actual_renames[old_name] = actual_file
+                            break
+                    else:
+                        # 如果找不到匹配，使用预期名称（可能文件已被删除或移动）
+                        actual_renames[old_name] = expected_new_name
+
+            return actual_renames
+
+        except Exception as e:
+            print(f"获取实际文件名失败: {e}")
+            return {}
     
     def check_file_exists_in_records(self, file_id, task=None):
         """检查文件ID是否存在于转存记录中
@@ -3535,9 +3611,9 @@ def do_save(account, tasklist=[]):
                 # 完全替换日志，只显示成功部分
                 rename_logs = success_logs
                 
-            # 只有当is_new_tree为False且有成功的重命名日志时，才需要创建新的Tree对象
-            # 这确保只显示当次转存的文件，而不是目录中的所有文件
-            if task.get("shareurl") and (not is_new_tree or is_new_tree is False) and rename_logs and is_rename:
+            # 对于顺序命名模式，需要重新创建文件树以显示实际的文件名
+            # 这确保显示的是实际存在的文件名，而不是预期的文件名
+            if task.get("shareurl") and rename_logs and is_rename and (task.get("use_sequence_naming") or task.get("use_episode_naming")):
                 # 获取当前目录
                 savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}")
                 if account.savepath_fid.get(savepath):
@@ -3552,26 +3628,43 @@ def do_save(account, tasklist=[]):
                         },
                     )
                     
-                    # 从重命名日志中提取新文件名
-                    renamed_files = {}
+                    # 获取实际的文件名映射
+                    actual_file_names = account.get_actual_file_names_from_directory(task, rename_logs)
+
+                    # 从重命名日志中提取预期的文件名映射
+                    expected_renamed_files = {}
                     for log in rename_logs:
                         # 格式：重命名: 旧名 → 新名
                         match = re.search(r'重命名: (.*?) → (.+?)($|\s|，|失败)', log)
                         if match:
                             old_name = match.group(1).strip()
-                            new_name = match.group(2).strip()
-                            renamed_files[old_name] = new_name
-                    
+                            expected_new_name = match.group(2).strip()
+                            expected_renamed_files[old_name] = expected_new_name
+
                     # 获取文件列表，只添加重命名的文件
                     fresh_dir_file_list = account.ls_dir(account.savepath_fid[savepath])
-                    
-                    # 添加重命名后的文件到树中
+
+                    # 添加实际存在的文件到树中
                     for file in fresh_dir_file_list:
                         if not file["dir"]:  # 只处理文件
-                            # 只添加重命名后的文件（当次转存的文件）
-                            if file["file_name"] in renamed_files.values():
+                            # 检查这个文件是否是当次转存的文件
+                            is_transferred_file = False
+
+                            # 方法1：检查文件名是否在实际重命名结果中
+                            if file["file_name"] in actual_file_names.values():
+                                is_transferred_file = True
+
+                            # 方法2：检查文件名是否在预期重命名结果中（用于重命名失败的情况）
+                            elif file["file_name"] in expected_renamed_files.values():
+                                is_transferred_file = True
+
+                            # 方法3：检查文件名是否是原始文件名（重命名失败保持原名）
+                            elif file["file_name"] in expected_renamed_files.keys():
+                                is_transferred_file = True
+
+                            if is_transferred_file:
                                 new_tree.create_node(
-                                    file["file_name"],
+                                    file["file_name"],  # 使用实际存在的文件名
                                     file["fid"],
                                     parent="root",
                                     data={
@@ -3621,30 +3714,33 @@ def do_save(account, tasklist=[]):
                 
                 # 按文件名排序
                 if is_special_sequence:
-                    # 对于顺序命名模式，使用重命名日志来获取新增的文件
+                    # 对于顺序命名模式，直接使用文件树中的实际文件名
                     if rename_logs:
-                        # 从重命名日志提取新旧文件名
-                        renamed_files = {}
-                        for log in rename_logs:
-                            # 格式：重命名: 旧名 → 新名
-                            match = re.search(r'重命名: (.*?) → (.+?)($|\s|，|失败)', log)
+                        # 直接显示文件树中的实际文件名（已经是重命名后的结果）
+                        # 按照文件名中的序号进行排序
+                        def extract_sequence_number(node):
+                            filename = remove_file_icons(node.tag)
+                            # 尝试从文件名中提取序号，如 "乘风2025 - S06E01.flac" -> 1
+                            import re
+                            match = re.search(r'E(\d+)', filename)
                             if match:
-                                old_name = match.group(1).strip()
-                                new_name = match.group(2).strip()
-                                renamed_files[old_name] = new_name
-                        
-                        # 只显示重命名的文件
-                        for node in file_nodes:
-                            # 获取原始文件名（去除已有图标）
-                            orig_filename = remove_file_icons(node.tag)
-                            # 检查此文件是否在重命名日志中
-                            if orig_filename in renamed_files:
-                                # 使用重命名后的文件名
-                                new_filename = renamed_files[orig_filename]
-                                # 获取适当的图标
-                                icon = get_file_icon(new_filename, is_dir=node.data.get("is_dir", False))
-                                # 添加到显示列表
-                                display_files.append((f"{icon} {new_filename}", node))
+                                return int(match.group(1))
+                            # 如果没有找到E序号，尝试其他模式
+                            match = re.search(r'(\d+)', filename)
+                            if match:
+                                return int(match.group(1))
+                            return 0
+
+                        # 按序号排序
+                        sorted_nodes = sorted(file_nodes, key=extract_sequence_number)
+
+                        for node in sorted_nodes:
+                            # 获取实际文件名（去除已有图标）
+                            actual_filename = remove_file_icons(node.tag)
+                            # 获取适当的图标
+                            icon = get_file_icon(actual_filename, is_dir=node.data.get("is_dir", False))
+                            # 添加到显示列表
+                            display_files.append((f"{icon} {actual_filename}", node))
                     else:
                         # 如果没有重命名日志，使用原来的顺序命名逻辑
                         if task.get("use_sequence_naming") and task.get("sequence_naming"):
@@ -4307,12 +4403,15 @@ def do_save(account, tasklist=[]):
                 # 重新获取文件列表
                 savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}")
                 dir_file_list = account.ls_dir(account.savepath_fid[savepath])
-                
+
                 # 过滤出非目录的文件
                 file_nodes = [f for f in dir_file_list if not f["dir"]]
-                
-                # 从重命名日志提取新旧文件名
-                renamed_files = {}
+
+                # 获取实际的文件名映射
+                actual_file_names = account.get_actual_file_names_from_directory(task, rename_logs)
+
+                # 从重命名日志提取预期的新旧文件名映射
+                expected_renamed_files = {}
                 for log in rename_logs:
                     # 格式：重命名: 旧名 → 新名
                     if "重命名:" in log and " → " in log:
@@ -4320,22 +4419,27 @@ def do_save(account, tasklist=[]):
                         parts = log.split("重命名:", 1)[1].strip()
                         # 再按箭头分割
                         if " → " in parts:
-                            old_name, new_name = parts.split(" → ", 1)
+                            old_name, expected_new_name = parts.split(" → ", 1)
                             # 只处理失败信息，不截断正常文件名
-                            if " 失败，" in new_name:
-                                new_name = new_name.split(" 失败，")[0]
+                            if " 失败，" in expected_new_name:
+                                expected_new_name = expected_new_name.split(" 失败，")[0]
                             # 去除首尾空格
                             old_name = old_name.strip()
-                            new_name = new_name.strip()
-                            renamed_files[old_name] = new_name
+                            expected_new_name = expected_new_name.strip()
+                            expected_renamed_files[old_name] = expected_new_name
                     
-                # 确保至少显示重命名后的文件
+                # 确保至少显示实际存在的文件
                 display_files = []
-                
-                # 添加所有重命名的目标文件
-                for old_name, new_name in renamed_files.items():
-                    if new_name not in display_files:
-                        display_files.append(new_name)
+
+                # 添加所有实际存在的转存文件
+                for old_name in expected_renamed_files.keys():
+                    # 获取实际的文件名
+                    actual_name = actual_file_names.get(old_name, expected_renamed_files[old_name])
+
+                    # 检查文件是否实际存在于目录中
+                    if any(f["file_name"] == actual_name for f in file_nodes):
+                        if actual_name not in display_files:
+                            display_files.append(actual_name)
                 
                 # 此外，检查是否有新的文件节点（比较节点时间）
                 if not display_files and is_new_tree and hasattr(is_new_tree, 'nodes'):
@@ -4502,25 +4606,33 @@ def do_save(account, tasklist=[]):
                 # 重新获取文件列表
                 savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}")
                 dir_file_list = account.ls_dir(account.savepath_fid[savepath])
-                
+
                 # 过滤出非目录的文件
                 file_nodes = [f for f in dir_file_list if not f["dir"]]
-                
-                # 从重命名日志提取新旧文件名
-                renamed_files = {}
+
+                # 获取实际的文件名映射
+                actual_file_names = account.get_actual_file_names_from_directory(task, rename_logs)
+
+                # 从重命名日志提取预期的新旧文件名映射
+                expected_renamed_files = {}
                 for log in rename_logs:
                     # 格式：重命名: 旧名 → 新名
                     match = re.search(r'重命名: (.*?) → (.+?)($|\s|，|失败)', log)
                     if match:
                         old_name = match.group(1).strip()
-                        new_name = match.group(2).strip()
-                        renamed_files[old_name] = new_name
-                
-                # 只显示重命名的文件
+                        expected_new_name = match.group(2).strip()
+                        expected_renamed_files[old_name] = expected_new_name
+
+                # 只显示实际存在的转存文件
                 display_files = []
-                for file in file_nodes:
-                    if file["file_name"] in renamed_files:
-                        display_files.append(renamed_files[file["file_name"]])
+                for old_name in expected_renamed_files.keys():
+                    # 获取实际的文件名
+                    actual_name = actual_file_names.get(old_name, expected_renamed_files[old_name])
+
+                    # 检查文件是否实际存在于目录中
+                    if any(f["file_name"] == actual_name for f in file_nodes):
+                        if actual_name not in display_files:
+                            display_files.append(actual_name)
                 
                 # 如果没有找到任何文件要显示，使用原始逻辑
                 if not display_files:

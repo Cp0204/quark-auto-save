@@ -813,7 +813,7 @@
                       </div>
                     </div>
                   </div>
-                  <div class="form-group row" title="匹配成功的文件夹的所有嵌套目录都会被更新，并且会应用与根目录相同的重命名和过滤规则。注意：原理是逐级索引，深层嵌套目录的场景下效率非常低，慎用.*">
+                  <div class="form-group row" title="匹配成功的文件夹的所有嵌套目录都会被更新，并且会应用与根目录相同的正则命名和过滤规则。注意：原理是逐级索引，深层嵌套目录的场景下效率非常低，慎用.*">
                     <label class="col-sm-2 col-form-label">更新目录</label>
                     <div class="col-sm-10">
                       <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如：4K|1080P">
