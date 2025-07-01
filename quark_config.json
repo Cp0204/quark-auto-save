@@ -13,7 +13,7 @@
     }
   },
   "magic_regex": {
-    "$TV": {
+    "$TV_REGEX": {
       "pattern": ".*?([Ss]\\d{1,2})?(?:[第EePpXx\\.\\-\\_\\( ]{1,2}|^)(\\d{1,3})(?!\\d).*?\\.(mp4|mkv)",
       "replace": "\\1E\\2.\\3"
     },
@@ -21,11 +21,11 @@
       "pattern": "^(?!.*纯享)(?!.*加更)(?!.*超前企划)(?!.*训练室)(?!.*蒸蒸日上).*",
       "replace": ""
     },
-    "$SHOW_PRO": {
+    "$SHOW_MAGIC": {
       "pattern": "^(?!.*纯享)(?!.*加更)(?!.*抢先)(?!.*预告).*?第\\d+期.*",
       "replace": "{II}.{TASKNAME}.{DATE}.第{E}期{PART}.{EXT}"
     },
-    "$TV_PRO": {
+    "$TV_MAGIC": {
       "pattern": "",
       "replace": "{TASKNAME}.{SXX}E{E}.{EXT}"
     }
@@ -35,7 +35,7 @@
       "taskname": "测试-魔法匹配剧集（这是一组有效分享，配置CK后可测试任务是否正常）",
       "shareurl": "https://pan.quark.cn/s/d07a34a9c695#/list/share/7e25ddd87cf64443b637125478733295-夸克自动转存测试",
       "savepath": "/夸克自动转存测试/剧集",
-      "pattern": "$TV",
+      "pattern": "$TV_REGEX",
       "replace": "",
       "enddate": "2099-01-30",
       "update_subdir": "4k|1080p"
