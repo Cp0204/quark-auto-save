@@ -164,7 +164,9 @@ class Alist_sync:
 
         # 获取网盘已有文件
         source_dir_list = self.get_path_list(self.source_path)
-
+        if not source_dir_list:
+            print("获取夸克文件列表失败，请检查网络或手动刷新alist中的夸克目录")
+            return 0
         if self.tv_mode == 0 or self.tv_mode == "":
             self.tv_mode = False
         else:
@@ -228,6 +230,10 @@ class Alist_sync:
                     .lower()
                 )
                 for target_list in target_dir_list:
+                    if source_list["is_dir"]:
+                        # print(f"跳过目录同步")
+                        skip = True
+                        break
                     if self.tv_mode:
                         target_list_filename = (
                             target_list["name"]
