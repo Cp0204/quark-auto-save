@@ -749,7 +749,7 @@
                       <div class="input-group">
                         <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @blur="changeShareurl(task)">
                         <div class="input-group-append" v-if="task.shareurl">
-                          <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;fileSelect.previewRegex=false;showShareSelect(index)" title="选择文件夹"><i class="bi bi-folder"></i></button>
+                          <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;fileSelect.previewRegex=false;showShareSelect(index)" title="选择需转存的文件夹"><i class="bi bi-folder"></i></button>
                           <div class="input-group-text">
                             <a target="_blank" :href="task.shareurl"><i class="bi bi-link-45deg"></i></a>
                           </div>
@@ -764,7 +764,7 @@
                         <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填" @focus="focusTaskname(index, task)">
                         <div class="input-group-append">
                           <button class="btn btn-outline-secondary" type="button" v-if="smart_param.savepath && smart_param.index == index && task.savepath != smart_param.origin_savepath" @click="task.savepath = smart_param.origin_savepath" title="恢复保存路径"><i class="bi bi-reply"></i></button>
-                          <button class="btn btn-outline-secondary" type="button" @click="showSavepathSelect(index)" title="选择文件夹"><i class="bi bi-folder"></i></button>
+                          <button class="btn btn-outline-secondary" type="button" @click="showSavepathSelect(index)" title="选择保存到的文件夹"><i class="bi bi-folder"></i></button>
                           <button type="button" class="btn btn-outline-secondary" @click="resetFolder(index)" title="重置文件夹：此操作将删除当前保存路径中的所有文件及相关转存记录，且不可恢复，请谨慎操作"><i class="bi bi-folder-x"></i></button>
                         </div>
                       </div>
@@ -808,7 +808,7 @@
                       <div class="input-group">
                         <input type="text" class="form-control" placeholder="可选，只转存比此文件更新的文件，请在符合筛选条件的文件中进行选择" name="startfid[]" v-model="task.startfid">
                         <div class="input-group-append" v-if="task.shareurl">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.previewRegex=false;showShareSelect(index)" title="选择文件"><i class="bi bi-folder"></i></button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.previewRegex=false;showShareSelect(index)" title="选择起始文件"><i class="bi bi-folder"></i></button>
                         </div>
                       </div>
                     </div>
@@ -825,7 +825,7 @@
                       <div class="input-group">
                         <input type="date" name="enddate[]" class="form-control date-input-no-icon" v-model="task.enddate" placeholder="可选" :ref="'enddate_' + index">
                         <div class="input-group-append">
-                          <button type="button" class="btn btn-outline-secondary" @click="openDatePicker(index)" title="选择日期">
+                          <button type="button" class="btn btn-outline-secondary" @click="openDatePicker(index)" title="选择截止日期">
                             <i class="bi bi-calendar3"></i>
                           </button>
                         </div>
@@ -3161,7 +3161,7 @@
           this.fileSelect.fileList = [];
           this.fileSelect.paths = [];
           this.fileSelect.index = index;
-          // 重置排序状态为默认值
+          // 重置排序状态为默认值 - 选择需转存的文件夹模态框默认修改时间倒序
           this.fileSelect.sortBy = "updated_at";
           this.fileSelect.sortOrder = "desc";
           
@@ -3248,8 +3248,12 @@
             // 命名预览模式下使用重命名列倒序排序
             this.fileSelect.sortBy = "file_name_re";
             this.fileSelect.sortOrder = "desc";
+          } else if (this.fileSelect.selectDir) {
+            // 选择需转存的文件夹模态框：默认修改时间倒序
+            this.fileSelect.sortBy = "updated_at";
+            this.fileSelect.sortOrder = "desc";
           } else {
-            // 其他情况使用文件名倒序排序（使用全局文件排序函数）
+            // 选择起始文件模态框：使用文件名倒序排序（使用全局文件排序函数）
             this.fileSelect.sortBy = "file_name";
             this.fileSelect.sortOrder = "desc";
           }
@@ -3868,13 +3872,25 @@
               // 文件夹始终在前
               if (a.dir && !b.dir) return -1;
               if (!a.dir && b.dir) return 1;
-              // 使用拼音排序
-              let aValue = pinyinPro.pinyin(a.file_name, { toneType: 'none', type: 'string' }).toLowerCase();
-              let bValue = pinyinPro.pinyin(b.file_name, { toneType: 'none', type: 'string' }).toLowerCase();
-              if (this.fileSelect.sortOrder === 'asc') {
-                return aValue > bValue ? 1 : -1;
+
+              // 检查当前模态框类型，选择起始文件模态框使用全局文件排序函数
+              const modalType = document.getElementById('fileSelectModal').getAttribute('data-modal-type');
+              if (modalType === 'start-file') {
+                // 选择起始文件模态框：使用全局文件排序函数
+                const ka = sortFileByName(a), kb = sortFileByName(b);
+                for (let i = 0; i < ka.length; ++i) {
+                  if (ka[i] !== kb[i]) return this.fileSelect.sortOrder === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
+                }
+                return 0;
               } else {
-                return aValue < bValue ? 1 : -1;
+                // 其他模态框：使用拼音排序
+                let aValue = pinyinPro.pinyin(a.file_name, { toneType: 'none', type: 'string' }).toLowerCase();
+                let bValue = pinyinPro.pinyin(b.file_name, { toneType: 'none', type: 'string' }).toLowerCase();
+                if (this.fileSelect.sortOrder === 'asc') {
+                  return aValue > bValue ? 1 : -1;
+                } else {
+                  return aValue < bValue ? 1 : -1;
+                }
               }
             }
             if (field === 'file_name_re') {
