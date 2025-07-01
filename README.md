@@ -180,3 +180,9 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 程序没有任何破解行为，只是对于夸克已有的API进行封装，所有数据来自于夸克官方API；本人不对网盘内容负责、不对夸克官方API未来可能的变动导致的影响负责，请自行斟酌使用。
 
 开源仅供学习与交流使用，未盈利也未授权商业使用，严禁用于非法用途。
+
+## Sponsor
+
+CDN acceleration and security protection for this project are sponsored by Tencent EdgeOne.
+
+<a href="https://edgeone.ai/?from=github" target="_blank"><img title="Best Asian CDN, Edge, and Secure Solutions - Tencent EdgeOne" src="https://edgeone.ai/media/34fe3a45-492d-4ea4-ae5d-ea1087ca7b4b.png" width="300"></a>
