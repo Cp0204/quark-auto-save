@@ -3910,8 +3910,15 @@
                 let aValue, bValue;
                 // 对于重命名列，优先使用episode_number进行数值排序（如果存在）
                 if (a.episode_number !== undefined && b.episode_number !== undefined) {
-                  aValue = a.episode_number;
-                  bValue = b.episode_number;
+                  // 确保进行数值比较
+                  aValue = parseInt(a.episode_number, 10);
+                  bValue = parseInt(b.episode_number, 10);
+
+                  // 如果解析失败，回退到字符串比较
+                  if (isNaN(aValue) || isNaN(bValue)) {
+                    aValue = String(a.episode_number);
+                    bValue = String(b.episode_number);
+                  }
                 } else {
                   // 否则使用重命名后的文件名进行拼音排序
                   aValue = pinyinPro.pinyin(a.file_name_re || '', { toneType: 'none', type: 'string' }).toLowerCase();
@@ -4009,8 +4016,15 @@
                 let aValue, bValue;
                 // 对于重命名列，优先使用episode_number进行数值排序（如果存在）
                 if (a.episode_number !== undefined && b.episode_number !== undefined) {
-                  aValue = a.episode_number;
-                  bValue = b.episode_number;
+                  // 确保进行数值比较
+                  aValue = parseInt(a.episode_number, 10);
+                  bValue = parseInt(b.episode_number, 10);
+
+                  // 如果解析失败，回退到字符串比较
+                  if (isNaN(aValue) || isNaN(bValue)) {
+                    aValue = String(a.episode_number);
+                    bValue = String(b.episode_number);
+                  }
                 } else {
                   // 否则使用重命名后的文件名进行拼音排序
                   aValue = pinyinPro.pinyin(a.file_name_re || '', { toneType: 'none', type: 'string' }).toLowerCase();
@@ -4917,8 +4931,11 @@
                     if (previewItem) {
                       // 设置重命名字段
                       file.file_name_re = previewItem.new_name;
+                      // 设置集数字段用于排序
+                      file.episode_number = previewItem.episode_number;
                     } else {
                       file.file_name_re = null;
+                      file.episode_number = undefined;
                     }
                   });
                   

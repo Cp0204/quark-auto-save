@@ -864,9 +864,11 @@ def get_share_detail():
                     extension = os.path.splitext(file["file_name"])[1]
                     # 从文件名中提取集号
                     episode_num = extract_episode_number(file["file_name"], episode_patterns=episode_patterns)
-                    
+
                     if episode_num is not None:
                         file["file_name_re"] = episode_pattern.replace("[]", f"{episode_num:02d}") + extension
+                        # 添加episode_number字段用于前端排序
+                        file["episode_number"] = episode_num
                     else:
                         # 没有提取到集号，显示无法识别的提示
                         file["file_name_re"] = "× 无法识别剧集编号"
@@ -1748,7 +1750,8 @@ def preview_rename():
                     preview_results.append({
                         "original_name": file["file_name"],
                         "new_name": new_name,
-                        "file_id": file["fid"]
+                        "file_id": file["fid"],
+                        "episode_number": episode_num  # 添加集数字段用于前端排序
                     })
                 else:
                     # 没有提取到集号，显示无法识别的提示
