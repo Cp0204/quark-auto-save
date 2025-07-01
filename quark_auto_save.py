@@ -301,7 +301,17 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
             # 如果能确定月日且是有效的日期，则从文件名中删除该日期
             if month and day and 1 <= month <= 12 and 1 <= day <= 31:
                 filename_without_dates = filename_without_dates.replace(date_str, " ")
-    
+
+    # 预处理：移除分辨率标识（如 720p, 1080P, 2160p 等）
+    resolution_patterns = [
+        r'\b\d+[pP]\b',  # 匹配 720p, 1080P, 2160p 等
+        r'\b\d+x\d+\b',  # 匹配 1920x1080 等
+        # 注意：不移除4K/8K，因为剧集匹配规则中有 (\d+)[-_\s]*4[Kk] 模式
+    ]
+
+    for pattern in resolution_patterns:
+        filename_without_dates = re.sub(pattern, ' ', filename_without_dates)
+
     # 优先匹配SxxExx格式
     match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename_without_dates)
     if match_s_e:
@@ -358,12 +368,12 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
             match = re.search(pattern_regex, filename_without_dates)
             if match:
                 episode_num = int(match.group(1))
-                
+
                 # 检查提取的数字是否可能是日期的一部分
                 # 如果是纯数字并且可能是日期格式，则跳过
                 if str(episode_num).isdigit() and is_date_format(str(episode_num)):
                     continue
-                
+
                 return episode_num
         except:
             continue
@@ -390,8 +400,11 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
         episode_num = int(num_match.group(1))
         # 检查提取的数字是否可能是日期
         if not is_date_format(str(episode_num)):
+            # 检查是否是过大的数字（可能是时间戳、文件大小等）
+            if episode_num > 9999:
+                return None  # 跳过过大的数字
             return episode_num
-            
+
     return None
 
 # 全局变量
