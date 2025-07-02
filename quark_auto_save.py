@@ -2566,9 +2566,13 @@ class Quark:
                         )
                         
                         # 修复文件树显示问题 - 防止文件名重复重复显示
-                        # 如果save_name与original_name相似（如：一个是"你好，星期六 - 2025-04-05.mp4"，另一个是"20250405期.mp4"）
-                        # 则只显示save_name，避免重复
-                        display_name = item['save_name']
+                        # 对于顺序命名和剧集命名模式，转存时使用原文件名显示
+                        # 因为实际文件是以原名保存的，重命名在后续步骤进行
+                        if task.get("use_sequence_naming") or task.get("use_episode_naming"):
+                            display_name = item['file_name']  # 使用原文件名
+                        else:
+                            # 其他模式使用save_name
+                            display_name = item['save_name']
                         
                         # 确保只显示文件/文件夹名，而不是完整路径
                         if "/" in display_name:
@@ -2595,10 +2599,11 @@ class Quark:
                             
                             # 保存转存记录到数据库
                             if not item["dir"]:  # 只记录文件，不记录文件夹
+                                # 转存时先用原文件名记录，重命名后再更新
                                 self.create_transfer_record(
                                     task=task,
                                     file_info=item,
-                                    renamed_to=item.get("save_name", item["file_name"])
+                                    renamed_to=item["file_name"]  # 转存时使用原文件名
                                 )
                     
                     # 移除通知生成，由do_save函数统一处理
@@ -2637,28 +2642,78 @@ class Quark:
             # 判断目录是否为空（只包含非目录文件）
             non_dir_files = [f for f in dir_file_list if not f.get("dir", False)]
             is_empty_dir = len(non_dir_files) == 0
-            
+
+
+
             # 找出当前最大序号
             max_sequence = 0
-            if not is_empty_dir:  # 只有在目录非空时才寻找最大序号
-                for dir_file in dir_file_list:
-                    if sequence_pattern == "{}":
-                        # 对于单独的{}，直接尝试匹配整个文件名是否为数字
-                        file_name_without_ext = os.path.splitext(dir_file["file_name"])[0]
-                        if file_name_without_ext.isdigit():
-                            # 增加判断：如果是日期格式的纯数字，不应被视为序号
-                            if not is_date_format(file_name_without_ext):
+            # 先检查目录中是否有符合命名规则的文件
+            has_matching_files = False
+
+            for dir_file in dir_file_list:
+                if dir_file.get("dir", False):
+                    continue  # 跳过文件夹
+
+                if sequence_pattern == "{}":
+                    # 对于单独的{}，直接尝试匹配整个文件名是否为数字
+                    file_name_without_ext = os.path.splitext(dir_file["file_name"])[0]
+                    if file_name_without_ext.isdigit():
+                        # 增加判断：如果是日期格式的纯数字，不应被视为序号
+                        if not is_date_format(file_name_without_ext):
+                            try:
+                                current_seq = int(file_name_without_ext)
+                                max_sequence = max(max_sequence, current_seq)
+                                has_matching_files = True
+                            except (ValueError, IndexError):
+                                pass
+                elif matches := re.match(regex_pattern, dir_file["file_name"]):
+                    try:
+                        current_seq = int(matches.group(1))
+                        max_sequence = max(max_sequence, current_seq)
+                        has_matching_files = True
+                    except (IndexError, ValueError):
+                        pass
+
+            if not has_matching_files:
+                # 没有符合命名规则的文件时，检查数据库中的转存记录
+                try:
+                    from app.sdk.db import RecordDB
+                    db = RecordDB()
+
+                    # 获取当前保存路径
+                    current_save_path = task.get("savepath", "")
+                    if subdir_path:
+                        current_save_path = f"{current_save_path}/{subdir_path}"
+
+                    # 查询该目录的转存记录
+                    records = db.get_records_by_save_path(current_save_path, include_subpaths=False)
+
+                    # 从转存记录中提取最大序号
+                    max_sequence_from_records = 0
+                    for record in records:
+                        renamed_to = record.get("renamed_to", "")
+                        if renamed_to:
+                            if sequence_pattern == "{}":
+                                # 对于单独的{}，直接尝试匹配整个文件名是否为数字
+                                file_name_without_ext = os.path.splitext(renamed_to)[0]
+                                if file_name_without_ext.isdigit():
+                                    try:
+                                        seq_num = int(file_name_without_ext)
+                                        max_sequence_from_records = max(max_sequence_from_records, seq_num)
+                                    except (ValueError, IndexError):
+                                        pass
+                            elif matches := re.match(regex_pattern, renamed_to):
                                 try:
-                                    current_seq = int(file_name_without_ext)
-                                    max_sequence = max(max_sequence, current_seq)
+                                    seq_num = int(matches.group(1))
+                                    max_sequence_from_records = max(max_sequence_from_records, seq_num)
                                 except (ValueError, IndexError):
                                     pass
-                    elif matches := re.match(regex_pattern, dir_file["file_name"]):
-                        try:
-                            current_seq = int(matches.group(1))
-                            max_sequence = max(max_sequence, current_seq)
-                        except (IndexError, ValueError):
-                            pass
+
+                    # 使用记录中的最大序号
+                    max_sequence = max_sequence_from_records
+                    db.close()
+                except Exception as e:
+                    max_sequence = 0
             
             # 实现高级排序算法
             def extract_sorting_value(file):
@@ -2749,12 +2804,11 @@ class Quark:
                         is_rename_count += 1
                         
                         # 更新重命名记录到数据库（只更新renamed_to字段）
-                        # 不在这里直接调用update_transfer_record，而是在do_save中统一处理
-                        # self.update_transfer_record(
-                        #     task=task,
-                        #     file_info=dir_file,
-                        #     renamed_to=save_name
-                        # )
+                        self.update_transfer_record(
+                            task=task,
+                            file_info=dir_file,
+                            renamed_to=save_name
+                        )
                     else:
                         error_msg = rename_return.get("message", "未知错误")
                         rename_log = f"重命名: {dir_file['file_name']} → {save_name} 失败，{error_msg}"
@@ -3052,10 +3106,11 @@ class Quark:
                                 # 保存转存记录到数据库
                                 for saved_item in need_save_list:
                                     if not saved_item.get("dir", False):  # 只记录文件，不记录文件夹
+                                        # 转存时先用原文件名记录，重命名后再更新
                                         self.create_transfer_record(
                                             task=task,
                                             file_info=saved_item,
-                                            renamed_to=saved_item.get("save_name", saved_item["file_name"])
+                                            renamed_to=saved_item["file_name"]  # 转存时使用原文件名
                                         )
                                 
                                 # 刷新目录列表以获取新保存的文件
