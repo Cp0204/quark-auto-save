@@ -174,9 +174,34 @@ class RecordDB:
         total_records = cursor.fetchone()[0]
         
         # 获取分页数据
-        query_sql = f"SELECT * FROM transfer_records {where_sql} ORDER BY {sort_by} {order_direction} LIMIT ? OFFSET ?"
-        cursor.execute(query_sql, params + [page_size, offset])
-        records = cursor.fetchall()
+        if sort_by in ["task_name", "original_name", "renamed_to"]:
+            # 对于需要拼音排序的字段，先获取所有数据然后在Python中进行拼音排序
+            query_sql = f"SELECT * FROM transfer_records {where_sql}"
+            cursor.execute(query_sql, params)
+            all_records = cursor.fetchall()
+
+            # 使用拼音排序
+            from utils.pinyin_sort import get_filename_pinyin_sort_key
+
+            # 根据排序字段选择对应的索引
+            field_index_map = {
+                "task_name": 2,      # task_name字段索引
+                "original_name": 3,  # original_name字段索引
+                "renamed_to": 4      # renamed_to字段索引
+            }
+            field_index = field_index_map[sort_by]
+
+            sorted_records = sorted(all_records, key=lambda x: get_filename_pinyin_sort_key(x[field_index]), reverse=(order_direction == "DESC"))
+
+            # 手动分页
+            start_idx = offset
+            end_idx = offset + page_size
+            records = sorted_records[start_idx:end_idx]
+        else:
+            # 其他字段使用SQL排序
+            query_sql = f"SELECT * FROM transfer_records {where_sql} ORDER BY {sort_by} {order_direction} LIMIT ? OFFSET ?"
+            cursor.execute(query_sql, params + [page_size, offset])
+            records = cursor.fetchall()
         
         # 将结果转换为字典列表
         columns = [col[0] for col in cursor.description]

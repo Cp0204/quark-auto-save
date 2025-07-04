@@ -40,6 +40,14 @@ from quark_auto_save import Config, format_bytes
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from quark_auto_save import extract_episode_number, sort_file_by_name, chinese_to_arabic, is_date_format
 
+# 导入拼音排序工具
+try:
+    from utils.pinyin_sort import get_filename_pinyin_sort_key
+except ImportError:
+    # 如果导入失败，使用简单的小写排序作为备用
+    def get_filename_pinyin_sort_key(filename):
+        return filename.lower()
+
 # 导入数据库模块
 try:
     # 先尝试相对导入
@@ -856,9 +864,11 @@ def get_share_detail():
                     extension = os.path.splitext(file["file_name"])[1]
                     # 从文件名中提取集号
                     episode_num = extract_episode_number(file["file_name"], episode_patterns=episode_patterns)
-                    
+
                     if episode_num is not None:
                         file["file_name_re"] = episode_pattern.replace("[]", f"{episode_num:02d}") + extension
+                        # 添加episode_number字段用于前端排序
+                        file["episode_number"] = episode_num
                     else:
                         # 没有提取到集号，显示无法识别的提示
                         file["file_name_re"] = "× 无法识别剧集编号"
@@ -1009,6 +1019,114 @@ def delete_file():
     else:
         response = {"success": False, "message": "缺失必要字段: fid"}
     return jsonify(response)
+
+
+@app.route("/move_file", methods=["POST"])
+def move_file():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+
+    # 获取账号索引参数
+    account_index = int(request.json.get("account_index", 0))
+
+    # 验证账号索引
+    if account_index < 0 or account_index >= len(config_data["cookie"]):
+        return jsonify({"success": False, "message": "账号索引无效"})
+
+    account = Quark(config_data["cookie"][account_index], account_index)
+
+    # 获取参数
+    file_ids = request.json.get("file_ids", [])
+    target_folder_id = request.json.get("target_folder_id")
+
+    if not file_ids:
+        return jsonify({"success": False, "message": "缺少文件ID列表"})
+
+    if not target_folder_id:
+        return jsonify({"success": False, "message": "缺少目标文件夹ID"})
+
+    try:
+        # 调用夸克网盘的移动API
+        response = account.move(file_ids, target_folder_id)
+
+        if response["code"] == 0:
+            return jsonify({
+                "success": True,
+                "message": f"成功移动 {len(file_ids)} 个文件",
+                "moved_count": len(file_ids)
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": response.get("message", "移动失败")
+            })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"移动文件时出错: {str(e)}"
+        })
+
+
+@app.route("/create_folder", methods=["POST"])
+def create_folder():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+
+    # 获取请求参数
+    data = request.json
+    parent_folder_id = data.get("parent_folder_id")
+    folder_name = data.get("folder_name", "新建文件夹")
+    account_index = int(data.get("account_index", 0))
+
+    # 验证参数
+    if not parent_folder_id:
+        return jsonify({"success": False, "message": "缺少父目录ID"})
+
+    # 验证账号索引
+    if account_index < 0 or account_index >= len(config_data["cookie"]):
+        return jsonify({"success": False, "message": "账号索引无效"})
+
+    try:
+        # 初始化夸克网盘客户端
+        account = Quark(config_data["cookie"][account_index], account_index)
+
+        # 调用新建文件夹API
+        response = account.mkdir_in_folder(parent_folder_id, folder_name)
+
+        if response.get("code") == 0:
+            # 创建成功，返回新文件夹信息
+            new_folder = response.get("data", {})
+            return jsonify({
+                "success": True,
+                "message": "文件夹创建成功",
+                "data": {
+                    "fid": new_folder.get("fid"),
+                    "file_name": new_folder.get("file_name", folder_name),
+                    "dir": True,
+                    "size": 0,
+                    "updated_at": new_folder.get("updated_at"),
+                    "include_items": 0
+                }
+            })
+        else:
+            # 处理特定的错误信息
+            error_message = response.get("message", "创建文件夹失败")
+
+            # 检查是否是同名文件夹冲突
+            if "同名" in error_message or "已存在" in error_message or "重复" in error_message or "doloading" in error_message:
+                error_message = "已存在同名文件夹，请修改名称后再试"
+
+            return jsonify({
+                "success": False,
+                "message": error_message
+            })
+
+    except Exception as e:
+        logging.error(f">>> 创建文件夹时出错: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": f"创建文件夹时出错: {str(e)}"
+        })
 
 
 # 添加任务接口
@@ -1581,9 +1699,11 @@ def get_file_list():
         # 优化排序：使用更高效的排序方法
         def get_sort_key(file_item):
             if sort_by == "file_name":
-                return file_item["file_name"].lower()
+                # 使用拼音排序
+                return get_filename_pinyin_sort_key(file_item["file_name"])
             elif sort_by == "file_size":
-                return file_item["size"] if not file_item["dir"] else 0
+                # 文件夹按项目数量排序，文件按大小排序
+                return file_item.get("include_items", 0) if file_item["dir"] else file_item["size"]
             else:  # updated_at
                 return file_item["updated_at"]
 
@@ -1738,7 +1858,8 @@ def preview_rename():
                     preview_results.append({
                         "original_name": file["file_name"],
                         "new_name": new_name,
-                        "file_id": file["fid"]
+                        "file_id": file["fid"],
+                        "episode_number": episode_num  # 添加集数字段用于前端排序
                     })
                 else:
                     # 没有提取到集号，显示无法识别的提示
