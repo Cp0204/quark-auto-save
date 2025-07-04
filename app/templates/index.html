@@ -705,6 +705,20 @@
                 </div>
               </div>
             </div>
+            <div class="row mb-2 display-setting-row">
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">最近更新日期</span>
+                  </div>
+                  <select class="form-control" v-model="formData.button_display.latest_update_date">
+                    <option value="always">始终显示</option>
+                    <option value="hover">悬停显示</option>
+                    <option value="disabled">禁用</option>
+                  </select>
+                </div>
+              </div>
+            </div>
 
             <!-- 性能设置 -->
             <div class="row title" title="调整文件整理页面的请求参数和缓存时长，可提升大文件夹的加载速度和数据刷新效率。合理配置可减少API请求次数，同时保证数据及时更新">
@@ -781,6 +795,11 @@
                   <div class="col pl-0" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="true" :aria-controls="'collapse_'+index">
                     <div class="btn btn-block text-left">
                       <i class="bi bi-caret-right-fill"></i> #<span v-html="`${String(index+1).padStart(2, '0')} ${task.taskname}`"></span>
+                      <span v-if="formData.button_display.latest_update_date !== 'disabled' && taskLatestRecords[task.taskname]"
+                            class="task-latest-date"
+                            :class="{'hover-only': formData.button_display.latest_update_date === 'hover'}">
+                         · {{ taskLatestRecords[task.taskname] }}
+                      </span>
                     </div>
                   </div>
                   <div class="col-auto task-buttons">
@@ -1613,7 +1632,8 @@
             run_task: "always",
             delete_task: "always",
             refresh_plex: "always",
-            refresh_alist: "always"
+            refresh_alist: "always",
+            latest_update_date: "always"
           },
           file_performance: {
             api_page_size: 200,
@@ -1642,6 +1662,7 @@
         taskDirs: [""],
         taskDirSelected: "",
         taskNameFilter: "",
+        taskLatestRecords: {}, // 存储每个任务的最新转存记录日期
         modalLoading: false,
         smart_param: {
           index: null,
@@ -2538,8 +2559,13 @@
                   run_task: "always",
                   delete_task: "always",
                   refresh_plex: "always",
-                  refresh_alist: "always"
+                  refresh_alist: "always",
+                  latest_update_date: "always"
                 };
+              }
+              // 确保最近更新日期配置存在（向后兼容）
+              if (!config_data.button_display.latest_update_date) {
+                config_data.button_display.latest_update_date = "always";
               }
               // 确保文件整理性能配置存在
               if (!config_data.file_performance) {
@@ -2563,7 +2589,10 @@
               setTimeout(() => {
                 this.configModified = false;
               }, 100);
-              
+
+              // 加载任务最新记录
+              this.loadTaskLatestRecords();
+
               // 数据加载完成后检查分享链接状态
               if (this.activeTab === 'tasklist') {
                 setTimeout(() => {
@@ -4137,6 +4166,20 @@
               this.allTaskNames = this.sortTaskNamesByPinyin([...taskNames]);
             }
           });
+        },
+        loadTaskLatestRecords() {
+          // 获取所有任务的最新转存记录日期
+          axios.get('/task_latest_records')
+            .then(response => {
+              if (response.data.success) {
+                this.taskLatestRecords = response.data.data;
+              } else {
+                console.error('获取任务最新记录失败:', response.data.message);
+              }
+            })
+            .catch(error => {
+              console.error('获取任务最新记录失败:', error);
+            });
         },
         openDatePicker(index) {
           // 使用$refs访问对应的日期选择器并打开它

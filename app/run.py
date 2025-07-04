@@ -1358,10 +1358,64 @@ def delete_history_records():
         deleted_count += db.delete_record(record_id)
     
     return jsonify({
-        "success": True, 
+        "success": True,
         "message": f"成功删除 {deleted_count} 条记录",
         "deleted_count": deleted_count
     })
+
+
+# 获取任务最新转存记录日期
+@app.route("/task_latest_records")
+def get_task_latest_records():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+
+    try:
+        # 初始化数据库
+        db = RecordDB()
+
+        # 获取所有任务的最新转存记录
+        cursor = db.conn.cursor()
+        query = """
+        SELECT task_name, MAX(transfer_time) as latest_transfer_time
+        FROM transfer_records
+        WHERE task_name != 'rename'
+        GROUP BY task_name
+        """
+        cursor.execute(query)
+        results = cursor.fetchall()
+
+        # 转换为字典格式
+        task_latest_records = {}
+        for row in results:
+            task_name, latest_time = row
+            if latest_time:
+                try:
+                    # 确保时间戳在合理范围内
+                    timestamp = int(latest_time)
+                    if timestamp > 9999999999:  # 检测是否为毫秒级时间戳（13位）
+                        timestamp = timestamp / 1000  # 转换为秒级时间戳
+
+                    if 0 < timestamp < 4102444800:  # 从1970年到2100年的合理时间戳范围
+                        # 格式化为月-日格式
+                        date_obj = datetime.fromtimestamp(timestamp)
+                        formatted_date = date_obj.strftime("%m-%d")
+                        task_latest_records[task_name] = formatted_date
+                except (ValueError, TypeError, OverflowError):
+                    pass  # 忽略无效的时间戳
+
+        db.close()
+
+        return jsonify({
+            "success": True,
+            "data": task_latest_records
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"获取任务最新记录失败: {str(e)}"
+        })
 
 
 # 删除单条转存记录

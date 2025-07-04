@@ -4055,24 +4055,45 @@ table.selectable-records .expand-button:hover {
   }
 }
 
+/* 任务最近更新日期样式 */
+.task-latest-date {
+  color: var(--dark-text-color);
+  font-size: 0.95rem;
+  font-weight: normal;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+/* 悬停显示模式 */
+.task .btn:not(:hover) .task-latest-date.hover-only {
+  opacity: 0;
+}
+
+.task .btn:hover .task-latest-date.hover-only {
+  opacity: 1;
+}
+
+/* 显示设置行样式 */
+.display-setting-row > [class*='col-'] {
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
+
+.display-setting-row {
+  margin-left: -4px !important;
+  margin-right: -4px !important;
+}
+
 @media (min-width: 992px) {
   .display-setting-row > .col-lg-3 {
     padding-left: 4px !important;
     padding-right: 4px !important;
   }
-  .display-setting-row {
-    margin-left: -4px !important;
-    margin-right: -4px !important;
-  }
 }
 
-.display-setting-row > [class*='col-'] {
-  padding-left: 4px !important;
-  padding-right: 4px !important;
-}
-.display-setting-row {
-  margin-left: -4px !important;
-  margin-right: -4px !important;
+/* 调整显示设置第二行的上边距，使其与第一行保持8px间距 */
+.display-setting-row + .display-setting-row {
+  margin-top: -8px !important;
 }
 
 /* 文件整理性能设置样式 */
