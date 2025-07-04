@@ -1121,6 +1121,21 @@ class Quark:
         ).json()
         return response
 
+    def mkdir_in_folder(self, parent_fid, folder_name):
+        """在指定父目录下创建新文件夹"""
+        url = f"{self.BASE_URL}/1/clouddrive/file"
+        querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
+        payload = {
+            "pdir_fid": parent_fid,
+            "file_name": folder_name,
+            "dir_path": "",
+            "dir_init_lock": False,
+        }
+        response = self._send_request(
+            "POST", url, json=payload, params=querystring
+        ).json()
+        return response
+
     def rename(self, fid, file_name):
         url = f"{self.BASE_URL}/1/clouddrive/file/rename"
         querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
@@ -1134,6 +1149,21 @@ class Quark:
         url = f"{self.BASE_URL}/1/clouddrive/file/delete"
         querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
         payload = {"action_type": 2, "filelist": filelist, "exclude_fids": []}
+        response = self._send_request(
+            "POST", url, json=payload, params=querystring
+        ).json()
+        return response
+
+    def move(self, filelist, to_pdir_fid):
+        """移动文件到指定目录"""
+        url = f"{self.BASE_URL}/1/clouddrive/file/move"
+        querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
+        payload = {
+            "action_type": 2,
+            "filelist": filelist,
+            "to_pdir_fid": to_pdir_fid,
+            "exclude_fids": []
+        }
         response = self._send_request(
             "POST", url, json=payload, params=querystring
         ).json()
