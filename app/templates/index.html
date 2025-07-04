@@ -718,6 +718,18 @@
                   </select>
                 </div>
               </div>
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">最近转存文件</span>
+                  </div>
+                  <select class="form-control" v-model="formData.button_display.latest_transfer_file">
+                    <option value="always">始终显示</option>
+                    <option value="hover">悬停显示</option>
+                    <option value="disabled">禁用</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             <!-- 性能设置 -->
@@ -799,6 +811,11 @@
                             class="task-latest-date"
                             :class="{'hover-only': formData.button_display.latest_update_date === 'hover'}">
                          · {{ taskLatestRecords[task.taskname] }}
+                      </span>
+                      <span v-if="formData.button_display.latest_transfer_file !== 'disabled' && taskLatestFiles[task.taskname]"
+                            class="task-latest-file"
+                            :class="{'hover-only': formData.button_display.latest_transfer_file === 'hover'}">
+                         · {{ taskLatestFiles[task.taskname] }}
                       </span>
                     </div>
                   </div>
@@ -1633,7 +1650,8 @@
             delete_task: "always",
             refresh_plex: "always",
             refresh_alist: "always",
-            latest_update_date: "always"
+            latest_update_date: "always",
+            latest_transfer_file: "always"
           },
           file_performance: {
             api_page_size: 200,
@@ -1663,6 +1681,7 @@
         taskDirSelected: "",
         taskNameFilter: "",
         taskLatestRecords: {}, // 存储每个任务的最新转存记录日期
+        taskLatestFiles: {}, // 存储每个任务的最近转存文件
         modalLoading: false,
         smart_param: {
           index: null,
@@ -2560,12 +2579,17 @@
                   delete_task: "always",
                   refresh_plex: "always",
                   refresh_alist: "always",
-                  latest_update_date: "always"
+                  latest_update_date: "always",
+                  latest_transfer_file: "always"
                 };
               }
               // 确保最近更新日期配置存在（向后兼容）
               if (!config_data.button_display.latest_update_date) {
                 config_data.button_display.latest_update_date = "always";
+              }
+              // 确保最近转存文件配置存在（向后兼容）
+              if (!config_data.button_display.latest_transfer_file) {
+                config_data.button_display.latest_transfer_file = "always";
               }
               // 确保文件整理性能配置存在
               if (!config_data.file_performance) {
@@ -2590,8 +2614,8 @@
                 this.configModified = false;
               }, 100);
 
-              // 加载任务最新记录
-              this.loadTaskLatestRecords();
+              // 加载任务最新信息（包括记录和文件）
+              this.loadTaskLatestInfo();
 
               // 数据加载完成后检查分享链接状态
               if (this.activeTab === 'tasklist') {
@@ -4167,18 +4191,19 @@
             }
           });
         },
-        loadTaskLatestRecords() {
-          // 获取所有任务的最新转存记录日期
-          axios.get('/task_latest_records')
+        loadTaskLatestInfo() {
+          // 获取所有任务的最新转存信息（包括日期和文件）
+          axios.get('/task_latest_info')
             .then(response => {
               if (response.data.success) {
-                this.taskLatestRecords = response.data.data;
+                this.taskLatestRecords = response.data.data.latest_records;
+                this.taskLatestFiles = response.data.data.latest_files;
               } else {
-                console.error('获取任务最新记录失败:', response.data.message);
+                console.error('获取任务最新信息失败:', response.data.message);
               }
             })
             .catch(error => {
-              console.error('获取任务最新记录失败:', error);
+              console.error('获取任务最新信息失败:', error);
             });
         },
         openDatePicker(index) {

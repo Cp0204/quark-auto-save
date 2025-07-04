@@ -4060,17 +4060,25 @@ table.selectable-records .expand-button:hover {
   color: var(--dark-text-color);
   font-size: 0.95rem;
   font-weight: normal;
-  opacity: 1;
-  transition: opacity 0.2s ease;
 }
 
-/* 悬停显示模式 */
-.task .btn:not(:hover) .task-latest-date.hover-only {
-  opacity: 0;
+/* 任务最近转存文件样式 */
+.task-latest-file {
+  color: var(--dark-text-color);
+  font-size: 0.95rem;
+  font-weight: normal;
 }
 
-.task .btn:hover .task-latest-date.hover-only {
-  opacity: 1;
+/* 悬停显示模式 - 使用display来避免占用空间，同时保持平滑的悬停效果 */
+.task-latest-date.hover-only,
+.task-latest-file.hover-only {
+  display: none;
+  transition: all 0.2s ease;
+}
+
+.task .btn:hover .task-latest-date.hover-only,
+.task .btn:hover .task-latest-file.hover-only {
+  display: inline;
 }
 
 /* 显示设置行样式 */
