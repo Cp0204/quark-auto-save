@@ -1687,7 +1687,20 @@ button.close:focus,
   cursor: pointer;
 }
 
-#fileSelectModal .bi-file-earmark {
+#fileSelectModal .bi-file-earmark,
+#fileSelectModal .bi-file-earmark-play,
+#fileSelectModal .bi-file-earmark-music,
+#fileSelectModal .bi-file-earmark-image,
+#fileSelectModal .bi-file-earmark-text,
+#fileSelectModal .bi-file-earmark-richtext,
+#fileSelectModal .bi-file-earmark-zip,
+#fileSelectModal .bi-file-earmark-font,
+#fileSelectModal .bi-file-earmark-code,
+#fileSelectModal .bi-file-earmark-pdf,
+#fileSelectModal .bi-file-earmark-word,
+#fileSelectModal .bi-file-earmark-excel,
+#fileSelectModal .bi-file-earmark-ppt,
+#fileSelectModal .bi-file-earmark-medical {
   color: var(--dark-text-color);
   font-size: 0.9rem;
   margin-right: 5px;
@@ -3924,7 +3937,20 @@ table.selectable-records .expand-button:hover {
 }
 
 /* 模态框通用文件图标样式 */
-#fileSelectModal .bi-file-earmark {
+#fileSelectModal .bi-file-earmark,
+#fileSelectModal .bi-file-earmark-play,
+#fileSelectModal .bi-file-earmark-music,
+#fileSelectModal .bi-file-earmark-image,
+#fileSelectModal .bi-file-earmark-text,
+#fileSelectModal .bi-file-earmark-richtext,
+#fileSelectModal .bi-file-earmark-zip,
+#fileSelectModal .bi-file-earmark-font,
+#fileSelectModal .bi-file-earmark-code,
+#fileSelectModal .bi-file-earmark-pdf,
+#fileSelectModal .bi-file-earmark-word,
+#fileSelectModal .bi-file-earmark-excel,
+#fileSelectModal .bi-file-earmark-ppt,
+#fileSelectModal .bi-file-earmark-medical {
   color: var(--dark-text-color);
   font-size: 0.95rem;
   margin-right: 4px !important;
@@ -5228,7 +5254,20 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 }
 
 /* 文件整理页面的文件图标样式 */
-.selectable-files .bi-file-earmark {
+.selectable-files .bi-file-earmark,
+.selectable-files .bi-file-earmark-play,
+.selectable-files .bi-file-earmark-music,
+.selectable-files .bi-file-earmark-image,
+.selectable-files .bi-file-earmark-text,
+.selectable-files .bi-file-earmark-richtext,
+.selectable-files .bi-file-earmark-zip,
+.selectable-files .bi-file-earmark-font,
+.selectable-files .bi-file-earmark-code,
+.selectable-files .bi-file-earmark-pdf,
+.selectable-files .bi-file-earmark-word,
+.selectable-files .bi-file-earmark-excel,
+.selectable-files .bi-file-earmark-ppt,
+.selectable-files .bi-file-earmark-medical {
   font-size: 1.06rem;   /* 比模态框的0.95rem大一些 */
   margin-right: 7px !important;    /* 图标距离文本的距离 */
   position: relative;

@@ -69,18 +69,109 @@
     }
   });
   
+  // 根据文件扩展名获取对应的Bootstrap图标类名
+  function getFileIconClass(fileName, isDir = false) {
+    // 如果是文件夹，返回文件夹图标
+    if (isDir) {
+      return 'bi-folder-fill text-warning';
+    }
+
+    // 获取文件扩展名（转为小写）
+    const ext = fileName.toLowerCase().split('.').pop();
+
+    // 视频文件
+    const videoExts = ['mp4', 'mkv', 'avi', 'mov', 'rmvb', 'flv', 'wmv', 'm4v', 'ts', 'webm', '3gp', 'f4v'];
+    if (videoExts.includes(ext)) {
+      return 'bi-file-earmark-play';
+    }
+
+    // 音频文件
+    const audioExts = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma', 'ape', 'ac3', 'dts'];
+    if (audioExts.includes(ext)) {
+      return 'bi-file-earmark-music';
+    }
+
+    // 图片文件
+    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'tiff', 'svg', 'ico', 'raw'];
+    if (imageExts.includes(ext)) {
+      return 'bi-file-earmark-image';
+    }
+
+    // 文本文件（包括歌词文件和字幕文件）
+    const textExts = ['txt', 'md', 'rtf', 'log', 'ini', 'cfg', 'conf', 'lrc', 'srt', 'ass', 'ssa', 'vtt', 'sup'];
+    if (textExts.includes(ext)) {
+      return 'bi-file-earmark-text';
+    }
+
+    // 富文本文件
+    const richtextExts = ['rtf', 'odt'];
+    if (richtextExts.includes(ext)) {
+      return 'bi-file-earmark-richtext';
+    }
+
+    // 压缩文件
+    const archiveExts = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'lzma', 'cab', 'iso'];
+    if (archiveExts.includes(ext)) {
+      return 'bi-file-earmark-zip';
+    }
+
+    // 字体文件
+    const fontExts = ['ttf', 'otf', 'woff', 'woff2', 'eot'];
+    if (fontExts.includes(ext)) {
+      return 'bi-file-earmark-font';
+    }
+
+    // 代码文件
+    const codeExts = ['js', 'html', 'css', 'py', 'java', 'c', 'cpp', 'php', 'go', 'json', 'xml', 'yml', 'yaml', 'sql', 'sh', 'bat', 'ps1', 'rb', 'swift', 'kt', 'ts', 'jsx', 'tsx', 'vue', 'scss', 'sass', 'less'];
+    if (codeExts.includes(ext)) {
+      return 'bi-file-earmark-code';
+    }
+
+    // PDF文件
+    if (ext === 'pdf') {
+      return 'bi-file-earmark-pdf';
+    }
+
+    // Word文档
+    const wordExts = ['doc', 'docx'];
+    if (wordExts.includes(ext)) {
+      return 'bi-file-earmark-word';
+    }
+
+    // Excel文档
+    const excelExts = ['xls', 'xlsx', 'csv'];
+    if (excelExts.includes(ext)) {
+      return 'bi-file-earmark-excel';
+    }
+
+    // PowerPoint文档
+    const pptExts = ['ppt', 'pptx'];
+    if (pptExts.includes(ext)) {
+      return 'bi-file-earmark-ppt';
+    }
+
+    // 医疗/健康相关文件
+    const medicalExts = ['dcm', 'dicom', 'hl7'];
+    if (medicalExts.includes(ext)) {
+      return 'bi-file-earmark-medical';
+    }
+
+    // 默认文件图标
+    return 'bi-file-earmark';
+  }
+
   // 添加检测文件整理页面文件名溢出的自定义指令
   Vue.directive('check-file-overflow', {
     inserted: function(el, binding, vnode) {
       // 检查元素是否溢出
       const isOverflowing = el.scrollWidth > el.clientWidth;
-      
+
       // 如果绑定了值，则绑定到该值对应的文件属性上
       if (binding.value) {
         const indexAndField = binding.value.split('|');
         const index = parseInt(indexAndField[0]);
         const field = indexAndField[1];
-        
+
         // 设置文件的_isOverflowing属性
         const files = vnode.context.fileManager.fileList;
         if (files && files[index]) {
@@ -97,13 +188,13 @@
     update: function(el, binding, vnode) {
       // 检查元素是否溢出
       const isOverflowing = el.scrollWidth > el.clientWidth;
-      
+
       // 如果绑定了值，则绑定到该值对应的文件属性上
       if (binding.value) {
         const indexAndField = binding.value.split('|');
         const index = parseInt(indexAndField[0]);
         const field = indexAndField[1];
-        
+
         // 设置文件的_isOverflowing属性
         const files = vnode.context.fileManager.fileList;
         if (files && files[index]) {
@@ -1181,7 +1272,7 @@
                       <td class="position-relative">
                         <!-- 编辑状态 -->
                         <div v-if="file._editing" class="d-flex align-items-center" @click.stop>
-                          <i class="bi mr-2" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i>
+                          <i class="bi mr-2" :class="getFileIconClass(file.file_name, file.dir)"></i>
                           <input
                             type="text"
                             class="form-control form-control-sm rename-input"
@@ -1194,7 +1285,7 @@
                         </div>
                         <!-- 正常显示状态 -->
                         <div v-else-if="!file._expanded" class="d-flex align-items-center">
-                          <i class="bi mr-2" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i>
+                          <i class="bi mr-2" :class="getFileIconClass(file.file_name, file.dir)"></i>
                           <div class="text-truncate"
                               :title="file.file_name"
                               v-check-file-overflow="index + '|file_name'">
@@ -1202,7 +1293,7 @@
                           </div>
                         </div>
                         <div v-else style="white-space: normal; word-break: break-word; padding-right: 25px;">
-                          <i class="bi mr-2" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i>{{ file.file_name }}
+                          <i class="bi mr-2" :class="getFileIconClass(file.file_name, file.dir)"></i>{{ file.file_name }}
                         </div>
                         <div class="expand-button" v-if="!file._editing && isFilenameTruncated(file.file_name, index, 'file_name')" @click.stop="toggleExpandFilename(file)">
                           <i :class="file._expanded ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
@@ -1413,13 +1504,13 @@
                            style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 25px;" 
                            :title="file.file_name" 
                            v-check-modal-overflow="key + '|file_name'">
-                        <i class="bi" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i> {{file.file_name}}
+                        <i class="bi" :class="getFileIconClass(file.file_name, file.dir)"></i> {{file.file_name}}
                       </div>
                       <div class="expand-button" v-if="isModalTextTruncated(file.file_name, key, 'file_name')" @click.stop="toggleModalExpand(key, 'file_name')">
                         <i :class="file._expandedFields && file._expandedFields.includes('file_name') ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
                       </div>
                       <div v-if="file._expandedFields && file._expandedFields.includes('file_name')" style="white-space: normal; word-break: break-word; padding-right: 25px; display: block; width: 100%; position: relative;">
-                        <i class="bi" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i> {{file.file_name}}
+                        <i class="bi" :class="getFileIconClass(file.file_name, file.dir)"></i> {{file.file_name}}
                       </div>
                     </td>
                     <td class="col-rename position-relative" v-if="fileSelect.selectShare || fileSelect.previewRegex" :class="{'text-success': file.file_name_re && !file.file_name_re.startsWith('×'), 'text-danger': !file.file_name_re || file.file_name_re === '×' || file.file_name_re.startsWith('× ')}" style="padding-left: 5px; vertical-align: top;">
@@ -1975,6 +2066,10 @@
         document.removeEventListener('click', this.handleOutsideClick);
       },
       methods: {
+        // 获取文件图标类名
+        getFileIconClass(fileName, isDir = false) {
+          return getFileIconClass(fileName, isDir);
+        },
         // 拼音排序辅助函数
         sortTaskNamesByPinyin(taskNames) {
           return taskNames.sort((a, b) => {
