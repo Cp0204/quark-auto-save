@@ -128,19 +128,22 @@ def sort_file_by_name(file):
                 month, day = day, month
             date_value = year * 10000 + month * 100 + day
     
-    # 1.6 MM-DD 或 MM.DD 或 MM/DD 或 MM DD格式（无年份）
+    # 1.6 MM-DD 或 MM.DD 或 MM/DD格式（无年份，不包括空格分隔）
     if date_value == float('inf'):
-        match_date_short = re.search(r'(?<!\d)(\d{1,2})[-./\s](\d{1,2})(?!\d)', filename)
+        match_date_short = re.search(r'(?<!\d)(\d{1,2})[-./](\d{1,2})(?!\d)', filename)
         if match_date_short:
             # 假设第一个是月，第二个是日
             month = int(match_date_short.group(1))
             day = int(match_date_short.group(2))
-            # 检查月份值，如果大于12可能是欧式日期格式（DD/MM）
-            if month > 12:
-                month, day = day, month
-            # 由于没有年份，使用一个较低的基数，确保任何有年份的日期都排在前面
-            # 使用20000000作为基准，所以无年份日期都会排在有年份日期之后
-            date_value = 20000000 + month * 100 + day
+            # 验证是否为有效的月日组合
+            if ((month >= 1 and month <= 12 and day >= 1 and day <= 31) or
+                (day >= 1 and day <= 12 and month >= 1 and month <= 31)):
+                # 检查月份值，如果大于12可能是欧式日期格式（DD/MM）
+                if month > 12:
+                    month, day = day, month
+                # 由于没有年份，使用一个较低的基数，确保任何有年份的日期都排在前面
+                # 使用20000000作为基准，所以无年份日期都会排在有年份日期之后
+                date_value = 20000000 + month * 100 + day
     
     # 2. 提取期数/集数 - 第二级排序键
     
@@ -207,8 +210,19 @@ def sort_file_by_name(file):
         if file_name_without_ext.isdigit():
             episode_value = int(file_name_without_ext)
         else:
+            # 预处理：移除分辨率标识（如 720p, 1080P, 2160p 等）
+            filename_without_resolution = filename
+            resolution_patterns = [
+                r'\b\d+[pP]\b',  # 匹配 720p, 1080P, 2160p 等
+                r'\b\d+x\d+\b',  # 匹配 1920x1080 等
+                # 注意：不移除4K/8K，因为剧集匹配规则中有 (\d+)[-_\s]*4[Kk] 模式
+            ]
+
+            for pattern in resolution_patterns:
+                filename_without_resolution = re.sub(pattern, ' ', filename_without_resolution)
+
             # 否则尝试提取任何数字
-            any_num_match = re.search(r'(\d+)', filename)
+            any_num_match = re.search(r'(\d+)', filename_without_resolution)
             if any_num_match:
                 episode_value = int(any_num_match.group(1))
     
@@ -252,8 +266,8 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
         r'(?<!\d)(\d{2})(\d{2})(\d{2})(?!\d)',
         # MM/DD/YYYY 或 DD/MM/YYYY 格式
         r'(\d{1,2})[-./\s](\d{1,2})[-./\s]((?:19|20)\d{2})',
-        # MM-DD 或 MM.DD 或 MM/DD 或 MM DD格式（无年份）
-        r'(?<!\d)(\d{1,2})[-./\s](\d{1,2})(?!\d)',
+        # MM-DD 或 MM.DD 或 MM/DD格式（无年份，不包括空格分隔）
+        r'(?<!\d)(\d{1,2})[-./](\d{1,2})(?!\d)',
     ]
     
     # 从不含扩展名的文件名中移除日期部分
@@ -1961,26 +1975,32 @@ class Quark:
             start_fid = task.get("startfid", "")
             start_file_found = False
 
+
+
             for share_file in share_file_list:
                 if share_file["dir"]:
                     # 顺序命名模式下，未设置update_subdir时不处理文件夹
                     continue
+
+                # 改进的起始文件过滤逻辑 - 优先执行，在数据库查重之前
+                if start_fid:
+                    if share_file["fid"] == start_fid:
+                        start_file_found = True
+                        # 找到起始文件，但不包含起始文件本身，只处理比它更新的文件
+                        continue
+                    elif start_file_found:
+                        # 已经找到起始文件，跳过后续（更旧的）文件
+                        continue
+                    # 如果还没找到起始文件，说明当前文件比起始文件更新，需要处理
+                else:
+                    # 没有设置起始文件，处理所有文件
+                    pass
 
                 # 检查文件ID是否存在于转存记录中
                 file_id = share_file.get("fid", "")
                 if file_id and self.check_file_exists_in_records(file_id, task):
                     # 文件ID已存在于记录中，跳过处理
                     continue
-
-                # 改进的起始文件过滤逻辑
-                if start_fid:
-                    if share_file["fid"] == start_fid:
-                        start_file_found = True
-                        break  # 找到起始文件，停止遍历
-                    # 如果还没找到起始文件，继续添加到转存列表
-                else:
-                    # 没有设置起始文件，处理所有文件
-                    pass
 
                 file_size = share_file.get("size", 0)
                 file_ext = os.path.splitext(share_file["file_name"])[1].lower()
@@ -2013,9 +2033,13 @@ class Quark:
                 sort_tuple = sort_file_by_name(file)
                 # 返回排序元组，实现多级排序
                 return sort_tuple
-            
+
+            # 对过滤后的文件进行排序（正序，确保顺序命名按正确顺序进行）
+            # 注意：这里使用正序排序，因为顺序命名需要按照正确的顺序分配序号
+            filtered_share_files.sort(key=extract_sorting_value)
+
             # 判断是否使用单独的{}模式
-            
+
             # 需保存的文件清单
             need_save_list = []
             
@@ -2157,8 +2181,150 @@ class Quark:
                                         share_file["has_updates"] = True
                                         need_save_list.append(share_file)
                 
+        elif task.get("use_episode_naming") and task.get("episode_naming"):
+            # 剧集命名模式
+            need_save_list = []
+
+            # 构建目标目录中所有文件的查重索引（按大小和修改时间）
+            dir_files_map = {}
+            for dir_file in dir_file_list:
+                if not dir_file["dir"]:  # 仅处理文件
+                    file_size = dir_file.get("size", 0)
+                    file_ext = os.path.splitext(dir_file["file_name"])[1].lower()
+                    update_time = dir_file.get("updated_at", 0)
+
+                    # 创建大小+扩展名的索引，用于快速查重
+                    key = f"{file_size}_{file_ext}"
+                    if key not in dir_files_map:
+                        dir_files_map[key] = []
+                    dir_files_map[key].append({
+                        "file_name": dir_file["file_name"],
+                        "updated_at": update_time,
+                    })
+
+            # 预先过滤分享文件列表，去除已存在的文件
+            filtered_share_files = []
+            start_fid = task.get("startfid", "")
+            start_file_found = False
+
+            for share_file in share_file_list:
+                if share_file["dir"]:
+                    # 处理子目录
+                    if task.get("update_subdir") and re.search(task["update_subdir"], share_file["file_name"]):
+                        filtered_share_files.append(share_file)
+                    continue
+
+                # 改进的起始文件过滤逻辑 - 优先执行，在数据库查重之前
+                if start_fid:
+                    if share_file["fid"] == start_fid:
+                        start_file_found = True
+                        # 找到起始文件，但不包含起始文件本身，只处理比它更新的文件
+                        continue
+                    elif start_file_found:
+                        # 已经找到起始文件，跳过后续（更旧的）文件
+                        continue
+                    # 如果还没找到起始文件，说明当前文件比起始文件更新，需要处理
+                else:
+                    # 没有设置起始文件，处理所有文件
+                    pass
+
+                # 检查文件ID是否存在于转存记录中
+                file_id = share_file.get("fid", "")
+                if file_id and self.check_file_exists_in_records(file_id, task):
+                    # 文件ID已存在于记录中，跳过处理
+                    continue
+
+                # 从共享文件中提取剧集号
+                episode_num = extract_episode_number(share_file["file_name"])
+                is_duplicate = False
+
+                # 通过文件名判断是否已存在（新的查重逻辑）
+                if not is_duplicate:
+                    # 如果没有重命名，判断原文件名是否已存在
+                    original_name = share_file["file_name"]
+                    # 如果有剧集号，判断重命名后的文件名是否已存在
+                    file_ext = os.path.splitext(original_name)[1]
+
+                    if episode_num is not None:
+                        # 根据剧集命名模式生成目标文件名
+                        episode_pattern = task["episode_naming"]
+                        if episode_pattern == "[]":
+                            target_name = f"{episode_num:02d}{file_ext}"
+                        else:
+                            target_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+
+                        # 检查目标文件名是否已存在
+                        target_exists = any(dir_file["file_name"] == target_name for dir_file in dir_file_list)
+                        if target_exists:
+                            is_duplicate = True
+
+                    # 如果没有重复，检查文件大小和扩展名是否重复
+                    if not is_duplicate:
+                        file_size = share_file.get("size", 0)
+                        file_ext_lower = file_ext.lower()
+                        share_update_time = share_file.get("last_update_at", 0) or share_file.get("updated_at", 0)
+
+                        # 检查是否已存在相同大小和扩展名的文件
+                        key = f"{file_size}_{file_ext_lower}"
+                        if key in dir_files_map:
+                            for existing_file in dir_files_map[key]:
+                                existing_update_time = existing_file.get("updated_at", 0)
+                                # 防止除零错误
+                                if existing_update_time == 0:
+                                    continue
+                                # 如果修改时间相近（30天内）或者差距不大（10%以内），认为是同一个文件
+                                time_diff = abs(share_update_time - existing_update_time)
+                                time_ratio = abs(1 - (share_update_time / existing_update_time)) if existing_update_time else 1
+                                if time_diff < 2592000 or time_ratio < 0.1:
+                                    # 文件已存在，跳过处理
+                                    is_duplicate = True
+                                    break
+
+                if not is_duplicate:
+                    share_file["save_name"] = share_file["file_name"]  # 剧集命名模式下保持原文件名，重命名在后续步骤进行
+                    share_file["original_name"] = share_file["file_name"]
+                    filtered_share_files.append(share_file)
+
+            # 实现高级排序算法
+            def sort_by_episode(file):
+                if file["dir"]:
+                    return (float('inf'), 0)
+
+                filename = file["file_name"]
+
+                # 优先匹配S01E01格式
+                match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
+                if match_s_e:
+                    season = int(match_s_e.group(1))
+                    episode = int(match_s_e.group(2))
+                    return (season * 1000 + episode, 0)
+
+                # 使用统一的剧集提取函数
+                episode_num = extract_episode_number(filename)
+                if episode_num is not None:
+                    return (episode_num, 0)
+
+                # 无法识别，回退到修改时间排序
+                return (float('inf'), file.get("last_update_at", 0))
+
+            # 过滤出文件并排序
+            files_to_process = [f for f in filtered_share_files if not f["dir"]]
+            sorted_files = sorted(files_to_process, key=sort_by_episode)
+
+            # 要保存的文件列表
+            need_save_list = []
+
+            # 添加排序后的文件到保存列表
+            for share_file in sorted_files:
+                need_save_list.append(share_file)
+
+            # 处理文件夹
+            for share_file in filtered_share_files:
+                if share_file["dir"]:
+                    need_save_list.append(share_file)
+
         else:
-            # 正则命名模式
+            # 正则命名模式（普通正则命名模式）
             need_save_list = []
 
             # 构建目标目录中所有文件的查重索引（按大小和修改时间）- 加入文件查重机制
@@ -2189,7 +2355,7 @@ class Quark:
                         break
 
                 if start_index >= 0:
-                    # 只处理起始文件之前的文件（不包括起始文件本身）
+                    # 只处理起始文件之前的文件（比起始文件更新的文件，不包括起始文件本身）
                     share_file_list = share_file_list[:start_index]
 
             # 添加符合的
@@ -2967,8 +3133,12 @@ class Quark:
                         if start_fid:
                             if share_file["fid"] == start_fid:
                                 start_file_found = True
-                                break  # 找到起始文件，停止遍历
-                            # 如果还没找到起始文件，继续添加到转存列表
+                                # 找到起始文件，但不包含起始文件本身，只处理比它更新的文件
+                                continue
+                            elif start_file_found:
+                                # 已经找到起始文件，跳过后续（更旧的）文件
+                                continue
+                            # 如果还没找到起始文件，说明当前文件比起始文件更新，需要处理
                         else:
                             # 没有设置起始文件，处理所有文件
                             pass
