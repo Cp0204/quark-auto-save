@@ -40,6 +40,35 @@ from quark_auto_save import Config, format_bytes
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from quark_auto_save import extract_episode_number, sort_file_by_name, chinese_to_arabic, is_date_format
 
+
+def process_season_episode_info(filename):
+    """
+    处理文件名中的季数和集数信息
+
+    Args:
+        filename: 文件名（不含扩展名）
+
+    Returns:
+        处理后的显示名称
+    """
+    # 匹配 SxxExx 格式（不区分大小写）
+    # 支持 S1E1, S01E01, s13e10 等格式
+    season_episode_match = re.search(r'[Ss](\d{1,2})[Ee](\d{1,3})', filename)
+    if season_episode_match:
+        season = season_episode_match.group(1).zfill(2)  # 确保两位数
+        episode = season_episode_match.group(2).zfill(2)  # 确保两位数
+        return f"S{season}E{episode}"
+
+    # 匹配只有 Exx 或 EPxx 格式（不区分大小写）
+    # 支持 E1, E01, EP1, EP01, e10, ep10 等格式
+    episode_only_match = re.search(r'[Ee][Pp]?(\d{1,3})', filename)
+    if episode_only_match:
+        episode = episode_only_match.group(1).zfill(2)  # 确保两位数
+        return f"E{episode}"
+
+    # 如果没有匹配到季数集数信息，返回原文件名
+    return filename
+
 # 导入拼音排序工具
 try:
     from utils.pinyin_sort import get_filename_pinyin_sort_key
@@ -1358,10 +1387,116 @@ def delete_history_records():
         deleted_count += db.delete_record(record_id)
     
     return jsonify({
-        "success": True, 
+        "success": True,
         "message": f"成功删除 {deleted_count} 条记录",
         "deleted_count": deleted_count
     })
+
+
+# 获取任务最新转存信息（包括日期和文件）
+@app.route("/task_latest_info")
+def get_task_latest_info():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+
+    try:
+        # 初始化数据库
+        db = RecordDB()
+        cursor = db.conn.cursor()
+
+        # 获取所有任务的最新转存时间
+        query = """
+        SELECT task_name, MAX(transfer_time) as latest_transfer_time
+        FROM transfer_records
+        WHERE task_name != 'rename'
+        GROUP BY task_name
+        """
+        cursor.execute(query)
+        latest_times = cursor.fetchall()
+
+        task_latest_records = {}  # 存储最新转存日期
+        task_latest_files = {}    # 存储最新转存文件
+
+        for task_name, latest_time in latest_times:
+            if latest_time:
+                # 1. 处理最新转存日期
+                try:
+                    # 确保时间戳在合理范围内
+                    timestamp = int(latest_time)
+                    if timestamp > 9999999999:  # 检测是否为毫秒级时间戳（13位）
+                        timestamp = timestamp / 1000  # 转换为秒级时间戳
+
+                    if 0 < timestamp < 4102444800:  # 从1970年到2100年的合理时间戳范围
+                        # 格式化为月-日格式（用于显示）和完整日期（用于今日判断）
+                        date_obj = datetime.fromtimestamp(timestamp)
+                        formatted_date = date_obj.strftime("%m-%d")
+                        full_date = date_obj.strftime("%Y-%m-%d")
+                        task_latest_records[task_name] = {
+                            "display": formatted_date,  # 显示用的 MM-DD 格式
+                            "full": full_date          # 比较用的 YYYY-MM-DD 格式
+                        }
+                except (ValueError, TypeError, OverflowError):
+                    pass  # 忽略无效的时间戳
+
+                # 2. 处理最新转存文件
+                # 获取该任务在最新转存时间附近（同一分钟内）的所有文件
+                # 这样可以处理同时转存多个文件但时间戳略有差异的情况
+                time_window = 60000  # 60秒的时间窗口（毫秒）
+                query = """
+                SELECT renamed_to, original_name, transfer_time, modify_date
+                FROM transfer_records
+                WHERE task_name = ? AND transfer_time >= ? AND transfer_time <= ?
+                ORDER BY id DESC
+                """
+                cursor.execute(query, (task_name, latest_time - time_window, latest_time + time_window))
+                files = cursor.fetchall()
+
+                if files:
+                    if len(files) == 1:
+                        # 如果只有一个文件，直接使用
+                        best_file = files[0][0]  # renamed_to
+                    else:
+                        # 如果有多个文件，使用全局排序函数进行排序
+                        file_list = []
+                        for renamed_to, original_name, transfer_time, modify_date in files:
+                            # 构造文件信息字典，模拟全局排序函数需要的格式
+                            file_info = {
+                                'file_name': renamed_to,
+                                'original_name': original_name,
+                                'updated_at': transfer_time  # 使用转存时间而不是文件修改时间
+                            }
+                            file_list.append(file_info)
+
+                        # 使用全局排序函数进行正向排序，最后一个就是最新的
+                        try:
+                            sorted_files = sorted(file_list, key=sort_file_by_name)
+                            best_file = sorted_files[-1]['file_name']  # 取排序后的最后一个文件
+                        except Exception as e:
+                            # 如果排序失败，使用第一个文件作为备选
+                            best_file = files[0][0]
+
+                    # 去除扩展名并处理季数集数信息
+                    if best_file:
+                        file_name_without_ext = os.path.splitext(best_file)[0]
+                        processed_name = process_season_episode_info(file_name_without_ext)
+                        task_latest_files[task_name] = processed_name
+
+        db.close()
+
+        return jsonify({
+            "success": True,
+            "data": {
+                "latest_records": task_latest_records,
+                "latest_files": task_latest_files
+            }
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"获取任务最新信息失败: {str(e)}"
+        })
+
 
 
 # 删除单条转存记录

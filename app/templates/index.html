@@ -69,18 +69,109 @@
     }
   });
   
+  // 根据文件扩展名获取对应的Bootstrap图标类名
+  function getFileIconClass(fileName, isDir = false) {
+    // 如果是文件夹，返回文件夹图标
+    if (isDir) {
+      return 'bi-folder-fill';
+    }
+
+    // 获取文件扩展名（转为小写）
+    const ext = fileName.toLowerCase().split('.').pop();
+
+    // 视频文件
+    const videoExts = ['mp4', 'mkv', 'avi', 'mov', 'rmvb', 'flv', 'wmv', 'm4v', 'ts', 'webm', '3gp', 'f4v'];
+    if (videoExts.includes(ext)) {
+      return 'bi-file-earmark-play';
+    }
+
+    // 音频文件
+    const audioExts = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma', 'ape', 'ac3', 'dts'];
+    if (audioExts.includes(ext)) {
+      return 'bi-file-earmark-music';
+    }
+
+    // 图片文件
+    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'tiff', 'svg', 'ico', 'raw'];
+    if (imageExts.includes(ext)) {
+      return 'bi-file-earmark-image';
+    }
+
+    // 文本文件（包括歌词文件和字幕文件）
+    const textExts = ['txt', 'md', 'rtf', 'log', 'ini', 'cfg', 'conf', 'lrc', 'srt', 'ass', 'ssa', 'vtt', 'sup'];
+    if (textExts.includes(ext)) {
+      return 'bi-file-earmark-text';
+    }
+
+    // 富文本文件
+    const richtextExts = ['rtf', 'odt'];
+    if (richtextExts.includes(ext)) {
+      return 'bi-file-earmark-richtext';
+    }
+
+    // 压缩文件
+    const archiveExts = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'lzma', 'cab', 'iso'];
+    if (archiveExts.includes(ext)) {
+      return 'bi-file-earmark-zip';
+    }
+
+    // 字体文件
+    const fontExts = ['ttf', 'otf', 'woff', 'woff2', 'eot'];
+    if (fontExts.includes(ext)) {
+      return 'bi-file-earmark-font';
+    }
+
+    // 代码文件
+    const codeExts = ['js', 'html', 'css', 'py', 'java', 'c', 'cpp', 'php', 'go', 'json', 'xml', 'yml', 'yaml', 'sql', 'sh', 'bat', 'ps1', 'rb', 'swift', 'kt', 'ts', 'jsx', 'tsx', 'vue', 'scss', 'sass', 'less'];
+    if (codeExts.includes(ext)) {
+      return 'bi-file-earmark-code';
+    }
+
+    // PDF文件
+    if (ext === 'pdf') {
+      return 'bi-file-earmark-pdf';
+    }
+
+    // Word文档
+    const wordExts = ['doc', 'docx'];
+    if (wordExts.includes(ext)) {
+      return 'bi-file-earmark-word';
+    }
+
+    // Excel文档
+    const excelExts = ['xls', 'xlsx', 'csv'];
+    if (excelExts.includes(ext)) {
+      return 'bi-file-earmark-excel';
+    }
+
+    // PowerPoint文档
+    const pptExts = ['ppt', 'pptx'];
+    if (pptExts.includes(ext)) {
+      return 'bi-file-earmark-ppt';
+    }
+
+    // 医疗/健康相关文件
+    const medicalExts = ['dcm', 'dicom', 'hl7'];
+    if (medicalExts.includes(ext)) {
+      return 'bi-file-earmark-medical';
+    }
+
+    // 默认文件图标
+    return 'bi-file-earmark';
+  }
+
   // 添加检测文件整理页面文件名溢出的自定义指令
   Vue.directive('check-file-overflow', {
     inserted: function(el, binding, vnode) {
       // 检查元素是否溢出
       const isOverflowing = el.scrollWidth > el.clientWidth;
-      
+
       // 如果绑定了值，则绑定到该值对应的文件属性上
       if (binding.value) {
         const indexAndField = binding.value.split('|');
         const index = parseInt(indexAndField[0]);
         const field = indexAndField[1];
-        
+
         // 设置文件的_isOverflowing属性
         const files = vnode.context.fileManager.fileList;
         if (files && files[index]) {
@@ -97,13 +188,13 @@
     update: function(el, binding, vnode) {
       // 检查元素是否溢出
       const isOverflowing = el.scrollWidth > el.clientWidth;
-      
+
       // 如果绑定了值，则绑定到该值对应的文件属性上
       if (binding.value) {
         const indexAndField = binding.value.split('|');
         const index = parseInt(indexAndField[0]);
         const field = indexAndField[1];
-        
+
         // 设置文件的_isOverflowing属性
         const files = vnode.context.fileManager.fileList;
         if (files && files[index]) {
@@ -614,6 +705,44 @@
                 </div>
               </div>
             </div>
+            <div class="row mb-2 display-setting-row">
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">最近更新日期</span>
+                  </div>
+                  <select class="form-control" v-model="formData.button_display.latest_update_date">
+                    <option value="always">始终显示</option>
+                    <option value="hover">悬停显示</option>
+                    <option value="disabled">禁用</option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">最近转存文件</span>
+                  </div>
+                  <select class="form-control" v-model="formData.button_display.latest_transfer_file">
+                    <option value="always">始终显示</option>
+                    <option value="hover">悬停显示</option>
+                    <option value="disabled">禁用</option>
+                  </select>
+                </div>
+              </div>
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">当日更新标识</span>
+                  </div>
+                  <select class="form-control" v-model="formData.button_display.today_update_indicator">
+                    <option value="always">始终显示</option>
+                    <option value="hover">悬停显示</option>
+                    <option value="disabled">禁用</option>
+                  </select>
+                </div>
+              </div>
+            </div>
 
             <!-- 性能设置 -->
             <div class="row title" title="调整文件整理页面的请求参数和缓存时长，可提升大文件夹的加载速度和数据刷新效率。合理配置可减少API请求次数，同时保证数据及时更新">
@@ -690,6 +819,21 @@
                   <div class="col pl-0" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="true" :aria-controls="'collapse_'+index">
                     <div class="btn btn-block text-left">
                       <i class="bi bi-caret-right-fill"></i> #<span v-html="`${String(index+1).padStart(2, '0')} ${task.taskname}`"></span>
+                      <span v-if="formData.button_display.latest_update_date !== 'disabled' && taskLatestRecords[task.taskname]"
+                            class="task-latest-date"
+                            :class="{'hover-only': formData.button_display.latest_update_date === 'hover'}">
+                         · {{ getTaskLatestRecordDisplay(task.taskname) }}
+                      </span>
+                      <span v-if="formData.button_display.latest_transfer_file !== 'disabled' && taskLatestFiles[task.taskname]"
+                            class="task-latest-file"
+                            :class="{'hover-only': formData.button_display.latest_transfer_file === 'hover'}">
+                         · {{ taskLatestFiles[task.taskname] }}
+                      </span>
+                      <span v-if="isTaskUpdatedToday(task.taskname) && shouldShowTodayIndicator()"
+                            class="task-today-indicator"
+                            :class="getTodayIndicatorClass()">
+                        <i class="bi bi-stars"></i>
+                      </span>
                     </div>
                   </div>
                   <div class="col-auto task-buttons">
@@ -946,17 +1090,27 @@
                       </div>
                     </td>
                     <td class="position-relative">
-                      <div v-if="!record._expandedFields || !record._expandedFields.includes('renamed_to')" 
-                           class="text-truncate" 
-                           :title="record.renamed_to" 
+                      <div v-if="!record._expandedFields || !record._expandedFields.includes('renamed_to')"
+                           class="text-truncate"
+                           :title="record.renamed_to"
                            v-check-overflow="index + '|renamed_to'">
                         {{ record.renamed_to }}
+                        <span v-if="isRecordUpdatedToday(record) && shouldShowTodayIndicator()"
+                              class="task-today-indicator"
+                              :class="getTodayIndicatorClass()">
+                          <i class="bi bi-stars"></i>
+                        </span>
                       </div>
                       <div class="expand-button" v-if="isTextTruncated(record.renamed_to, index, 'renamed_to')" @click.stop="toggleExpand(index, 'renamed_to', $event)">
                         <i :class="record._expandedFields && record._expandedFields.length > 0 ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
                       </div>
                       <div class="expanded-text" v-if="record._expandedFields && record._expandedFields.includes('renamed_to')">
                         {{ record.renamed_to }}
+                        <span v-if="isRecordUpdatedToday(record) && shouldShowTodayIndicator()"
+                              class="task-today-indicator"
+                              :class="getTodayIndicatorClass()">
+                          <i class="bi bi-stars"></i>
+                        </span>
                       </div>
                     </td>
                     <td class="file-size-cell">
@@ -1181,7 +1335,7 @@
                       <td class="position-relative">
                         <!-- 编辑状态 -->
                         <div v-if="file._editing" class="d-flex align-items-center" @click.stop>
-                          <i class="bi mr-2" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i>
+                          <i class="bi mr-2" :class="getFileIconClass(file.file_name, file.dir)"></i>
                           <input
                             type="text"
                             class="form-control form-control-sm rename-input"
@@ -1194,15 +1348,25 @@
                         </div>
                         <!-- 正常显示状态 -->
                         <div v-else-if="!file._expanded" class="d-flex align-items-center">
-                          <i class="bi mr-2" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i>
+                          <i class="bi mr-2" :class="getFileIconClass(file.file_name, file.dir)"></i>
                           <div class="text-truncate"
                               :title="file.file_name"
                               v-check-file-overflow="index + '|file_name'">
                             {{ file.file_name }}
+                            <span v-if="isFileUpdatedToday(file) && shouldShowTodayIndicator()"
+                                  class="task-today-indicator"
+                                  :class="getTodayIndicatorClass()">
+                              <i class="bi bi-stars"></i>
+                            </span>
                           </div>
                         </div>
                         <div v-else style="white-space: normal; word-break: break-word; padding-right: 25px;">
-                          <i class="bi mr-2" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i>{{ file.file_name }}
+                          <i class="bi mr-2" :class="getFileIconClass(file.file_name, file.dir)"></i>{{ file.file_name }}
+                          <span v-if="isFileUpdatedToday(file) && shouldShowTodayIndicator()"
+                                class="task-today-indicator"
+                                :class="getTodayIndicatorClass()">
+                            <i class="bi bi-stars"></i>
+                          </span>
                         </div>
                         <div class="expand-button" v-if="!file._editing && isFilenameTruncated(file.file_name, index, 'file_name')" @click.stop="toggleExpandFilename(file)">
                           <i :class="file._expanded ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
@@ -1413,13 +1577,13 @@
                            style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 25px;" 
                            :title="file.file_name" 
                            v-check-modal-overflow="key + '|file_name'">
-                        <i class="bi" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i> {{file.file_name}}
+                        <i class="bi" :class="getFileIconClass(file.file_name, file.dir)"></i> {{file.file_name}}
                       </div>
                       <div class="expand-button" v-if="isModalTextTruncated(file.file_name, key, 'file_name')" @click.stop="toggleModalExpand(key, 'file_name')">
                         <i :class="file._expandedFields && file._expandedFields.includes('file_name') ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
                       </div>
                       <div v-if="file._expandedFields && file._expandedFields.includes('file_name')" style="white-space: normal; word-break: break-word; padding-right: 25px; display: block; width: 100%; position: relative;">
-                        <i class="bi" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i> {{file.file_name}}
+                        <i class="bi" :class="getFileIconClass(file.file_name, file.dir)"></i> {{file.file_name}}
                       </div>
                     </td>
                     <td class="col-rename position-relative" v-if="fileSelect.selectShare || fileSelect.previewRegex" :class="{'text-success': file.file_name_re && !file.file_name_re.startsWith('×'), 'text-danger': !file.file_name_re || file.file_name_re === '×' || file.file_name_re.startsWith('× ')}" style="padding-left: 5px; vertical-align: top;">
@@ -1522,7 +1686,10 @@
             run_task: "always",
             delete_task: "always",
             refresh_plex: "always",
-            refresh_alist: "always"
+            refresh_alist: "always",
+            latest_update_date: "always",
+            latest_transfer_file: "always",
+            today_update_indicator: "always"
           },
           file_performance: {
             api_page_size: 200,
@@ -1551,6 +1718,8 @@
         taskDirs: [""],
         taskDirSelected: "",
         taskNameFilter: "",
+        taskLatestRecords: {}, // 存储每个任务的最新转存记录日期
+        taskLatestFiles: {}, // 存储每个任务的最近转存文件
         modalLoading: false,
         smart_param: {
           index: null,
@@ -1975,6 +2144,10 @@
         document.removeEventListener('click', this.handleOutsideClick);
       },
       methods: {
+        // 获取文件图标类名
+        getFileIconClass(fileName, isDir = false) {
+          return getFileIconClass(fileName, isDir);
+        },
         // 拼音排序辅助函数
         sortTaskNamesByPinyin(taskNames) {
           return taskNames.sort((a, b) => {
@@ -2443,8 +2616,23 @@
                   run_task: "always",
                   delete_task: "always",
                   refresh_plex: "always",
-                  refresh_alist: "always"
+                  refresh_alist: "always",
+                  latest_update_date: "always",
+                  latest_transfer_file: "always",
+                  today_update_indicator: "always"
                 };
+              }
+              // 确保最近更新日期配置存在（向后兼容）
+              if (!config_data.button_display.latest_update_date) {
+                config_data.button_display.latest_update_date = "always";
+              }
+              // 确保最近转存文件配置存在（向后兼容）
+              if (!config_data.button_display.latest_transfer_file) {
+                config_data.button_display.latest_transfer_file = "always";
+              }
+              // 确保当日更新图标配置存在（向后兼容）
+              if (!config_data.button_display.today_update_indicator) {
+                config_data.button_display.today_update_indicator = "always";
               }
               // 确保文件整理性能配置存在
               if (!config_data.file_performance) {
@@ -2468,7 +2656,10 @@
               setTimeout(() => {
                 this.configModified = false;
               }, 100);
-              
+
+              // 加载任务最新信息（包括记录和文件）
+              this.loadTaskLatestInfo();
+
               // 数据加载完成后检查分享链接状态
               if (this.activeTab === 'tasklist') {
                 setTimeout(() => {
@@ -4042,6 +4233,94 @@
               this.allTaskNames = this.sortTaskNamesByPinyin([...taskNames]);
             }
           });
+        },
+        loadTaskLatestInfo() {
+          // 获取所有任务的最新转存信息（包括日期和文件）
+          axios.get('/task_latest_info')
+            .then(response => {
+              if (response.data.success) {
+                this.taskLatestRecords = response.data.data.latest_records;
+                this.taskLatestFiles = response.data.data.latest_files;
+              } else {
+                console.error('获取任务最新信息失败:', response.data.message);
+              }
+            })
+            .catch(error => {
+              console.error('获取任务最新信息失败:', error);
+            });
+        },
+        getTaskLatestRecordDisplay(taskName) {
+          // 获取任务最新记录的显示文本
+          const latestRecord = this.taskLatestRecords[taskName];
+          return latestRecord ? latestRecord.display : '';
+        },
+        isTaskUpdatedToday(taskName) {
+          // 检查任务是否在今天更新
+          const latestRecord = this.taskLatestRecords[taskName];
+          if (!latestRecord || !latestRecord.full) {
+            return false;
+          }
+
+          // 获取今天的完整日期，格式为 YYYY-MM-DD
+          const today = new Date();
+          const todayFormatted = today.getFullYear() + '-' +
+                                String(today.getMonth() + 1).padStart(2, '0') + '-' +
+                                String(today.getDate()).padStart(2, '0');
+
+          return latestRecord.full === todayFormatted;
+        },
+        isRecordUpdatedToday(record) {
+          // 检查转存记录是否在今天更新
+          if (!record || !record.transfer_time_readable) {
+            return false;
+          }
+
+          // 获取今天的日期，格式为 YYYY-MM-DD
+          const today = new Date();
+          const todayFormatted = today.getFullYear() + '-' +
+                                String(today.getMonth() + 1).padStart(2, '0') + '-' +
+                                String(today.getDate()).padStart(2, '0');
+
+          // 从 transfer_time_readable 中提取日期部分（格式通常为 "YYYY-MM-DD HH:MM:SS"）
+          const recordDate = record.transfer_time_readable.split(' ')[0];
+
+          return recordDate === todayFormatted;
+        },
+        isFileUpdatedToday(file) {
+          // 检查文件是否在今天更新（基于修改日期）
+          if (!file || !file.updated_at) {
+            return false;
+          }
+
+          // 获取今天的日期，格式为 YYYY-MM-DD
+          const today = new Date();
+          const todayFormatted = today.getFullYear() + '-' +
+                                String(today.getMonth() + 1).padStart(2, '0') + '-' +
+                                String(today.getDate()).padStart(2, '0');
+
+          // 使用与 formatDate 方法相同的逻辑处理时间戳
+          try {
+            const fileDate = new Date(file.updated_at);
+            const fileDateFormatted = fileDate.getFullYear() + '-' +
+                                     String(fileDate.getMonth() + 1).padStart(2, '0') + '-' +
+                                     String(fileDate.getDate()).padStart(2, '0');
+
+            return fileDateFormatted === todayFormatted;
+          } catch (error) {
+            console.error('处理文件时间戳时出错:', error, file.updated_at);
+            return false;
+          }
+        },
+        shouldShowTodayIndicator() {
+          // 检查是否应该显示当日更新图标
+          return this.formData.button_display.today_update_indicator !== 'disabled';
+        },
+        getTodayIndicatorClass() {
+          // 获取当日更新图标的CSS类
+          if (this.formData.button_display.today_update_indicator === 'hover') {
+            return 'hover-only';
+          }
+          return '';
         },
         openDatePicker(index) {
           // 使用$refs访问对应的日期选择器并打开它

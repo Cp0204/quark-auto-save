@@ -1678,7 +1678,7 @@ button.close:focus,
 }
 
 #fileSelectModal .table .text-warning {
-  color: #ffc107 !important;
+  color: #098eff !important;
 }
 
 /* 弹窗内表格行悬停效果 */
@@ -1687,7 +1687,20 @@ button.close:focus,
   cursor: pointer;
 }
 
-#fileSelectModal .bi-file-earmark {
+#fileSelectModal .bi-file-earmark,
+#fileSelectModal .bi-file-earmark-play,
+#fileSelectModal .bi-file-earmark-music,
+#fileSelectModal .bi-file-earmark-image,
+#fileSelectModal .bi-file-earmark-text,
+#fileSelectModal .bi-file-earmark-richtext,
+#fileSelectModal .bi-file-earmark-zip,
+#fileSelectModal .bi-file-earmark-font,
+#fileSelectModal .bi-file-earmark-code,
+#fileSelectModal .bi-file-earmark-pdf,
+#fileSelectModal .bi-file-earmark-word,
+#fileSelectModal .bi-file-earmark-excel,
+#fileSelectModal .bi-file-earmark-ppt,
+#fileSelectModal .bi-file-earmark-medical {
   color: var(--dark-text-color);
   font-size: 0.9rem;
   margin-right: 5px;
@@ -3915,7 +3928,7 @@ table.selectable-records .expand-button:hover {
 
 /* 模态框通用文件夹图标样式 */
 #fileSelectModal .bi-folder-fill {
-  color: #ffc107;
+  color: #098eff;
   font-size: 0.95rem;
   margin-right: 4px !important;
   position: relative;
@@ -3924,7 +3937,20 @@ table.selectable-records .expand-button:hover {
 }
 
 /* 模态框通用文件图标样式 */
-#fileSelectModal .bi-file-earmark {
+#fileSelectModal .bi-file-earmark,
+#fileSelectModal .bi-file-earmark-play,
+#fileSelectModal .bi-file-earmark-music,
+#fileSelectModal .bi-file-earmark-image,
+#fileSelectModal .bi-file-earmark-text,
+#fileSelectModal .bi-file-earmark-richtext,
+#fileSelectModal .bi-file-earmark-zip,
+#fileSelectModal .bi-file-earmark-font,
+#fileSelectModal .bi-file-earmark-code,
+#fileSelectModal .bi-file-earmark-pdf,
+#fileSelectModal .bi-file-earmark-word,
+#fileSelectModal .bi-file-earmark-excel,
+#fileSelectModal .bi-file-earmark-ppt,
+#fileSelectModal .bi-file-earmark-medical {
   color: var(--dark-text-color);
   font-size: 0.95rem;
   margin-right: 4px !important;
@@ -3994,7 +4020,6 @@ table.selectable-records .expand-button:hover {
 /* 任务按钮悬停显示样式 */
 .task-buttons .hover-only {
   opacity: 0;
-  transition: opacity 0.2s ease-in-out;
   position: absolute;
   right: 0;
   visibility: hidden;
@@ -4029,24 +4054,92 @@ table.selectable-records .expand-button:hover {
   }
 }
 
+/* 任务最近更新日期样式 */
+.task-latest-date {
+  color: var(--dark-text-color);
+  font-size: 0.95rem;
+  font-weight: normal;
+}
+
+/* 任务最近转存文件样式 */
+.task-latest-file {
+  color: var(--dark-text-color);
+  font-size: 0.95rem;
+  font-weight: normal;
+}
+
+/* 悬停显示模式 - 使用display来避免占用空间，同时保持平滑的悬停效果 */
+.task-latest-date.hover-only,
+.task-latest-file.hover-only {
+  display: none;
+  transition: all 0.2s ease;
+}
+
+.task .btn:hover .task-latest-date.hover-only,
+.task .btn:hover .task-latest-file.hover-only {
+  display: inline;
+}
+
+/* 显示设置行样式 */
+.display-setting-row > [class*='col-'] {
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
+
+/* 当天更新指示器样式 */
+.task-today-indicator {
+  display: inline-block;
+  font-size: 0.92rem;
+  font-weight: bold;
+}
+
+.task-today-indicator i {
+  background: linear-gradient(45deg, #03d5ff 25%, var(--focus-border-color) 60%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: var(--focus-border-color); /* 备用颜色，以防渐变不支持 */
+}
+
+/* 当日更新图标悬停显示样式 */
+.task-today-indicator.hover-only {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* 任务列表页面悬停显示 */
+.task:hover .task-today-indicator.hover-only {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* 转存记录页面悬停显示 */
+.table-hover tbody tr:hover .task-today-indicator.hover-only {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* 文件整理页面悬停显示 */
+.selectable-files tbody tr:hover .task-today-indicator.hover-only {
+  opacity: 1;
+  visibility: visible;
+}
+
+.display-setting-row {
+  margin-left: -4px !important;
+  margin-right: -4px !important;
+}
+
 @media (min-width: 992px) {
   .display-setting-row > .col-lg-3 {
     padding-left: 4px !important;
     padding-right: 4px !important;
   }
-  .display-setting-row {
-    margin-left: -4px !important;
-    margin-right: -4px !important;
-  }
 }
 
-.display-setting-row > [class*='col-'] {
-  padding-left: 4px !important;
-  padding-right: 4px !important;
-}
-.display-setting-row {
-  margin-left: -4px !important;
-  margin-right: -4px !important;
+/* 调整显示设置第二行的上边距，使其与第一行保持8px间距 */
+.display-setting-row + .display-setting-row {
+  margin-top: -8px !important;
 }
 
 /* 文件整理性能设置样式 */
@@ -4073,22 +4166,6 @@ table.selectable-records .expand-button:hover {
 /* 任务展开后的配置区域使用默认指针 */
 .task .collapse {
   cursor: default;
-}
-
-/* 任务按钮悬停显示样式 */
-.task-buttons .hover-only {
-  opacity: 0;
-  transition: opacity 0.2s ease-in-out;
-  position: absolute;
-  right: 0;
-  visibility: hidden;
-}
-
-/* 修改悬停触发范围到整个任务单元 */
-.task:hover .task-buttons .hover-only {
-  opacity: 1;
-  visibility: visible;
-  position: static;
 }
 
 /* 确保按钮容器在悬停时保持宽度 */
@@ -5228,7 +5305,20 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 }
 
 /* 文件整理页面的文件图标样式 */
-.selectable-files .bi-file-earmark {
+.selectable-files .bi-file-earmark,
+.selectable-files .bi-file-earmark-play,
+.selectable-files .bi-file-earmark-music,
+.selectable-files .bi-file-earmark-image,
+.selectable-files .bi-file-earmark-text,
+.selectable-files .bi-file-earmark-richtext,
+.selectable-files .bi-file-earmark-zip,
+.selectable-files .bi-file-earmark-font,
+.selectable-files .bi-file-earmark-code,
+.selectable-files .bi-file-earmark-pdf,
+.selectable-files .bi-file-earmark-word,
+.selectable-files .bi-file-earmark-excel,
+.selectable-files .bi-file-earmark-ppt,
+.selectable-files .bi-file-earmark-medical {
   font-size: 1.06rem;   /* 比模态框的0.95rem大一些 */
   margin-right: 7px !important;    /* 图标距离文本的距离 */
   position: relative;
@@ -5243,7 +5333,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   position: relative;
   top: 1px;             /* 可微调垂直对齐 */
   left: -1px;           /* 可微调水平对齐 */
-  color: #ffc107;       /* 保持黄色 */
+  color: #098eff;       /* 55%接近深蓝色 */
 }
 
 /* 文件整理页面无法识别剧集编号样式 */
