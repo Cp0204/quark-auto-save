@@ -41,32 +41,122 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from quark_auto_save import extract_episode_number, sort_file_by_name, chinese_to_arabic, is_date_format
 
 
-def process_season_episode_info(filename):
+def process_season_episode_info(filename, task_name=None):
     """
     处理文件名中的季数和集数信息
 
     Args:
         filename: 文件名（不含扩展名）
+        task_name: 可选的任务名称，用于判断是否已包含季数信息
 
     Returns:
         处理后的显示名称
     """
+
+    def task_contains_season_info(task_name):
+        """
+        判断任务名称中是否包含季数信息
+        """
+        if not task_name:
+            return False
+
+        # 清理任务名称中的连续空格和特殊符号
+        clean_name = task_name.replace('\u3000', ' ').replace('\t', ' ')
+        clean_name = re.sub(r'\s+', ' ', clean_name).strip()
+
+        # 匹配常见的季数格式
+        season_patterns = [
+            r'^(.*?)[\s\.\-_]+S\d+$',  # 黑镜 - S07、折腰.S01、音你而来-S02
+            r'^(.*?)[\s\.\-_]+Season\s*\d+$',  # 黑镜 - Season 1
+            r'^(.*?)\s+S\d+$',  # 快乐的大人 S02
+            r'^(.*?)[\s\.\-_]+S\d+E\d+$',  # 处理 S01E01 格式
+            r'^(.*?)\s+第\s*\d+\s*季$',  # 处理 第N季 格式
+            r'^(.*?)[\s\.\-_]+第\s*\d+\s*季$',  # 处理 - 第N季 格式
+            r'^(.*?)\s+第[一二三四五六七八九十零]+季$',  # 处理 第一季、第二季 格式
+            r'^(.*?)[\s\.\-_]+第[一二三四五六七八九十零]+季$',  # 处理 - 第一季、- 第二季 格式
+        ]
+
+        for pattern in season_patterns:
+            if re.match(pattern, clean_name, re.IGNORECASE):
+                return True
+
+        return False
+
     # 匹配 SxxExx 格式（不区分大小写）
-    # 支持 S1E1, S01E01, s13e10 等格式
-    season_episode_match = re.search(r'[Ss](\d{1,2})[Ee](\d{1,3})', filename)
+    # 支持 S1E1, S01E01, s13e10, S100E1000 等格式
+    season_episode_match = re.search(r'[Ss](\d+)[Ee](\d+)', filename)
     if season_episode_match:
         season = season_episode_match.group(1).zfill(2)  # 确保两位数
         episode = season_episode_match.group(2).zfill(2)  # 确保两位数
-        return f"S{season}E{episode}"
+
+        # 如果任务名称中已包含季数信息，只显示集数
+        if task_contains_season_info(task_name):
+            return f"E{episode}"
+        else:
+            return f"S{season}E{episode}"
 
     # 匹配只有 Exx 或 EPxx 格式（不区分大小写）
-    # 支持 E1, E01, EP1, EP01, e10, ep10 等格式
-    episode_only_match = re.search(r'[Ee][Pp]?(\d{1,3})', filename)
+    # 支持 E1, E01, EP1, EP01, e10, ep10, E1000 等格式
+    episode_only_match = re.search(r'[Ee][Pp]?(\d+)', filename)
     if episode_only_match:
         episode = episode_only_match.group(1).zfill(2)  # 确保两位数
         return f"E{episode}"
 
-    # 如果没有匹配到季数集数信息，返回原文件名
+    # 如果没有匹配到季数集数信息，检查是否需要去除与任务名称相同的前缀
+    if task_name:
+        task_name_clean = task_name.strip()
+
+        # 首先尝试完整任务名匹配
+        if filename.startswith(task_name_clean):
+            # 去除任务名前缀
+            remaining = filename[len(task_name_clean):].strip()
+
+            # 如果剩余部分以常见分隔符开头，也去除分隔符
+            separators = [' - ', ' · ', '.', '_', '-', ' ']
+            for sep in separators:
+                if remaining.startswith(sep):
+                    remaining = remaining[len(sep):].strip()
+                    break
+
+            # 如果剩余部分不为空，返回剩余部分；否则返回原文件名
+            return remaining if remaining else filename
+
+        # 如果完整任务名不匹配，尝试提取剧名部分进行匹配
+        # 匹配常见的季数格式，提取剧名部分
+        season_patterns = [
+            r'^(.*?)[\s\.\-_]+S\d+$',  # 你好，星期六 - S04
+            r'^(.*?)[\s\.\-_]+Season\s*\d+$',  # 黑镜 - Season 1
+            r'^(.*?)\s+S\d+$',  # 快乐的大人 S02
+            r'^(.*?)[\s\.\-_]+S\d+E\d+$',  # 处理 S01E01 格式
+            r'^(.*?)\s+第\s*\d+\s*季$',  # 处理 第N季 格式
+            r'^(.*?)[\s\.\-_]+第\s*\d+\s*季$',  # 处理 - 第N季 格式
+            r'^(.*?)\s+第[一二三四五六七八九十零]+季$',  # 处理 第一季、第二季 格式
+            r'^(.*?)[\s\.\-_]+第[一二三四五六七八九十零]+季$',  # 处理 - 第一季、- 第二季 格式
+        ]
+
+        for pattern in season_patterns:
+            match = re.match(pattern, task_name_clean, re.IGNORECASE)
+            if match:
+                show_name = match.group(1).strip()
+                # 去除末尾可能残留的分隔符
+                show_name = re.sub(r'[\s\.\-_]+$', '', show_name)
+
+                # 检查文件名是否以剧名开头
+                if filename.startswith(show_name):
+                    # 去除剧名前缀
+                    remaining = filename[len(show_name):].strip()
+
+                    # 如果剩余部分以常见分隔符开头，也去除分隔符
+                    separators = [' - ', ' · ', '.', '_', '-', ' ']
+                    for sep in separators:
+                        if remaining.startswith(sep):
+                            remaining = remaining[len(sep):].strip()
+                            break
+
+                    # 如果剩余部分不为空，返回剩余部分；否则返回原文件名
+                    return remaining if remaining else filename
+
+    # 如果没有匹配到季数集数信息，且没有找到相同前缀，返回原文件名
     return filename
 
 # 导入拼音排序工具
@@ -1478,7 +1568,7 @@ def get_task_latest_info():
                     # 去除扩展名并处理季数集数信息
                     if best_file:
                         file_name_without_ext = os.path.splitext(best_file)[0]
-                        processed_name = process_season_episode_info(file_name_without_ext)
+                        processed_name = process_season_episode_info(file_name_without_ext, task_name)
                         task_latest_files[task_name] = processed_name
 
         db.close()
