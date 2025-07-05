@@ -4447,20 +4447,32 @@
           // 按选定字段和顺序对文件列表进行排序
           this.fileSelect.fileList.sort((a, b) => {
             if (field === 'file_name') {
-              // 文件夹始终在前
-              if (a.dir && !b.dir) return -1;
-              if (!a.dir && b.dir) return 1;
-
               // 检查当前模态框类型，选择起始文件模态框使用全局文件排序函数
               const modalType = document.getElementById('fileSelectModal').getAttribute('data-modal-type');
               if (modalType === 'start-file') {
-                // 选择起始文件模态框：使用全局文件排序函数
+                // 选择起始文件模态框：按过滤状态和类型排序
+                // 1. 检查过滤状态 - 包括没有file_name_re字段的情况
+                const aFiltered = !a.file_name_re || a.file_name_re === '×' || a.file_name_re.startsWith('×');
+                const bFiltered = !b.file_name_re || b.file_name_re === '×' || b.file_name_re.startsWith('×');
+
+                // 无论升序还是降序，未被过滤的项目都排在前面，被过滤的项目排在后面
+                if (!aFiltered && bFiltered) return -1;
+                if (aFiltered && !bFiltered) return 1;
+
+                // 2. 在同一过滤状态内，文件夹排在文件前面
+                if (a.dir && !b.dir) return -1;
+                if (!a.dir && b.dir) return 1;
+
+                // 使用全局文件排序函数
                 const ka = sortFileByName(a), kb = sortFileByName(b);
                 for (let i = 0; i < ka.length; ++i) {
                   if (ka[i] !== kb[i]) return this.fileSelect.sortOrder === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
                 }
                 return 0;
               } else {
+                // 其他模态框：文件夹排在文件前面
+                if (a.dir && !b.dir) return -1;
+                if (!a.dir && b.dir) return 1;
                 // 其他模态框：使用拼音排序
                 let aValue = pinyinPro.pinyin(a.file_name, { toneType: 'none', type: 'string' }).toLowerCase();
                 let bValue = pinyinPro.pinyin(b.file_name, { toneType: 'none', type: 'string' }).toLowerCase();
@@ -4568,14 +4580,39 @@
         manualSortFileList(field, order) {
           this.fileSelect.fileList.sort((a, b) => {
             if (field === 'file_name') {
-              if (a.dir && !b.dir) return -1;
-              if (!a.dir && b.dir) return 1;
-              // 使用智能排序函数
-              const ka = sortFileByName(a), kb = sortFileByName(b);
-              for (let i = 0; i < ka.length; ++i) {
-                if (ka[i] !== kb[i]) return order === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
+              // 检查当前模态框类型，选择起始文件模态框使用特殊排序逻辑
+              const modalType = document.getElementById('fileSelectModal').getAttribute('data-modal-type');
+              if (modalType === 'start-file') {
+                // 选择起始文件模态框：按过滤状态和类型排序
+                // 1. 检查过滤状态 - 包括没有file_name_re字段的情况
+                const aFiltered = !a.file_name_re || a.file_name_re === '×' || a.file_name_re.startsWith('×');
+                const bFiltered = !b.file_name_re || b.file_name_re === '×' || b.file_name_re.startsWith('×');
+
+                // 无论升序还是降序，未被过滤的项目都排在前面，被过滤的项目排在后面
+                if (!aFiltered && bFiltered) return -1;
+                if (aFiltered && !bFiltered) return 1;
+
+                // 2. 在同一过滤状态内，文件夹排在文件前面
+                if (a.dir && !b.dir) return -1;
+                if (!a.dir && b.dir) return 1;
+
+                // 使用全局文件排序函数
+                const ka = sortFileByName(a), kb = sortFileByName(b);
+                for (let i = 0; i < ka.length; ++i) {
+                  if (ka[i] !== kb[i]) return order === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
+                }
+                return 0;
+              } else {
+                // 其他模态框：文件夹排在文件前面
+                if (a.dir && !b.dir) return -1;
+                if (!a.dir && b.dir) return 1;
+                // 使用智能排序函数
+                const ka = sortFileByName(a), kb = sortFileByName(b);
+                for (let i = 0; i < ka.length; ++i) {
+                  if (ka[i] !== kb[i]) return order === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
+                }
+                return 0;
               }
-              return 0;
             }
             if (field === 'file_name_re') {
               const aHasValidRename = a.file_name_re && a.file_name_re !== '×' && !a.file_name_re.startsWith('×');

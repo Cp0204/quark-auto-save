@@ -87,11 +87,15 @@ function sortFileByName(file) {
     }
     // MM-DD
     if (date_value === Infinity) {
-        match = filename.match(/(?<!\d)(\d{1,2})[-./\s](\d{1,2})(?!\d)/);
+        match = filename.match(/(?<!\d)(\d{1,2})[-./](\d{1,2})(?!\d)/);
         if (match) {
             let month = parseInt(match[1]), day = parseInt(match[2]);
-            if (month > 12) [month, day] = [day, month];
-            date_value = 20000000 + month * 100 + day;
+            // 验证是否为有效的月日组合
+            if ((month >= 1 && month <= 12 && day >= 1 && day <= 31) ||
+                (day >= 1 && day <= 12 && month >= 1 && month <= 31)) {
+                if (month > 12) [month, day] = [day, month];
+                date_value = 20000000 + month * 100 + day;
+            }
         }
     }
 
@@ -145,7 +149,19 @@ function sortFileByName(file) {
         if (/^\d+$/.test(file_name_without_ext)) {
             episode_value = parseInt(file_name_without_ext);
         } else {
-            match = filename.match(/(\d+)/);
+            // 预处理：移除分辨率标识（如 720p, 1080P, 2160p 等）
+            let filename_without_resolution = filename;
+            const resolution_patterns = [
+                /\b\d+[pP]\b/g,  // 匹配 720p, 1080P, 2160p 等
+                /\b\d+x\d+\b/g,  // 匹配 1920x1080 等
+                // 注意：不移除4K/8K，因为剧集匹配规则中有 (\d+)[-_\s]*4[Kk] 模式
+            ];
+
+            for (const pattern of resolution_patterns) {
+                filename_without_resolution = filename_without_resolution.replace(pattern, ' ');
+            }
+
+            match = filename_without_resolution.match(/(\d+)/);
             if (match) episode_value = parseInt(match[1]);
         }
     }
