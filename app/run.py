@@ -1427,10 +1427,14 @@ def get_task_latest_info():
                         timestamp = timestamp / 1000  # 转换为秒级时间戳
 
                     if 0 < timestamp < 4102444800:  # 从1970年到2100年的合理时间戳范围
-                        # 格式化为月-日格式
+                        # 格式化为月-日格式（用于显示）和完整日期（用于今日判断）
                         date_obj = datetime.fromtimestamp(timestamp)
                         formatted_date = date_obj.strftime("%m-%d")
-                        task_latest_records[task_name] = formatted_date
+                        full_date = date_obj.strftime("%Y-%m-%d")
+                        task_latest_records[task_name] = {
+                            "display": formatted_date,  # 显示用的 MM-DD 格式
+                            "full": full_date          # 比较用的 YYYY-MM-DD 格式
+                        }
                 except (ValueError, TypeError, OverflowError):
                     pass  # 忽略无效的时间戳
 

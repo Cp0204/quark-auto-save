@@ -73,7 +73,7 @@
   function getFileIconClass(fileName, isDir = false) {
     // 如果是文件夹，返回文件夹图标
     if (isDir) {
-      return 'bi-folder-fill text-warning';
+      return 'bi-folder-fill';
     }
 
     // 获取文件扩展名（转为小写）
@@ -730,6 +730,18 @@
                   </select>
                 </div>
               </div>
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">当日更新标识</span>
+                  </div>
+                  <select class="form-control" v-model="formData.button_display.today_update_indicator">
+                    <option value="always">始终显示</option>
+                    <option value="hover">悬停显示</option>
+                    <option value="disabled">禁用</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             <!-- 性能设置 -->
@@ -810,12 +822,17 @@
                       <span v-if="formData.button_display.latest_update_date !== 'disabled' && taskLatestRecords[task.taskname]"
                             class="task-latest-date"
                             :class="{'hover-only': formData.button_display.latest_update_date === 'hover'}">
-                         · {{ taskLatestRecords[task.taskname] }}
+                         · {{ getTaskLatestRecordDisplay(task.taskname) }}
                       </span>
                       <span v-if="formData.button_display.latest_transfer_file !== 'disabled' && taskLatestFiles[task.taskname]"
                             class="task-latest-file"
                             :class="{'hover-only': formData.button_display.latest_transfer_file === 'hover'}">
                          · {{ taskLatestFiles[task.taskname] }}
+                      </span>
+                      <span v-if="isTaskUpdatedToday(task.taskname) && shouldShowTodayIndicator()"
+                            class="task-today-indicator"
+                            :class="getTodayIndicatorClass()">
+                        <i class="bi bi-stars"></i>
                       </span>
                     </div>
                   </div>
@@ -1073,17 +1090,27 @@
                       </div>
                     </td>
                     <td class="position-relative">
-                      <div v-if="!record._expandedFields || !record._expandedFields.includes('renamed_to')" 
-                           class="text-truncate" 
-                           :title="record.renamed_to" 
+                      <div v-if="!record._expandedFields || !record._expandedFields.includes('renamed_to')"
+                           class="text-truncate"
+                           :title="record.renamed_to"
                            v-check-overflow="index + '|renamed_to'">
                         {{ record.renamed_to }}
+                        <span v-if="isRecordUpdatedToday(record) && shouldShowTodayIndicator()"
+                              class="task-today-indicator"
+                              :class="getTodayIndicatorClass()">
+                          <i class="bi bi-stars"></i>
+                        </span>
                       </div>
                       <div class="expand-button" v-if="isTextTruncated(record.renamed_to, index, 'renamed_to')" @click.stop="toggleExpand(index, 'renamed_to', $event)">
                         <i :class="record._expandedFields && record._expandedFields.length > 0 ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
                       </div>
                       <div class="expanded-text" v-if="record._expandedFields && record._expandedFields.includes('renamed_to')">
                         {{ record.renamed_to }}
+                        <span v-if="isRecordUpdatedToday(record) && shouldShowTodayIndicator()"
+                              class="task-today-indicator"
+                              :class="getTodayIndicatorClass()">
+                          <i class="bi bi-stars"></i>
+                        </span>
                       </div>
                     </td>
                     <td class="file-size-cell">
@@ -1326,10 +1353,20 @@
                               :title="file.file_name"
                               v-check-file-overflow="index + '|file_name'">
                             {{ file.file_name }}
+                            <span v-if="isFileUpdatedToday(file) && shouldShowTodayIndicator()"
+                                  class="task-today-indicator"
+                                  :class="getTodayIndicatorClass()">
+                              <i class="bi bi-stars"></i>
+                            </span>
                           </div>
                         </div>
                         <div v-else style="white-space: normal; word-break: break-word; padding-right: 25px;">
                           <i class="bi mr-2" :class="getFileIconClass(file.file_name, file.dir)"></i>{{ file.file_name }}
+                          <span v-if="isFileUpdatedToday(file) && shouldShowTodayIndicator()"
+                                class="task-today-indicator"
+                                :class="getTodayIndicatorClass()">
+                            <i class="bi bi-stars"></i>
+                          </span>
                         </div>
                         <div class="expand-button" v-if="!file._editing && isFilenameTruncated(file.file_name, index, 'file_name')" @click.stop="toggleExpandFilename(file)">
                           <i :class="file._expanded ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
@@ -1651,7 +1688,8 @@
             refresh_plex: "always",
             refresh_alist: "always",
             latest_update_date: "always",
-            latest_transfer_file: "always"
+            latest_transfer_file: "always",
+            today_update_indicator: "always"
           },
           file_performance: {
             api_page_size: 200,
@@ -2580,7 +2618,8 @@
                   refresh_plex: "always",
                   refresh_alist: "always",
                   latest_update_date: "always",
-                  latest_transfer_file: "always"
+                  latest_transfer_file: "always",
+                  today_update_indicator: "always"
                 };
               }
               // 确保最近更新日期配置存在（向后兼容）
@@ -2590,6 +2629,10 @@
               // 确保最近转存文件配置存在（向后兼容）
               if (!config_data.button_display.latest_transfer_file) {
                 config_data.button_display.latest_transfer_file = "always";
+              }
+              // 确保当日更新图标配置存在（向后兼容）
+              if (!config_data.button_display.today_update_indicator) {
+                config_data.button_display.today_update_indicator = "always";
               }
               // 确保文件整理性能配置存在
               if (!config_data.file_performance) {
@@ -4205,6 +4248,79 @@
             .catch(error => {
               console.error('获取任务最新信息失败:', error);
             });
+        },
+        getTaskLatestRecordDisplay(taskName) {
+          // 获取任务最新记录的显示文本
+          const latestRecord = this.taskLatestRecords[taskName];
+          return latestRecord ? latestRecord.display : '';
+        },
+        isTaskUpdatedToday(taskName) {
+          // 检查任务是否在今天更新
+          const latestRecord = this.taskLatestRecords[taskName];
+          if (!latestRecord || !latestRecord.full) {
+            return false;
+          }
+
+          // 获取今天的完整日期，格式为 YYYY-MM-DD
+          const today = new Date();
+          const todayFormatted = today.getFullYear() + '-' +
+                                String(today.getMonth() + 1).padStart(2, '0') + '-' +
+                                String(today.getDate()).padStart(2, '0');
+
+          return latestRecord.full === todayFormatted;
+        },
+        isRecordUpdatedToday(record) {
+          // 检查转存记录是否在今天更新
+          if (!record || !record.transfer_time_readable) {
+            return false;
+          }
+
+          // 获取今天的日期，格式为 YYYY-MM-DD
+          const today = new Date();
+          const todayFormatted = today.getFullYear() + '-' +
+                                String(today.getMonth() + 1).padStart(2, '0') + '-' +
+                                String(today.getDate()).padStart(2, '0');
+
+          // 从 transfer_time_readable 中提取日期部分（格式通常为 "YYYY-MM-DD HH:MM:SS"）
+          const recordDate = record.transfer_time_readable.split(' ')[0];
+
+          return recordDate === todayFormatted;
+        },
+        isFileUpdatedToday(file) {
+          // 检查文件是否在今天更新（基于修改日期）
+          if (!file || !file.updated_at) {
+            return false;
+          }
+
+          // 获取今天的日期，格式为 YYYY-MM-DD
+          const today = new Date();
+          const todayFormatted = today.getFullYear() + '-' +
+                                String(today.getMonth() + 1).padStart(2, '0') + '-' +
+                                String(today.getDate()).padStart(2, '0');
+
+          // 使用与 formatDate 方法相同的逻辑处理时间戳
+          try {
+            const fileDate = new Date(file.updated_at);
+            const fileDateFormatted = fileDate.getFullYear() + '-' +
+                                     String(fileDate.getMonth() + 1).padStart(2, '0') + '-' +
+                                     String(fileDate.getDate()).padStart(2, '0');
+
+            return fileDateFormatted === todayFormatted;
+          } catch (error) {
+            console.error('处理文件时间戳时出错:', error, file.updated_at);
+            return false;
+          }
+        },
+        shouldShowTodayIndicator() {
+          // 检查是否应该显示当日更新图标
+          return this.formData.button_display.today_update_indicator !== 'disabled';
+        },
+        getTodayIndicatorClass() {
+          // 获取当日更新图标的CSS类
+          if (this.formData.button_display.today_update_indicator === 'hover') {
+            return 'hover-only';
+          }
+          return '';
         },
         openDatePicker(index) {
           // 使用$refs访问对应的日期选择器并打开它
