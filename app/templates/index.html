@@ -709,9 +709,9 @@
               <div class="col-lg-3 col-md-6 mb-2">
                 <div class="input-group">
                   <div class="input-group-prepend">
-                    <span class="input-group-text">最近更新日期</span>
+                    <span class="input-group-text">最近转存文件</span>
                   </div>
-                  <select class="form-control" v-model="formData.button_display.latest_update_date">
+                  <select class="form-control" v-model="formData.button_display.latest_transfer_file">
                     <option value="always">始终显示</option>
                     <option value="hover">悬停显示</option>
                     <option value="disabled">禁用</option>
@@ -721,9 +721,9 @@
               <div class="col-lg-3 col-md-6 mb-2">
                 <div class="input-group">
                   <div class="input-group-prepend">
-                    <span class="input-group-text">最近转存文件</span>
+                    <span class="input-group-text">最近更新日期</span>
                   </div>
-                  <select class="form-control" v-model="formData.button_display.latest_transfer_file">
+                  <select class="form-control" v-model="formData.button_display.latest_update_date">
                     <option value="always">始终显示</option>
                     <option value="hover">悬停显示</option>
                     <option value="disabled">禁用</option>
@@ -819,15 +819,15 @@
                   <div class="col pl-0" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="true" :aria-controls="'collapse_'+index">
                     <div class="btn btn-block text-left">
                       <i class="bi bi-caret-right-fill"></i> #<span v-html="`${String(index+1).padStart(2, '0')} ${task.taskname}`"></span>
-                      <span v-if="formData.button_display.latest_update_date !== 'disabled' && taskLatestRecords[task.taskname]"
-                            class="task-latest-date"
-                            :class="{'hover-only': formData.button_display.latest_update_date === 'hover'}">
-                         · {{ getTaskLatestRecordDisplay(task.taskname) }}
-                      </span>
                       <span v-if="formData.button_display.latest_transfer_file !== 'disabled' && taskLatestFiles[task.taskname]"
                             class="task-latest-file"
                             :class="{'hover-only': formData.button_display.latest_transfer_file === 'hover'}">
                          · {{ taskLatestFiles[task.taskname] }}
+                      </span>
+                      <span v-if="formData.button_display.latest_update_date !== 'disabled' && taskLatestRecords[task.taskname]"
+                            class="task-latest-date"
+                            :class="{'hover-only': formData.button_display.latest_update_date === 'hover'}">
+                         · {{ getTaskLatestRecordDisplay(task.taskname) }}
                       </span>
                       <span v-if="isTaskUpdatedToday(task.taskname) && shouldShowTodayIndicator()"
                             class="task-today-indicator"
