@@ -1753,8 +1753,6 @@ class Quark:
         # 支持剧集命名模式
         elif task.get("use_episode_naming") and task.get("episode_naming"):
             # 剧集命名模式下已经在do_save中打印了剧集命名信息，这里不再重复打印
-            # 设置正则模式为空
-            task["regex_pattern"] = None
             # 构建剧集命名的正则表达式
             episode_pattern = task["episode_naming"]
             # 先检查是否包含合法的[]字符
@@ -1767,7 +1765,7 @@ class Quark:
             else:
                 # 如果输入模式不包含[]，则使用简单匹配模式，避免正则表达式错误
                 regex_pattern = "^" + re.escape(episode_pattern) + "(\\d+)$"
-            
+
             task["regex_pattern"] = regex_pattern
         else:
             # 正则命名模式
@@ -3043,8 +3041,7 @@ class Quark:
                     self.savepath_fid[savepath] = savepath_fids[0]["fid"]
             
             dir_file_list = self.ls_dir(self.savepath_fid[savepath])
-            
-            
+
             # 构建目标目录中所有文件的查重索引（按大小和修改时间）
             dir_files_map = {}
             for dir_file in dir_file_list:
@@ -3070,19 +3067,12 @@ class Quark:
             # 找出已命名的文件列表，避免重复转存
             existing_episode_numbers = set()
             for dir_file in dir_file_list:
-                if not dir_file["dir"] and regex_pattern:
+                if not dir_file["dir"]:
                     try:
-                        if regex_pattern == "SPECIAL_EPISODE_PATTERN":
-                            # 对于特殊模式，使用extract_episode_number函数提取剧集号
-                            episode_num = extract_episode_number_local(dir_file["file_name"])
-                            if episode_num is not None:
-                                existing_episode_numbers.add(episode_num)
-                        else:
-                            # 使用常规正则表达式匹配
-                            matches = re.match(regex_pattern, dir_file["file_name"])
-                            if matches:
-                                episode_num = int(matches.group(1))
-                                existing_episode_numbers.add(episode_num)
+                        # 对于剧集命名模式，直接使用extract_episode_number函数提取剧集号
+                        episode_num = extract_episode_number_local(dir_file["file_name"])
+                        if episode_num is not None:
+                            existing_episode_numbers.add(episode_num)
                     except:
                         pass
             
@@ -3421,23 +3411,21 @@ class Quark:
                                         error_log = f"重命名: {dir_file['file_name']} → {target_name} 失败，{rename_result['message']}"
                                         rename_logs.append(error_log)
                                 
-                                # 返回重命名日志和成功标志
-                                return True, rename_logs
+                                # 不要立即返回，继续执行本地文件重命名逻辑
+                                # 更新dir_file_list以包含新转存的文件
+                                dir_file_list = self.ls_dir(self.savepath_fid[savepath])
                             else:
                                 err_msg = query_task_return["message"]
                                 add_notify(f"❌《{task['taskname']}》转存失败: {err_msg}\n")
-                                return False, []
                         else:
                             print(f"❌ 保存文件失败: {save_file_return['message']}")
                             add_notify(f"❌《{task['taskname']}》转存失败: {save_file_return['message']}\n")
-                            return False, []
                     else:
                         # print("没有需要保存的新文件")
-                        return False, []
+                        pass
                 except Exception as e:
                     print(f"处理分享链接时发生错误: {str(e)}")
                     add_notify(f"❌《{task['taskname']}》处理分享链接时发生错误: {str(e)}\n")
-                    return False, []
 
             # 对本地已有文件进行重命名（即使没有分享链接或处理失败也执行）
             is_rename_count = 0
@@ -3451,7 +3439,7 @@ class Quark:
             for dir_file in dir_file_list:
                 if dir_file["dir"]:
                     continue
-                
+
                 # 检查是否需要重命名
                 episode_num = extract_episode_number_local(dir_file["file_name"])
                 if episode_num is not None:
@@ -3473,7 +3461,7 @@ class Quark:
             
             # 按剧集号排序
             rename_operations.sort(key=lambda x: x[2])
-            
+
             # 执行重命名操作，但不立即打印日志
             for dir_file, new_name, _ in rename_operations:
                 # 防止重名
