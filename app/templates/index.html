@@ -905,7 +905,7 @@
                     <label class="col-sm-2 col-form-label">保存路径</label>
                     <div class="col-sm-10">
                       <div class="input-group">
-                        <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填" @focus="focusTaskname(index, task)">
+                        <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填" @focus="focusTaskname(index, task)" @input="onSavepathChange(index, task)">
                         <div class="input-group-append">
                           <button class="btn btn-outline-secondary" type="button" v-if="smart_param.savepath && smart_param.index == index && task.savepath != smart_param.origin_savepath" @click="task.savepath = smart_param.origin_savepath" title="恢复保存路径"><i class="bi bi-reply"></i></button>
                           <button class="btn btn-outline-secondary" type="button" @click="showSavepathSelect(index)" title="选择保存到的文件夹"><i class="bi bi-folder"></i></button>
@@ -923,7 +923,7 @@
                             {{ task.use_sequence_naming ? '顺序命名' : (task.use_episode_naming ? '剧集命名' : '正则命名') }}
                           </button>
                         </div>
-                        <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" :placeholder="task.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}' : (task.use_episode_naming ? '输入带[]占位符的重命名格式，如：剧名 - S01E[]' : '匹配表达式')"  list="magicRegex" @input="detectNamingMode(task)">
+                        <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" :placeholder="task.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}' : (task.use_episode_naming ? '输入带[]占位符的重命名格式，如：剧名 - S01E[]' : '匹配表达式')"  list="magicRegex" @input="detectNamingMode(task); onPatternChange(index, task)">
                         <input v-if="!task.use_sequence_naming && !task.use_episode_naming" type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
                         <div class="input-group-append" title="保存时只比较文件名的部分，01.mp4和01.mkv视同为同一文件，不重复转存">
                           <div class="input-group-text">
@@ -2810,6 +2810,48 @@
             this.smart_param.savepath = undefined;
           }
         },
+        // Sxx季数信息同步工具函数
+        syncSeasonNumber(sourceValue, targetValue) {
+          if (!sourceValue || !targetValue) return targetValue;
+
+          // 从源字符串中提取Sxx格式的季数
+          const sourceMatch = sourceValue.match(/S(\d+)/i);
+          if (!sourceMatch) return targetValue; // 源字符串没有Sxx，不同步
+
+          const sourceSeasonNumber = sourceMatch[1];
+
+          // 检查目标字符串是否包含Sxx格式
+          const targetMatch = targetValue.match(/S(\d+)/i);
+          if (!targetMatch) return targetValue; // 目标字符串没有Sxx，不同步
+
+          // 替换目标字符串中的季数
+          return targetValue.replace(/S\d+/i, 'S' + sourceSeasonNumber.padStart(2, '0'));
+        },
+
+        // 保存路径变化时的处理函数
+        onSavepathChange(index, task) {
+          // 同步Sxx到命名规则
+          if (task.pattern) {
+            task.pattern = this.syncSeasonNumber(task.savepath, task.pattern);
+
+            // 同步到相关的命名规则字段
+            if (task.use_sequence_naming && task.sequence_naming) {
+              task.sequence_naming = this.syncSeasonNumber(task.savepath, task.sequence_naming);
+            }
+            if (task.use_episode_naming && task.episode_naming) {
+              task.episode_naming = this.syncSeasonNumber(task.savepath, task.episode_naming);
+            }
+          }
+        },
+
+        // 命名规则变化时的处理函数
+        onPatternChange(index, task) {
+          // 同步Sxx到保存路径
+          if (task.savepath) {
+            task.savepath = this.syncSeasonNumber(task.pattern, task.savepath);
+          }
+        },
+
         changeTaskname(index, task) {
           if (this.smart_param.searchTimer) {
             clearTimeout(this.smart_param.searchTimer);
@@ -2817,9 +2859,37 @@
           this.smart_param.searchTimer = setTimeout(() => {
             this.searchSuggestions(index, task.taskname, 0);
           }, 1000);
-          
+
+          // 添加防抖机制，避免频繁的中间状态触发同步
+          if (this.smart_param.syncTimer) {
+            clearTimeout(this.smart_param.syncTimer);
+          }
+          this.smart_param.syncTimer = setTimeout(() => {
+            this.performTasknameSync(index, task);
+          }, 300); // 300ms 防抖延迟
+        },
+
+        performTasknameSync(index, task) {
+          // 重新计算智能路径参数
+          this.smart_param.index = index;
+          this.smart_param.origin_savepath = task.savepath;
+          const regex = new RegExp(`/${task.taskname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(/|$)`);
+          if (task.savepath && task.savepath.includes('TASKNAME')) {
+            this.smart_param.savepath = task.savepath;
+          } else if (task.savepath && task.savepath.match(regex)) {
+            this.smart_param.savepath = task.savepath.replace(task.taskname, 'TASKNAME');
+          } else {
+            this.smart_param.savepath = undefined;
+          }
+
           // 清理任务名称中的连续空格和特殊符号
           const cleanTaskName = task.taskname.replace(/\s+/g, ' ').trim();
+
+          // 检测是否是不完整的季数格式（如 S0, S, - S 等），如果是则不处理
+          const incompleteSeasonPattern = /[\s\.\-_]+S\d{0,1}$/i;
+          if (incompleteSeasonPattern.test(cleanTaskName)) {
+            return; // 不处理不完整的季数格式
+          }
           
           // 提取任务名称中的分隔符格式
           // 使用与cleanTaskNameForSearch相同的季数格式匹配模式
@@ -2861,10 +2931,12 @@
             const tvKeywords = ["电视", "节目", "剧", "动漫", "动画", "番", "综艺", "真人秀", "TV", "Tv", "tv", "Series", "series", "Show", "show"];
             isTVShow = tvKeywords.some(keyword => task.savepath.includes(keyword));
           }
-          
-          // 当任务名称包含季信息或保存路径有电视剧关键词时，按电视节目处理
+
+          // 当任务名称包含季信息时，也按电视节目处理
           const hasSeason = separatorMatch !== null;
-          isTVShow = isTVShow || hasSeason;
+          if (hasSeason) {
+            isTVShow = true;
+          }
           
           if (separatorMatch) {
             // 提取剧名（去除末尾空格和特殊符号）
@@ -2894,28 +2966,67 @@
             }
             // 其他情况保持原样
           } else {
-            // 如果没有匹配到季序号格式，默认使用整个任务名作为剧名，季序号为01
+            // 如果没有匹配到季序号格式，处理删除季数信息的情况
             showName = cleanTaskName;
-            seasonNumber = '01';
+
+            // 检查保存路径中是否已有季数信息，如果有且是电视节目类型，则保留原有季数
+            let preserveExistingSeason = false;
+
+            if (task.savepath && isTVShow) {
+              const existingSeasonMatch = task.savepath.match(/S(\d+)/i);
+
+              if (existingSeasonMatch) {
+                // 只有当季数是有效的（不是00或空）时才保留
+                const existingSeasonNum = existingSeasonMatch[1];
+                if (existingSeasonNum && existingSeasonNum !== '00' && existingSeasonNum !== '0') {
+                  seasonNumber = existingSeasonNum;
+                  preserveExistingSeason = true;
+
+                  // 从保存路径中提取分隔符格式
+                  const pathParts = task.savepath.split('/');
+                  if (pathParts.length > 0) {
+                    const lastPart = pathParts[pathParts.length - 1];
+                    const separatorMatch = lastPart.match(/^(.*?)([\s\.\-_]+)S\d+/i);
+                    if (separatorMatch) {
+                      nameSeparator = separatorMatch[2];
+                    }
+                  }
+                }
+              }
+            }
+
+            // 如果没有保留现有季数，则使用默认值
+            if (!preserveExistingSeason) {
+              seasonNumber = '01';
+            }
           }
-          
+
           // 更新保存路径 - 无论是否使用智能路径，都确保倒数第二级目录更新
           if (task.savepath) {
             // 分割保存路径为各级目录
             const pathParts = task.savepath.split('/');
-            
+
             if (pathParts.length >= 2) {
               // 如果智能路径已设置，使用原有逻辑更新最后一级
               if (this.smart_param.savepath) {
                 // 更新最后一级目录，但保留前面的路径结构
-                const newPath = this.smart_param.savepath.replace('TASKNAME', task.taskname);
+                let replacementName;
+                if (isTVShow) {
+                  // 电视节目格式：剧名 + 分隔符 + S季序号
+                  replacementName = showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0');
+                } else {
+                  // 非电视节目直接使用任务名称
+                  replacementName = cleanTaskName;
+                }
+                const newPath = this.smart_param.savepath.replace('TASKNAME', replacementName);
                 const newPathParts = newPath.split('/');
                 pathParts[pathParts.length - 1] = newPathParts[newPathParts.length - 1];
               } else {
                 // 根据是否为电视节目决定处理方式
                 if (isTVShow) {
                   // 电视节目格式：剧名 + 分隔符 + S季序号
-                  pathParts[pathParts.length - 1] = showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0');
+                  const newLastPart = showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0');
+                  pathParts[pathParts.length - 1] = newLastPart;
                 } else {
                   // 非电视节目直接使用任务名称
                   pathParts[pathParts.length - 1] = cleanTaskName;
@@ -2923,17 +3034,23 @@
               }
               
               // 处理倒数第二级目录（剧名+年份）- 无论是否使用智能路径，都更新
-              if (pathParts.length >= 3 && isTVShow) {
-                // 只有电视节目才更新倒数第二级目录
+              if (pathParts.length >= 3) {
                 const parentDir = pathParts[pathParts.length - 2];
-                // 提取年份信息
-                const yearMatch = parentDir.match(/\((\d{4})\)|\（(\d{4})\）|[\s\-_]+(\d{4})(?:[\s\-_]+|$)/);
-                const year = yearMatch ? (yearMatch[1] || yearMatch[2] || yearMatch[3] || '2025') : '2025';
-                
-                // 重建倒数第二级目录，使用新的剧名和原有的年份
-                pathParts[pathParts.length - 2] = showName + ' (' + year + ')';
+                // 检查倒数第二级是否符合 "名称 (年份)" 格式
+                const yearMatch = parentDir.match(/^(.+?)\s*[\(（](\d{4})[\)）]$/);
+
+                if (yearMatch) {
+                  if (isTVShow) {
+                    // 电视节目：更新倒数第二级为新的剧名 + 年份
+                    const year = yearMatch[2];
+                    pathParts[pathParts.length - 2] = showName + ' (' + year + ')';
+                  } else {
+                    // 非电视节目：去除倒数第二级目录
+                    pathParts.splice(pathParts.length - 2, 1);
+                  }
+                }
               }
-              
+
               // 更新保存路径
               task.savepath = pathParts.join('/');
             }
@@ -3022,6 +3139,8 @@
               }
             }
           }
+
+
         },
         removeTask(index) {
           if (confirm("确定要删除任务 [#" + (index + 1) + ": " + this.formData.tasklist[index].taskname + "] 吗？"))
