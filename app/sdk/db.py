@@ -133,7 +133,7 @@ class RecordDB:
             sort_by: 排序字段
             order: 排序方向（asc/desc）
             task_name_filter: 任务名称筛选条件（精确匹配）
-            keyword_filter: 关键字筛选条件（模糊匹配任务名）
+            keyword_filter: 关键字筛选条件（模糊匹配任务名、转存为名称）
             exclude_task_names: 需要排除的任务名称列表
         """
         cursor = self.conn.cursor()
@@ -157,7 +157,7 @@ class RecordDB:
             params.append(task_name_filter)
         
         if keyword_filter:
-            where_clauses.append("(task_name LIKE ? OR original_name LIKE ?)")
+            where_clauses.append("(task_name LIKE ? OR renamed_to LIKE ?)")
             params.append(f"%{keyword_filter}%")
             params.append(f"%{keyword_filter}%")
         
