@@ -1498,7 +1498,7 @@ def get_task_latest_info():
         query = """
         SELECT task_name, MAX(transfer_time) as latest_transfer_time
         FROM transfer_records
-        WHERE task_name != 'rename'
+        WHERE task_name NOT IN ('rename', 'undo_rename')
         GROUP BY task_name
         """
         cursor.execute(query)
