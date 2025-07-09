@@ -75,7 +75,7 @@ docker run -d \
   x1ao4/quark-auto-save-x:latest
 ```
 
-Docker Compose
+Docker Compose（推荐）
 
 ```yaml
 version: "3.3"
@@ -89,7 +89,6 @@ services:
       - /自定义配置文件的存储目录/quark-auto-save-x/config:/app/config
       - /自定义生成文件的存储目录:/media  # 可选，插件 alist_strm_gen 生成 strm 使用
     restart: unless-stopped
-networks: {}
 ```
 
 默认管理地址：http://yourhost:5005

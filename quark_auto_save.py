@@ -2752,6 +2752,7 @@ class Quark:
                 if query_task_return["code"] == 0:
                     # 建立目录树
                     saved_files = []
+
                     for index, item in enumerate(need_save_list):
                         icon = (
                             "📁"
@@ -2779,12 +2780,16 @@ class Quark:
                         saved_files.append(format_file_display("", icon, display_name))
                         # 检查节点是否已存在于树中，避免重复添加
                         if not tree.contains(item["fid"]):
+                            # 安全地获取save_as_top_fids中的fid，防止索引越界
+                            save_as_top_fids = query_task_return.get('data', {}).get('save_as', {}).get('save_as_top_fids', [])
+                            saved_fid = save_as_top_fids[index] if index < len(save_as_top_fids) else item["fid"]
+
                             tree.create_node(
                                 display_name,  # 只存储文件名，不包含图标
                                 item["fid"],
                                 parent=pdir_fid,
                                 data={
-                                    "fid": f"{query_task_return['data']['save_as']['save_as_top_fids'][index]}",
+                                    "fid": f"{saved_fid}",
                                     "path": f"{savepath}/{item['save_name']}",
                                     "is_dir": item["dir"],
                                     "icon": icon,  # 将图标存储在data中
