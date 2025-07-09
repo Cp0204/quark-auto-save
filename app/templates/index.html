@@ -2453,7 +2453,7 @@
         checkShareUrlStatus() {
           // 只在任务列表页面检查
           if (this.activeTab !== 'tasklist') return;
-          
+
           // 遍历所有任务
           this.formData.tasklist.forEach((task, index) => {
             // 如果任务有分享链接且没有设置shareurl_ban
@@ -2463,7 +2463,13 @@
                 .then(response => {
                   const share_detail = response.data.data;
                   if (!response.data.success) {
-                    // 使用格式化函数处理错误信息
+                    // 检查是否是 request error，如果是则忽略
+                    if (share_detail.error && share_detail.error.includes("request error")) {
+                      // 忽略 request error，不设置 shareurl_ban
+                      console.log('检查分享链接时出现网络错误，忽略此错误:', share_detail.error);
+                      return;
+                    }
+                    // 使用格式化函数处理其他错误信息
                     this.$set(task, "shareurl_ban", this.formatShareUrlBanMessage(share_detail.error));
                   } else if (share_detail.list !== undefined && share_detail.list.length === 0) {
                     // 检查文件列表是否为空，确保列表存在且为空
@@ -2471,8 +2477,8 @@
                   }
                 })
                 .catch(error => {
-                  // 错误处理
-                  console.error('检查分享链接状态失败:', error);
+                  // 网络请求失败，忽略错误，不设置 shareurl_ban
+                  console.log('检查分享链接状态时网络请求失败，忽略此错误:', error);
                 });
             }
           });
@@ -3173,8 +3179,15 @@
                     return;
                   }
                 }
-                
-                // 使用格式化函数处理错误信息
+
+                // 检查是否是 request error，如果是则忽略
+                if (share_detail.error && share_detail.error.includes("request error")) {
+                  // 忽略 request error，不设置 shareurl_ban
+                  console.log('修改分享链接时出现网络错误，忽略此错误:', share_detail.error);
+                  return;
+                }
+
+                // 使用格式化函数处理其他错误信息
                 this.$set(task, "shareurl_ban", this.formatShareUrlBanMessage(share_detail.error));
               } else {
                 // 检查文件列表是否为空
@@ -3188,7 +3201,8 @@
               }
             })
             .catch(error => {
-              // 错误处理
+              // 网络请求失败，忽略错误，不设置 shareurl_ban
+              console.log('修改分享链接时网络请求失败，忽略此错误:', error);
             });
         },
         clearData(target) {
@@ -3401,14 +3415,21 @@
                   // 检查是否包含已知的失效原因
                   const error = response.data.data.error || "";
                   let isInvalid = false;
-                  
+
+                  // 如果是 request error，视为有效（网络问题，不是资源问题）
+                  if (error.includes("request error")) {
+                    this.smart_param.validateProgress.valid++;
+                    resolve(link);
+                    return;
+                  }
+
                   for (const term of invalidTerms) {
                     if (error.includes(term)) {
                       isInvalid = true;
                       break;
                     }
                   }
-                  
+
                   // 如果不是已知的失效原因，保留该结果
                   if (!isInvalid) {
                     this.smart_param.validateProgress.valid++;
