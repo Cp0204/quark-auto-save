@@ -2251,8 +2251,17 @@ class Quark:
                         else:
                             target_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
 
-                        # 检查目标文件名是否已存在
-                        target_exists = any(dir_file["file_name"] == target_name for dir_file in dir_file_list)
+                        # 检查目标文件名是否已存在，支持忽略后缀选项
+                        if task.get("ignore_extension", False):
+                            # 忽略后缀模式：只比较文件名部分，不比较扩展名
+                            target_name_base = os.path.splitext(target_name)[0]
+                            target_exists = any(
+                                os.path.splitext(dir_file["file_name"])[0] == target_name_base for dir_file in dir_file_list
+                            )
+                        else:
+                            # 不忽略后缀模式：完整文件名必须匹配
+                            target_exists = any(dir_file["file_name"] == target_name for dir_file in dir_file_list)
+
                         if target_exists:
                             is_duplicate = True
 
@@ -2980,7 +2989,19 @@ class Quark:
                 else:
                     save_name = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
                 
-                if save_name != dir_file["file_name"] and save_name not in dir_file_name_list:
+                # 检查是否需要重命名，支持忽略后缀选项
+                name_conflict = False
+                if task.get("ignore_extension", False):
+                    # 忽略后缀模式：只比较文件名部分，不比较扩展名
+                    save_name_base = os.path.splitext(save_name)[0]
+                    name_conflict = any(
+                        os.path.splitext(existing_name)[0] == save_name_base for existing_name in dir_file_name_list
+                    )
+                else:
+                    # 不忽略后缀模式：完整文件名必须匹配
+                    name_conflict = save_name in dir_file_name_list
+
+                if save_name != dir_file["file_name"] and not name_conflict:
                     # 收集重命名对，包含原始文件信息以便排序
                     renamed_pairs.append((dir_file, save_name, current_sequence))
                     dir_file_name_list.append(save_name)
@@ -3469,8 +3490,19 @@ class Quark:
 
             # 执行重命名操作，但不立即打印日志
             for dir_file, new_name, _ in rename_operations:
-                # 防止重名
-                if new_name not in [f["file_name"] for f in dir_file_list]:
+                # 防止重名，支持忽略后缀选项
+                name_conflict = False
+                if task.get("ignore_extension", False):
+                    # 忽略后缀模式：只比较文件名部分，不比较扩展名
+                    new_name_base = os.path.splitext(new_name)[0]
+                    name_conflict = any(
+                        os.path.splitext(f["file_name"])[0] == new_name_base for f in dir_file_list
+                    )
+                else:
+                    # 不忽略后缀模式：完整文件名必须匹配
+                    name_conflict = new_name in [f["file_name"] for f in dir_file_list]
+
+                if not name_conflict:
                     try:
                         rename_return = self.rename(dir_file["fid"], new_name)
                         if rename_return["code"] == 0:
@@ -3626,8 +3658,21 @@ class Quark:
             # 执行重命名操作，并收集日志
             already_renamed_files = set()  # 用于防止重复重命名
             for dir_file, new_name in rename_operations:
-                # 检查是否会导致重名
-                if new_name not in [f["file_name"] for f in dir_file_list] and new_name not in already_renamed_files:
+                # 检查是否会导致重名，支持忽略后缀选项
+                name_conflict = False
+                if task.get("ignore_extension", False):
+                    # 忽略后缀模式：只比较文件名部分，不比较扩展名
+                    new_name_base = os.path.splitext(new_name)[0]
+                    name_conflict = any(
+                        os.path.splitext(f["file_name"])[0] == new_name_base for f in dir_file_list
+                    ) or any(
+                        os.path.splitext(existing_name)[0] == new_name_base for existing_name in already_renamed_files
+                    )
+                else:
+                    # 不忽略后缀模式：完整文件名必须匹配
+                    name_conflict = new_name in [f["file_name"] for f in dir_file_list] or new_name in already_renamed_files
+
+                if not name_conflict:
                     try:
                         rename_return = self.rename(dir_file["fid"], new_name)
                         if rename_return["code"] == 0:

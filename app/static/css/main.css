@@ -281,7 +281,7 @@ main div[v-if="activeTab === 'config'"] .row.title:first-child {
   left: 0;
   z-index: 100;
   padding: 54px 0 0;
-  box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, .088);
   transition: none; /* 禁用动画效果 */
   overflow-x: hidden; /* 防止水平滚动条 */
 }
@@ -2137,7 +2137,7 @@ div.jsoneditor-tree button.jsoneditor-button:focus {
 
 /* 侧边栏菜单项图标样式 */
 .sidebar .nav-link .bi-list-ul {
-  font-size: 1.09rem;
+  font-size: 1.1rem;
   position: relative;
   top: 0.5px; /* 向下微调 */
 }
@@ -2149,7 +2149,7 @@ div.jsoneditor-tree button.jsoneditor-button:focus {
 }
 
 .sidebar .nav-link .bi-clock-history {
-  font-size: 1rem;
+  font-size: 1.015rem;
 }
 
 .sidebar .nav-link .bi-archive {
