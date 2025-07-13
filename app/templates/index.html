@@ -1752,7 +1752,7 @@
                       fileSelect.index !== null && fileSelect.index >= 0 && formData.tasklist[fileSelect.index] ?
                         (formData.tasklist[fileSelect.index].use_sequence_naming ? '顺序命名' :
                         (formData.tasklist[fileSelect.index].use_episode_naming ? '剧集命名' : '正则命名')) :
-                      fileSelect.index === -1 && document.getElementById('fileSelectModal').getAttribute('data-modal-type') === 'preview' ?
+                      fileSelect.index === -1 && (document.getElementById('fileSelectModal').getAttribute('data-modal-type') === 'preview' || document.getElementById('fileSelectModal').getAttribute('data-modal-type') === 'source' || document.getElementById('fileSelectModal').getAttribute('data-modal-type') === 'start-file') ?
                         (createTask.taskData.use_sequence_naming ? '顺序命名' :
                         (createTask.taskData.use_episode_naming ? '剧集命名' : '正则命名')) :
                         (fileManager.use_sequence_naming ? '顺序命名' :
@@ -7883,14 +7883,18 @@
                 // 保存成功后更新用户信息
                 this.fetchUserInfo();
 
-                // 运行新创建的任务
-                const taskIndex = this.formData.tasklist.length - 1;
-                this.runScriptNow(taskIndex);
-
                 // 显示任务创建成功消息
                 this.showToast('任务创建成功并开始运行', 'success');
                 this.createTask.loading = false;
+
+                // 先关闭创建任务模态框，然后运行新创建的任务
                 this.cancelCreateTask();
+
+                // 等待模态框完全关闭后再打开运行日志模态框
+                setTimeout(() => {
+                  const taskIndex = this.formData.tasklist.length - 1;
+                  this.runScriptNow(taskIndex);
+                }, 300);
               } else {
                 // 错误信息使用alert，确保用户看到
                 alert(response.data.message);
