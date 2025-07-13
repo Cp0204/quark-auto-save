@@ -4175,14 +4175,8 @@
         selectSuggestion(index, suggestion) {
           this.smart_param.showSuggestions = false;
 
-          // 首先设置分享链接到对应的输入框
-          if (index === -1) {
-            // 创建任务模态框的情况
-            this.createTask.taskData.shareurl = suggestion.shareurl;
-          } else if (index >= 0 && this.formData.tasklist[index]) {
-            // 任务列表的情况
-            this.formData.tasklist[index].shareurl = suggestion.shareurl;
-          }
+          // 不直接设置分享链接到输入框，只是打开文件选择模态框让用户浏览
+          // 用户在模态框中导航后，最终的 this.fileSelect.shareurl 才是需要的地址
 
           // 确保显示的是选择需转存的文件夹界面，而不是命名预览界面
           this.fileSelect.previewRegex = false;
@@ -4568,6 +4562,8 @@
               if (!this.fileSelect.fileList || this.fileSelect.fileList.length === 0) {
                 this.$set(this.createTask.taskData, "shareurl_ban", "该分享已被删除，无法访问");
               }
+              // 只有在用户点击"转存当前文件夹"时才更新分享链接
+              // 使用用户最终访问的分享链接地址（包含用户导航后的路径）
               this.createTask.taskData.shareurl = this.fileSelect.shareurl;
             } else if (this.fileSelect.index !== null && this.fileSelect.index >= 0 && this.formData.tasklist[this.fileSelect.index]) {
               this.formData.tasklist[this.fileSelect.index].shareurl_ban = undefined;
@@ -4575,6 +4571,8 @@
               if (!this.fileSelect.fileList || this.fileSelect.fileList.length === 0) {
                 this.$set(this.formData.tasklist[this.fileSelect.index], "shareurl_ban", "该分享已被删除，无法访问");
               }
+              // 只有在用户点击"转存当前文件夹"时才更新分享链接
+              // 使用用户最终访问的分享链接地址（包含用户导航后的路径）
               this.formData.tasklist[this.fileSelect.index].shareurl = this.fileSelect.shareurl;
             }
           } else {
