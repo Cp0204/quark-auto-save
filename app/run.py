@@ -40,6 +40,9 @@ from quark_auto_save import Config, format_bytes
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from quark_auto_save import extract_episode_number, sort_file_by_name, chinese_to_arabic, is_date_format
 
+# 导入豆瓣服务
+from douban_service import douban_service
+
 
 def process_season_episode_info(filename, task_name=None):
     """
@@ -309,7 +312,7 @@ def is_login():
 @app.route("/favicon.ico")
 def favicon():
     return send_from_directory(
-        os.path.join(app.root_path, "static"),
+        os.path.join(app.root_path, "static", "images"),
         "favicon.ico",
         mimetype="image/vnd.microsoft.icon",
     )
@@ -2275,6 +2278,107 @@ def has_rename_record():
     records = db.get_records_by_save_path(save_path)
     has_rename = any(r["task_name"] == "rename" for r in records)
     return jsonify({"has_rename": has_rename})
+
+
+# 豆瓣API路由
+
+# 通用电影接口
+@app.route("/api/douban/movie/recent_hot")
+def get_movie_recent_hot():
+    """获取电影榜单 - 通用接口"""
+    try:
+        category = request.args.get('category', '热门')
+        type_param = request.args.get('type', '全部')
+        limit = int(request.args.get('limit', 20))
+        start = int(request.args.get('start', 0))
+
+        # 映射category到main_category
+        category_mapping = {
+            '热门': 'movie_hot',
+            '最新': 'movie_latest',
+            '豆瓣高分': 'movie_top',
+            '冷门佳片': 'movie_underrated'
+        }
+
+        main_category = category_mapping.get(category, 'movie_hot')
+        result = douban_service.get_list_data(main_category, type_param, limit, start)
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取电影榜单失败: {str(e)}',
+            'data': {'items': []}
+        })
+
+@app.route("/api/douban/movie/<movie_type>/<sub_category>")
+def get_movie_list(movie_type, sub_category):
+    """获取电影榜单"""
+    try:
+        limit = int(request.args.get('limit', 20))
+        start = int(request.args.get('start', 0))
+
+        main_category = f"movie_{movie_type}"
+        result = douban_service.get_list_data(main_category, sub_category, limit, start)
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取电影榜单失败: {str(e)}',
+            'data': {'items': []}
+        })
+
+
+# 通用电视剧接口
+@app.route("/api/douban/tv/recent_hot")
+def get_tv_recent_hot():
+    """获取电视剧榜单 - 通用接口"""
+    try:
+        category = request.args.get('category', 'tv')
+        type_param = request.args.get('type', 'tv')
+        limit = int(request.args.get('limit', 20))
+        start = int(request.args.get('start', 0))
+
+        # 映射category到main_category
+        if category == 'tv':
+            main_category = 'tv_drama'
+        elif category == 'show':
+            main_category = 'tv_variety'
+        elif category == 'tv_drama':
+            main_category = 'tv_drama'
+        elif category == 'tv_variety':
+            main_category = 'tv_variety'
+        else:
+            main_category = 'tv_drama'
+
+        result = douban_service.get_list_data(main_category, type_param, limit, start)
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取电视剧榜单失败: {str(e)}',
+            'data': {'items': []}
+        })
+
+@app.route("/api/douban/tv/<tv_type>/<sub_category>")
+def get_tv_list(tv_type, sub_category):
+    """获取电视剧/综艺榜单"""
+    try:
+        limit = int(request.args.get('limit', 20))
+        start = int(request.args.get('start', 0))
+
+        main_category = f"tv_{tv_type}"
+        result = douban_service.get_list_data(main_category, sub_category, limit, start)
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取电视剧榜单失败: {str(e)}',
+            'data': {'items': []}
+        })
 
 
 if __name__ == "__main__":
