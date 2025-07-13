@@ -227,12 +227,33 @@ def sort_file_by_name(file):
                 episode_value = int(any_num_match.group(1))
     
     # 3. 提取上中下标记或其他细分 - 第三级排序键
+    segment_base = 0  # 基础值：上=1, 中=2, 下=3
+    sequence_number = 0  # 序号值：用于处理上中下后的数字或中文数字序号
+
     if re.search(r'上[集期话部篇]?|[集期话部篇]上', filename):
-        segment_value = 1
+        segment_base = 1
     elif re.search(r'中[集期话部篇]?|[集期话部篇]中', filename):
-        segment_value = 2
+        segment_base = 2
     elif re.search(r'下[集期话部篇]?|[集期话部篇]下', filename):
-        segment_value = 3
+        segment_base = 3
+
+    # 当有上中下标记时，进一步提取后续的序号
+    if segment_base > 0:
+        # 提取上中下后的中文数字序号，如：上（一）、上（二）
+        chinese_seq_match = re.search(r'[上中下][集期话部篇]?[（(]([一二三四五六七八九十百千万零两]+)[）)]', filename)
+        if chinese_seq_match:
+            chinese_num = chinese_seq_match.group(1)
+            arabic_num = chinese_to_arabic(chinese_num)
+            if arabic_num is not None:
+                sequence_number = arabic_num
+        else:
+            # 提取上中下后的阿拉伯数字序号，如：上1、上2
+            arabic_seq_match = re.search(r'[上中下][集期话部篇]?(\d+)', filename)
+            if arabic_seq_match:
+                sequence_number = int(arabic_seq_match.group(1))
+
+    # 组合segment_value：基础值*1000 + 序号值，确保排序正确
+    segment_value = segment_base * 1000 + sequence_number
     
     # 返回多级排序元组，加入更新时间作为第四级排序键，拼音排序作为第五级排序键
     return (date_value, episode_value, segment_value, update_time, pinyin_sort_key)
