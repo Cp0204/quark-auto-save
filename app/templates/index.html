@@ -375,6 +375,11 @@
               </a>
             </li>
             <li class="nav-item">
+              <a class="nav-link" href="#" :class="{active: activeTab === 'discovery'}" @click="changeTab('discovery')">
+                <i class="bi bi-film"></i> <span class="nav-text">影视发现</span>
+              </a>
+            </li>
+            <li class="nav-item">
               <a class="nav-link" href="#" :class="{active: activeTab === 'config'}" @click="changeTab('config')">
                 <i class="bi bi-gear"></i> <span class="nav-text">系统配置</span>
               </a>
@@ -596,6 +601,87 @@
               </div>
             </div>
 
+            <!-- 任务设置模块 -->
+            <div class="row title" title="配置影视发现页面创建任务时的智能填充规则，包括各类型内容的保存路径格式和命名规则">
+              <div class="col">
+                <h2 style="display: inline-block; font-size: 1.5rem;">任务设置</h2>
+                <span class="badge badge-pill badge-light">
+                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/影视发现任务设置" target="_blank"><i class="bi bi-question-circle"></i></a>
+                </span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="input-group">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">电影保存路径</span>
+                </div>
+                <input type="text" class="form-control" v-model="formData.task_settings.movie_save_path" placeholder="电影目录前缀/片名 (年份)" title="设置电影类型内容的默认保存路径格式，在影视发现页面创建电影任务时自动填充。支持变量：片名、年份等">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="input-group">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">剧集保存路径</span>
+                </div>
+                <input type="text" class="form-control" v-model="formData.task_settings.tv_save_path" placeholder="剧集目录前缀/剧名 (年份)/剧名 - S季数" title="设置电视剧类型内容的默认保存路径格式，在影视发现页面创建剧集任务时自动填充。支持变量：剧名、年份、季数等">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="input-group">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">动画保存路径</span>
+                </div>
+                <input type="text" class="form-control" v-model="formData.task_settings.anime_save_path" placeholder="动画目录前缀/剧名 (年份)/剧名 - S季数" title="设置动画类型内容的默认保存路径格式，在影视发现页面创建动画任务时自动填充。支持变量：剧名、年份、季数等">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="input-group">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">综艺保存路径</span>
+                </div>
+                <input type="text" class="form-control" v-model="formData.task_settings.variety_save_path" placeholder="综艺目录前缀/剧名 (年份)/剧名 - S季数" title="设置综艺类型内容的默认保存路径格式，在影视发现页面创建综艺任务时自动填充。支持变量：剧名、年份、季数等">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="input-group">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">纪录片保存路径</span>
+                </div>
+                <input type="text" class="form-control" v-model="formData.task_settings.documentary_save_path" placeholder="纪录片目录前缀/剧名 (年份)/剧名 - S季数" title="设置纪录片类型内容的默认保存路径格式，在影视发现页面创建纪录片任务时自动填充。支持变量：剧名、年份、季数等">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="input-group">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">电视命名规则</span>
+                </div>
+                <input type="text" class="form-control" v-model="formData.task_settings.tv_naming_rule" placeholder="剧名 - S季数E[]" title="设置电视类型内容的默认文件命名规则，在影视发现页面创建电视任务时自动填充。支持变量：剧名、季数、集数等，[]表示集数占位符">
+                <div class="input-group-append" title="保存时只比较文件名的部分，01.mp4和01.mkv视同为同一文件，不重复转存">
+                  <div class="input-group-text">
+                    <input type="checkbox" v-model="formData.task_settings.tv_ignore_extension">&nbsp;忽略后缀
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="input-group">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">自动搜索资源</span>
+                </div>
+                <select class="form-control" v-model="formData.task_settings.auto_search_resources" title="启用后，在影视发现页面点击海报创建任务时，如果配置了有效的CloudSaver信息，将自动触发资源搜索功能">
+                  <option value="disabled">禁用</option>
+                  <option value="enabled">启用</option>
+                </select>
+              </div>
+            </div>
+
             <div class="row title" title="API接口，用于第三方添加任务等操作，查阅Wiki了解详情">
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">API</h2>
@@ -754,7 +840,7 @@
               </div>
             </div>
             <div class="row mb-2 performance-setting-row">
-              <div class="col-lg-6 col-md-6 mb-2">
+              <div class="col-lg-4 col-md-6 mb-2">
                 <div class="input-group" title="每次请求夸克API时获取的文件数量，适当增大该数值可减少请求次数，提升大文件夹的加载效率。建议值：100–500">
                   <div class="input-group-prepend">
                     <span class="input-group-text">单次请求文件数量</span>
@@ -765,7 +851,7 @@
                   </div>
                 </div>
               </div>
-              <div class="col-lg-6 col-md-6 mb-2">
+              <div class="col-lg-4 col-md-6 mb-2">
                 <div class="input-group" title="文件列表在本地缓存的持续时间，过期后将自动清除。设置过短会增加API请求次数，设置过长可能无法及时反映最新变动。建议值：0-300，0表示不缓存">
                   <div class="input-group-prepend">
                     <span class="input-group-text">文件列表缓存时长</span>
@@ -773,6 +859,17 @@
                   <input type="text" class="form-control no-spinner" v-model="formData.file_performance.cache_expire_time" placeholder="30">
                   <div class="input-group-append">
                     <span class="input-group-text square-append">秒</span>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-4 col-md-6 mb-2">
+                <div class="input-group" title="影视发现页面每个榜单显示的项目数量。建议值：20-100">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">影视榜单项目数量</span>
+                  </div>
+                  <input type="text" class="form-control no-spinner" v-model="formData.file_performance.discovery_items_count" placeholder="30">
+                  <div class="input-group-append">
+                    <span class="input-group-text square-append">个</span>
                   </div>
                 </div>
               </div>
@@ -837,7 +934,7 @@
                     </div>
                   </div>
                   <div class="col-auto task-buttons">
-                    <button type="button" class="btn btn-outline-plex" v-if="formData.plugins && formData.plugins.plex && formData.plugins.plex.url && formData.plugins.plex.token && formData.plugins.plex.quark_root_path && formData.button_display.refresh_plex !== 'disabled'" :class="{'hover-only': formData.button_display.refresh_plex === 'hover'}" @click="refreshPlexLibrary(index)" title="刷新Plex媒体库"><img src="./static/Plex.svg" class="plex-icon"></button>
+                    <button type="button" class="btn btn-outline-plex" v-if="formData.plugins && formData.plugins.plex && formData.plugins.plex.url && formData.plugins.plex.token && formData.plugins.plex.quark_root_path && formData.button_display.refresh_plex !== 'disabled'" :class="{'hover-only': formData.button_display.refresh_plex === 'hover'}" @click="refreshPlexLibrary(index)" title="刷新Plex媒体库"><img src="./static/images/Plex.svg" class="plex-icon"></button>
                     <button type="button" class="btn btn-outline-alist" v-if="formData.plugins && formData.plugins.alist && formData.plugins.alist.url && formData.plugins.alist.token && formData.plugins.alist.storage_id && formData.button_display.refresh_alist !== 'disabled'" :class="{'hover-only': formData.button_display.refresh_alist === 'hover'}" @click="refreshAlistDirectory(index)" title="刷新AList目录"><img src="https://cdn.jsdelivr.net/gh/alist-org/logo@main/logo.svg" class="alist-icon"></button>
                     <button class="btn btn-warning" v-if="task.shareurl_ban" :title="formatShareUrlBanMessage(task.shareurl_ban)" disabled><i class="bi bi-exclamation-circle"></i></button>
                     <button type="button" class="btn btn-outline-primary" @click="runScriptNow(index)" title="运行此任务" v-if="!task.shareurl_ban" :class="{'hover-only': formData.button_display.run_task === 'hover'}"><i class="bi bi-caret-right"></i></button>
@@ -878,10 +975,10 @@
                             <a target="_blank" :href="`https://www.google.com/search?q=%22pan.quark.cn/s%22+${cleanTaskNameForSearch(task.taskname)}`"><i class="bi bi-google"></i></a>
                           </div>
                           <div class="input-group-text" title="TMDB搜索">
-                            <a target="_blank" :href="`https://www.themoviedb.org/search?query=${cleanTaskNameForSearch(task.taskname)}`"><img src="./static/TMDB.svg" class="tmdb-icon"></a>
+                            <a target="_blank" :href="`https://www.themoviedb.org/search?query=${cleanTaskNameForSearch(task.taskname)}`"><img src="./static/images/TMDB.svg" class="tmdb-icon"></a>
                           </div>
                           <div class="input-group-text" title="豆瓣搜索">
-                            <a target="_blank" :href="`https://search.douban.com/movie/subject_search?search_text=${cleanTaskNameForSearch(task.taskname)}`"><img src="./static/Douban.svg" class="douban-icon"></a>
+                            <a target="_blank" :href="`https://search.douban.com/movie/subject_search?search_text=${cleanTaskNameForSearch(task.taskname)}`"><img src="./static/images/Douban.svg" class="douban-icon"></a>
                           </div>
                         </div>
                       </div>
@@ -909,7 +1006,7 @@
                         <div class="input-group-append">
                           <button class="btn btn-outline-secondary" type="button" v-if="smart_param.savepath && smart_param.index == index && task.savepath != smart_param.origin_savepath" @click="task.savepath = smart_param.origin_savepath" title="恢复保存路径"><i class="bi bi-reply"></i></button>
                           <button class="btn btn-outline-secondary" type="button" @click="showSavepathSelect(index)" title="选择保存到的文件夹"><i class="bi bi-folder"></i></button>
-                          <button type="button" class="btn btn-outline-secondary" @click="resetFolder(index)" title="重置文件夹：此操作将删除当前保存路径中的所有文件及相关转存记录，且不可恢复，请谨慎操作"><i class="bi bi-folder-x"></i></button>
+                          <button type="button" class="btn btn-outline-secondary" @click="resetFolderContent(index)" title="重置文件夹：此操作将删除当前保存路径中的所有文件及相关转存记录，且不可恢复，请谨慎操作"><i class="bi bi-folder-x"></i></button>
                         </div>
                       </div>
                     </div>
@@ -1052,7 +1149,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-if="filteredHistoryRecords.length === 0">
+                  <tr v-if="history.hasLoaded && filteredHistoryRecords.length === 0">
                     <td colspan="6" class="text-center">暂无记录</td>
                   </tr>
                   <tr v-for="(record, index) in filteredHistoryRecords" :key="record.id" 
@@ -1204,7 +1301,7 @@
                       <option v-for="(account, index) in accountsDetail" :key="index" :value="index">{{ account.display_text }}</option>
                     </select>
                   </div>
-                  <button type="button" class="btn btn-outline-plex batch-rename-btn" v-if="formData.plugins && formData.plugins.plex && formData.plugins.plex.url && formData.plugins.plex.token && formData.plugins.plex.quark_root_path && formData.button_display.refresh_plex !== 'disabled'" @click="refreshFileManagerPlexLibrary" title="刷新Plex媒体库"><img src="./static/Plex.svg" class="plex-icon"></button>
+                  <button type="button" class="btn btn-outline-plex batch-rename-btn" v-if="formData.plugins && formData.plugins.plex && formData.plugins.plex.url && formData.plugins.plex.token && formData.plugins.plex.quark_root_path && formData.button_display.refresh_plex !== 'disabled'" @click="refreshFileManagerPlexLibrary" title="刷新Plex媒体库"><img src="./static/images/Plex.svg" class="plex-icon"></button>
                   <button type="button" class="btn btn-outline-alist batch-rename-btn" v-if="formData.plugins && formData.plugins.alist && formData.plugins.alist.url && formData.plugins.alist.token && formData.plugins.alist.storage_id && formData.button_display.refresh_alist !== 'disabled'" @click="refreshFileManagerAlistDirectory" title="刷新AList目录"><img src="https://cdn.jsdelivr.net/gh/alist-org/logo@main/logo.svg" class="alist-icon"></button>
                   <button type="button" class="btn btn-outline-primary batch-rename-btn" @click="createNewFolder" title="新建文件夹">
                     <i class="bi bi-folder-plus"></i>
@@ -1224,7 +1321,7 @@
                         <option v-for="(account, index) in accountsDetail" :key="index" :value="index">{{ account.display_text }}</option>
                       </select>
                     </div>
-                    <button type="button" class="btn btn-outline-plex batch-rename-btn" v-if="formData.plugins && formData.plugins.plex && formData.plugins.plex.url && formData.plugins.plex.token && formData.plugins.plex.quark_root_path && formData.button_display.refresh_plex !== 'disabled'" @click="refreshFileManagerPlexLibrary" title="刷新Plex媒体库"><img src="./static/Plex.svg" class="plex-icon"></button>
+                    <button type="button" class="btn btn-outline-plex batch-rename-btn" v-if="formData.plugins && formData.plugins.plex && formData.plugins.plex.url && formData.plugins.plex.token && formData.plugins.plex.quark_root_path && formData.button_display.refresh_plex !== 'disabled'" @click="refreshFileManagerPlexLibrary" title="刷新Plex媒体库"><img src="./static/images/Plex.svg" class="plex-icon"></button>
                     <button type="button" class="btn btn-outline-alist batch-rename-btn" v-if="formData.plugins && formData.plugins.alist && formData.plugins.alist.url && formData.plugins.alist.token && formData.plugins.alist.storage_id && formData.button_display.refresh_alist !== 'disabled'" @click="refreshFileManagerAlistDirectory" title="刷新AList目录"><img src="https://cdn.jsdelivr.net/gh/alist-org/logo@main/logo.svg" class="alist-icon"></button>
                     <button type="button" class="btn btn-outline-primary batch-rename-btn" @click="createNewFolder" title="新建文件夹">
                       <i class="bi bi-folder-plus"></i>
@@ -1317,14 +1414,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-if="fileManager.loading">
-                    <td colspan="3" class="text-center">
-                      <div class="spinner-border text-primary" role="status">
-                        <span class="sr-only">加载中...</span>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr v-else-if="fileManager.fileList.length === 0">
+                  <tr v-if="fileManager.hasLoaded && fileManager.fileList.length === 0">
                     <td colspan="3" class="text-center">当前文件夹为空</td>
                   </tr>
                   <template v-else>
@@ -1447,6 +1537,87 @@
             </div>
           </div>
 
+          <!-- 影视发现页面 -->
+          <div v-if="activeTab === 'discovery'">
+            <div style="height: 20px;"></div>
+            <!-- 榜单切换按钮区域 -->
+            <div class="discovery-controls">
+              <!-- 第一排：主榜单按钮 -->
+              <div class="discovery-main-buttons">
+                <button type="button"
+                        class="btn btn-outline-secondary discovery-btn"
+                        v-for="category in discovery.mainCategories"
+                        :key="category.key"
+                        :class="{ active: discovery.selectedMainCategory === category.key }"
+                        @click="selectMainCategory(category.key)">
+                  {{ category.name }}
+                </button>
+              </div>
+
+              <!-- 第二排：子榜单按钮 -->
+              <div class="discovery-sub-buttons">
+                <!-- 调试信息 -->
+                <div v-if="currentSubCategories.length === 0" style="color: red; font-size: 12px;">
+                  调试：当前主分类 {{ discovery.selectedMainCategory }}，子分类数量：{{ currentSubCategories.length }}
+                </div>
+                <button type="button"
+                        class="btn btn-outline-secondary discovery-btn"
+                        v-for="subCategory in currentSubCategories"
+                        :key="subCategory.key"
+                        :class="{ active: discovery.selectedSubCategory === subCategory.key }"
+                        @click="selectSubCategory(subCategory.key)">
+                  {{ subCategory.name }}
+                </button>
+              </div>
+            </div>
+
+            <!-- 只在已初始化时显示内容，避免页面刷新时的闪烁 -->
+            <div v-if="discovery.isInitialized || discovery.hasLoaded">
+              <!-- 错误提示 -->
+              <div v-if="discovery.error" class="alert alert-warning" role="alert">
+                <i class="bi bi-exclamation-triangle"></i>
+                {{ discovery.error }}
+              </div>
+
+              <!-- 影片海报网格 -->
+              <div v-else-if="discovery.items.length > 0" class="discovery-grid">
+                <div class="discovery-item"
+                     v-for="item in discovery.items"
+                     :key="item.id">
+                  <div class="discovery-poster" @mouseenter="handlePosterHover($event, item)">
+                    <img :src="(item.pic && item.pic.normal) ? getProxiedImageUrl(item.pic.normal) : '/static/images/no-poster.svg'"
+                         :alt="item.title"
+                         referrerpolicy="no-referrer"
+                         crossorigin="anonymous"
+                         @error="handleImageError($event)">
+                    <div class="discovery-rating" v-if="item.rating && item.rating.value">
+                      {{ parseFloat(item.rating.value).toFixed(1) }}
+                    </div>
+                    <div class="discovery-create-task" @click="createTaskFromDiscovery(item)" title="创建任务">
+                      <span class="plus-text">+</span>
+                    </div>
+                    <div class="discovery-poster-overlay">
+                      <div class="info-line" v-for="(detail, index) in getMovieDetails(item)" :key="index">
+                        {{ detail }}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="discovery-info">
+                    <div class="discovery-title" :title="item.title" @click="openDoubanPage(item)">{{ item.title }}</div>
+                    <div class="discovery-genre" :title="getMovieGenreText(item)" v-html="getMovieGenre(item)"></div>
+                    <div class="discovery-year" v-if="item.year">{{ item.year }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 空状态 - 只有在加载完成且无数据且无错误时才显示 -->
+              <div v-else-if="discovery.hasLoaded" class="text-center py-5 text-muted">
+                <i class="bi bi-film" style="font-size: 3rem;"></i>
+                <div class="mt-2">暂无数据</div>
+              </div>
+            </div>
+          </div>
+
         </form>
       </main>
     </div>
@@ -1477,7 +1648,8 @@
           <div class="modal-header">
             <h5 class="modal-title" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">
               <span v-if="fileSelect.previewRegex && fileSelect.index >= 0 && formData.tasklist[fileSelect.index]" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">{{ formData.tasklist[fileSelect.index].use_sequence_naming ? '顺序命名预览' : (formData.tasklist[fileSelect.index].use_episode_naming ? '剧集命名预览' : '正则命名预览') }}</span>
-              <span v-else-if="fileSelect.previewRegex && fileSelect.index === -1" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">{{ fileManager.use_sequence_naming ? '顺序命名预览' : (fileManager.use_episode_naming ? '剧集命名预览' : '正则命名预览') }}</span>
+              <span v-else-if="fileSelect.previewRegex && fileSelect.index === -1 && document.getElementById('fileSelectModal').getAttribute('data-modal-type') === 'preview'" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">{{ createTask.taskData.use_sequence_naming ? '顺序命名预览' : (createTask.taskData.use_episode_naming ? '剧集命名预览' : '正则命名预览') }}</span>
+              <span v-else-if="fileSelect.previewRegex && fileSelect.index === -1 && document.getElementById('fileSelectModal').getAttribute('data-modal-type') === 'preview-filemanager'" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">{{ fileManager.use_sequence_naming ? '顺序命名预览' : (fileManager.use_episode_naming ? '剧集命名预览' : '正则命名预览') }}</span>
               <span v-else-if="fileSelect.selectDir" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">选择{{fileSelect.moveMode ? '移动到的' : (fileSelect.selectShare ? '需转存的' : '保存到的')}}文件夹</span>
               <span v-else style="font-weight: 600; font-family: inherit; letter-spacing: normal;">选择起始文件</span>
               <div v-if="modalLoading" class="spinner-border spinner-border-sm m-1" role="status"></div>
@@ -1526,7 +1698,32 @@
                   </div>
                 </div>
                 <!-- 文件管理器的命名预览 -->
-                <div v-else-if="fileSelect.index === -1">
+                <!-- 创建任务模态框的命名预览 -->
+                <div v-else-if="fileSelect.index === -1 && document.getElementById('fileSelectModal').getAttribute('data-modal-type') === 'preview'">
+                  <div v-if="createTask.taskData.use_sequence_naming">
+                    <div style="margin-bottom: 1px; padding-left: 12px; display: flex; align-items: center;">
+                      <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">顺序命名表达式：</span><span class="badge badge-info" v-html="createTask.taskData.pattern"></span>
+                    </div>
+                    <div style="padding-left: 12px; display: flex; align-items: center;">
+                      <span class="text-muted" style="font-family: inherit; letter-spacing: normal;">预览结果仅供参考，新文件序号将基于网盘或转存记录中已有文件的最大序号递增。若分享链接文件不完整，实际结果可能有所不同。</span>
+                    </div>
+                  </div>
+                  <div v-else-if="createTask.taskData.use_episode_naming">
+                    <div style="padding-left: 12px; display: flex; align-items: center;">
+                      <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">剧集命名表达式：</span><span class="badge badge-info" v-html="createTask.taskData.pattern"></span>
+                    </div>
+                  </div>
+                  <div v-else>
+                    <div style="margin-bottom: 1px; padding-left: 12px; display: flex; align-items: center;">
+                      <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">匹配表达式：</span><span class="badge badge-info" v-html="createTask.taskData.pattern"></span>
+                    </div>
+                    <div style="padding-left: 12px; display: flex; align-items: center;">
+                      <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">替换表达式：</span><span class="badge badge-info" v-html="createTask.taskData.replace"></span>
+                    </div>
+                  </div>
+                </div>
+                <!-- 文件管理器的命名预览 -->
+                <div v-else-if="fileSelect.index === -1 && document.getElementById('fileSelectModal').getAttribute('data-modal-type') === 'preview-filemanager'">
                   <div v-if="fileManager.use_sequence_naming">
                     <div style="margin-bottom: 12px; padding-left: 12px; display: flex; align-items: center;">
                       <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">顺序命名表达式：</span><span class="badge badge-info" v-html="fileManager.pattern"></span>
@@ -1551,11 +1748,16 @@
                 <thead>
                   <tr>
                     <th scope="col" class="col-filename cursor-pointer" style="padding-left: 5px; font-family: inherit; letter-spacing: normal;" @click="sortFileList('file_name')">文件名 <i v-if="fileSelect.sortBy === 'file_name'" :class="fileSelect.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
-                    <th scope="col" class="col-rename cursor-pointer" v-if="fileSelect.selectShare || fileSelect.previewRegex" style="padding-left: 5px; font-family: inherit; letter-spacing: normal;" @click="sortFileList('file_name_re')">{{ fileSelect.index !== null && fileSelect.index >= 0 && formData.tasklist[fileSelect.index] ? 
-                      (formData.tasklist[fileSelect.index].use_sequence_naming ? '顺序命名' : 
-                      (formData.tasklist[fileSelect.index].use_episode_naming ? '剧集命名' : '正则命名')) : 
-                      (fileManager.use_sequence_naming ? '顺序命名' : 
-                      (fileManager.use_episode_naming ? '剧集命名' : '正则命名')) }} <i v-if="fileSelect.sortBy === 'file_name_re'" :class="fileSelect.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
+                    <th scope="col" class="col-rename cursor-pointer" v-if="fileSelect.selectShare || fileSelect.previewRegex" style="padding-left: 5px; font-family: inherit; letter-spacing: normal;" @click="sortFileList('file_name_re')">{{
+                      fileSelect.index !== null && fileSelect.index >= 0 && formData.tasklist[fileSelect.index] ?
+                        (formData.tasklist[fileSelect.index].use_sequence_naming ? '顺序命名' :
+                        (formData.tasklist[fileSelect.index].use_episode_naming ? '剧集命名' : '正则命名')) :
+                      fileSelect.index === -1 && document.getElementById('fileSelectModal').getAttribute('data-modal-type') === 'preview' ?
+                        (createTask.taskData.use_sequence_naming ? '顺序命名' :
+                        (createTask.taskData.use_episode_naming ? '剧集命名' : '正则命名')) :
+                        (fileManager.use_sequence_naming ? '顺序命名' :
+                        (fileManager.use_episode_naming ? '剧集命名' : '正则命名'))
+                    }} <i v-if="fileSelect.sortBy === 'file_name_re'" :class="fileSelect.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
                     <template v-if="!fileSelect.previewRegex">
                       <th scope="col" class="col-size cursor-pointer" style="font-family: inherit; letter-spacing: normal;" @click="sortFileList('size')">大小 <i v-if="fileSelect.sortBy === 'size'" :class="fileSelect.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
                       <th scope="col" class="col-date cursor-pointer" style="font-family: inherit; letter-spacing: normal;" @click="sortFileList('updated_at')">修改日期 <i v-if="fileSelect.sortBy === 'updated_at'" :class="fileSelect.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
@@ -1633,9 +1835,10 @@
               <span v-if="fileSelect.moveMode">移动到当前文件夹</span>
               <span v-else>{{fileSelect.selectShare ? '转存当前文件夹' : '保存到当前文件夹'}}</span>
             </button>
+            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && fileSelect.index === -1 && createTask.taskData.taskname" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="generateCustomFolderPath(createTask.taskData)"></span>」文件夹</button>
             <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && fileSelect.index !== null && fileSelect.index >= 0 && formData.tasklist[fileSelect.index]" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="formData.tasklist[fileSelect.index].taskname"></span>」文件夹</button>
           </div>
-          <div class="modal-footer" v-if="fileSelect.previewRegex && fileSelect.index === -1">
+          <div class="modal-footer" v-if="fileSelect.previewRegex && fileSelect.index === -1 && document.getElementById('fileSelectModal').getAttribute('data-modal-type') === 'preview-filemanager'">
             <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
               共 {{ fileSelect.fileList.filter(f => f.file_name_re && f.file_name_re !== '×' && !f.file_name_re.startsWith('×')).length }} 个项目可重命名
             </div>
@@ -1648,6 +1851,195 @@
         </div>
       </div>
     </div>
+
+    <!-- 模态框 创建任务 -->
+    <div class="modal" tabindex="-1" id="createTaskModal">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">
+              <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">创建任务</span>
+              <div v-if="createTask.loading" class="spinner-border spinner-border-sm m-1" role="status"></div>
+            </h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+          <div class="modal-body small">
+            <div class="alert alert-warning" v-if="createTask.error" v-html="createTask.error"></div>
+            <div v-else>
+              <!-- 直接复制任务配置的完整代码 -->
+              <div class="alert alert-warning" role="alert" v-if="createTask.taskData.shareurl_ban" v-html="formatShareUrlBanMessage(createTask.taskData.shareurl_ban)"></div>
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label">任务名称</label>
+                <div class="col-sm-10">
+                  <div class="input-group">
+                    <input type="text" name="taskname[]" class="form-control" v-model="createTask.taskData.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(-1, createTask.taskData)" @input="changeTaskname(-1, createTask.taskData)">
+                    <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.index === -1 && (smart_param.taskSuggestions.success || smart_param.isSearching)">
+                      <div class="dropdown-item text-muted" v-if="smart_param.isSearching" style="font-size:14px; padding: 0 8px; text-align: left;">
+                        <span v-if="smart_param.validating">
+                          <i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
+                          正在验证链接有效性...（{{ smart_param.validateProgress.current }}/{{ smart_param.validateProgress.total }}）<span v-if="smart_param.validateProgress.valid > 0">已找到 {{ smart_param.validateProgress.valid }} 个有效链接</span>
+                        </span>
+                        <span v-else>正在搜索中...</span>
+                      </div>
+                      <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
+                        {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${smart_param.taskSuggestions.source} 搜索提供（仅显示有效链接），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
+                      </div>
+                      <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(-1, suggestion)" style="font-size: 14px;" :title="suggestion.content">
+                        <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
+                        <small class="text-muted">
+                          <a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a>
+                        </small>
+                      </div>
+                    </div>
+                    <div class="input-group-append" title="资源搜索">
+                      <button class="btn btn-primary" type="button" @click="searchSuggestions(-1, createTask.taskData.taskname)">
+                        <i v-if="smart_param.isSearching && smart_param.index === -1" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
+                        <i v-else class="bi bi-search"></i>
+                      </button>
+                      <div class="input-group-text" title="谷歌搜索">
+                        <a target="_blank" :href="`https://www.google.com/search?q=%22pan.quark.cn/s%22+${cleanTaskNameForSearch(createTask.taskData.taskname)}`"><i class="bi bi-google"></i></a>
+                      </div>
+                      <div class="input-group-text" title="TMDB搜索">
+                        <a target="_blank" :href="`https://www.themoviedb.org/search?query=${cleanTaskNameForSearch(createTask.taskData.taskname)}`"><img src="./static/images/TMDB.svg" class="tmdb-icon"></a>
+                      </div>
+                      <div class="input-group-text" title="豆瓣搜索">
+                        <a target="_blank" :href="`https://search.douban.com/movie/subject_search?search_text=${cleanTaskNameForSearch(createTask.taskData.taskname)}`"><img src="./static/images/Douban.svg" class="douban-icon"></a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group row" title="支持子目录链接，Web端打开分享点入目录，复制浏览器的URL即可；支持带提取码链接，查阅Wiki了解详情">
+                <label class="col-sm-2 col-form-label">分享链接</label>
+                <div class="col-sm-10">
+                  <div class="input-group">
+                    <input type="text" name="shareurl[]" class="form-control" v-model="createTask.taskData.shareurl" placeholder="必填" @blur="changeShareurl(createTask.taskData)">
+                    <div class="input-group-append" v-if="createTask.taskData.shareurl">
+                      <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;fileSelect.previewRegex=false;showShareSelect(-1)" title="选择需转存的文件夹"><i class="bi bi-folder"></i></button>
+                      <div class="input-group-text">
+                        <a target="_blank" :href="createTask.taskData.shareurl"><i class="bi bi-link-45deg"></i></a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label">保存路径</label>
+                <div class="col-sm-10">
+                  <div class="input-group">
+                    <input type="text" name="savepath[]" class="form-control" v-model="createTask.taskData.savepath" placeholder="必填" @focus="focusTaskname(-1, createTask.taskData)" @input="onSavepathChange(-1, createTask.taskData)">
+                    <div class="input-group-append">
+                      <button class="btn btn-outline-secondary" type="button" v-if="smart_param.savepath && smart_param.index == -1 && createTask.taskData.savepath != smart_param.origin_savepath" @click="createTask.taskData.savepath = smart_param.origin_savepath" title="恢复保存路径"><i class="bi bi-reply"></i></button>
+                      <button class="btn btn-outline-secondary" type="button" @click="showSavepathSelect(-1)" title="选择保存到的文件夹"><i class="bi bi-folder"></i></button>
+                      <button type="button" class="btn btn-outline-secondary" @click="resetFolderContent(-1)" title="重置文件夹：此操作将删除当前保存路径中的所有文件及相关转存记录，且不可恢复，请谨慎操作"><i class="bi bi-folder-x"></i></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group row" :title="createTask.taskData.use_sequence_naming || createTask.taskData.use_episode_naming ? (createTask.taskData.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}、剧名.S03E{}等，{}将被替换为集序号（按文件名和修改日期智能排序），目录中的文件夹会被自动过滤' : '输入带[]占位符的重命名格式，如：剧名 - S01E[]、剧名.S03E[]等，[]将被替换为从文件名中提取的集编号，目录中的文件夹会被自动过滤') : '可用作筛选，只转存匹配到文件名的文件，留空则直接转存所有文件'">
+                <label class="col-sm-2 col-form-label">命名规则</label>
+                <div class="col-sm-10">
+                  <div class="input-group">
+                    <div class="input-group-prepend">
+                      <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.previewRegex=true;fileSelect.sortBy='file_name_re';fileSelect.sortOrder='desc';showShareSelect(-1)" :title="createTask.taskData.use_sequence_naming ? '预览顺序命名效果' : (createTask.taskData.use_episode_naming ? '预览剧集命名效果' : '预览正则命名效果')">
+                        {{ createTask.taskData.use_sequence_naming ? '顺序命名' : (createTask.taskData.use_episode_naming ? '剧集命名' : '正则命名') }}
+                      </button>
+                    </div>
+                    <input type="text" name="pattern[]" class="form-control" v-model="createTask.taskData.pattern" :placeholder="createTask.taskData.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}' : (createTask.taskData.use_episode_naming ? '输入带[]占位符的重命名格式，如：剧名 - S01E[]' : '匹配表达式')"  list="magicRegex" @input="detectNamingMode(createTask.taskData); onPatternChange(-1, createTask.taskData)">
+                    <input v-if="!createTask.taskData.use_sequence_naming && !createTask.taskData.use_episode_naming" type="text" name="replace[]" class="form-control" v-model="createTask.taskData.replace" placeholder="替换表达式">
+                    <div class="input-group-append" title="保存时只比较文件名的部分，01.mp4和01.mkv视同为同一文件，不重复转存">
+                      <div class="input-group-text">
+                        <input type="checkbox" v-model="createTask.taskData.ignore_extension">&nbsp;忽略后缀
+                      </div>
+                    </div>
+                  </div>
+                  <datalist id="magicRegex">
+                    <option v-for="(value, key) in formData.magic_regex" :key="key" :value="`${key}`" v-html="`${value.pattern.replace('<', '<\u200B')} → ${value.replace}`"></option>
+                  </datalist>
+                </div>
+              </div>
+
+              <div class="form-group row" title="名称包含过滤词汇的项目不会被转存，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹">
+                <label class="col-sm-2 col-form-label">过滤规则</label>
+                <div class="col-sm-10">
+                  <div class="input-group">
+                    <input type="text" name="filterwords[]" class="form-control" v-model="createTask.taskData.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划，名称包含过滤词汇的项目不会被转存">
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group row" title="只转存比选中文件更新的文件，请在符合筛选条件的文件中进行选择，在更换分享链接时非常有用">
+                <label class="col-sm-2 col-form-label">起始文件</label>
+                <div class="col-sm-10">
+                  <div class="input-group">
+                    <input type="text" class="form-control" placeholder="可选，只转存比此文件更新的文件，请在符合筛选条件的文件中进行选择" name="startfid[]" v-model="createTask.taskData.startfid">
+                    <div class="input-group-append" v-if="createTask.taskData.shareurl">
+                      <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.previewRegex=false;showShareSelect(-1)" title="选择起始文件"><i class="bi bi-folder"></i></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group row" title="匹配成功的文件夹的所有嵌套目录都会被更新，并且会应用与根目录相同的正则命名和过滤规则。注意：原理是逐级索引，深层嵌套目录的场景下效率非常低，慎用.*">
+                <label class="col-sm-2 col-form-label">更新目录</label>
+                <div class="col-sm-10">
+                  <input type="text" name="update_subdir[]" class="form-control" v-model="createTask.taskData.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如：4K|1080P">
+                </div>
+              </div>
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label">截止日期</label>
+                <div class="col-sm-10">
+                  <div class="input-group">
+                    <input type="date" name="enddate[]" class="form-control date-input-no-icon" v-model="createTask.taskData.enddate" placeholder="可选" ref="createTaskEnddate">
+                    <div class="input-group-append">
+                      <button type="button" class="btn btn-outline-secondary" @click="openCreateTaskDatePicker()" title="选择截止日期">
+                        <i class="bi bi-calendar3"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group row" title="只在勾选的星期时才运行，对周更的内容非常有用">
+                <label class="col-sm-2 col-form-label">执行周期</label>
+                <div class="col-sm-10 col-form-label">
+                  <div class="form-check form-check-inline" title="也可用作任务总开关">
+                    <input class="form-check-input" type="checkbox" :checked="createTask.taskData.runweek.length === 7" @change="toggleAllWeekdays(createTask.taskData)" :indeterminate.prop="createTask.taskData.runweek.length > 0 && createTask.taskData.runweek.length < 7">
+                    <label class="form-check-label">全选</label>
+                  </div>
+                  <div class="form-check form-check-inline" v-for="(day, index) in weekdays" :key="index">
+                    <input class="form-check-input" type="checkbox" v-model="createTask.taskData.runweek" :value="index+1">
+                    <label class="form-check-label" v-html="day"></label>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" title="单个任务的插件配置，具体键值由插件定义，查阅Wiki了解详情">
+                <label class="col-sm-2 col-form-label">插件配置</label>
+                <div class="col-sm-10">
+                  <v-jsoneditor v-model="createTask.taskData.addition" :options="{mode:'tree'}" :plus="false" height="162px" style="margin-bottom: -8px;"></v-jsoneditor>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+              {{ createTask.movieData ? createTask.movieData.title + (createTask.movieData.year ? ' (' + createTask.movieData.year + ')' : '') : '准备创建任务' }}
+            </div>
+            <button type="button" class="btn btn-primary btn-cancel" @click="cancelCreateTask">取消</button>
+            <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmCreateTask">
+              创建任务
+            </button>
+            <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmCreateAndRunTask">
+              创建并运行任务
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+
+
   </div>
 
 
@@ -1670,6 +2062,15 @@
           tasklist: [],
           magic_regex: {},
           episode_patterns: [],
+          task_settings: {
+            movie_save_path: "电影目录前缀/片名 (年份)",
+            tv_save_path: "剧集目录前缀/剧名 (年份)/剧名 - S季数",
+            anime_save_path: "动画目录前缀/剧名 (年份)/剧名 - S季数",
+            variety_save_path: "综艺目录前缀/剧名 (年份)/剧名 - S季数",
+            documentary_save_path: "纪录片目录前缀/剧名 (年份)/剧名 - S季数",
+            tv_naming_rule: "剧名 - S季数E[]",
+            tv_ignore_extension: true
+          },
           source: {
             cloudsaver: {
               server: "",
@@ -1693,7 +2094,8 @@
           },
           file_performance: {
             api_page_size: 200,
-            cache_expire_time: 30
+            cache_expire_time: 30,
+            discovery_items_count: 30
           }
         },
         userInfoList: [], // 用户信息列表
@@ -1765,6 +2167,7 @@
           page: 1
         },
         history: {
+          hasLoaded: false, // 标记是否已完成首次加载
           records: [],
           pagination: {}
         },
@@ -1778,7 +2181,7 @@
         selectedRecords: [],
         lastSelectedRecordIndex: -1, // 记录最后选择的记录索引，用于Shift选择
         fileManager: {
-          loading: false,
+          hasLoaded: false, // 标记是否已完成首次加载
           // 当前文件夹ID - 根据localStorage和账号索引决定初始目录
           currentFolder: (() => {
             const selectedAccountIndex = parseInt(localStorage.getItem('quarkAutoSave_selectedAccountIndex') || '0');
@@ -1844,6 +2247,98 @@
           results: [],
           namingMode: 'regex',
           errors: []
+        },
+        // 影视发现相关数据
+        discovery: {
+          hasLoaded: false, // 标记是否已完成首次加载
+          isInitialized: false, // 标记是否已初始化，避免页面刷新时闪烁
+          error: null,
+          items: [],
+          selectedMainCategory: localStorage.getItem('discovery_main_category') || 'movie_hot', // 从localStorage读取或默认选中热门电影
+          selectedSubCategory: localStorage.getItem('discovery_sub_category') || '全部', // 从localStorage读取或默认选中全部
+          mainCategories: [
+            { key: 'movie_hot', name: '热门电影' },
+            { key: 'movie_latest', name: '最新电影' },
+            { key: 'movie_top', name: '豆瓣高分' },
+            { key: 'movie_underrated', name: '冷门佳片' },
+            { key: 'tv_drama', name: '热门剧集' },
+            { key: 'tv_animation', name: '热门动画' },
+            { key: 'tv_variety', name: '热门综艺' },
+            { key: 'tv_documentary', name: '热门纪录片' }
+          ],
+          subCategories: {
+            movie_hot: [
+              { key: '全部', name: '全部' },
+              { key: '华语', name: '华语' },
+              { key: '欧美', name: '欧美' },
+              { key: '日本', name: '日本' },
+              { key: '韩国', name: '韩国' }
+            ],
+            movie_latest: [
+              { key: '全部', name: '全部' },
+              { key: '华语', name: '华语' },
+              { key: '欧美', name: '欧美' },
+              { key: '日本', name: '日本' },
+              { key: '韩国', name: '韩国' }
+            ],
+            movie_top: [
+              { key: '全部', name: '全部' },
+              { key: '华语', name: '华语' },
+              { key: '欧美', name: '欧美' },
+              { key: '日本', name: '日本' },
+              { key: '韩国', name: '韩国' }
+            ],
+            movie_underrated: [
+              { key: '全部', name: '全部' },
+              { key: '华语', name: '华语' },
+              { key: '欧美', name: '欧美' },
+              { key: '日本', name: '日本' },
+              { key: '韩国', name: '韩国' }
+            ],
+            tv_drama: [
+              { key: '综合', name: '全部' },
+              { key: '国产剧', name: '华语' },
+              { key: '欧美剧', name: '欧美' },
+              { key: '日剧', name: '日本' },
+              { key: '韩剧', name: '韩国' }
+            ],
+            tv_animation: [
+              { key: '动画', name: '全部' }
+            ],
+            tv_variety: [
+              { key: '综合', name: '全部' },
+              { key: '国内', name: '国内' },
+              { key: '国外', name: '国外' }
+            ],
+            tv_documentary: [
+              { key: '纪录片', name: '全部' }
+            ]
+          }
+        },
+        // 创建任务相关数据
+        createTask: {
+          loading: false,
+          error: null,
+          movieData: null, // 存储当前要创建任务的影视作品数据
+          taskData: {
+            taskname: "",
+            shareurl: "",
+            savepath: "",
+            pattern: "",
+            replace: "",
+            enddate: "",
+            addition: {},
+            ignore_extension: false,
+            filterwords: "",
+            runweek: [1, 2, 3, 4, 5, 6, 7],
+            sequence_naming: "",
+            use_sequence_naming: false,
+            episode_naming: "",
+            use_episode_naming: false,
+            update_subdir: "",
+            startfid: "",
+            shareurl_ban: null
+          }
         }
       },
       computed: {
@@ -1935,6 +2430,10 @@
             
             return pages;
           }
+        },
+        // 影视发现计算属性
+        currentSubCategories() {
+          return this.discovery.subCategories[this.discovery.selectedMainCategory] || [];
         }
       },
       filters: {
@@ -1981,6 +2480,10 @@
             this.fetchAccountsDetail();
             this.loadFileListWithoutLoading(this.fileManager.currentFolder);
           }
+          // 如果切换到影视发现页面，则加载榜单数据
+          if (newValue === 'discovery') {
+            this.loadDiscoveryData();
+          }
         },
         'fileManager.pattern': {
           handler(newValue, oldValue) {
@@ -2010,6 +2513,8 @@
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
           this.fileSelect.moveFileIds = [];
+          // 重置z-index
+          document.getElementById('fileSelectModal').style.zIndex = '';
         });
         
         // 检查本地存储中的标签页状态
@@ -2073,6 +2578,8 @@
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
           this.fileSelect.moveFileIds = [];
+          // 重置z-index
+          document.getElementById('fileSelectModal').style.zIndex = '';
         });
         
         window.addEventListener('beforeunload', this.handleBeforeUnload);
@@ -2237,7 +2744,6 @@
             // 只有当新格式的数据不存在时才进行迁移
             if (!localStorage.getItem(newFolderKey)) {
               localStorage.setItem(newFolderKey, oldFolderValue);
-              console.log(`已将文件管理器目录数据迁移到账号 ${currentAccountIndex}: ${oldFolderValue}`);
             }
 
             // 删除旧的数据
@@ -2616,6 +3122,27 @@
               if (!config_data.episode_patterns) {
                 config_data.episode_patterns = [];
               }
+              // 确保任务设置存在
+              if (!config_data.task_settings) {
+                config_data.task_settings = {
+                  movie_save_path: "电影目录前缀/片名 (年份)",
+                  tv_save_path: "剧集目录前缀/剧名 (年份)/剧名 - S季数",
+                  anime_save_path: "动画目录前缀/剧名 (年份)/剧名 - S季数",
+                  variety_save_path: "综艺目录前缀/剧名 (年份)/剧名 - S季数",
+                  documentary_save_path: "纪录片目录前缀/剧名 (年份)/剧名 - S季数",
+                  tv_naming_rule: "剧名 - S季数E[]",
+                  tv_ignore_extension: true,
+                  auto_search_resources: "enabled"
+                };
+              }
+              // 确保电视忽略后缀设置存在
+              if (config_data.task_settings.tv_ignore_extension === undefined) {
+                config_data.task_settings.tv_ignore_extension = true;
+              }
+              // 确保自动搜索资源设置存在
+              if (!config_data.task_settings.auto_search_resources) {
+                config_data.task_settings.auto_search_resources = "enabled";
+              }
               // 确保按钮显示配置存在
               if (!config_data.button_display) {
                 config_data.button_display = {
@@ -2644,7 +3171,8 @@
               if (!config_data.file_performance) {
                 config_data.file_performance = {
                   api_page_size: 200,
-                  cache_expire_time: 30
+                  cache_expire_time: 30,
+                  discovery_items_count: 30
                 };
               } else {
                 // 确保必要的字段存在，移除废弃的字段
@@ -2653,6 +3181,9 @@
                 }
                 if (!config_data.file_performance.cache_expire_time) {
                   config_data.file_performance.cache_expire_time = 30;
+                }
+                if (!config_data.file_performance.discovery_items_count) {
+                  config_data.file_performance.discovery_items_count = 30;
                 }
                 // 移除废弃的字段
                 delete config_data.file_performance.large_page_size;
@@ -2816,45 +3347,152 @@
             this.smart_param.savepath = undefined;
           }
         },
-        // Sxx季数信息同步工具函数
-        syncSeasonNumber(sourceValue, targetValue) {
+        // Sxx季数信息和格式同步工具函数
+        syncSeasonNumberAndFormat(sourceValue, targetValue) {
           if (!sourceValue || !targetValue) return targetValue;
 
-          // 从源字符串中提取Sxx格式的季数
-          const sourceMatch = sourceValue.match(/S(\d+)/i);
+          // 从源字符串中提取Sxx格式的季数和前缀格式
+          const sourceMatch = sourceValue.match(/(.*?)([\s\.\-_]+)S(\d+)/i);
           if (!sourceMatch) return targetValue; // 源字符串没有Sxx，不同步
 
-          const sourceSeasonNumber = sourceMatch[1];
+          const sourcePrefix = sourceMatch[1];
+          const sourceSeparator = sourceMatch[2];
+          const sourceSeasonNumber = sourceMatch[3];
 
           // 检查目标字符串是否包含Sxx格式
-          const targetMatch = targetValue.match(/S(\d+)/i);
+          const targetMatch = targetValue.match(/(.*?)([\s\.\-_]+)S(\d+)(.*)/i);
           if (!targetMatch) return targetValue; // 目标字符串没有Sxx，不同步
 
-          // 替换目标字符串中的季数
-          return targetValue.replace(/S\d+/i, 'S' + sourceSeasonNumber.padStart(2, '0'));
+          const targetPrefix = targetMatch[1];
+          const targetSeparator = targetMatch[2];
+          const targetSeasonNumber = targetMatch[3];
+          const targetSuffix = targetMatch[4]; // 保留后缀部分（如E[]、E{}等）
+
+          // 检查前缀是否相似（去除空格后比较）
+          const sourceCleanPrefix = sourcePrefix.replace(/\s+/g, '').toLowerCase();
+          const targetCleanPrefix = targetPrefix.replace(/\s+/g, '').toLowerCase();
+
+          // 如果前缀相似，则同步格式和季数
+          if (sourceCleanPrefix === targetCleanPrefix ||
+              sourceCleanPrefix.includes(targetCleanPrefix) ||
+              targetCleanPrefix.includes(sourceCleanPrefix)) {
+
+            // 同步格式：使用源的前缀+分隔符+季数+目标的后缀
+            return sourcePrefix + sourceSeparator + 'S' + sourceSeasonNumber.padStart(2, '0') + targetSuffix;
+          } else {
+            // 前缀不相似，只同步季数，保持原格式
+            return targetValue.replace(/S\d+/i, 'S' + sourceSeasonNumber.padStart(2, '0'));
+          }
         },
 
         // 保存路径变化时的处理函数
         onSavepathChange(index, task) {
-          // 同步Sxx到命名规则
+          // 同步Sxx和格式到命名规则
           if (task.pattern) {
-            task.pattern = this.syncSeasonNumber(task.savepath, task.pattern);
+            task.pattern = this.syncFormatFromSavepath(task.savepath, task.pattern);
 
             // 同步到相关的命名规则字段
             if (task.use_sequence_naming && task.sequence_naming) {
-              task.sequence_naming = this.syncSeasonNumber(task.savepath, task.sequence_naming);
+              task.sequence_naming = this.syncFormatFromSavepath(task.savepath, task.sequence_naming);
             }
             if (task.use_episode_naming && task.episode_naming) {
-              task.episode_naming = this.syncSeasonNumber(task.savepath, task.episode_naming);
+              task.episode_naming = this.syncFormatFromSavepath(task.savepath, task.episode_naming);
             }
           }
         },
 
         // 命名规则变化时的处理函数
         onPatternChange(index, task) {
-          // 同步Sxx到保存路径
+          // 从命名规则同步格式到保存路径
           if (task.savepath) {
-            task.savepath = this.syncSeasonNumber(task.pattern, task.savepath);
+            task.savepath = this.syncFormatFromNamingToSavepath(task.pattern, task.savepath);
+          }
+        },
+
+        // 从命名规则提取格式信息并应用到保存路径的辅助函数
+        syncFormatFromNamingToSavepath(namingPattern, savepath) {
+          if (!namingPattern || !savepath) return savepath;
+
+          // 提取命名规则中的格式信息
+          const patternMatch = namingPattern.match(/(.*?)([\s\.\-_]+)S(\d+)/i);
+          if (!patternMatch) return savepath; // 命名规则没有Sxx格式，不同步
+
+          const patternPrefix = patternMatch[1];
+          const patternSeparator = patternMatch[2];
+          const patternSeasonNumber = patternMatch[3];
+
+          // 检查保存路径是否包含Sxx格式
+          const pathParts = savepath.split('/');
+          if (pathParts.length === 0) return savepath;
+
+          const lastPart = pathParts[pathParts.length - 1];
+          const pathMatch = lastPart.match(/(.*?)([\s\.\-_]+)S(\d+)/i);
+
+          if (!pathMatch) return savepath; // 保存路径没有Sxx格式，不同步
+
+          const pathPrefix = pathMatch[1];
+          const pathSeparator = pathMatch[2];
+          const pathSeasonNumber = pathMatch[3];
+
+          // 检查前缀是否相似
+          const patternCleanPrefix = patternPrefix.replace(/\s+/g, '').toLowerCase();
+          const pathCleanPrefix = pathPrefix.replace(/\s+/g, '').toLowerCase();
+
+          if (patternCleanPrefix === pathCleanPrefix ||
+              patternCleanPrefix.includes(pathCleanPrefix) ||
+              pathCleanPrefix.includes(patternCleanPrefix)) {
+
+            // 同步格式：使用命名规则的格式更新保存路径
+            const newLastPart = patternPrefix + patternSeparator + 'S' + patternSeasonNumber.padStart(2, '0');
+            pathParts[pathParts.length - 1] = newLastPart;
+            return pathParts.join('/');
+          } else {
+            // 前缀不相似，只同步季数
+            const newLastPart = pathPrefix + pathSeparator + 'S' + patternSeasonNumber.padStart(2, '0');
+            pathParts[pathParts.length - 1] = newLastPart;
+            return pathParts.join('/');
+          }
+        },
+
+        // 从保存路径提取格式信息并应用到命名规则的辅助函数
+        syncFormatFromSavepath(savepath, namingPattern) {
+          if (!savepath || !namingPattern) return namingPattern;
+
+          // 从保存路径的最后一级提取格式信息
+          const pathParts = savepath.split('/');
+          if (pathParts.length === 0) return namingPattern;
+
+          const lastPart = pathParts[pathParts.length - 1];
+          const pathMatch = lastPart.match(/(.*?)([\s\.\-_]+)S(\d+)/i);
+
+          if (!pathMatch) return namingPattern;
+
+          const pathPrefix = pathMatch[1];
+          const pathSeparator = pathMatch[2];
+          const pathSeasonNumber = pathMatch[3];
+
+          // 检查命名规则是否包含Sxx格式
+          const namingMatch = namingPattern.match(/(.*?)([\s\.\-_]+)S(\d+)(.*)/i);
+          if (!namingMatch) return namingPattern;
+
+          const namingPrefix = namingMatch[1];
+          const namingSeparator = namingMatch[2];
+          const namingSeasonNumber = namingMatch[3];
+          const namingSuffix = namingMatch[4]; // 保留后缀部分（如E[]、E{}等）
+
+          // 检查前缀是否相似
+          const pathCleanPrefix = pathPrefix.replace(/\s+/g, '').toLowerCase();
+          const namingCleanPrefix = namingPrefix.replace(/\s+/g, '').toLowerCase();
+
+          if (pathCleanPrefix === namingCleanPrefix ||
+              pathCleanPrefix.includes(namingCleanPrefix) ||
+              namingCleanPrefix.includes(pathCleanPrefix)) {
+
+            // 同步格式：使用保存路径的格式更新命名规则
+            return pathPrefix + pathSeparator + 'S' + pathSeasonNumber.padStart(2, '0') + namingSuffix;
+          } else {
+            // 前缀不相似，只同步季数
+            return namingPattern.replace(/S\d+/i, 'S' + pathSeasonNumber.padStart(2, '0'));
           }
         },
 
@@ -3536,6 +4174,16 @@
         },
         selectSuggestion(index, suggestion) {
           this.smart_param.showSuggestions = false;
+
+          // 首先设置分享链接到对应的输入框
+          if (index === -1) {
+            // 创建任务模态框的情况
+            this.createTask.taskData.shareurl = suggestion.shareurl;
+          } else if (index >= 0 && this.formData.tasklist[index]) {
+            // 任务列表的情况
+            this.formData.tasklist[index].shareurl = suggestion.shareurl;
+          }
+
           // 确保显示的是选择需转存的文件夹界面，而不是命名预览界面
           this.fileSelect.previewRegex = false;
           this.fileSelect.selectDir = true;
@@ -3674,14 +4322,32 @@
           // 重置排序状态为默认值 - 选择需转存的文件夹模态框默认修改时间倒序
           this.fileSelect.sortBy = "updated_at";
           this.fileSelect.sortOrder = "desc";
-          
+
           // 设置模态框类型为target（保存目标文件夹）
           document.getElementById('fileSelectModal').setAttribute('data-modal-type', 'target');
-          
+
+          // 检查是否从创建任务模态框中打开，如果是则设置更高的z-index
+          const createTaskModal = document.getElementById('createTaskModal');
+          const fileSelectModal = document.getElementById('fileSelectModal');
+          if (createTaskModal && createTaskModal.classList.contains('show')) {
+            fileSelectModal.style.zIndex = '1060';
+            // 查找并设置backdrop的z-index
+            setTimeout(() => {
+              const backdrop = document.querySelector('.modal-backdrop:last-child');
+              if (backdrop) {
+                backdrop.style.zIndex = '1055';
+              }
+            }, 50);
+          } else {
+            // 重置为默认值
+            fileSelectModal.style.zIndex = '';
+          }
+
           $('#fileSelectModal').modal('toggle');
           
           // 当savepath为空时，直接加载根目录
-          const savepath = this.formData.tasklist[index].savepath;
+          // 处理创建任务模态框的情况（index为-1）
+          const savepath = index === -1 ? this.createTask.taskData.savepath : this.formData.tasklist[index].savepath;
           if (!savepath || savepath === "") {
             this.getSavepathDetail(0); // 加载根目录
           } else {
@@ -3693,7 +4359,22 @@
 
           // 检查index是否有效，如果无效则使用默认值
           let regexConfig = {};
-          if (this.fileSelect.index !== null && this.fileSelect.index >= 0 && this.formData.tasklist[this.fileSelect.index]) {
+          if (this.fileSelect.index === -1) {
+            // 创建任务模态框的情况
+            const task = this.createTask.taskData;
+            regexConfig = {
+              pattern: task.pattern,
+              replace: task.replace,
+              taskname: task.taskname,
+              filterwords: task.filterwords,
+              magic_regex: this.formData.magic_regex,
+              use_sequence_naming: task.use_sequence_naming,
+              sequence_naming: task.sequence_naming,
+              use_episode_naming: task.use_episode_naming,
+              episode_naming: task.episode_naming,
+              episode_patterns: this.formData.episode_patterns
+            };
+          } else if (this.fileSelect.index !== null && this.fileSelect.index >= 0 && this.formData.tasklist[this.fileSelect.index]) {
             const task = this.formData.tasklist[this.fileSelect.index];
             regexConfig = {
               pattern: task.pattern,
@@ -3789,10 +4470,12 @@
             this.fileSelect.sortBy = "file_name";
             this.fileSelect.sortOrder = "desc";
           }
-          if (this.getShareurl(this.fileSelect.shareurl) != this.getShareurl(this.formData.tasklist[index].shareurl)) {
+          // 处理创建任务模态框的情况（index为-1）
+          const currentShareurl = index === -1 ? this.createTask.taskData.shareurl : this.formData.tasklist[index].shareurl;
+          if (this.getShareurl(this.fileSelect.shareurl) != this.getShareurl(currentShareurl)) {
             this.fileSelect.stoken = "";
           }
-          this.fileSelect.shareurl = shareurl || this.formData.tasklist[index].shareurl;
+          this.fileSelect.shareurl = shareurl || currentShareurl;
           this.fileSelect.index = index;
           
           // 根据不同条件设置模态框类型
@@ -3803,7 +4486,24 @@
           } else {
             document.getElementById('fileSelectModal').setAttribute('data-modal-type', 'start-file');
           }
-          
+
+          // 检查是否从创建任务模态框中打开，如果是则设置更高的z-index
+          const createTaskModal = document.getElementById('createTaskModal');
+          const fileSelectModal = document.getElementById('fileSelectModal');
+          if (createTaskModal && createTaskModal.classList.contains('show')) {
+            fileSelectModal.style.zIndex = '1060';
+            // 查找并设置backdrop的z-index
+            setTimeout(() => {
+              const backdrop = document.querySelector('.modal-backdrop:last-child');
+              if (backdrop) {
+                backdrop.style.zIndex = '1055';
+              }
+            }, 50);
+          } else {
+            // 重置为默认值
+            fileSelectModal.style.zIndex = '';
+          }
+
           $('#fileSelectModal').modal('toggle');
           // 调用getShareDetail时不传递任何参数，使用默认的重试机制
           this.getShareDetail(0, 1);
@@ -3861,7 +4561,15 @@
             this.moveFilesToCurrentFolder();
           } else if (this.fileSelect.selectShare) {
             // 检查index是否有效
-            if (this.fileSelect.index !== null && this.fileSelect.index >= 0 && this.formData.tasklist[this.fileSelect.index]) {
+            if (this.fileSelect.index === -1) {
+              // 创建任务模态框的情况
+              this.createTask.taskData.shareurl_ban = undefined;
+              // 如果是分享文件夹且文件列表为空，则设置shareurl_ban
+              if (!this.fileSelect.fileList || this.fileSelect.fileList.length === 0) {
+                this.$set(this.createTask.taskData, "shareurl_ban", "该分享已被删除，无法访问");
+              }
+              this.createTask.taskData.shareurl = this.fileSelect.shareurl;
+            } else if (this.fileSelect.index !== null && this.fileSelect.index >= 0 && this.formData.tasklist[this.fileSelect.index]) {
               this.formData.tasklist[this.fileSelect.index].shareurl_ban = undefined;
               // 如果是分享文件夹且文件列表为空，则设置shareurl_ban
               if (!this.fileSelect.fileList || this.fileSelect.fileList.length === 0) {
@@ -3871,7 +4579,15 @@
             }
           } else {
             // 检查index是否有效
-            if (this.fileSelect.index !== null && this.fileSelect.index >= 0 && this.formData.tasklist[this.fileSelect.index]) {
+            if (this.fileSelect.index === -1) {
+              // 创建任务模态框的情况
+              this.createTask.taskData.savepath = this.fileSelect.paths.map(item => item.name).join("/");
+              if (addTaskname) {
+                // 使用自定义文件夹路径
+                const customFolderPath = this.generateCustomFolderPath(this.createTask.taskData);
+                this.createTask.taskData.savepath += "/" + customFolderPath;
+              }
+            } else if (this.fileSelect.index !== null && this.fileSelect.index >= 0 && this.formData.tasklist[this.fileSelect.index]) {
               // 去掉前导斜杠，避免双斜杠问题
               this.formData.tasklist[this.fileSelect.index].savepath = this.fileSelect.paths.map(item => item.name).join("/");
               if (addTaskname) {
@@ -3969,7 +4685,10 @@
         },
         selectStartFid(fid) {
           // 检查index是否有效
-          if (this.fileSelect.index !== null && this.fileSelect.index >= 0 && this.formData.tasklist[this.fileSelect.index]) {
+          if (this.fileSelect.index === -1) {
+            // 创建任务模态框的情况
+            Vue.set(this.createTask.taskData, 'startfid', fid);
+          } else if (this.fileSelect.index !== null && this.fileSelect.index >= 0 && this.formData.tasklist[this.fileSelect.index]) {
             Vue.set(this.formData.tasklist[this.fileSelect.index], 'startfid', fid);
           }
           $('#fileSelectModal').modal('hide')
@@ -4091,7 +4810,7 @@
           }).then(response => {
             if (response.data.success) {
               this.history = response.data.data;
-              
+
               // 确保页码信息正确反映在UI上
               if (this.history.pagination) {
                 this.totalPages = parseInt(this.history.pagination.total_pages);
@@ -4099,8 +4818,10 @@
             } else {
               console.error('Error:', response.data.message);
             }
+            this.history.hasLoaded = true;
           }).catch(error => {
             console.error('Error loading history records:', error);
+            this.history.hasLoaded = true;
           });
         },
         
@@ -5231,19 +5952,22 @@
             event.preventDefault();
           }
         },
-        resetFolder(index) {
-          // 重置文件夹
-          this.formData.tasklist[index].savepath = this.formData.tasklist[index].savepath.split('/').slice(0, -1).join('/');
-          if (this.formData.tasklist[index].savepath.endsWith('/')) {
-            this.formData.tasklist[index].savepath = this.formData.tasklist[index].savepath.slice(0, -1);
+
+        // 重置文件夹内容（删除所有文件和记录）
+        resetFolderContent(index) {
+          // 获取当前任务的保存路径和任务名称
+          let savePath, taskName;
+
+          if (index === -1) {
+            // 创建任务模态框的情况
+            savePath = this.createTask.taskData.savepath;
+            taskName = this.createTask.taskData.taskname;
+          } else {
+            // 任务列表的情况
+            savePath = this.formData.tasklist[index].savepath;
+            taskName = this.formData.tasklist[index].taskname;
           }
-          this.showToast('文件夹已重置');
-        },
-        resetFolder(index) {
-          // 获取当前任务的保存路径
-          const savePath = this.formData.tasklist[index].savepath;
-          const taskName = this.formData.tasklist[index].taskname;
-          
+
           if (!savePath) {
             this.showToast('保存路径为空，无法重置');
             return;
@@ -5257,7 +5981,8 @@
             // 调用后端API
             axios.post('/reset_folder', {
               save_path: savePath,
-              task_name: taskName
+              task_name: taskName,
+              account_index: this.fileManager.selectedAccountIndex
             })
             .then(response => {
               if (response.data.success) {
@@ -5900,7 +6625,6 @@
           }
         },
         loadFileList(folderId) {
-          this.fileManager.loading = true;
           this.fileManager.currentFolder = folderId || 'root';
 
           const params = {
@@ -5911,7 +6635,7 @@
             page: this.fileManager.currentPage,
             account_index: this.fileManager.selectedAccountIndex
           };
-          
+
           axios.get('/file_list', { params })
             .then(response => {
               if (response.data.success) {
@@ -5923,11 +6647,11 @@
               } else {
                 alert(response.data.message || '获取文件列表失败');
               }
-              this.fileManager.loading = false;
+              this.fileManager.hasLoaded = true;
             })
             .catch(error => {
               console.error('获取文件列表失败:', error);
-              this.fileManager.loading = false;
+              this.fileManager.hasLoaded = true;
             });
         },
         sortFiles(field) {
@@ -6026,9 +6750,11 @@
 
               // 检测当前的命名模式
               this.detectFileManagerNamingMode();
+              this.fileManager.hasLoaded = true;
             })
             .catch(error => {
               console.error('获取文件列表失败:', error);
+              this.fileManager.hasLoaded = true;
             });
         },
 
@@ -6306,6 +7032,884 @@
             this.fileSelect.canUndoRename = false;
           }
           this.modalLoading = false;
+        },
+        // 影视发现相关方法
+        selectMainCategory(categoryKey) {
+          this.discovery.selectedMainCategory = categoryKey;
+          // 保存主榜单选择到localStorage
+          localStorage.setItem('discovery_main_category', categoryKey);
+
+          // 重置子分类为第一个选项
+          const subCategories = this.discovery.subCategories[categoryKey];
+          if (subCategories && subCategories.length > 0) {
+            this.discovery.selectedSubCategory = subCategories[0].key;
+            // 保存子榜单选择到localStorage
+            localStorage.setItem('discovery_sub_category', subCategories[0].key);
+          }
+          // 加载新的榜单数据
+          this.loadDiscoveryData();
+        },
+        selectSubCategory(subCategoryKey) {
+          this.discovery.selectedSubCategory = subCategoryKey;
+          // 保存子榜单选择到localStorage
+          localStorage.setItem('discovery_sub_category', subCategoryKey);
+          // 加载新的榜单数据
+          this.loadDiscoveryData();
+        },
+        initializeDiscoverySelection() {
+          // 验证从localStorage读取的主榜单是否有效
+          const savedMainCategory = localStorage.getItem('discovery_main_category');
+          const validMainCategories = this.discovery.mainCategories.map(cat => cat.key);
+
+          if (savedMainCategory && validMainCategories.includes(savedMainCategory)) {
+            this.discovery.selectedMainCategory = savedMainCategory;
+          } else {
+            // 如果无效，使用默认值并更新localStorage
+            this.discovery.selectedMainCategory = 'movie_hot';
+            localStorage.setItem('discovery_main_category', 'movie_hot');
+          }
+
+          // 验证从localStorage读取的子榜单是否有效
+          const savedSubCategory = localStorage.getItem('discovery_sub_category');
+          const validSubCategories = this.discovery.subCategories[this.discovery.selectedMainCategory];
+
+          if (savedSubCategory && validSubCategories && validSubCategories.some(sub => sub.key === savedSubCategory)) {
+            this.discovery.selectedSubCategory = savedSubCategory;
+          } else {
+            // 如果无效，使用该主榜单的第一个子榜单
+            if (validSubCategories && validSubCategories.length > 0) {
+              this.discovery.selectedSubCategory = validSubCategories[0].key;
+              localStorage.setItem('discovery_sub_category', validSubCategories[0].key);
+            }
+          }
+        },
+        async loadDiscoveryData() {
+          // 如果配置还没有加载完成，直接返回，不清空现有数据
+          if (!this.formData.file_performance || this.formData.file_performance.discovery_items_count === undefined) {
+            return;
+          }
+
+          // 标记为已初始化
+          this.discovery.isInitialized = true;
+
+          // 只有在首次加载时才显示加载状态，避免页面刷新时的闪烁
+          if (!this.discovery.hasLoaded) {
+            this.discovery.hasLoaded = false;
+            this.discovery.items = [];
+          }
+          this.discovery.error = null;
+
+          try {
+            // 构建API路径 - 使用通用接口
+            let apiPath = '';
+            // 使用配置的影视榜单项目数量，如果没有配置则使用默认值30
+            const itemsCount = this.formData.file_performance.discovery_items_count || 30;
+            let params = { limit: itemsCount };
+            const mainCategory = this.discovery.selectedMainCategory;
+            const subCategory = this.discovery.selectedSubCategory;
+
+            if (mainCategory.startsWith('movie_')) {
+              apiPath = '/api/douban/movie/recent_hot';
+              // 映射分类参数
+              const categoryMapping = {
+                'movie_hot': '热门',
+                'movie_latest': '最新',
+                'movie_top': '豆瓣高分',
+                'movie_underrated': '冷门佳片'
+              };
+              params.category = categoryMapping[mainCategory] || '热门';
+              params.type = subCategory;
+            } else if (mainCategory.startsWith('tv_')) {
+              apiPath = '/api/douban/tv/recent_hot';
+              // 映射分类参数
+              if (mainCategory === 'tv_drama') {
+                params.category = 'tv';
+                params.type = subCategory;
+              } else if (mainCategory === 'tv_animation') {
+                params.category = 'tv';
+                params.type = subCategory; // 使用子榜的key值'动画'
+              } else if (mainCategory === 'tv_variety') {
+                params.category = 'show';
+                params.type = subCategory;
+              } else if (mainCategory === 'tv_documentary') {
+                params.category = 'tv';
+                params.type = subCategory; // 使用子榜的key值'纪录片'
+              } else {
+                params.category = 'tv';
+                params.type = subCategory;
+              }
+            }
+
+            const response = await axios.get(apiPath, {
+              params: params
+            });
+
+            if (response.data.success) {
+              this.discovery.items = response.data.data.items || [];
+            } else {
+              this.discovery.error = response.data.message || '获取榜单数据失败';
+            }
+          } catch (error) {
+            console.error('获取豆瓣榜单失败:', error);
+            this.discovery.error = '网络错误，请稍后重试';
+          } finally {
+            this.discovery.hasLoaded = true;
+          }
+        },
+        openDoubanPage(item) {
+          if (item.url) {
+            window.open(item.url, '_blank');
+          } else if (item.id) {
+            // 构建豆瓣页面URL
+            const doubanUrl = `https://movie.douban.com/subject/${item.id}/`;
+            window.open(doubanUrl, '_blank');
+          }
+        },
+
+        getMovieGenre(item) {
+          // 从card_subtitle中提取类型信息
+          // 格式: 年份 / 地区 / 类型 / 导演 / 主演
+          if (item.card_subtitle) {
+            const parts = item.card_subtitle.split(' / ');
+            if (parts.length >= 3) {
+              const genreText = parts[2]; // 第三部分是类型
+              if (genreText && genreText.trim()) {
+                // 将空格分隔的类型转换为斜杠分隔，并为斜杠添加特殊样式
+                return genreText.replace(/\s+/g, ' <span class="genre-slash">/</span> ');
+              }
+            }
+          }
+          return '未知';
+        },
+        getMovieGenreText(item) {
+          // 获取纯文本版本的类型信息，用于title属性
+          if (item.card_subtitle) {
+            const parts = item.card_subtitle.split(' / ');
+            if (parts.length >= 3) {
+              const genreText = parts[2]; // 第三部分是类型
+              if (genreText && genreText.trim()) {
+                // 将空格分隔的类型转换为斜杠分隔
+                return genreText.replace(/\s+/g, ' / ');
+              }
+            }
+          }
+          return '未知';
+        },
+        getMovieDetails(item) {
+          // 处理card_subtitle信息用于海报悬停显示
+          if (item.card_subtitle) {
+            const parts = item.card_subtitle.split(' / ');
+            const details = [];
+
+            if (parts.length >= 1 && parts[0]) {
+              details.push(parts[0]); // 年份
+            }
+            if (parts.length >= 2 && parts[1]) {
+              details.push(parts[1]); // 地区
+            }
+            if (parts.length >= 3 && parts[2]) {
+              details.push(parts[2]); // 类型
+            }
+            if (parts.length >= 4 && parts[3]) {
+              details.push(parts[3]); // 导演
+            }
+            if (parts.length >= 5 && parts[4]) {
+              details.push(parts[4]); // 主演
+            }
+
+            return details;
+          }
+          return [];
+        },
+        createGradientFromImage(imgElement) {
+          // 从图片提取颜色生成渐变背景
+          try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // 设置canvas尺寸
+            canvas.width = imgElement.naturalWidth || imgElement.width || 200;
+            canvas.height = imgElement.naturalHeight || imgElement.height || 300;
+
+            // 绘制图片到canvas
+            ctx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
+
+            // 固定四个非对称点位
+            const fixedPoints = [
+              { x: Math.floor(canvas.width * 0.2), y: Math.floor(canvas.height * 0.15), pos: '20% 15%' },
+              { x: Math.floor(canvas.width * 0.8), y: Math.floor(canvas.height * 0.35), pos: '80% 35%' },
+              { x: Math.floor(canvas.width * 0.15), y: Math.floor(canvas.height * 0.7), pos: '15% 70%' },
+              { x: Math.floor(canvas.width * 0.65), y: Math.floor(canvas.height * 0.85), pos: '65% 85%' }
+            ];
+
+            const colors = [];
+
+            // 从四个固定点位提取颜色
+            fixedPoints.forEach(point => {
+              const pixel = ctx.getImageData(point.x, point.y, 1, 1).data;
+              // 降低亮度以便更好显示文本
+              const darkenFactor = 0.6; // 降低到60%亮度
+              const r = Math.floor(pixel[0] * darkenFactor);
+              const g = Math.floor(pixel[1] * darkenFactor);
+              const b = Math.floor(pixel[2] * darkenFactor);
+              const alpha = 0.9;
+              colors.push(`rgba(${r}, ${g}, ${b}, ${alpha})`);
+            });
+
+            // 使用多个径向渐变叠加，模拟全方位渐变效果
+            const gradients = [
+              `radial-gradient(circle at 20% 15%, ${colors[0]} 0%, transparent 80%)`,
+              `radial-gradient(circle at 80% 35%, ${colors[1]} 0%, transparent 80%)`,
+              `radial-gradient(circle at 15% 70%, ${colors[2]} 0%, transparent 80%)`,
+              `radial-gradient(circle at 65% 85%, ${colors[3]} 0%, transparent 80%)`,
+              `radial-gradient(ellipse at center, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.7) 100%)`
+            ];
+
+            return gradients.join(', ');
+
+          } catch (error) {
+            console.warn('无法从图片提取颜色:', error);
+            // 降级到默认渐变
+            return 'radial-gradient(circle, rgba(0,0,0,0.8) 0%, rgba(50,50,50,0.9) 50%, rgba(0,0,0,0.8) 100%)';
+          }
+        },
+        handlePosterHover(event, item) {
+          // 处理海报悬停事件
+          const posterElement = event.currentTarget;
+          const imgElement = posterElement.querySelector('img');
+          const overlayElement = posterElement.querySelector('.discovery-poster-overlay');
+
+          if (imgElement && overlayElement && imgElement.complete) {
+            const gradient = this.createGradientFromImage(imgElement);
+            overlayElement.style.background = gradient;
+          }
+        },
+        handleImageError(event) {
+          // 图片加载失败时显示默认图片
+          event.target.src = '/static/images/no-poster.svg';
+        },
+        getProxiedImageUrl(originalUrl) {
+          // 直接返回原始URL，因为豆瓣移动端API返回的图片URL应该是可以直接访问的
+          if (!originalUrl) return '/static/images/no-poster.svg';
+          return originalUrl;
+        },
+        createTaskFromDiscovery(item) {
+          // 从影视发现页面创建任务
+          try {
+            // 存储影视作品数据，并提取年份信息
+            const movieData = { ...item };
+            // 如果没有year字段，尝试从card_subtitle中提取
+            if (!movieData.year && movieData.card_subtitle) {
+              const yearFromSubtitle = this.extractYearFromCardSubtitle(movieData.card_subtitle);
+              if (yearFromSubtitle) {
+                movieData.year = yearFromSubtitle;
+              }
+            }
+            this.createTask.movieData = movieData;
+
+            // 智能填充任务数据
+            this.smartFillTaskData(item, movieData);
+
+            // 打开创建任务模态框
+            $('#createTaskModal').modal('show');
+
+            // 如果启用了自动搜索资源且配置了有效的CloudSaver信息，自动触发资源搜索
+            this.$nextTick(() => {
+              if (this.formData.task_settings.auto_search_resources === 'enabled' &&
+                  this.isCloudSaverConfigValid() &&
+                  this.createTask.taskData.taskname) {
+                this.searchSuggestions(-1, this.createTask.taskData.taskname);
+              }
+            });
+          } catch (error) {
+            console.error('创建任务时出错:', error);
+          }
+        },
+        isCloudSaverConfigValid() {
+          // 检查CloudSaver配置是否有效
+          const csData = this.formData.source && this.formData.source.cloudsaver;
+          return csData &&
+                 csData.server &&
+                 csData.username &&
+                 csData.password;
+        },
+        smartFillTaskData(item, movieData) {
+          // 智能填充任务数据
+          const taskSettings = this.formData.task_settings || {};
+
+          // 获取当前榜单类型
+          const selectedMainCategory = this.discovery.selectedMainCategory;
+
+          // 根据主分类确定榜单类型名称
+          const categoryNameMap = {
+            'movie_hot': '热门电影',
+            'movie_latest': '最新电影',
+            'movie_top': '豆瓣高分',
+            'movie_underrated': '冷门佳片',
+            'tv_drama': '热门剧集',
+            'tv_animation': '热门动画',
+            'tv_variety': '热门综艺',
+            'tv_documentary': '热门纪录片'
+          };
+
+          const currentRanking = categoryNameMap[selectedMainCategory] || '热门电影';
+
+          // 判断是否为电视类内容
+          const isTvContent = currentRanking.includes('剧集') || currentRanking.includes('动画') ||
+                             currentRanking.includes('综艺') || currentRanking.includes('纪录片');
+
+          // 判断当前内容类型
+          let contentType = 'movie'; // 默认为电影
+          if (currentRanking.includes('剧集')) {
+            contentType = 'tv';
+          } else if (currentRanking.includes('动画')) {
+            contentType = 'anime';
+          } else if (currentRanking.includes('综艺')) {
+            contentType = 'variety';
+          } else if (currentRanking.includes('纪录片')) {
+            contentType = 'documentary';
+          }
+
+          // 检查当前内容类型是否使用了自定义设置
+          const isCustomSettings = this.isUsingCustomTaskSettingsForType(taskSettings, contentType);
+
+          if (!isCustomSettings) {
+            // 如果当前类型没有自定义设置，使用原有的继承逻辑
+            this.createTask.taskData.taskname = item.title || "";
+
+            // 继承最后一个任务的配置
+            if (this.formData.tasklist && this.formData.tasklist.length > 0) {
+              const lastTask = this.formData.tasklist[this.formData.tasklist.length - 1];
+              this.createTask.taskData.savepath = lastTask.savepath || "";
+              this.createTask.taskData.pattern = lastTask.pattern || "";
+              this.createTask.taskData.replace = lastTask.replace || "";
+              this.createTask.taskData.use_sequence_naming = lastTask.use_sequence_naming || false;
+              this.createTask.taskData.use_episode_naming = lastTask.use_episode_naming || false;
+              this.createTask.taskData.sequence_naming = lastTask.sequence_naming || "";
+              this.createTask.taskData.episode_naming = lastTask.episode_naming || "";
+            }
+
+            // 但是对于电视类内容，总是应用电视命名规则
+            if (isTvContent) {
+              const title = item.title || "";
+              const tvInfo = this.extractTvInfo(title);
+              // 使用用户设置的电视命名规则，如果没有设置则使用默认值
+              const namingRule = taskSettings.tv_naming_rule && taskSettings.tv_naming_rule.trim() !== ""
+                ? taskSettings.tv_naming_rule
+                : "剧名 - S季数E[]";
+
+              const generatedNamingRule = this.generateTvNamingRule(namingRule, tvInfo.seriesName, tvInfo.season);
+
+              this.createTask.taskData.taskname = tvInfo.seriesName;
+              this.createTask.taskData.use_episode_naming = true;
+              this.createTask.taskData.episode_naming = generatedNamingRule;
+              this.createTask.taskData.pattern = generatedNamingRule; // 同时设置到pattern字段以便模态框显示
+              this.createTask.taskData.ignore_extension = taskSettings.tv_ignore_extension !== undefined ? taskSettings.tv_ignore_extension : true; // 应用电视忽略后缀设置
+            }
+
+            // 设置其他默认值
+            this.createTask.taskData.shareurl = "";
+            this.createTask.taskData.enddate = "";
+            this.createTask.taskData.runweek = [1, 2, 3, 4, 5, 6, 7];
+            this.createTask.taskData.filterwords = "";
+            this.createTask.taskData.startfid = "";
+            this.createTask.taskData.update_subdir = "";
+
+            // 设置默认的插件配置
+            if (this.formData.task_plugins_config_default) {
+              this.createTask.taskData.addition = { ...this.formData.task_plugins_config_default };
+            }
+            return;
+          }
+
+          // 使用自定义设置进行智能填充
+
+          // 提取影片信息
+          const title = item.title || "";
+          const year = movieData.year || "";
+
+          // 获取对应的配置
+          let savePathTemplate = taskSettings.movie_save_path;
+          let namingRule = "";
+          let useEpisodeNaming = false;
+
+          // 根据内容类型获取对应的配置
+          if (contentType === 'tv') {
+            savePathTemplate = taskSettings.tv_save_path;
+            namingRule = taskSettings.tv_naming_rule;
+            useEpisodeNaming = true;
+          } else if (contentType === 'anime') {
+            savePathTemplate = taskSettings.anime_save_path;
+            namingRule = taskSettings.tv_naming_rule;
+            useEpisodeNaming = true;
+          } else if (contentType === 'variety') {
+            savePathTemplate = taskSettings.variety_save_path;
+            namingRule = taskSettings.tv_naming_rule;
+            useEpisodeNaming = true;
+          } else if (contentType === 'documentary') {
+            savePathTemplate = taskSettings.documentary_save_path;
+            namingRule = taskSettings.tv_naming_rule;
+            useEpisodeNaming = true;
+          }
+
+          // 处理电影类型
+          if (contentType === 'movie') {
+            this.createTask.taskData.taskname = title;
+            this.createTask.taskData.savepath = this.generateMovieSavePath(savePathTemplate, title, year);
+            this.createTask.taskData.pattern = "";
+            this.createTask.taskData.replace = "";
+            this.createTask.taskData.use_sequence_naming = false;
+            this.createTask.taskData.use_episode_naming = false;
+            this.createTask.taskData.sequence_naming = "";
+            this.createTask.taskData.episode_naming = "";
+          } else {
+            // 处理电视类型（剧集、动画、综艺、纪录片）
+            const tvInfo = this.extractTvInfo(title);
+            this.createTask.taskData.taskname = tvInfo.seriesName;
+            this.createTask.taskData.savepath = this.generateTvSavePath(savePathTemplate, tvInfo.seriesName, year, tvInfo.season, tvInfo.isFirstSeason);
+            this.createTask.taskData.pattern = "";
+            this.createTask.taskData.replace = "";
+            this.createTask.taskData.use_sequence_naming = false;
+            const generatedNamingRule = this.generateTvNamingRule(namingRule, tvInfo.seriesName, tvInfo.season);
+
+            this.createTask.taskData.use_episode_naming = useEpisodeNaming;
+            this.createTask.taskData.sequence_naming = "";
+            this.createTask.taskData.episode_naming = generatedNamingRule;
+            this.createTask.taskData.pattern = generatedNamingRule; // 同时设置到pattern字段以便模态框显示
+
+            // 只有电视类内容才应用电视忽略后缀设置
+            if (useEpisodeNaming) {
+              this.createTask.taskData.ignore_extension = taskSettings.tv_ignore_extension !== undefined ? taskSettings.tv_ignore_extension : true;
+            } else {
+              // 电影类内容保持默认的false
+              this.createTask.taskData.ignore_extension = false;
+            }
+          }
+
+          // 设置其他默认值
+          this.createTask.taskData.shareurl = "";
+          this.createTask.taskData.enddate = "";
+          this.createTask.taskData.runweek = [1, 2, 3, 4, 5, 6, 7];
+          this.createTask.taskData.filterwords = "";
+          this.createTask.taskData.startfid = "";
+          this.createTask.taskData.update_subdir = "";
+
+          // 设置默认的插件配置
+          if (this.formData.task_plugins_config_default) {
+            this.createTask.taskData.addition = { ...this.formData.task_plugins_config_default };
+          }
+        },
+        isUsingCustomTaskSettingsForType(taskSettings, contentType) {
+          // 检查特定内容类型是否使用了自定义任务设置
+          const defaultSettings = {
+            movie: "电影目录前缀/片名 (年份)",
+            tv: "剧集目录前缀/剧名 (年份)/剧名 - S季数",
+            anime: "动画目录前缀/剧名 (年份)/剧名 - S季数",
+            variety: "综艺目录前缀/剧名 (年份)/剧名 - S季数",
+            documentary: "纪录片目录前缀/剧名 (年份)/剧名 - S季数"
+          };
+
+          const settingKeys = {
+            movie: 'movie_save_path',
+            tv: 'tv_save_path',
+            anime: 'anime_save_path',
+            variety: 'variety_save_path',
+            documentary: 'documentary_save_path'
+          };
+
+          const settingKey = settingKeys[contentType];
+          if (!settingKey) return false;
+
+          const userValue = taskSettings[settingKey] || "";
+          const defaultValue = defaultSettings[contentType];
+
+          // 如果用户设置了非空且与默认值不同的值，则认为是自定义设置
+          return userValue && userValue !== defaultValue;
+        },
+        isUsingCustomTaskSettings(taskSettings) {
+          // 检查是否使用了自定义任务设置（非默认模板）
+          // 注意：电视命名规则总是生效，不参与自定义判断
+          const defaultSettings = {
+            movie_save_path: "电影目录前缀/片名 (年份)",
+            tv_save_path: "剧集目录前缀/剧名 (年份)/剧名 - S季数",
+            anime_save_path: "动画目录前缀/剧名 (年份)/剧名 - S季数",
+            variety_save_path: "综艺目录前缀/剧名 (年份)/剧名 - S季数",
+            documentary_save_path: "纪录片目录前缀/剧名 (年份)/剧名 - S季数"
+            // tv_naming_rule 不参与判断，总是生效
+          };
+
+          // 检查每个设置是否与默认值不同且不为空
+          for (const key in defaultSettings) {
+            const userValue = taskSettings[key] || "";
+            const defaultValue = defaultSettings[key];
+
+            // 如果用户设置了非空且与默认值不同的值，则认为是自定义设置
+            if (userValue && userValue !== defaultValue) {
+              return true;
+            }
+          }
+
+          return false;
+        },
+        extractTvInfo(title) {
+          // 从标题中提取电视剧信息（剧名、季数等）
+          // 复用cleanTaskNameForSearch的逻辑
+          if (!title) return { seriesName: '', season: '01', isFirstSeason: true };
+
+          // 清理任务名称中的连续空格和特殊符号
+          let cleanedName = title.replace(/\u3000/g, ' ').replace(/\t/g, ' ');
+          cleanedName = cleanedName.replace(/\s+/g, ' ').trim();
+
+          // 匹配常见的季数格式（与cleanTaskNameForSearch保持一致）
+          const seasonPatterns = [
+            /^(.*?)[\s\.\-_]+S(\d+)$/i,  // 黑镜 - S07、折腰.S01、音你而来-S02
+            /^(.*?)[\s\.\-_]+Season\s*(\d+)$/i,  // 黑镜 - Season 1
+            /^(.*?)\s+S(\d+)$/i,  // 快乐的大人 S02
+            /^(.*?)[\s\.\-_]+S(\d+)E\d+$/i,  // 处理 S01E01 格式
+            /^(.*?)\s+第\s*(\d+)\s*季$/i,  // 处理 第N季 格式
+            /^(.*?)[\s\.\-_]+第\s*(\d+)\s*季$/i,  // 处理 - 第N季 格式
+            /^(.*?)\s+第([一二三四五六七八九十零]+)季$/i,  // 处理 第一季、第二季 格式
+            /^(.*?)[\s\.\-_]+第([一二三四五六七八九十零]+)季$/i,  // 处理 - 第一季、- 第二季 格式
+          ];
+
+          for (const pattern of seasonPatterns) {
+            const match = cleanedName.match(pattern);
+            if (match) {
+              let seriesName = match[1].trim();
+              // 去除末尾可能残留的分隔符
+              seriesName = seriesName.replace(/[\s\.\-_]+$/, '');
+
+              let seasonNum = match[2];
+              // 处理中文数字
+              if (isNaN(seasonNum)) {
+                const chineseNumbers = {
+                  '一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+                  '六': 6, '七': 7, '八': 8, '九': 9, '十': 10, '零': 0
+                };
+                seasonNum = chineseNumbers[seasonNum] || 1;
+              }
+              seasonNum = parseInt(seasonNum);
+
+              return {
+                seriesName: seriesName,
+                season: seasonNum.toString().padStart(2, '0'),
+                isFirstSeason: seasonNum === 1
+              };
+            }
+          }
+
+          // 如果没有匹配到季数格式，返回原标题作为剧名，默认第一季
+          return {
+            seriesName: cleanedName,
+            season: '01',
+            isFirstSeason: true
+          };
+        },
+        generateMovieSavePath(template, title, year) {
+          // 生成电影保存路径
+          let savePath = template;
+
+          // 替换片名
+          savePath = savePath.replace(/片名/g, title);
+
+          // 替换年份
+          if (year) {
+            savePath = savePath.replace(/年份/g, year);
+          } else {
+            // 如果没有年份，移除年份相关的括号
+            savePath = savePath.replace(/\s*\(年份\)/g, '');
+          }
+
+          return savePath;
+        },
+        generateTvSavePath(template, seriesName, year, season, isFirstSeason) {
+          // 生成电视剧保存路径
+          let savePath = template;
+
+          // 替换剧名
+          savePath = savePath.replace(/剧名/g, seriesName);
+
+          // 替换季数
+          savePath = savePath.replace(/季数/g, season);
+
+          // 处理年份：如果不是第一季，忽略年份信息
+          if (isFirstSeason && year) {
+            savePath = savePath.replace(/年份/g, year);
+          } else {
+            // 移除年份相关的部分
+            savePath = savePath.replace(/\s*\(年份\)\//g, '/');
+            savePath = savePath.replace(/\s*\(年份\)/g, '');
+          }
+
+          return savePath;
+        },
+        generateTvNamingRule(template, seriesName, season) {
+          // 生成电视剧命名规则
+          let namingRule = template;
+
+          // 替换剧名
+          namingRule = namingRule.replace(/剧名/g, seriesName);
+
+          // 替换季数
+          namingRule = namingRule.replace(/季数/g, season);
+
+          return namingRule;
+        },
+        generateCustomFolderPath(taskData) {
+          // 根据任务设置生成自定义文件夹路径
+          const taskSettings = this.formData.task_settings || {};
+          const movieData = this.createTask.movieData;
+
+          if (!movieData) {
+            return taskData.taskname; // 如果没有影视数据，使用任务名称
+          }
+
+          // 获取当前榜单类型
+          const selectedMainCategory = this.discovery.selectedMainCategory;
+          const categoryNameMap = {
+            'movie_hot': '热门电影',
+            'movie_latest': '最新电影',
+            'movie_top': '豆瓣高分',
+            'movie_underrated': '冷门佳片',
+            'tv_drama': '热门剧集',
+            'tv_animation': '热门动画',
+            'tv_variety': '热门综艺',
+            'tv_documentary': '热门纪录片'
+          };
+
+          const currentRanking = categoryNameMap[selectedMainCategory] || '热门电影';
+
+          // 判断内容类型
+          let contentType = 'movie';
+          if (currentRanking.includes('剧集')) {
+            contentType = 'tv';
+          } else if (currentRanking.includes('动画')) {
+            contentType = 'anime';
+          } else if (currentRanking.includes('综艺')) {
+            contentType = 'variety';
+          } else if (currentRanking.includes('纪录片')) {
+            contentType = 'documentary';
+          }
+
+          // 检查是否有自定义路径设置
+          let savePathTemplate = '';
+          if (contentType === 'tv') {
+            savePathTemplate = taskSettings.tv_save_path;
+          } else if (contentType === 'anime') {
+            savePathTemplate = taskSettings.anime_save_path;
+          } else if (contentType === 'variety') {
+            savePathTemplate = taskSettings.variety_save_path;
+          } else if (contentType === 'documentary') {
+            savePathTemplate = taskSettings.documentary_save_path;
+          } else if (contentType === 'movie') {
+            savePathTemplate = taskSettings.movie_save_path;
+          }
+
+          // 如果没有自定义路径设置，使用任务名称
+          if (!savePathTemplate || savePathTemplate.trim() === '') {
+            return taskData.taskname;
+          }
+
+          // 提取相对路径部分（去掉前缀）
+          const pathParts = savePathTemplate.split('/');
+          let relativePath = '';
+
+          // 找到第一个包含模板变量的部分开始
+          for (let i = 0; i < pathParts.length; i++) {
+            if (pathParts[i].includes('片名') || pathParts[i].includes('剧名')) {
+              relativePath = pathParts.slice(i).join('/');
+              break;
+            }
+          }
+
+          if (!relativePath) {
+            return taskData.taskname;
+          }
+
+          const title = movieData.title || taskData.taskname;
+          const year = movieData.year || '';
+
+          if (contentType === 'movie') {
+            // 电影类型：使用generateMovieSavePath的逻辑
+            return this.generateMovieSavePath(relativePath, title, year);
+          } else {
+            // 电视类型：使用generateTvSavePath的逻辑
+            const tvInfo = this.extractTvInfo(title);
+            return this.generateTvSavePath(relativePath, tvInfo.seriesName, year, tvInfo.season, tvInfo.isFirstSeason);
+          }
+        },
+        extractYearFromCardSubtitle(cardSubtitle) {
+          // 从card_subtitle中提取年份
+          // 格式: 年份 / 地区 / 类型 / 导演 / 主演
+          if (cardSubtitle) {
+            const parts = cardSubtitle.split(' / ');
+            if (parts.length >= 1 && parts[0]) {
+              const yearPart = parts[0].trim();
+              // 匹配4位数字年份
+              const yearMatch = yearPart.match(/(\d{4})/);
+              if (yearMatch) {
+                return yearMatch[1];
+              }
+            }
+          }
+          return null;
+        },
+        cancelCreateTask() {
+          // 取消创建任务
+          $('#createTaskModal').modal('hide');
+          this.createTask.movieData = null;
+          this.createTask.error = null;
+          // 重置任务数据
+          this.createTask.taskData = {
+            taskname: "",
+            shareurl: "",
+            savepath: "",
+            pattern: "",
+            replace: "",
+            enddate: "",
+            addition: {},
+            ignore_extension: false,
+            filterwords: "",
+            runweek: [1, 2, 3, 4, 5, 6, 7],
+            sequence_naming: "",
+            use_sequence_naming: false,
+            episode_naming: "",
+            use_episode_naming: false,
+            update_subdir: "",
+            startfid: "",
+            shareurl_ban: null
+          };
+        },
+        confirmCreateTask() {
+          // 确认创建任务
+          if (this.createTask.loading) return;
+
+          // 验证必填字段
+          if (!this.createTask.taskData.taskname.trim()) {
+            this.createTask.error = '任务名称不能为空';
+            return;
+          }
+          if (!this.createTask.taskData.shareurl.trim()) {
+            this.createTask.error = '分享链接不能为空';
+            return;
+          }
+          if (!this.createTask.taskData.savepath.trim()) {
+            this.createTask.error = '保存路径不能为空';
+            return;
+          }
+
+          this.createTask.loading = true;
+          this.createTask.error = null;
+
+          // 创建新任务
+          const newTask = { ...this.createTask.taskData };
+
+          // 处理命名模式
+          if (newTask.use_sequence_naming) {
+            newTask.pattern = newTask.sequence_naming;
+          } else if (newTask.use_episode_naming) {
+            newTask.pattern = newTask.episode_naming;
+          }
+
+          // 添加到任务列表
+          if (!this.formData.tasklist) {
+            this.formData.tasklist = [];
+          }
+          this.formData.tasklist.push(newTask);
+
+          // 保存配置（不显示配置更新消息）
+          axios.post('/update', this.formData)
+            .then(response => {
+              if (response.data.success) {
+                this.configModified = false;
+                // 显示任务创建成功消息
+                this.showToast('任务创建成功', 'success');
+                // 保存成功后更新用户信息
+                this.fetchUserInfo();
+                this.createTask.loading = false;
+                this.cancelCreateTask();
+              } else {
+                // 错误信息使用alert，确保用户看到
+                alert(response.data.message);
+                this.createTask.loading = false;
+              }
+            })
+            .catch(error => {
+              // 错误处理
+              alert("保存失败: " + (error.response?.data?.message || error.message || "未知错误"));
+              this.createTask.loading = false;
+            });
+        },
+        confirmCreateAndRunTask() {
+          // 确认创建并运行任务
+          if (this.createTask.loading) return;
+
+          // 验证必填字段
+          if (!this.createTask.taskData.taskname.trim()) {
+            this.createTask.error = '任务名称不能为空';
+            return;
+          }
+          if (!this.createTask.taskData.shareurl.trim()) {
+            this.createTask.error = '分享链接不能为空';
+            return;
+          }
+          if (!this.createTask.taskData.savepath.trim()) {
+            this.createTask.error = '保存路径不能为空';
+            return;
+          }
+
+          this.createTask.loading = true;
+          this.createTask.error = null;
+
+          // 创建新任务
+          const newTask = { ...this.createTask.taskData };
+
+          // 处理命名模式
+          if (newTask.use_sequence_naming) {
+            newTask.pattern = newTask.sequence_naming;
+          } else if (newTask.use_episode_naming) {
+            newTask.pattern = newTask.episode_naming;
+          }
+
+          // 添加到任务列表
+          if (!this.formData.tasklist) {
+            this.formData.tasklist = [];
+          }
+          this.formData.tasklist.push(newTask);
+
+          // 保存配置（不显示配置更新消息）
+          axios.post('/update', this.formData)
+            .then(response => {
+              if (response.data.success) {
+                this.configModified = false;
+                // 保存成功后更新用户信息
+                this.fetchUserInfo();
+
+                // 运行新创建的任务
+                const taskIndex = this.formData.tasklist.length - 1;
+                this.runScriptNow(taskIndex);
+
+                // 显示任务创建成功消息
+                this.showToast('任务创建成功并开始运行', 'success');
+                this.createTask.loading = false;
+                this.cancelCreateTask();
+              } else {
+                // 错误信息使用alert，确保用户看到
+                alert(response.data.message);
+                this.createTask.loading = false;
+              }
+            })
+            .catch(error => {
+              // 错误处理
+              alert("保存失败: " + (error.response?.data?.message || error.message || "未知错误"));
+              this.createTask.loading = false;
+            });
+        },
+        openCreateTaskDatePicker() {
+          // 打开创建任务的日期选择器
+          if (this.$refs.createTaskEnddate) {
+            this.$refs.createTaskEnddate.showPicker();
+          }
         }
       },
       mounted() {
@@ -6325,6 +7929,8 @@
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
           this.fileSelect.moveFileIds = [];
+          // 重置z-index
+          document.getElementById('fileSelectModal').style.zIndex = '';
         });
         
         // 检查本地存储中的标签页状态
@@ -6385,6 +7991,8 @@
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
           this.fileSelect.moveFileIds = [];
+          // 重置z-index
+          document.getElementById('fileSelectModal').style.zIndex = '';
         });
         
         window.addEventListener('beforeunload', this.handleBeforeUnload);
@@ -6442,6 +8050,14 @@
           
           // 检查分享链接状态
           this.checkShareUrlStatus();
+
+          // 初始化影视发现页面的选择状态
+          this.initializeDiscoverySelection();
+
+          // 如果当前是影视发现页面，加载榜单数据
+          if (this.activeTab === 'discovery') {
+            this.loadDiscoveryData();
+          }
         }, 500);
       },
       beforeDestroy() {

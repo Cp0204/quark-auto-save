@@ -166,10 +166,38 @@ function sortFileByName(file) {
         }
     }
 
-    // 3. 上中下
-    if (/[上][集期话部篇]?|[集期话部篇]上/.test(filename)) segment_value = 1;
-    else if (/[中][集期话部篇]?|[集期话部篇]中/.test(filename)) segment_value = 2;
-    else if (/[下][集期话部篇]?|[集期话部篇]下/.test(filename)) segment_value = 3;
+    // 3. 上中下标记或其他细分 - 第三级排序键
+    let segment_base = 0;  // 基础值：上=1, 中=2, 下=3
+    let sequence_number = 0;  // 序号值：用于处理上中下后的数字或中文数字序号
+
+    if (/[上][集期话部篇]?|[集期话部篇]上/.test(filename)) {
+        segment_base = 1;
+    } else if (/[中][集期话部篇]?|[集期话部篇]中/.test(filename)) {
+        segment_base = 2;
+    } else if (/[下][集期话部篇]?|[集期话部篇]下/.test(filename)) {
+        segment_base = 3;
+    }
+
+    // 当有上中下标记时，进一步提取后续的序号
+    if (segment_base > 0) {
+        // 提取上中下后的中文数字序号，如：上（一）、上（二）
+        let chinese_seq_match = filename.match(/[上中下][集期话部篇]?[（(]([一二三四五六七八九十百千万零两]+)[）)]/);
+        if (chinese_seq_match) {
+            let arabic_num = chineseToArabic(chinese_seq_match[1]);
+            if (arabic_num !== null) {
+                sequence_number = arabic_num;
+            }
+        } else {
+            // 提取上中下后的阿拉伯数字序号，如：上1、上2
+            let arabic_seq_match = filename.match(/[上中下][集期话部篇]?(\d+)/);
+            if (arabic_seq_match) {
+                sequence_number = parseInt(arabic_seq_match[1]);
+            }
+        }
+    }
+
+    // 组合segment_value：基础值*1000 + 序号值，确保排序正确
+    segment_value = segment_base * 1000 + sequence_number;
 
     return [date_value, episode_value, segment_value, update_time, pinyin_sort_key];
 }

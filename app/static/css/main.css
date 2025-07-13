@@ -1430,20 +1430,23 @@ button.close:focus,
 
 /* --------------- 文件选择弹窗样式 --------------- */
 /* 文件选择弹窗整体样式 */
-#fileSelectModal .modal-dialog {
+#fileSelectModal .modal-dialog,
+#createTaskModal .modal-dialog {
   max-width: 1080px;
   margin: 4rem auto;
   width: calc(100% - 1.25rem); /* 左右各保留1.5rem的最小边距 */
 }
 
-#fileSelectModal .modal-content {
+#fileSelectModal .modal-content,
+#createTaskModal .modal-content {
   border-radius: 6px;
   border: 1px solid var(--border-color);
   box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
 }
 
 /* 弹窗头部样式 */
-#fileSelectModal .modal-header {
+#fileSelectModal .modal-header,
+#createTaskModal .modal-header {
   background-color: #fff;
   border-bottom: 1px solid var(--border-color);
   padding: 11px 16px;
@@ -1451,7 +1454,8 @@ button.close:focus,
   border-top-right-radius: 6px;
 }
 
-#fileSelectModal .modal-title {
+#fileSelectModal .modal-title,
+#createTaskModal .modal-title {
   font-size: 1.2rem;
   font-weight: 500;
   color: var(--dark-text-color);
@@ -1459,12 +1463,14 @@ button.close:focus,
   align-items: center;
 }
 
-#fileSelectModal .modal-title b {
+#fileSelectModal .modal-title b,
+#createTaskModal .modal-title b {
   font-weight: 500;
 }
 
 /* 弹窗关闭按钮 */
-#fileSelectModal .close {
+#fileSelectModal .close,
+#createTaskModal .close {
   font-size: 1.4rem;
   padding: 8px;
   margin: -8px -8px -8px auto;
@@ -1475,6 +1481,7 @@ button.close:focus,
 
 /* 修改关闭按钮样式，使用 bi-x-lg 图标 */
 #fileSelectModal .close .bi-x-lg,
+#createTaskModal .close .bi-x-lg,
 .modal .close .bi-x-lg {
   font-size: 1.2rem;
   color: var(--dark-text-color);
@@ -1484,15 +1491,33 @@ button.close:focus,
   right: -2px; /* 向左移动2px */
 }
 
-#fileSelectModal .close:hover {
+#fileSelectModal .close:hover,
+#createTaskModal .close:hover {
   opacity: 1;
   color: var(--dark-text-color);
 }
 
 /* 弹窗主体样式 */
-#fileSelectModal .modal-body {
+#fileSelectModal .modal-body,
+#createTaskModal .modal-body {
   padding: 16px;
   font-size: 0.875rem;
+}
+
+/* 创建任务模态框主内容区相对定位 */
+#createTaskModal .modal-body {
+  position: relative;
+}
+
+/* 创建任务模态框主内容区底部分割线 */
+#createTaskModal .modal-body::after {
+  content: '';
+  position: absolute;
+  bottom: 7px;
+  left: 16px;
+  right: 16px;
+  height: 1px;
+  background-color: var(--border-color);
 }
 
 /* 弹窗内警告框样式 */
@@ -1722,7 +1747,8 @@ button.close:focus,
 }
 
 /* 弹窗底部样式 */
-#fileSelectModal .modal-footer {
+#fileSelectModal .modal-footer,
+#createTaskModal .modal-footer {
   border-top: none; /* 隐藏底部分割线 */
   padding: 0px 16px 12px 16px; /* 上 右 下 左：设置上内边距为0 */
   margin-top: -4px; /* 使用负margin使整个底部区域向上移动 */
@@ -1733,19 +1759,22 @@ button.close:focus,
 }
 
 /* 添加文件选择模态框左下角文件信息文本的左边距样式 */
-#fileSelectModal .modal-footer .file-selection-info {
+#fileSelectModal .modal-footer .file-selection-info,
+#createTaskModal .modal-footer .file-selection-info {
   margin-left: 0px; /* 与表格左边距保持一致 */
   font-size: 0.85rem !important; /* 覆盖内联样式 */
 }
 
-#fileSelectModal .modal-footer span {
+#fileSelectModal .modal-footer span,
+#createTaskModal .modal-footer span {
   font-size: 0.85rem;
   color: var(--dark-text-color);
   margin-right: auto;
 }
 
 /* 弹窗底部按钮样式 */
-#fileSelectModal .btn-primary {
+#fileSelectModal .btn-primary,
+#createTaskModal .btn-primary {
   background-color: var(--focus-border-color);
   border-color: var(--focus-border-color);
   font-size: 0.85rem;
@@ -1759,34 +1788,40 @@ button.close:focus,
 }
 
 /* 弹窗底部按钮内的标记样式 */
-#fileSelectModal .btn-primary .badge {
+#fileSelectModal .btn-primary .badge,
+#createTaskModal .btn-primary .badge {
   margin-left: 5px;
   display: flex;
   align-items: center;
 }
 
-#fileSelectModal .btn-primary:hover {
+#fileSelectModal .btn-primary:hover,
+#createTaskModal .btn-primary:hover {
   background-color: #0A42CC !important;
   border-color: #0A42CC !important;
 }
 
-#fileSelectModal .btn-sm {
+#fileSelectModal .btn-sm,
+#createTaskModal .btn-sm {
   font-size: 0.85rem;
 }
 
 /* 弹窗底部有文本内容的按钮样式 */
-#fileSelectModal .btn-primary:has(span) {
+#fileSelectModal .btn-primary:has(span),
+#createTaskModal .btn-primary:has(span) {
   width: auto;
   padding: 0 8px;
 }
 
-#fileSelectModal .btn-primary:not(:has(span)) {
+#fileSelectModal .btn-primary:not(:has(span)),
+#createTaskModal .btn-primary:not(:has(span)) {
   width: auto;
   min-width: 32px;
   padding: 0 8px;
 }
 
-#fileSelectModal .btn-sm {
+#fileSelectModal .btn-sm,
+#createTaskModal .btn-sm {
   font-size: 0.85rem;
 }
 
@@ -2154,6 +2189,10 @@ div.jsoneditor-tree button.jsoneditor-button:focus {
 
 .sidebar .nav-link .bi-archive {
   font-size: 1rem;
+}
+
+.sidebar .nav-link .bi-film {
+  font-size: 0.94rem;
 }
 
 .sidebar .nav-link .bi-power {
@@ -3052,6 +3091,17 @@ div.jsoneditor-treepath * {
   right: -1px; /* 向右移动右箭头 */
 }
 
+/* --------------- 系统配置页面form-group间距统一 --------------- */
+/* 系统配置页面中所有form-group的间距统一为8px，与其他模块保持一致 */
+main .form-group.mb-2 {
+  margin-bottom: 8px !important;
+}
+
+/* 任务设置模块的form-group间距调整为8px */
+main .form-group:not(.row) {
+  margin-bottom: 8px !important;
+}
+
 /* --------------- 魔法匹配输入框比例设置 --------------- */
 /* 系统配置页面中魔法匹配的输入框比例 */
 .form-group.mb-2 > .input-group {
@@ -3310,7 +3360,8 @@ div[id^="collapse_"][id*="plugin"] .input-group {
   min-height: 32px;
 }
 
-#fileSelectModal .btn-primary span {
+#fileSelectModal .btn-primary span,
+#createTaskModal .btn-primary span {
   background-color: transparent;
   color: inherit;
   font-size: inherit;
@@ -3319,7 +3370,8 @@ div[id^="collapse_"][id*="plugin"] .input-group {
   margin: 0;
 }
 
-#fileSelectModal .btn-primary .badge-light {
+#fileSelectModal .btn-primary .badge-light,
+#createTaskModal .btn-primary .badge-light {
   background-color: transparent;
   color: inherit;
   font-size: inherit;
@@ -5371,6 +5423,8 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   border-color: var(--button-gray-background-color) !important;
   color: var(--dark-text-color) !important;
 }
+
+
 #fileSelectModal[data-modal-type="preview-filemanager"] .modal-footer .btn-cancel:hover {
   background-color: #e0e2e6 !important;
   border-color: #e0e2e6 !important;
@@ -5388,6 +5442,355 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   border-color: #e0e2e6 !important;
   color: var(--dark-text-color) !important;
 }
+
+/* 创建任务模态框的取消按钮样式 */
+#createTaskModal .modal-footer .btn-cancel {
+  background-color: var(--button-gray-background-color) !important;
+  border-color: var(--button-gray-background-color) !important;
+  color: var(--dark-text-color) !important;
+}
+
+#createTaskModal .modal-footer .btn-cancel:hover {
+  background-color: #e0e2e6 !important;
+  border-color: #e0e2e6 !important;
+  color: var(--dark-text-color) !important;
+}
+
+/* --------------- 模态框层级管理 --------------- */
+/* 当从创建任务模态框中打开文件选择模态框时，确保文件选择模态框显示在上层 */
+#createTaskModal.show ~ #fileSelectModal {
+  z-index: 1060 !important;
+}
+
+#createTaskModal.show ~ #fileSelectModal .modal-backdrop {
+  z-index: 1055 !important;
+}
+
+/* --------------- 创建任务模态框使用任务列表样式 --------------- */
+
+/* 创建任务模态框底部间距调整 */
+#createTaskModal .modal-footer {
+  margin-top: 5px; /* 调整为5px，让分割线距离按钮16px */
+}
+
+/* 创建任务模态框中的搜索按钮样式 */
+#createTaskModal .btn-primary:has(.bi-search) {
+  background-color: transparent;
+  border-color: var(--dark-text-color);
+  color: var(--dark-text-color);
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0; /* 去掉圆角 */
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+#createTaskModal .btn-primary:has(.bi-search):hover {
+  background-color: var(--dark-text-color) !important; /* 使用!important确保优先级 */
+  border-color: var(--dark-text-color) !important;
+  color: #fff !important;
+}
+
+#createTaskModal .btn-primary:hover .bi-search {
+  color: #fff !important;
+}
+
+/* 覆盖可能存在的其他btn-primary样式 */
+#createTaskModal .input-group-append .btn-primary:has(.bi-search):hover {
+  background-color: var(--dark-text-color) !important;
+  border-color: var(--dark-text-color) !important;
+  color: #fff !important;
+}
+
+#createTaskModal .input-group-append .btn-primary:has(.bi-search) {
+  background-color: transparent !important;
+  border-color: var(--dark-text-color) !important;
+  color: var(--dark-text-color) !important;
+}
+
+/* 创建任务模态框中的输入组按钮样式 */
+#createTaskModal .input-group-append .btn,
+#createTaskModal .input-group-prepend .btn {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#createTaskModal .input-group-append .btn:has(i.bi):not(.btn-primary),
+#createTaskModal .input-group-prepend .btn:has(i.bi):not(.btn-primary) {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+/* 创建任务模态框中的图标悬停样式 */
+#createTaskModal .btn-outline-secondary:hover .bi-folder,
+#createTaskModal .btn-outline-secondary:hover .bi-calendar3,
+#createTaskModal .btn-outline-secondary:hover .bi-reply,
+#createTaskModal .btn-outline-secondary:hover .bi-folder-x,
+#createTaskModal .input-group-text:hover .bi-google,
+#createTaskModal .input-group-text:hover .bi-link-45deg,
+#createTaskModal .input-group-text:hover .tmdb-icon,
+#createTaskModal .input-group-text:hover .douban-icon {
+  color: #fff;
+}
+
+/* 创建任务模态框中的input-group-text样式 */
+#createTaskModal .input-group-text {
+  background-color: #fff;
+  border-color: var(--border-color);
+  color: var(--dark-text-color);
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  transition: all 0.2s ease;
+}
+
+#createTaskModal .input-group-text:hover {
+  background-color: var(--dark-text-color);
+  border-color: var(--dark-text-color);
+  color: #fff;
+}
+
+/* 忽略后缀文本不应该有悬停效果 */
+#createTaskModal .input-group-text:has(input[type="checkbox"]) {
+  background-color: var(--button-gray-background-color) !important;
+  border-color: var(--border-color) !important;
+  color: var(--dark-text-color) !important;
+}
+
+#createTaskModal .input-group-text:has(input[type="checkbox"]):hover {
+  background-color: var(--button-gray-background-color) !important;
+  border-color: var(--border-color) !important;
+  color: var(--dark-text-color) !important;
+}
+
+/* 创建任务模态框中的按钮样式 - 完全复制任务列表样式 */
+#createTaskModal .btn-outline-secondary:hover {
+  background-color: var(--dark-text-color) !important;
+  border-color: var(--dark-text-color) !important;
+  color: #fff !important;
+}
+
+#createTaskModal .btn-outline-secondary:active {
+  background-color: var(--dark-text-color) !important;
+  border-color: var(--dark-text-color) !important;
+  color: #fff !important;
+}
+
+/* 修复创建任务模态框中日历按钮点击后背景色不恢复的问题 */
+#createTaskModal .btn-outline-secondary:has(.bi-calendar3):focus,
+#createTaskModal .btn-outline-secondary:has(.bi-calendar3):active,
+#createTaskModal .btn-outline-secondary:has(.bi-calendar3).focus,
+#createTaskModal .btn-outline-secondary:has(.bi-calendar3).active {
+  background-color: transparent !important;
+  border-color: var(--dark-text-color) !important;
+  color: var(--dark-text-color) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* 强制覆盖所有可能的日历按钮状态 */
+#createTaskModal .input-group-append .btn-outline-secondary:has(.bi-calendar3):focus,
+#createTaskModal .input-group-append .btn-outline-secondary:has(.bi-calendar3):active,
+#createTaskModal .input-group-append .btn-outline-secondary:has(.bi-calendar3).focus,
+#createTaskModal .input-group-append .btn-outline-secondary:has(.bi-calendar3).active {
+  background-color: transparent !important;
+  border-color: var(--dark-text-color) !important;
+  color: var(--dark-text-color) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* 确保日历按钮悬停时正确显示 */
+#createTaskModal .btn-outline-secondary:has(.bi-calendar3):hover,
+#createTaskModal .input-group-append .btn-outline-secondary:has(.bi-calendar3):hover {
+  background-color: var(--dark-text-color) !important;
+  border-color: var(--dark-text-color) !important;
+  color: #fff !important;
+}
+
+/* 创建任务模态框中的图标样式 */
+#createTaskModal .tmdb-icon,
+#createTaskModal .douban-icon {
+  width: 16px;
+  height: 16px;
+  transition: filter 0.2s ease;
+}
+
+#createTaskModal .input-group-text:hover .tmdb-icon,
+#createTaskModal .input-group-text:hover .douban-icon {
+  filter: brightness(0) invert(1); /* 将图标变为白色 */
+}
+
+/* 创建任务模态框中的输入组焦点样式 */
+#createTaskModal .input-group .form-control:focus + .input-group-append .btn,
+#createTaskModal .input-group .form-control:focus + .input-group-append .btn:focus {
+  border-left-color: #2563eb !important;
+  box-shadow: none !important;
+  position: relative;
+  z-index: 2;
+}
+
+/* 创建任务模态框中的表单组样式 */
+#createTaskModal .form-group.row {
+  margin-bottom: 8px; /* 设置行之间的间距为8px */
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* 创建任务模态框中的标签样式 */
+#createTaskModal .form-group.row .col-sm-2 {
+  max-width: 104px; /* 设置最大宽度为104px */
+  min-width: 104px; /* 保持最小宽度一致 */
+  width: 104px; /* 固定宽度 */
+}
+
+/* 创建任务模态框中的输入框列自适应 */
+#createTaskModal .form-group.row .col-sm-10 {
+  width: calc(100% - 104px); /* 计算剩余宽度 */
+  max-width: calc(100% - 104px); /* 最大宽度也应该计算 */
+  flex: 1; /* 允许伸缩 */
+}
+
+/* 创建任务模态框中的标签样式 */
+#createTaskModal .form-group.row .col-form-label {
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 0.95rem; /* 与输入框字体大小一致 */
+  font-weight: normal; /* 标准字重 */
+  line-height: 1.5; /* 与输入框行高一致 */
+}
+
+/* 创建任务模态框中的表单控件样式 */
+#createTaskModal .form-group.row .form-control,
+#createTaskModal .form-group.row .input-group {
+  margin-bottom: 0;
+}
+
+/* 创建任务模态框中的任务建议样式 */
+#createTaskModal .task-suggestions {
+  width: 100%;
+  max-height: 482px;
+  overflow-y: auto;
+  transform: translate(0, 0);
+  top: 100%;
+}
+
+#createTaskModal .task-suggestions .dropdown-item {
+  padding: 0 8px;
+  margin: 0;
+  height: 30px;
+  line-height: 30px;
+  box-sizing: border-box;
+}
+
+#createTaskModal .task-suggestions .dropdown-item:hover {
+  background-color: var(--button-gray-background-color);
+  color: var(--dark-text-color);
+}
+
+#createTaskModal .task-suggestions .dropdown-item:active {
+  background-color: var(--focus-border-color) !important;
+  color: #fff !important;
+}
+
+#createTaskModal .task-suggestions .dropdown-item small a {
+  color: var(--light-text-color);
+  text-decoration: none;
+  transition: color 0.2s;
+  font-size: 14px;
+}
+
+#createTaskModal .task-suggestions .dropdown-item:hover small a {
+  color: var(--dark-text-color);
+}
+
+#createTaskModal .task-suggestions .dropdown-item:active small a {
+  color: #fff !important;
+}
+
+#createTaskModal .task-suggestions .dropdown-item.text-muted {
+  height: 30px;
+  line-height: 30px;
+  padding: 0 8px !important;
+  font-size: 14px !important;
+  box-sizing: border-box;
+}
+
+#createTaskModal .task-suggestions .dropdown-item.text-muted:hover {
+  color: var(--dark-text-color) !important;
+}
+
+#createTaskModal .task-suggestions .dropdown-item.text-muted:not(.text-center) {
+  font-size: 14px !important;
+  text-align: left !important;
+  padding-left: 8px !important;
+  color: var(--light-text-color) !important;
+}
+
+#createTaskModal .task-suggestions .dropdown-item.text-muted:active {
+  color: #fff !important;
+}
+
+/* 创建任务模态框移动端响应式样式 */
+@media (max-width: 767.98px) {
+  #createTaskModal .form-group.row .col-sm-2 {
+    max-width: 100%; /* 在小屏上允许全宽 */
+    min-width: auto; /* 取消最小宽度限制 */
+    width: 100%; /* 宽度适应屏幕 */
+    padding-top: 0; /* 移除顶部内边距 */
+    padding-bottom: 2px; /* 减少底部内边距 */
+  }
+
+  #createTaskModal .form-group.row .col-sm-10 {
+    width: 100%; /* 全宽 */
+    max-width: 100%; /* 最大宽度全宽 */
+    margin-top: 0px; /* 减少顶部间距 */
+    padding-top: 0; /* 移除顶部内边距 */
+    padding-bottom: 0; /* 移除底部内边距 */
+  }
+
+  /* 确保移动模式下配置选项间距与桌面模式一致 */
+  #createTaskModal .form-group.row {
+    margin-bottom: 8px; /* 与桌面模式保持一致的行间距 */
+    padding-top: 0; /* 移除顶部内边距 */
+    padding-bottom: 0; /* 移除底部内边距 */
+  }
+
+  /* 调整移动模式下表单控件的间距 */
+  #createTaskModal .form-group.row .form-control,
+  #createTaskModal .form-group.row .input-group {
+    margin-bottom: 0; /* 确保无底部边距 */
+  }
+
+  /* 调整任务配置标签的间距 */
+  #createTaskModal .form-group.row .col-form-label {
+    padding-top: 2px; /* 减少顶部内边距 */
+    padding-bottom: 2px; /* 减少底部内边距 */
+  }
+
+  /* 专门针对配置选项标题在配置框上方的情况调整 */
+  #createTaskModal .form-group.row:not(.align-items-center) .col-sm-2 {
+    margin-bottom: 4.5px; /* 设置标题与配置框之间的距离 */
+    padding-left: 15px; /* 左对齐与其他元素保持一致 */
+    font-size: 0.95rem; /* 保持字体大小一致 */
+  }
+
+  /* 标题在上方时配置框的左内边距调整 */
+  #createTaskModal .form-group.row:not(.align-items-center) .col-sm-10 {
+    padding-left: 15px; /* 为标题在上方的配置框增加左内边距 */
+  }
+}
+
+
 
 @media (max-width: 767.98px) {
   .file-manager-rule-bar-responsive {
@@ -5495,4 +5898,265 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 @media (min-width: 768px) {
   .file-manager-rule-bar { display: flex !important; }
   .file-manager-rule-bar-responsive { display: none !important; }
+}
+
+/* --------------- 影视发现页面样式 --------------- */
+.discovery-controls {
+  margin-bottom: 20px;
+}
+
+.discovery-main-buttons {
+  margin-bottom: 8px;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.discovery-main-buttons::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
+
+.discovery-sub-buttons {
+  margin-bottom: 20px;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.discovery-sub-buttons::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
+
+.discovery-btn {
+  border-radius: 6px;
+  font-size: 0.95rem;
+  padding: 0 8px;
+  height: 32px;
+  border: 1px solid var(--dark-text-color);
+  background-color: transparent;
+  color: var(--dark-text-color);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: fit-content;
+}
+
+.discovery-btn:hover {
+  background-color: var(--dark-text-color);
+  border-color: var(--dark-text-color);
+  color: white;
+}
+
+.discovery-btn.active {
+  background-color: var(--focus-border-color) !important;
+  border-color: var(--focus-border-color) !important;
+  color: white !important;
+}
+
+.discovery-btn:focus {
+  box-shadow: none;
+  outline: none;
+}
+
+.discovery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 20px;
+  padding: 0;
+}
+
+.discovery-poster {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2/3; /* 强制保持2:3比例 */
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 10px;
+}
+
+.discovery-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: filter 0.3s ease;
+}
+
+.discovery-poster:hover img {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.discovery-poster-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 8px 8px 5px 8px;
+  font-size: 0.75rem;
+  font-weight: normal;
+  line-height: 1.4;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.discovery-poster:hover .discovery-poster-overlay {
+  opacity: 1;
+}
+
+.discovery-poster-overlay .info-line {
+  margin-bottom: 5.5px;
+  padding-bottom: 5px;
+  word-wrap: break-word;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.discovery-poster-overlay .info-line:first-child {
+  margin-top: 0;
+}
+
+.discovery-poster-overlay .info-line:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.discovery-rating {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #efb30a;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  z-index: 10;
+}
+
+.discovery-create-task {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 22px;
+  height: 22px;
+  background-color: transparent;
+  border: 1px solid white;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.3s ease;
+  z-index: 10;
+  color: white;
+  font-size: 1rem;
+  font-weight: 210;
+}
+
+.discovery-create-task .plus-text {
+  transform: translateX(-0.5px) translateY(-1.5px);
+}
+
+.discovery-poster:hover .discovery-create-task {
+  opacity: 1;
+}
+
+.discovery-create-task:hover {
+  background-color: var(--focus-border-color);
+  border-color: var(--focus-border-color);
+  color: white;
+}
+
+.discovery-info {
+  padding: 0 0px;
+  text-align: left;
+}
+
+.discovery-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--dark-text-color);
+  margin-bottom: 0px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.discovery-title:hover {
+  color: var(--focus-border-color);
+}
+
+.discovery-genre {
+  font-size: 0.95rem;
+  color: #888;
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.genre-slash {
+  position: relative;
+  top: -1px;
+}
+
+.discovery-year {
+  font-size: 0.75rem;
+  color: #666;
+}
+
+/* 响应式设计 */
+@media (max-width: 576px) {
+  .discovery-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 20px;
+  }
+
+  .discovery-btn {
+    font-size: 0.95rem;
+    padding: 0 6px;
+    height: 28px;
+  }
+
+  .discovery-controls {
+    margin-bottom: 15px;
+  }
+
+  .discovery-main-buttons {
+    margin-bottom: 8px;
+    gap: 8px;
+  }
+
+  .discovery-sub-buttons {
+    margin-bottom: 20px;
+    gap: 8px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .discovery-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
 }
