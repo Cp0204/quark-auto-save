@@ -41,7 +41,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from quark_auto_save import extract_episode_number, sort_file_by_name, chinese_to_arabic, is_date_format
 
 # 导入豆瓣服务
-from douban_service import douban_service
+from sdk.douban_service import douban_service
 
 
 def process_season_episode_info(filename, task_name=None):
