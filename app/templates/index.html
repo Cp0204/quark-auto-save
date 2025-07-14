@@ -602,7 +602,7 @@
             </div>
 
             <!-- 任务设置模块 -->
-            <div class="row title" title="配置影视发现页面创建任务时的智能填充规则，包括各类型内容的保存路径格式和命名规则">
+            <div class="row title" title="配置影视发现页面创建任务时的智能填充规则，请使用你的网盘目录替换默认的目录前缀，否则将自动继承任务列表最后一个任务的保存路径，查阅Wiki了解详情">
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">任务设置</h2>
                 <span class="badge badge-pill badge-light">
@@ -2475,6 +2475,10 @@
           }
         },
         activeTab(newValue, oldValue) {
+          // 如果切换到任务列表页面，则刷新任务最新信息
+          if (newValue === 'tasklist') {
+            this.loadTaskLatestInfo();
+          }
           // 如果切换到文件整理页面，则加载文件列表
           if (newValue === 'filemanager') {
             this.fetchAccountsDetail();
@@ -3038,14 +3042,19 @@
           if (window.innerWidth <= 768) {
             $('#sidebarMenu').collapse('toggle')
           }
-          
+
+          // 当切换到任务列表标签时刷新任务最新信息
+          if (tab === 'tasklist') {
+            this.loadTaskLatestInfo();
+          }
+
           // 当切换到历史记录标签时加载数据
           if (tab === 'history') {
             this.loadHistoryRecords();
             // 加载所有任务名称用于筛选
             this.loadAllTaskNames();
           }
-          
+
           // 当切换到文件整理标签时加载文件列表
           if (tab === 'filemanager') {
             // 从本地存储中恢复文件管理器的分页大小设置
