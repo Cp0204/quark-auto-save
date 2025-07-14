@@ -5970,7 +5970,8 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 .discovery-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 20px;
+  column-gap: 20px;
+  row-gap: 14px;
   padding: 0;
 }
 
@@ -6110,7 +6111,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 
 .discovery-genre {
   font-size: 0.95rem;
-  color: #888;
+  color: #979799;
   margin-bottom: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -6131,7 +6132,8 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 @media (max-width: 576px) {
   .discovery-grid {
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 20px;
+    column-gap: 20px;
+    row-gap: 14px;
   }
 
   .discovery-btn {

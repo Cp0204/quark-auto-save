@@ -7209,7 +7209,19 @@
               details.push(parts[2]); // 类型
             }
             if (parts.length >= 4 && parts[3]) {
-              details.push(parts[3]); // 导演
+              // 处理导演信息，最多显示两个导演
+              const directors = parts[3].trim();
+              if (directors) {
+                const directorList = directors.split(/\s+/); // 按空格分割导演名字
+                if (directorList.length > 2) {
+                  // 如果导演超过2个，只取前两个
+                  const limitedDirectors = directorList.slice(0, 2).join(' ');
+                  details.push(limitedDirectors);
+                } else {
+                  // 导演不超过2个，直接显示
+                  details.push(directors);
+                }
+              }
             }
             if (parts.length >= 5 && parts[4]) {
               details.push(parts[4]); // 主演
