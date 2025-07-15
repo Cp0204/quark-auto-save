@@ -4084,7 +4084,7 @@ table.selectable-records .expand-button:hover {
   position: static;
 }
 
-/* 确保按钮容器在悬停时保持宽度 */
+/* 确保按钮容器在悬停时保持宽度 - 桌面端 */
 .task-buttons {
   position: relative;
   min-width: 160px; /* 根据按钮数量和间距调整 */
@@ -4103,6 +4103,95 @@ table.selectable-records .expand-button:hover {
 @media (max-width: 767.98px) {
   .task .col-auto.task-buttons {
     padding-right: 15px; /* 与添加任务按钮的右边距保持一致 */
+  }
+
+  /* 移动端优化：当所有按钮都是悬停显示时，减少按钮容器的最小宽度 */
+  .task-buttons {
+    min-width: 40px; /* 大幅减少最小宽度，从160px减少到40px */
+  }
+
+  /* 当任务不在悬停状态且所有按钮都是悬停显示时，进一步减少宽度 */
+  .task:not(:hover) .task-buttons {
+    min-width: 20px; /* 非悬停状态下进一步减少宽度 */
+  }
+
+  /* 移动端任务列表显示优化 */
+  /* 默认状态：隐藏所有按钮，显示元数据信息 */
+  .task-buttons .btn {
+    display: none;
+  }
+
+  .task-latest-date,
+  .task-latest-file {
+    display: inline;
+  }
+
+  /* 悬停状态或展开状态：显示按钮，隐藏元数据信息 */
+  .task:hover .task-buttons .btn,
+  .task.task-expanded .task-buttons .btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .task:hover .task-latest-date,
+  .task:hover .task-latest-file,
+  .task.task-expanded .task-latest-date,
+  .task.task-expanded .task-latest-file {
+    display: none;
+  }
+
+  /* 当日更新标识在所有状态下都显示 */
+  .task-today-indicator {
+    display: inline-block !important;
+  }
+
+  /* 确保移动端Plex和AList图标样式不受影响 */
+  .task-buttons .btn-outline-plex .plex-icon {
+    width: 10.3px;
+    height: auto;
+    object-fit: contain;
+    position: static;
+    top: auto;
+  }
+
+  .task-buttons .btn-outline-alist .alist-icon {
+    width: 18px;
+    height: auto;
+    object-fit: contain;
+    position: relative;
+    top: -0.5px;
+  }
+}
+
+/* 确保桌面端不受移动端优化影响 */
+@media (min-width: 768px) {
+  .task-buttons .btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .task-latest-date,
+  .task-latest-file {
+    display: inline !important;
+  }
+
+  /* 确保桌面端图标样式正常 */
+  .task-buttons .btn-outline-plex .plex-icon {
+    width: 10.3px;
+    height: auto;
+    object-fit: contain;
+    position: static;
+    top: auto;
+  }
+
+  .task-buttons .btn-outline-alist .alist-icon {
+    width: 18px;
+    height: auto;
+    object-fit: contain;
+    position: relative;
+    top: -0.5px;
   }
 }
 
@@ -4151,6 +4240,17 @@ table.selectable-records .expand-button:hover {
   -webkit-text-fill-color: transparent;
   background-clip: text;
   color: var(--focus-border-color); /* 备用颜色，以防渐变不支持 */
+}
+
+/* iOS Safari兼容性修复 - 只针对iOS设备使用纯色 */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 767.98px) {
+    .task-today-indicator i {
+      /* 在iOS设备上使用纯色，确保可见性 */
+      -webkit-text-fill-color: var(--focus-border-color);
+      background: none;
+    }
+  }
 }
 
 /* 当日更新图标悬停显示样式 */

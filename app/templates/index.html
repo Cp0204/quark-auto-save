@@ -2647,6 +2647,9 @@
           
           // 检查分享链接状态
           this.checkShareUrlStatus();
+
+          // 添加移动端任务列表展开/收起状态监听
+          this.setupMobileTaskListToggle();
         }, 500);
       },
       beforeDestroy() {
@@ -2655,6 +2658,27 @@
         document.removeEventListener('click', this.handleOutsideClick);
       },
       methods: {
+        // 设置移动端任务列表展开/收起状态监听
+        setupMobileTaskListToggle() {
+          // 监听所有collapse事件
+          $(document).on('show.bs.collapse', '[id^="collapse_"]', (e) => {
+            const collapseId = e.target.id;
+            const taskIndex = collapseId.replace('collapse_', '');
+            const taskElement = $(e.target).closest('.task');
+            if (taskElement.length) {
+              taskElement.addClass('task-expanded');
+            }
+          });
+
+          $(document).on('hide.bs.collapse', '[id^="collapse_"]', (e) => {
+            const collapseId = e.target.id;
+            const taskIndex = collapseId.replace('collapse_', '');
+            const taskElement = $(e.target).closest('.task');
+            if (taskElement.length) {
+              taskElement.removeClass('task-expanded');
+            }
+          });
+        },
         // 获取文件图标类名
         getFileIconClass(fileName, isDir = false) {
           return getFileIconClass(fileName, isDir);
