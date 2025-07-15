@@ -4110,9 +4110,9 @@ table.selectable-records .expand-button:hover {
     min-width: 40px; /* 大幅减少最小宽度，从160px减少到40px */
   }
 
-  /* 当任务不在悬停状态且所有按钮都是悬停显示时，进一步减少宽度 */
-  .task:not(:hover) .task-buttons {
-    min-width: 20px; /* 非悬停状态下进一步减少宽度 */
+  /* 当任务不在悬停状态且所有按钮都是悬停显示时，完全隐藏按钮容器 */
+  .task:not(:hover):not(.task-expanded) .task-buttons {
+    display: none; /* 完全隐藏按钮容器，释放所有空间 */
   }
 
   /* 移动端任务列表显示优化 */
@@ -4132,6 +4132,25 @@ table.selectable-records .expand-button:hover {
     display: flex !important;
     align-items: center;
     justify-content: center;
+  }
+
+  /* 悬停或展开状态下恢复按钮容器的显示和空间 */
+  .task:hover .task-buttons,
+  .task.task-expanded .task-buttons {
+    display: flex !important; /* 恢复显示 */
+    min-width: 40px !important;
+    padding-right: 15px !important;
+    padding-left: 0 !important; /* 移除左内边距 */
+    margin-left: 0 !important; /* 移除左外边距 */
+    justify-content: flex-end; /* 按钮右对齐 */
+  }
+
+  /* 针对移动端，覆盖Bootstrap col-auto的默认样式 */
+  .task:hover .col-auto.task-buttons,
+  .task.task-expanded .col-auto.task-buttons {
+    flex: 0 0 auto !important; /* 不伸缩，仅占用内容宽度 */
+    width: auto !important; /* 自动宽度 */
+    max-width: none !important; /* 移除最大宽度限制 */
   }
 
   .task:hover .task-latest-date,
