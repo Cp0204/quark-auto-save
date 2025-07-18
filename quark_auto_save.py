@@ -251,6 +251,22 @@ def sort_file_by_name(file):
             arabic_seq_match = re.search(r'[上中下][集期话部篇]?(\d+)', filename)
             if arabic_seq_match:
                 sequence_number = int(arabic_seq_match.group(1))
+    else:
+        # 如果没有上中下标记，检查是否有括号内的中文数字序号
+        # 匹配格式如：第2期（一）、第2期（二）等
+        parentheses_chinese_match = re.search(r'[期集话部篇][（(]([一二三四五六七八九十百千万零两]+)[）)]', filename)
+        if parentheses_chinese_match:
+            chinese_num = parentheses_chinese_match.group(1)
+            arabic_num = chinese_to_arabic(chinese_num)
+            if arabic_num is not None:
+                sequence_number = arabic_num
+                segment_base = 1  # 给一个基础值，确保有括号序号的文件能正确排序
+        else:
+            # 匹配格式如：第2期(1)、第2期(2)等
+            parentheses_arabic_match = re.search(r'[期集话部篇][（(](\d+)[）)]', filename)
+            if parentheses_arabic_match:
+                sequence_number = int(parentheses_arabic_match.group(1))
+                segment_base = 1  # 给一个基础值，确保有括号序号的文件能正确排序
 
     # 组合segment_value：基础值*1000 + 序号值，确保排序正确
     segment_value = segment_base * 1000 + sequence_number
