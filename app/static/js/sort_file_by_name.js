@@ -194,6 +194,24 @@ function sortFileByName(file) {
                 sequence_number = parseInt(arabic_seq_match[1]);
             }
         }
+    } else {
+        // 如果没有上中下标记，检查是否有括号内的中文数字序号
+        // 匹配格式如：第2期（一）、第2期（二）等
+        let parentheses_chinese_match = filename.match(/[期集话部篇][（(]([一二三四五六七八九十百千万零两]+)[）)]/);
+        if (parentheses_chinese_match) {
+            let arabic_num = chineseToArabic(parentheses_chinese_match[1]);
+            if (arabic_num !== null) {
+                sequence_number = arabic_num;
+                segment_base = 1;  // 给一个基础值，确保有括号序号的文件能正确排序
+            }
+        } else {
+            // 匹配格式如：第2期(1)、第2期(2)等
+            let parentheses_arabic_match = filename.match(/[期集话部篇][（(](\d+)[）)]/);
+            if (parentheses_arabic_match) {
+                sequence_number = parseInt(parentheses_arabic_match[1]);
+                segment_base = 1;  // 给一个基础值，确保有括号序号的文件能正确排序
+            }
+        }
     }
 
     // 组合segment_value：基础值*1000 + 序号值，确保排序正确
