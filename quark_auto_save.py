@@ -302,11 +302,11 @@ class MagicRename:
 
     def set_dir_file_list(self, file_list, replace):
         """设置目录文件列表"""
-        if not file_list:
-            return
         self.dir_filename_dict = {}
         filename_list = [f["file_name"] for f in file_list if not f["dir"]]
         filename_list.sort()
+        if not filename_list:
+            return
         if match := re.search(r"\{I+\}", replace):
             # 由替换式转换匹配式
             magic_i = match.group()
