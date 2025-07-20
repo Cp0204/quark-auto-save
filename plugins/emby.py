@@ -63,11 +63,11 @@ class Emby:
         url = f"{self.url}/emby/Items/{emby_id}/Refresh"
         headers = {"X-Emby-Token": self.token}
         querystring = {
-            "Recursive": "true",
+            "Recursive": True,
             "MetadataRefreshMode": "FullRefresh",
             "ImageRefreshMode": "FullRefresh",
-            "ReplaceAllMetadata": "false",
-            "ReplaceAllImages": "false",
+            "ReplaceAllMetadata": True,
+            "ReplaceAllImages": True,
         }
         try:
             response = requests.request(
@@ -114,3 +114,4 @@ class Emby:
         except Exception as e:
             print(f"搜索Emby媒体库出错: {e}")
         return ""
+        
