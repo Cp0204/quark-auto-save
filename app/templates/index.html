@@ -504,7 +504,7 @@
                       <td v-if="file.dir">{{ file.include_items }}项</td>
                       <td v-else>{{file.size | size}}</td>
                       <td>{{file.updated_at | ts2date}}</td>
-                      <td v-if="!fileSelect.selectShare"><a @click.stop.prevent="deleteFile(file.fid, file.file_name, file.dir)">删除</a></td>
+                      <td v-if="!fileSelect.selectShare"><a class="cursor-pointer text-muted" @click.stop.prevent="deleteFile(file.fid, file.file_name, file.dir)">删除</a></td>
                     </template>
                   </tr>
                 </tbody>
