@@ -1484,7 +1484,7 @@
             <!-- 分页区域 -->
             <div class="pagination-container d-flex justify-content-between align-items-center mt-3">
               <div class="page-info text-secondary">
-                显示 {{ fileManager.currentPage > 0 ? ((fileManager.currentPage - 1) * fileManager.pageSize + 1) + '-' + Math.min(fileManager.currentPage * fileManager.pageSize, fileManager.total) : '0' }} 项，共 {{ fileManager.total }} 个项目{{ fileManager.selectedFiles.length > 0 ? '，已选中 ' + fileManager.selectedFiles.length + ' 项' : '' }}
+                显示 {{ fileManager.total > 0 ? ((fileManager.currentPage - 1) * fileManager.pageSize + 1) + '-' + Math.min(fileManager.currentPage * fileManager.pageSize, fileManager.total) : '0-0' }} 项，共 {{ fileManager.total }} 个项目{{ fileManager.selectedFiles.length > 0 ? '，已选中 ' + fileManager.selectedFiles.length + ' 项' : '' }}
               </div>
               <div class="pagination-controls d-flex align-items-center">
                 <button type="button" class="btn btn-outline-secondary btn-sm mx-1" :class="{ disabled: fileManager.currentPage <= 1 }" @click="changeFolderPage(fileManager.currentPage - 1)" :disabled="fileManager.currentPage <= 1">
