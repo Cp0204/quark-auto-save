@@ -170,46 +170,84 @@ function sortFileByName(file) {
     let segment_base = 0;  // 基础值：上=1, 中=2, 下=3
     let sequence_number = 0;  // 序号值：用于处理上中下后的数字或中文数字序号
 
-    if (/[上][集期话部篇]?|[集期话部篇]上/.test(filename)) {
+    // 严格匹配上中下标记：只有当上中下与集期话部篇相邻时才认为是段落标记
+    // 避免误匹配文件内容中偶然出现的上中下字符
+    if (/上[集期话部篇]|[集期话部篇]上/.test(filename)) {
         segment_base = 1;
-    } else if (/[中][集期话部篇]?|[集期话部篇]中/.test(filename)) {
+    } else if (/中[集期话部篇]|[集期话部篇]中/.test(filename)) {
         segment_base = 2;
-    } else if (/[下][集期话部篇]?|[集期话部篇]下/.test(filename)) {
+    } else if (/下[集期话部篇]|[集期话部篇]下/.test(filename)) {
         segment_base = 3;
     }
 
-    // 当有上中下标记时，进一步提取后续的序号
-    if (segment_base > 0) {
-        // 提取上中下后的中文数字序号，如：上（一）、上（二）
-        let chinese_seq_match = filename.match(/[上中下][集期话部篇]?[（(]([一二三四五六七八九十百千万零两]+)[）)]/);
-        if (chinese_seq_match) {
-            let arabic_num = chineseToArabic(chinese_seq_match[1]);
-            if (arabic_num !== null) {
-                sequence_number = arabic_num;
-            }
-        } else {
-            // 提取上中下后的阿拉伯数字序号，如：上1、上2
-            let arabic_seq_match = filename.match(/[上中下][集期话部篇]?(\d+)/);
-            if (arabic_seq_match) {
-                sequence_number = parseInt(arabic_seq_match[1]);
-            }
-        }
-    } else {
-        // 如果没有上中下标记，检查是否有括号内的中文数字序号
-        // 匹配格式如：第2期（一）、第2期（二）等
-        let parentheses_chinese_match = filename.match(/[期集话部篇][（(]([一二三四五六七八九十百千万零两]+)[）)]/);
-        if (parentheses_chinese_match) {
-            let arabic_num = chineseToArabic(parentheses_chinese_match[1]);
-            if (arabic_num !== null) {
-                sequence_number = arabic_num;
-                segment_base = 1;  // 给一个基础值，确保有括号序号的文件能正确排序
-            }
-        } else {
-            // 匹配格式如：第2期(1)、第2期(2)等
-            let parentheses_arabic_match = filename.match(/[期集话部篇][（(](\d+)[）)]/);
-            if (parentheses_arabic_match) {
-                sequence_number = parseInt(parentheses_arabic_match[1]);
-                segment_base = 1;  // 给一个基础值，确保有括号序号的文件能正确排序
+    // 统一的序号提取逻辑，支持多种分隔符和格式
+    // 无论是否有上中下标记，都使用相同的序号提取逻辑
+
+    // 定义序号提取的模式，使用正向匹配组合的方式
+    // 这样可以精准匹配，避免误判"星期六"等内容
+    const sequence_patterns = [
+        // 第+中文数字+期集话部篇+序号：第一期（一）、第五十六期-二、第 一 期 三
+        { pattern: /第\s*[一二三四五六七八九十百千万零两]+\s*[期集话部篇]\s*[（(]\s*([一二三四五六七八九十百千万零两]+)\s*[）)]/u, type: 'chinese' },
+        { pattern: /第\s*[一二三四五六七八九十百千万零两]+\s*[期集话部篇]\s*[（(]\s*(\d+)\s*[）)]/u, type: 'arabic' },
+        { pattern: /第\s*[一二三四五六七八九十百千万零两]+\s*[期集话部篇]\s*[-_·丨]\s*([一二三四五六七八九十百千万零两]+)/u, type: 'chinese' },
+        { pattern: /第\s*[一二三四五六七八九十百千万零两]+\s*[期集话部篇]\s*[-_·丨]\s*(\d+)/u, type: 'arabic' },
+        { pattern: /第\s*[一二三四五六七八九十百千万零两]+\s*[期集话部篇]\s+([一二三四五六七八九十百千万零两]+)(?![一二三四五六七八九十])/u, type: 'chinese' },
+        { pattern: /第\s*[一二三四五六七八九十百千万零两]+\s*[期集话部篇]\s+(\d+)(?!\d)/u, type: 'arabic' },
+        { pattern: /第\s*[一二三四五六七八九十百千万零两]+\s*[期集话部篇]([一二三四五六七八九十])(?![一二三四五六七八九十])/u, type: 'chinese' },
+        { pattern: /第\s*[一二三四五六七八九十百千万零两]+\s*[期集话部篇](\d+)(?!\d)/u, type: 'arabic' },
+
+        // 第+阿拉伯数字+期集话部篇+序号：第1期（一）、第100期-二、第 1 期 三
+        { pattern: /第\s*\d+\s*[期集话部篇]\s*[（(]\s*([一二三四五六七八九十百千万零两]+)\s*[）)]/u, type: 'chinese' },
+        { pattern: /第\s*\d+\s*[期集话部篇]\s*[（(]\s*(\d+)\s*[）)]/u, type: 'arabic' },
+        { pattern: /第\s*\d+\s*[期集话部篇]\s*[-_·丨]\s*([一二三四五六七八九十百千万零两]+)/u, type: 'chinese' },
+        { pattern: /第\s*\d+\s*[期集话部篇]\s*[-_·丨]\s*(\d+)/u, type: 'arabic' },
+        { pattern: /第\s*\d+\s*[期集话部篇]\s+([一二三四五六七八九十百千万零两]+)(?![一二三四五六七八九十])/u, type: 'chinese' },
+        { pattern: /第\s*\d+\s*[期集话部篇]\s+(\d+)(?!\d)/u, type: 'arabic' },
+        { pattern: /第\s*\d+\s*[期集话部篇]([一二三四五六七八九十])(?![一二三四五六七八九十])/u, type: 'chinese' },
+        { pattern: /第\s*\d+\s*[期集话部篇](\d+)(?!\d)/u, type: 'arabic' },
+
+        // 上中下+集期话部篇+序号：上集（一）、中部-二、下篇 三
+        { pattern: /[上中下][集期话部篇]\s*[（(]\s*([一二三四五六七八九十百千万零两]+)\s*[）)]/u, type: 'chinese' },
+        { pattern: /[上中下][集期话部篇]\s*[（(]\s*(\d+)\s*[）)]/u, type: 'arabic' },
+        { pattern: /[上中下][集期话部篇]\s*[-_·丨]\s*([一二三四五六七八九十百千万零两]+)/u, type: 'chinese' },
+        { pattern: /[上中下][集期话部篇]\s*[-_·丨]\s*(\d+)/u, type: 'arabic' },
+        { pattern: /[上中下][集期话部篇]\s+([一二三四五六七八九十百千万零两]+)(?![一二三四五六七八九十])/u, type: 'chinese' },
+        { pattern: /[上中下][集期话部篇]\s+(\d+)(?!\d)/u, type: 'arabic' },
+        { pattern: /[上中下][集期话部篇]([一二三四五六七八九十])(?![一二三四五六七八九十])/u, type: 'chinese' },
+        { pattern: /[上中下][集期话部篇](\d+)(?!\d)/u, type: 'arabic' },
+
+        // 集期话部篇+上中下+序号：集上（一）、部中-二、篇下 三
+        { pattern: /[集期话部篇][上中下]\s*[（(]\s*([一二三四五六七八九十百千万零两]+)\s*[）)]/u, type: 'chinese' },
+        { pattern: /[集期话部篇][上中下]\s*[（(]\s*(\d+)\s*[）)]/u, type: 'arabic' },
+        { pattern: /[集期话部篇][上中下]\s*[-_·丨]\s*([一二三四五六七八九十百千万零两]+)/u, type: 'chinese' },
+        { pattern: /[集期话部篇][上中下]\s*[-_·丨]\s*(\d+)/u, type: 'arabic' },
+        { pattern: /[集期话部篇][上中下]\s+([一二三四五六七八九十百千万零两]+)(?![一二三四五六七八九十])/u, type: 'chinese' },
+        { pattern: /[集期话部篇][上中下]\s+(\d+)(?!\d)/u, type: 'arabic' },
+        { pattern: /[集期话部篇][上中下]([一二三四五六七八九十])(?![一二三四五六七八九十])/u, type: 'chinese' },
+        { pattern: /[集期话部篇][上中下](\d+)(?!\d)/u, type: 'arabic' },
+    ];
+
+    // 尝试匹配序号
+    for (const { pattern, type } of sequence_patterns) {
+        const match = filename.match(pattern);
+        if (match) {
+            if (type === 'chinese') {
+                const arabic_num = chineseToArabic(match[1]);
+                if (arabic_num !== null) {
+                    sequence_number = arabic_num;
+                    // 如果之前没有检测到上中下标记，给一个基础值
+                    if (segment_base === 0) {
+                        segment_base = 1;
+                    }
+                    break;
+                }
+            } else { // arabic
+                sequence_number = parseInt(match[1]);
+                // 如果之前没有检测到上中下标记，给一个基础值
+                if (segment_base === 0) {
+                    segment_base = 1;
+                }
+                break;
             }
         }
     }

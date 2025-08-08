@@ -147,14 +147,14 @@ def sort_file_by_name(file):
     
     # 2. 提取期数/集数 - 第二级排序键
     
-    # 2.1 "第X期/集/话" 格式
-    match_chinese = re.search(r'第(\d+)[期集话]', filename)
+    # 2.1 "第X期/集/话/部/篇" 格式（支持空格）
+    match_chinese = re.search(r'第\s*(\d+)\s*[期集话部篇]', filename)
     if match_chinese:
         episode_value = int(match_chinese.group(1))
-    
-    # 2.1.1 "第[中文数字]期/集/话" 格式
+
+    # 2.1.1 "第[中文数字]期/集/话/部/篇" 格式（支持空格）
     if episode_value == float('inf'):
-        match_chinese_num = re.search(r'第([一二三四五六七八九十百千万零两]+)[期集话]', filename)
+        match_chinese_num = re.search(r'第\s*([一二三四五六七八九十百千万零两]+)\s*[期集话部篇]', filename)
         if match_chinese_num:
             chinese_num = match_chinese_num.group(1)
             arabic_num = chinese_to_arabic(chinese_num)
@@ -230,43 +230,80 @@ def sort_file_by_name(file):
     segment_base = 0  # 基础值：上=1, 中=2, 下=3
     sequence_number = 0  # 序号值：用于处理上中下后的数字或中文数字序号
 
-    if re.search(r'上[集期话部篇]?|[集期话部篇]上', filename):
+    # 严格匹配上中下标记：只有当上中下与集期话部篇相邻时才认为是段落标记
+    # 避免误匹配文件内容中偶然出现的上中下字符
+    if re.search(r'上[集期话部篇]|[集期话部篇]上', filename):
         segment_base = 1
-    elif re.search(r'中[集期话部篇]?|[集期话部篇]中', filename):
+    elif re.search(r'中[集期话部篇]|[集期话部篇]中', filename):
         segment_base = 2
-    elif re.search(r'下[集期话部篇]?|[集期话部篇]下', filename):
+    elif re.search(r'下[集期话部篇]|[集期话部篇]下', filename):
         segment_base = 3
 
-    # 当有上中下标记时，进一步提取后续的序号
-    if segment_base > 0:
-        # 提取上中下后的中文数字序号，如：上（一）、上（二）
-        chinese_seq_match = re.search(r'[上中下][集期话部篇]?[（(]([一二三四五六七八九十百千万零两]+)[）)]', filename)
-        if chinese_seq_match:
-            chinese_num = chinese_seq_match.group(1)
-            arabic_num = chinese_to_arabic(chinese_num)
-            if arabic_num is not None:
-                sequence_number = arabic_num
-        else:
-            # 提取上中下后的阿拉伯数字序号，如：上1、上2
-            arabic_seq_match = re.search(r'[上中下][集期话部篇]?(\d+)', filename)
-            if arabic_seq_match:
-                sequence_number = int(arabic_seq_match.group(1))
-    else:
-        # 如果没有上中下标记，检查是否有括号内的中文数字序号
-        # 匹配格式如：第2期（一）、第2期（二）等
-        parentheses_chinese_match = re.search(r'[期集话部篇][（(]([一二三四五六七八九十百千万零两]+)[）)]', filename)
-        if parentheses_chinese_match:
-            chinese_num = parentheses_chinese_match.group(1)
-            arabic_num = chinese_to_arabic(chinese_num)
-            if arabic_num is not None:
-                sequence_number = arabic_num
-                segment_base = 1  # 给一个基础值，确保有括号序号的文件能正确排序
-        else:
-            # 匹配格式如：第2期(1)、第2期(2)等
-            parentheses_arabic_match = re.search(r'[期集话部篇][（(](\d+)[）)]', filename)
-            if parentheses_arabic_match:
-                sequence_number = int(parentheses_arabic_match.group(1))
-                segment_base = 1  # 给一个基础值，确保有括号序号的文件能正确排序
+    # 统一的序号提取逻辑，支持多种分隔符和格式
+    # 无论是否有上中下标记，都使用相同的序号提取逻辑
+
+    # 定义序号提取的模式，使用正向匹配组合的方式
+    # 这样可以精准匹配，避免误判"星期六"等内容
+    sequence_patterns = [
+        # 第+中文数字+期集话部篇+序号：第一期（一）、第五十六期-二、第 一 期 三
+        (r'第\s*[一二三四五六七八九十百千万零两]+\s*[期集话部篇]\s*[（(]\s*([一二三四五六七八九十百千万零两]+)\s*[）)]', 'chinese'),
+        (r'第\s*[一二三四五六七八九十百千万零两]+\s*[期集话部篇]\s*[（(]\s*(\d+)\s*[）)]', 'arabic'),
+        (r'第\s*[一二三四五六七八九十百千万零两]+\s*[期集话部篇]\s*[-_·丨]\s*([一二三四五六七八九十百千万零两]+)', 'chinese'),
+        (r'第\s*[一二三四五六七八九十百千万零两]+\s*[期集话部篇]\s*[-_·丨]\s*(\d+)', 'arabic'),
+        (r'第\s*[一二三四五六七八九十百千万零两]+\s*[期集话部篇]\s+([一二三四五六七八九十百千万零两]+)(?![一二三四五六七八九十])', 'chinese'),
+        (r'第\s*[一二三四五六七八九十百千万零两]+\s*[期集话部篇]\s+(\d+)(?!\d)', 'arabic'),
+        (r'第\s*[一二三四五六七八九十百千万零两]+\s*[期集话部篇]([一二三四五六七八九十])(?![一二三四五六七八九十])', 'chinese'),
+        (r'第\s*[一二三四五六七八九十百千万零两]+\s*[期集话部篇](\d+)(?!\d)', 'arabic'),
+
+        # 第+阿拉伯数字+期集话部篇+序号：第1期（一）、第100期-二、第 1 期 三
+        (r'第\s*\d+\s*[期集话部篇]\s*[（(]\s*([一二三四五六七八九十百千万零两]+)\s*[）)]', 'chinese'),
+        (r'第\s*\d+\s*[期集话部篇]\s*[（(]\s*(\d+)\s*[）)]', 'arabic'),
+        (r'第\s*\d+\s*[期集话部篇]\s*[-_·丨]\s*([一二三四五六七八九十百千万零两]+)', 'chinese'),
+        (r'第\s*\d+\s*[期集话部篇]\s*[-_·丨]\s*(\d+)', 'arabic'),
+        (r'第\s*\d+\s*[期集话部篇]\s+([一二三四五六七八九十百千万零两]+)(?![一二三四五六七八九十])', 'chinese'),
+        (r'第\s*\d+\s*[期集话部篇]\s+(\d+)(?!\d)', 'arabic'),
+        (r'第\s*\d+\s*[期集话部篇]([一二三四五六七八九十])(?![一二三四五六七八九十])', 'chinese'),
+        (r'第\s*\d+\s*[期集话部篇](\d+)(?!\d)', 'arabic'),
+
+        # 上中下+集期话部篇+序号：上集（一）、中部-二、下篇 三
+        (r'[上中下][集期话部篇]\s*[（(]\s*([一二三四五六七八九十百千万零两]+)\s*[）)]', 'chinese'),
+        (r'[上中下][集期话部篇]\s*[（(]\s*(\d+)\s*[）)]', 'arabic'),
+        (r'[上中下][集期话部篇]\s*[-_·丨]\s*([一二三四五六七八九十百千万零两]+)', 'chinese'),
+        (r'[上中下][集期话部篇]\s*[-_·丨]\s*(\d+)', 'arabic'),
+        (r'[上中下][集期话部篇]\s+([一二三四五六七八九十百千万零两]+)(?![一二三四五六七八九十])', 'chinese'),
+        (r'[上中下][集期话部篇]\s+(\d+)(?!\d)', 'arabic'),
+        (r'[上中下][集期话部篇]([一二三四五六七八九十])(?![一二三四五六七八九十])', 'chinese'),
+        (r'[上中下][集期话部篇](\d+)(?!\d)', 'arabic'),
+
+        # 集期话部篇+上中下+序号：集上（一）、部中-二、篇下 三
+        (r'[集期话部篇][上中下]\s*[（(]\s*([一二三四五六七八九十百千万零两]+)\s*[）)]', 'chinese'),
+        (r'[集期话部篇][上中下]\s*[（(]\s*(\d+)\s*[）)]', 'arabic'),
+        (r'[集期话部篇][上中下]\s*[-_·丨]\s*([一二三四五六七八九十百千万零两]+)', 'chinese'),
+        (r'[集期话部篇][上中下]\s*[-_·丨]\s*(\d+)', 'arabic'),
+        (r'[集期话部篇][上中下]\s+([一二三四五六七八九十百千万零两]+)(?![一二三四五六七八九十])', 'chinese'),
+        (r'[集期话部篇][上中下]\s+(\d+)(?!\d)', 'arabic'),
+        (r'[集期话部篇][上中下]([一二三四五六七八九十])(?![一二三四五六七八九十])', 'chinese'),
+        (r'[集期话部篇][上中下](\d+)(?!\d)', 'arabic'),
+    ]
+
+    # 尝试匹配序号
+    for pattern, num_type in sequence_patterns:
+        match = re.search(pattern, filename)
+        if match:
+            if num_type == 'chinese':
+                arabic_num = chinese_to_arabic(match.group(1))
+                if arabic_num is not None:
+                    sequence_number = arabic_num
+                    # 如果之前没有检测到上中下标记，给一个基础值
+                    if segment_base == 0:
+                        segment_base = 1
+                    break
+            else:  # arabic
+                sequence_number = int(match.group(1))
+                # 如果之前没有检测到上中下标记，给一个基础值
+                if segment_base == 0:
+                    segment_base = 1
+                break
 
     # 组合segment_value：基础值*1000 + 序号值，确保排序正确
     segment_value = segment_base * 1000 + sequence_number
