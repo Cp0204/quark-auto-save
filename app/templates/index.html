@@ -659,6 +659,16 @@
             <div class="form-group">
               <div class="input-group">
                 <div class="input-group-prepend">
+                  <span class="input-group-text">电影命名规则</span>
+                </div>
+                <input type="text" class="form-control" v-model="formData.task_settings.movie_naming_pattern" placeholder="^(.*)\.([^.]+)" title="设置电影类型内容的默认文件命名规则的匹配表达式，在影视发现页面创建电影任务时自动填充">
+                <input type="text" class="form-control" v-model="formData.task_settings.movie_naming_replace" placeholder="片名 (年份).\2" title="设置电影类型内容的默认文件命名规则的替换表达式，在影视发现页面创建电影任务时自动填充。支持变量：片名、年份等">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="input-group">
+                <div class="input-group-prepend">
                   <span class="input-group-text">电视命名规则</span>
                 </div>
                 <input type="text" class="form-control" v-model="formData.task_settings.tv_naming_rule" placeholder="剧名 - S季数E[]" title="设置电视类型内容的默认文件命名规则，在影视发现页面创建电视任务时自动填充。支持变量：剧名、季数、集数等，[]表示集数占位符">
@@ -2068,6 +2078,8 @@
             anime_save_path: "动画目录前缀/剧名 (年份)/剧名 - S季数",
             variety_save_path: "综艺目录前缀/剧名 (年份)/剧名 - S季数",
             documentary_save_path: "纪录片目录前缀/剧名 (年份)/剧名 - S季数",
+            movie_naming_pattern: "^(.*)\.([^.]+)",
+            movie_naming_replace: "片名 (年份).\\2",
             tv_naming_rule: "剧名 - S季数E[]",
             tv_ignore_extension: true
           },
@@ -3163,10 +3175,19 @@
                   anime_save_path: "动画目录前缀/剧名 (年份)/剧名 - S季数",
                   variety_save_path: "综艺目录前缀/剧名 (年份)/剧名 - S季数",
                   documentary_save_path: "纪录片目录前缀/剧名 (年份)/剧名 - S季数",
+                  movie_naming_pattern: "^(.*)\.([^.]+)",
+                  movie_naming_replace: "片名 (年份).\\2",
                   tv_naming_rule: "剧名 - S季数E[]",
                   tv_ignore_extension: true,
                   auto_search_resources: "enabled"
                 };
+              }
+              // 确保电影命名规则字段存在
+              if (!config_data.task_settings.movie_naming_pattern) {
+                config_data.task_settings.movie_naming_pattern = "^(.*)\.([^.]+)";
+              }
+              if (!config_data.task_settings.movie_naming_replace) {
+                config_data.task_settings.movie_naming_replace = "片名 (年份).\\2";
               }
               // 确保电视忽略后缀设置存在
               if (config_data.task_settings.tv_ignore_extension === undefined) {
@@ -7499,8 +7520,25 @@
           if (contentType === 'movie') {
             this.createTask.taskData.taskname = title;
             this.createTask.taskData.savepath = this.generateMovieSavePath(savePathTemplate, title, year);
-            this.createTask.taskData.pattern = "";
-            this.createTask.taskData.replace = "";
+
+            // 应用电影命名规则
+            const movieNamingPattern = taskSettings.movie_naming_pattern && taskSettings.movie_naming_pattern.trim() !== ""
+              ? taskSettings.movie_naming_pattern
+              : "";
+            const movieNamingReplace = taskSettings.movie_naming_replace && taskSettings.movie_naming_replace.trim() !== ""
+              ? taskSettings.movie_naming_replace
+              : "";
+
+            if (movieNamingPattern && movieNamingReplace) {
+              // 生成智能填充的替换表达式
+              const generatedReplace = this.generateMovieNamingRule(movieNamingReplace, title, year);
+              this.createTask.taskData.pattern = movieNamingPattern;
+              this.createTask.taskData.replace = generatedReplace;
+            } else {
+              this.createTask.taskData.pattern = "";
+              this.createTask.taskData.replace = "";
+            }
+
             this.createTask.taskData.use_sequence_naming = false;
             this.createTask.taskData.use_episode_naming = false;
             this.createTask.taskData.sequence_naming = "";
@@ -7695,6 +7733,26 @@
 
           // 替换季数
           namingRule = namingRule.replace(/季数/g, season);
+
+          return namingRule;
+        },
+        generateMovieNamingRule(replaceTemplate, movieTitle, year) {
+          // 生成电影命名规则
+          let namingRule = replaceTemplate;
+
+          // 替换片名
+          namingRule = namingRule.replace(/片名/g, movieTitle);
+
+          // 替换年份
+          if (year) {
+            namingRule = namingRule.replace(/年份/g, year);
+          } else {
+            // 如果没有年份，移除包含年份的部分
+            namingRule = namingRule.replace(/\s*\(年份\)/g, '');
+            namingRule = namingRule.replace(/\s*（年份）/g, '');
+          }
+
+          // 注意：正则表达式的反向引用（如\2）保持不变，将在实际重命名时由正则引擎处理
 
           return namingRule;
         },
