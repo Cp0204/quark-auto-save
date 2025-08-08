@@ -363,6 +363,18 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
     for pattern in resolution_patterns:
         filename_without_dates = re.sub(pattern, ' ', filename_without_dates)
 
+    # 预处理：移除季编号标识，避免误提取季编号为集编号
+    season_patterns = [
+        r'[Ss]\d+(?![Ee])',  # S1, S01 (但不包括S01E01中的S01)
+        r'[Ss]\s+\d+',  # S 1, S 01
+        r'Season\s*\d+',  # Season1, Season 1
+        r'第\s*\d+\s*季',  # 第1季, 第 1 季
+        r'第\s*[一二三四五六七八九十百千万零两]+\s*季',  # 第一季, 第 二 季
+    ]
+
+    for pattern in season_patterns:
+        filename_without_dates = re.sub(pattern, ' ', filename_without_dates, flags=re.IGNORECASE)
+
     # 优先匹配SxxExx格式
     match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename_without_dates)
     if match_s_e:
