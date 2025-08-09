@@ -2081,7 +2081,7 @@
             anime_save_path: "动画目录前缀/剧名 (年份)/剧名 - S季数",
             variety_save_path: "综艺目录前缀/剧名 (年份)/剧名 - S季数",
             documentary_save_path: "纪录片目录前缀/剧名 (年份)/剧名 - S季数",
-            movie_naming_pattern: "^(.*)\.([^.]+)",
+            movie_naming_pattern: "^(.*)\\.([^.]+)",
             movie_naming_replace: "片名 (年份).\\2",
             tv_naming_rule: "剧名 - S季数E[]",
             tv_ignore_extension: true
@@ -3178,7 +3178,7 @@
                   anime_save_path: "动画目录前缀/剧名 (年份)/剧名 - S季数",
                   variety_save_path: "综艺目录前缀/剧名 (年份)/剧名 - S季数",
                   documentary_save_path: "纪录片目录前缀/剧名 (年份)/剧名 - S季数",
-                  movie_naming_pattern: "^(.*)\.([^.]+)",
+                  movie_naming_pattern: "^(.*)\\.([^.]+)",
                   movie_naming_replace: "片名 (年份).\\2",
                   tv_naming_rule: "剧名 - S季数E[]",
                   tv_ignore_extension: true,
@@ -3187,7 +3187,7 @@
               }
               // 确保电影命名规则字段存在
               if (!config_data.task_settings.movie_naming_pattern) {
-                config_data.task_settings.movie_naming_pattern = "^(.*)\.([^.]+)";
+                config_data.task_settings.movie_naming_pattern = "^(.*)\\.([^.]+)";
               }
               if (!config_data.task_settings.movie_naming_replace) {
                 config_data.task_settings.movie_naming_replace = "片名 (年份).\\2";
