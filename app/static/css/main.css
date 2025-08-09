@@ -3984,8 +3984,11 @@ table.selectable-records .expand-button:hover {
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   padding-right: 25px !important;
+  padding-top: 0.5px !important; /* 文本和超长省略号下移0.5px */
   max-width: 100% !important;
   display: block !important;
+  line-height: 19px !important;
+  box-sizing: border-box !important;
 }
 
 /* 强制文件整理页面重命名列的所有子元素使用inline显示，确保文本截断正常工作 */
@@ -5534,7 +5537,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 /* 文件整理页面无法识别剧集编号样式 */
 #fileSelectModal[data-modal-type="preview-filemanager"] .episode-number-text {
   position: relative;
-  top: 1.5px; /* 或你想要的像素 */
+  top: 1px; /* 上移0.5px，从1.5px改为1px */
   display: inline-block;
 }
 
@@ -5549,7 +5552,6 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 /* 文件整理页面无法识别剧集编号前面的 × 样式 */
 #fileSelectModal[data-modal-type="preview-filemanager"] .episode-x {
   position: relative;
-  top: 0.5px;
   display: inline;
   margin-right: 2px;
 }
@@ -6310,4 +6312,16 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   .discovery-grid {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   }
+}
+
+/* 文件整理页面命名预览模式下的展开状态文本位置调整 - 最高优先级 */
+#fileSelectModal[data-modal-type="preview-filemanager"] .table td.col-rename > div[style*="white-space: normal"][style*="word-break: break-word"] {
+  position: relative !important;
+  top: 3.5px !important; /* 展开状态文本下移0.5px，覆盖所有其他设置 */
+  margin-bottom: 8px !important; /* 文件整理页面展开状态下边距增加1px */
+}
+
+/* 任务列表和影视发现页面命名预览模式下的展开状态文本下边距调整 */
+#fileSelectModal[data-modal-type="preview"] .table td.col-rename > div[style*="white-space: normal"][style*="word-break: break-word"] {
+  margin-bottom: 7.5px !important; /* 任务列表页面展开状态下边距增加0.5px */
 }
