@@ -659,6 +659,16 @@
             <div class="form-group">
               <div class="input-group">
                 <div class="input-group-prepend">
+                  <span class="input-group-text">电影命名规则</span>
+                </div>
+                <input type="text" class="form-control" v-model="formData.task_settings.movie_naming_pattern" placeholder="^(.*)\.([^.]+)" title="设置电影类型内容的默认文件命名规则的匹配表达式，在影视发现页面创建电影任务时自动填充">
+                <input type="text" class="form-control" v-model="formData.task_settings.movie_naming_replace" placeholder="片名 (年份).\2" title="设置电影类型内容的默认文件命名规则的替换表达式，在影视发现页面创建电影任务时自动填充。支持变量：片名、年份等">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="input-group">
+                <div class="input-group-prepend">
                   <span class="input-group-text">电视命名规则</span>
                 </div>
                 <input type="text" class="form-control" v-model="formData.task_settings.tv_naming_rule" placeholder="剧名 - S季数E[]" title="设置电视类型内容的默认文件命名规则，在影视发现页面创建电视任务时自动填充。支持变量：剧名、季数、集数等，[]表示集数占位符">
@@ -1484,7 +1494,7 @@
             <!-- 分页区域 -->
             <div class="pagination-container d-flex justify-content-between align-items-center mt-3">
               <div class="page-info text-secondary">
-                显示 {{ fileManager.currentPage > 0 ? ((fileManager.currentPage - 1) * fileManager.pageSize + 1) + '-' + Math.min(fileManager.currentPage * fileManager.pageSize, fileManager.total) : '0' }} 项，共 {{ fileManager.total }} 个项目{{ fileManager.selectedFiles.length > 0 ? '，已选中 ' + fileManager.selectedFiles.length + ' 项' : '' }}
+                显示 {{ fileManager.total > 0 ? ((fileManager.currentPage - 1) * fileManager.pageSize + 1) + '-' + Math.min(fileManager.currentPage * fileManager.pageSize, fileManager.total) : '0-0' }} 项，共 {{ fileManager.total }} 个项目{{ fileManager.selectedFiles.length > 0 ? '，已选中 ' + fileManager.selectedFiles.length + ' 项' : '' }}
               </div>
               <div class="pagination-controls d-flex align-items-center">
                 <button type="button" class="btn btn-outline-secondary btn-sm mx-1" :class="{ disabled: fileManager.currentPage <= 1 }" @click="changeFolderPage(fileManager.currentPage - 1)" :disabled="fileManager.currentPage <= 1">
@@ -2032,6 +2042,9 @@
             <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmCreateAndRunTask">
               创建并运行任务
             </button>
+            <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmCreateRunAndDeleteTask">
+              创建、运行并删除任务
+            </button>
           </div>
         </div>
       </div>
@@ -2068,6 +2081,8 @@
             anime_save_path: "动画目录前缀/剧名 (年份)/剧名 - S季数",
             variety_save_path: "综艺目录前缀/剧名 (年份)/剧名 - S季数",
             documentary_save_path: "纪录片目录前缀/剧名 (年份)/剧名 - S季数",
+            movie_naming_pattern: "^(.*)\.([^.]+)",
+            movie_naming_replace: "片名 (年份).\\2",
             tv_naming_rule: "剧名 - S季数E[]",
             tv_ignore_extension: true
           },
@@ -3163,10 +3178,19 @@
                   anime_save_path: "动画目录前缀/剧名 (年份)/剧名 - S季数",
                   variety_save_path: "综艺目录前缀/剧名 (年份)/剧名 - S季数",
                   documentary_save_path: "纪录片目录前缀/剧名 (年份)/剧名 - S季数",
+                  movie_naming_pattern: "^(.*)\.([^.]+)",
+                  movie_naming_replace: "片名 (年份).\\2",
                   tv_naming_rule: "剧名 - S季数E[]",
                   tv_ignore_extension: true,
                   auto_search_resources: "enabled"
                 };
+              }
+              // 确保电影命名规则字段存在
+              if (!config_data.task_settings.movie_naming_pattern) {
+                config_data.task_settings.movie_naming_pattern = "^(.*)\.([^.]+)";
+              }
+              if (!config_data.task_settings.movie_naming_replace) {
+                config_data.task_settings.movie_naming_replace = "片名 (年份).\\2";
               }
               // 确保电视忽略后缀设置存在
               if (config_data.task_settings.tv_ignore_extension === undefined) {
@@ -7499,8 +7523,25 @@
           if (contentType === 'movie') {
             this.createTask.taskData.taskname = title;
             this.createTask.taskData.savepath = this.generateMovieSavePath(savePathTemplate, title, year);
-            this.createTask.taskData.pattern = "";
-            this.createTask.taskData.replace = "";
+
+            // 应用电影命名规则
+            const movieNamingPattern = taskSettings.movie_naming_pattern && taskSettings.movie_naming_pattern.trim() !== ""
+              ? taskSettings.movie_naming_pattern
+              : "";
+            const movieNamingReplace = taskSettings.movie_naming_replace && taskSettings.movie_naming_replace.trim() !== ""
+              ? taskSettings.movie_naming_replace
+              : "";
+
+            if (movieNamingPattern && movieNamingReplace) {
+              // 生成智能填充的替换表达式
+              const generatedReplace = this.generateMovieNamingRule(movieNamingReplace, title, year);
+              this.createTask.taskData.pattern = movieNamingPattern;
+              this.createTask.taskData.replace = generatedReplace;
+            } else {
+              this.createTask.taskData.pattern = "";
+              this.createTask.taskData.replace = "";
+            }
+
             this.createTask.taskData.use_sequence_naming = false;
             this.createTask.taskData.use_episode_naming = false;
             this.createTask.taskData.sequence_naming = "";
@@ -7695,6 +7736,26 @@
 
           // 替换季数
           namingRule = namingRule.replace(/季数/g, season);
+
+          return namingRule;
+        },
+        generateMovieNamingRule(replaceTemplate, movieTitle, year) {
+          // 生成电影命名规则
+          let namingRule = replaceTemplate;
+
+          // 替换片名
+          namingRule = namingRule.replace(/片名/g, movieTitle);
+
+          // 替换年份
+          if (year) {
+            namingRule = namingRule.replace(/年份/g, year);
+          } else {
+            // 如果没有年份，移除包含年份的部分
+            namingRule = namingRule.replace(/\s*\(年份\)/g, '');
+            namingRule = namingRule.replace(/\s*（年份）/g, '');
+          }
+
+          // 注意：正则表达式的反向引用（如\2）保持不变，将在实际重命名时由正则引擎处理
 
           return namingRule;
         },
@@ -7951,6 +8012,164 @@
               alert("保存失败: " + (error.response?.data?.message || error.message || "未知错误"));
               this.createTask.loading = false;
             });
+        },
+        confirmCreateRunAndDeleteTask() {
+          // 确认创建、运行并删除任务
+          if (this.createTask.loading) return;
+
+          // 验证必填字段
+          if (!this.createTask.taskData.taskname.trim()) {
+            this.createTask.error = '任务名称不能为空';
+            return;
+          }
+          if (!this.createTask.taskData.shareurl.trim()) {
+            this.createTask.error = '分享链接不能为空';
+            return;
+          }
+          if (!this.createTask.taskData.savepath.trim()) {
+            this.createTask.error = '保存路径不能为空';
+            return;
+          }
+
+          this.createTask.loading = true;
+          this.createTask.error = null;
+
+          // 创建新任务
+          const newTask = { ...this.createTask.taskData };
+
+          // 处理命名模式
+          if (newTask.use_sequence_naming) {
+            newTask.pattern = newTask.sequence_naming;
+          } else if (newTask.use_episode_naming) {
+            newTask.pattern = newTask.episode_naming;
+          }
+
+          // 添加到任务列表
+          if (!this.formData.tasklist) {
+            this.formData.tasklist = [];
+          }
+          this.formData.tasklist.push(newTask);
+
+          // 保存配置（不显示配置更新消息）
+          axios.post('/update', this.formData)
+            .then(response => {
+              if (response.data.success) {
+                this.configModified = false;
+                // 保存成功后更新用户信息
+                this.fetchUserInfo();
+
+                // 显示任务创建成功消息
+                this.showToast('任务创建成功，开始运行并将在完成后自动删除', 'success');
+                this.createTask.loading = false;
+
+                // 先关闭创建任务模态框，然后运行新创建的任务
+                this.cancelCreateTask();
+
+                // 等待模态框完全关闭后再打开运行日志模态框并运行任务
+                setTimeout(async () => {
+                  const taskIndex = this.formData.tasklist.length - 1;
+                  
+                  // 运行任务并等待完成
+                  await this.runScriptNowWithCallback(taskIndex, () => {
+                    // 任务完成后删除该任务
+                    setTimeout(() => {
+                      this.removeTaskSilently(taskIndex);
+                      this.showToast('一次性任务已完成并自动删除', 'info');
+                    }, 1000); // 等待1秒确保任务状态更新
+                  });
+                }, 300);
+              } else {
+                // 错误信息使用alert，确保用户看到
+                alert(response.data.message);
+                this.createTask.loading = false;
+              }
+            })
+            .catch(error => {
+              // 错误处理
+              alert("保存失败: " + (error.response?.data?.message || error.message || "未知错误"));
+              this.createTask.loading = false;
+            });
+        },
+        async runScriptNowWithCallback(task_index, callback) {
+          // 运行任务的包装函数，支持完成回调
+          body = {};
+          if (task_index != null) {
+            task = { ...this.formData.tasklist[task_index] };
+            delete task.runweek;
+            delete task.enddate;
+            body = {
+              "tasklist": [task],
+              "original_index": task_index + 1  // 添加原始索引，从1开始计数
+            };
+          } else if (this.configModified) {
+            if (!confirm('配置已修改但未保存，是否继续运行？')) {
+              return;
+            }
+          }
+          $('#logModal').modal('toggle');
+          this.modalLoading = true;
+          this.run_log = '';
+          try {
+            // 1. 发送 POST 请求
+            const response = await fetch(`/run_script_now`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(body)
+            });
+            if (!response.ok) {
+              throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            // 2. 处理 SSE 流
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let partialData = '';
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) {
+                this.modalLoading = false;
+                // 运行后刷新数据
+                this.fetchData();
+                // 调用完成回调
+                if (callback) callback();
+                break;
+              }
+              partialData += decoder.decode(value);
+              const lines = partialData.split('\n').filter(line => line.trim() !== '');
+              for (const line of lines) {
+                if (line.startsWith('data:')) {
+                  const eventData = line.substring(5).trim();
+                  if (eventData === '[DONE]') {
+                    this.modalLoading = false;
+                    this.fetchData();
+                    // 调用完成回调
+                    if (callback) callback();
+                    return;
+                  }
+                  this.run_log += eventData + '\n';
+                  // 在更新 run_log 后将滚动条滚动到底部
+                  this.$nextTick(() => {
+                    const modalBody = document.querySelector('.modal-body');
+                    modalBody.scrollTop = modalBody.scrollHeight;
+                  });
+                }
+              }
+              partialData = '';
+            }
+          } catch (error) {
+            this.modalLoading = false;
+            // 即使出错也调用回调
+            if (callback) callback();
+          }
+        },
+        removeTaskSilently(index) {
+          // 静默删除任务，不显示确认对话框
+          if (index >= 0 && index < this.formData.tasklist.length) {
+            this.formData.tasklist.splice(index, 1);
+            // 保存配置
+            this.saveConfig();
+          }
         },
         openCreateTaskDatePicker() {
           // 打开创建任务的日期选择器

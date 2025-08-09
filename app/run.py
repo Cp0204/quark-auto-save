@@ -863,6 +863,20 @@ def get_share_detail():
     share_detail["paths"] = paths
     share_detail["stoken"] = stoken
 
+    # 处理文件夹的include_items字段，确保空文件夹显示为0项而不是undefined
+    if "list" in share_detail and isinstance(share_detail["list"], list):
+        for file_item in share_detail["list"]:
+            if file_item.get("dir", False):
+                # 如果是文件夹，确保include_items字段存在且为数字
+                if "include_items" not in file_item or file_item["include_items"] is None:
+                    file_item["include_items"] = 0
+                elif not isinstance(file_item["include_items"], (int, float)):
+                    # 如果include_items不是数字类型，尝试转换为整数，失败则设为0
+                    try:
+                        file_item["include_items"] = int(file_item["include_items"])
+                    except (ValueError, TypeError):
+                        file_item["include_items"] = 0
+
     # 如果是GET请求或者不需要预览正则，直接返回分享详情
     if request.method == "GET" or not request.json.get("regex"):
         return jsonify({"success": True, "data": share_detail})
@@ -1028,6 +1042,20 @@ def get_share_detail():
 
     share_detail = preview_regex(share_detail)
 
+    # 再次处理文件夹的include_items字段，确保预览后的数据也正确
+    if "list" in share_detail and isinstance(share_detail["list"], list):
+        for file_item in share_detail["list"]:
+            if file_item.get("dir", False):
+                # 如果是文件夹，确保include_items字段存在且为数字
+                if "include_items" not in file_item or file_item["include_items"] is None:
+                    file_item["include_items"] = 0
+                elif not isinstance(file_item["include_items"], (int, float)):
+                    # 如果include_items不是数字类型，尝试转换为整数，失败则设为0
+                    try:
+                        file_item["include_items"] = int(file_item["include_items"])
+                    except (ValueError, TypeError):
+                        file_item["include_items"] = 0
+
     return jsonify({"success": True, "data": share_detail})
 
 
@@ -1067,8 +1095,26 @@ def get_savepath_detail():
                 return jsonify({"success": False, "data": {"error": "获取fid失败"}})
     else:
         fid = request.args.get("fid", "0")
+
+    # 获取文件列表
+    files = account.ls_dir(fid)
+
+    # 处理文件夹的include_items字段，确保空文件夹显示为0项而不是undefined
+    if isinstance(files, list):
+        for file_item in files:
+            if file_item.get("dir", False):
+                # 如果是文件夹，确保include_items字段存在且为数字
+                if "include_items" not in file_item or file_item["include_items"] is None:
+                    file_item["include_items"] = 0
+                elif not isinstance(file_item["include_items"], (int, float)):
+                    # 如果include_items不是数字类型，尝试转换为整数，失败则设为0
+                    try:
+                        file_item["include_items"] = int(file_item["include_items"])
+                    except (ValueError, TypeError):
+                        file_item["include_items"] = 0
+
     file_list = {
-        "list": account.ls_dir(fid),
+        "list": files,
         "paths": paths,
     }
     return jsonify({"success": True, "data": file_list})
@@ -1920,6 +1966,19 @@ def get_file_list():
                 return jsonify({"success": False, "message": f"目录不存在或无权限访问: {error_msg}"})
             else:
                 return jsonify({"success": False, "message": f"获取文件列表失败: {error_msg}"})
+
+        # 处理文件夹的include_items字段，确保空文件夹显示为0项而不是undefined
+        for file_item in files:
+            if file_item.get("dir", False):
+                # 如果是文件夹，确保include_items字段存在且为数字
+                if "include_items" not in file_item or file_item["include_items"] is None:
+                    file_item["include_items"] = 0
+                elif not isinstance(file_item["include_items"], (int, float)):
+                    # 如果include_items不是数字类型，尝试转换为整数，失败则设为0
+                    try:
+                        file_item["include_items"] = int(file_item["include_items"])
+                    except (ValueError, TypeError):
+                        file_item["include_items"] = 0
 
         # 计算总数
         total = len(files)
