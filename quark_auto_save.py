@@ -215,7 +215,7 @@ def sort_file_by_name(file):
             resolution_patterns = [
                 r'\b\d+[pP]\b',  # 匹配 720p, 1080P, 2160p 等
                 r'\b\d+x\d+\b',  # 匹配 1920x1080 等
-                # 注意：不移除4K/8K，因为剧集匹配规则中有 (\d+)[-_\s]*4[Kk] 模式
+                # 注意：不移除4K/8K，避免误删文件名中的4K标识
             ]
 
             for pattern in resolution_patterns:
@@ -394,7 +394,7 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
     resolution_patterns = [
         r'\b\d+[pP]\b',  # 匹配 720p, 1080P, 2160p 等
         r'\b\d+x\d+\b',  # 匹配 1920x1080 等
-        # 注意：不移除4K/8K，因为剧集匹配规则中有 (\d+)[-_\s]*4[Kk] 模式
+        # 注意：不移除4K/8K，避免误删文件名中的4K标识
     ]
 
     for pattern in resolution_patterns:
@@ -423,6 +423,41 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
     if match_e:
         return int(match_e.group(1))
     
+    # 添加中文数字匹配模式（优先匹配）
+    chinese_patterns = [
+        r'第([一二三四五六七八九十百千万零两]+)集',
+        r'第([一二三四五六七八九十百千万零两]+)期',
+        r'第([一二三四五六七八九十百千万零两]+)话',
+        r'([一二三四五六七八九十百千万零两]+)集',
+        r'([一二三四五六七八九十百千万零两]+)期',
+        r'([一二三四五六七八九十百千万零两]+)话'
+    ]
+    
+    # 优先匹配中文数字模式
+    for pattern_regex in chinese_patterns:
+        try:
+            match = re.search(pattern_regex, filename_without_dates)
+            if match:
+                chinese_num = match.group(1)
+                arabic_num = chinese_to_arabic(chinese_num)
+                if arabic_num is not None:
+                    return arabic_num
+        except:
+            continue
+    
+    # 智能4K匹配：检查是否匹配到4K模式，但要验证这个匹配是否合理
+    match_4k = re.search(r'(\d+)[-_\s]*4[Kk]', filename_without_dates)
+    if match_4k:
+        episode_num = int(match_4k.group(1))
+        # 检查文件名中是否已经有明确的剧集标识（中文数字或阿拉伯数字）
+        has_episode_indicator = re.search(r'第[一二三四五六七八九十百千万零两]+[期集话]|第\d+[期集话]', filename_without_dates)
+        if has_episode_indicator:
+            # 如果已经有明确的剧集标识，跳过4K匹配，避免冲突
+            pass
+        else:
+            # 没有明确的剧集标识，4K匹配有效
+            return episode_num
+    
     # 尝试匹配更多格式（注意：避免匹配季数）
     default_patterns = [
         r'第(\d+)集',
@@ -436,16 +471,6 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
         r'\[(\d+)\]',
         r'【(\d+)】',
         r'_?(\d+)_?'
-    ]
-    
-    # 添加中文数字匹配模式
-    chinese_patterns = [
-        r'第([一二三四五六七八九十百千万零两]+)集',
-        r'第([一二三四五六七八九十百千万零两]+)期',
-        r'第([一二三四五六七八九十百千万零两]+)话',
-        r'([一二三四五六七八九十百千万零两]+)集',
-        r'([一二三四五六七八九十百千万零两]+)期',
-        r'([一二三四五六七八九十百千万零两]+)话'
     ]
     
     patterns = None
@@ -526,18 +551,6 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
                         continue
 
                     return episode_num
-        except:
-            continue
-    
-    # 尝试匹配中文数字模式
-    for pattern_regex in chinese_patterns:
-        try:
-            match = re.search(pattern_regex, filename_without_dates)
-            if match:
-                chinese_num = match.group(1)
-                arabic_num = chinese_to_arabic(chinese_num)
-                if arabic_num is not None:
-                    return arabic_num
         except:
             continue
     

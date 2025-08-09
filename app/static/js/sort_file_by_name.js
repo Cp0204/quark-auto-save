@@ -154,7 +154,7 @@ function sortFileByName(file) {
             const resolution_patterns = [
                 /\b\d+[pP]\b/g,  // 匹配 720p, 1080P, 2160p 等
                 /\b\d+x\d+\b/g,  // 匹配 1920x1080 等
-                // 注意：不移除4K/8K，因为剧集匹配规则中有 (\d+)[-_\s]*4[Kk] 模式
+                // 注意：不移除4K/8K，避免误删文件名中的4K标识
             ];
 
             for (const pattern of resolution_patterns) {
