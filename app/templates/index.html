@@ -3185,11 +3185,11 @@
                   auto_search_resources: "enabled"
                 };
               }
-              // 确保电影命名规则字段存在
-              if (!config_data.task_settings.movie_naming_pattern) {
+              // 确保电影命名规则字段存在，只在字段不存在时设置默认值，允许用户设置为空字符串
+              if (config_data.task_settings.movie_naming_pattern === undefined) {
                 config_data.task_settings.movie_naming_pattern = "^(.*)\\.([^.]+)";
               }
-              if (!config_data.task_settings.movie_naming_replace) {
+              if (config_data.task_settings.movie_naming_replace === undefined) {
                 config_data.task_settings.movie_naming_replace = "片名 (年份).\\2";
               }
               // 确保电视忽略后缀设置存在
