@@ -38,7 +38,7 @@ body.login-page {
     padding-right: 10px;  /* 默认是15px */
     padding-left: 10px;   /* 默认是15px */
   }
-  
+
   /* 同时调整row的负margin以保持对齐 */
   .row {
     margin-right: -10px;
@@ -382,7 +382,7 @@ main div[v-if="activeTab === 'config'"] .row.title:first-child {
   padding: 0;
 }
 
-.sidebar-collapsed .nav-text, 
+.sidebar-collapsed .nav-text,
 .sidebar-collapsed .collapse-text {
   display: block; /* 改用opacity控制而不是display:none，避免跳动 */
   visibility: hidden;
@@ -447,7 +447,7 @@ main div[v-if="activeTab === 'config'"] .row.title:first-child {
     max-width: 184px;
     flex: 0 0 184px;
   }
-  
+
   main.col-md-10 {
     max-width: calc(100% - 184px);
     flex: 0 0 calc(100% - 184px);
@@ -493,19 +493,19 @@ main div[v-if="activeTab === 'config'"] .row.title:first-child {
     max-width: none !important;
     flex: auto !important;
   }
-  
+
   .sidebar-collapsed + main {
     max-width: 100% !important;
     flex: 0 0 100% !important;
   }
-  
+
   .sidebar-collapsed-navbar-brand {
     width: auto !important;
     min-width: auto !important;
     max-width: none !important;
     flex: auto !important;
   }
-  
+
   .sidebar-collapsed .nav-text,
   .sidebar-collapsed .collapse-text {
     display: block;
@@ -514,20 +514,20 @@ main div[v-if="activeTab === 'config'"] .row.title:first-child {
     width: auto;
     max-width: none;
   }
-  
+
   .sidebar-collapsed .nav-link {
     justify-content: flex-start;
     padding-left: 10px;
     padding-right: 10px;
     width: 100%;
   }
-  
+
   .sidebar-collapsed .nav-link i {
     margin-right: 8px;
     margin-left: 0;
     width: 20px;
   }
-  
+
   /* 移动设备下底部链接的样式 */
   .sidebar-collapsed .bottom-links .nav-text {
     display: block;
@@ -536,20 +536,20 @@ main div[v-if="activeTab === 'config'"] .row.title:first-child {
     width: auto;
     max-width: none;
   }
-  
+
   .sidebar-collapsed .bottom-links .nav-link {
     justify-content: flex-start;
     padding-left: 10px;
     padding-right: 10px;
     width: 100%;
   }
-  
+
   .sidebar-collapsed .nav-item,
   .sidebar-collapsed .bottom-links .nav-item {
     width: 100%;
     display: block;
   }
-  
+
   /* 确保导航栏高度足够 */
   .navbar {
     min-height: 54px;
@@ -603,7 +603,7 @@ main div[v-if="activeTab === 'config'"] .row.title:first-child {
     color: var(--navbar-bg-color) !important;
     border-color: #fff !important;
   }
-  
+
   /* 确保按钮内图标颜色也随之变化 */
   .navbar-action-btn:hover i {
     color: var(--navbar-bg-color) !important;
@@ -617,7 +617,7 @@ main div[v-if="activeTab === 'config'"] .row.title:first-child {
     color: #272b30 !important;
     border-color: #fff !important;
   }
-  
+
   /* 确保按钮内图标颜色也随之变化 */
   .navbar-action-btn:hover i {
     color: #272b30 !important;
@@ -637,7 +637,7 @@ main div[v-if="activeTab === 'config'"] .row.title:first-child {
     right: 52px; /* 菜单按钮宽度(32px) + 间距(8px) */
     flex-direction: row;
   }
-  
+
   /* 确保在移动设备上隐藏页面宽度按钮 */
   .navbar-action-btn.d-none.d-md-inline-block {
     display: none !important;
@@ -673,7 +673,7 @@ main div[v-if="activeTab === 'config'"] .row.title:first-child {
     color: #272b30 !important;
     border-color: #fff !important;
   }
-  
+
   /* 确保按钮内图标颜色也随之变化 */
   .navbar-toggler-square:hover i {
     color: #272b30 !important;
@@ -827,7 +827,7 @@ main div[v-if="activeTab === 'config'"] .row.title:first-child {
 /* 调整下拉选择框的内边距，使文本与输入框占位符位置一致 */
 select.form-control {
   padding: 0 8px !important; /* 移除右侧额外空间，图标已经用DOM实现 */
-  text-indent: 0 !important; 
+  text-indent: 0 !important;
   appearance: none !important;
   -webkit-appearance: none !important;
   -moz-appearance: none !important;
@@ -1290,7 +1290,7 @@ button.close:focus,
   margin-bottom: 8px;
   margin-left: 3.5px; /* 添加左边距 */
   height: 32px !important; /* 设置固定高度 */
-  min-height: 32px !important; 
+  min-height: 32px !important;
   max-height: 32px !important; /* 确保不超过指定高度 */
   padding-top: 0 !important; /* 重置顶部内边距 */
   padding-bottom: 0 !important; /* 重置底部内边距 */
@@ -2477,7 +2477,7 @@ body {
 
 /* 历史记录页面的文本和表格内容 */
 .table td,
-.text-truncate, 
+.text-truncate,
 .expanded-text,
 .table th,
 .cursor-pointer {
@@ -2502,7 +2502,7 @@ body {
 }
 
 /* 设置禁用状态下输入框的背景色 */
-.form-control:disabled, 
+.form-control:disabled,
 .form-control[readonly] {
   background-color: #ededf0 !important;
   opacity: 1;
@@ -2789,7 +2789,7 @@ div.jsoneditor-treepath * {
     flex-direction: row;
     justify-content: center !important;
   }
-  
+
   .pagination-controls {
     display: flex;
     align-items: center;
@@ -2833,7 +2833,7 @@ div.jsoneditor-treepath * {
     transform: translateY(-10px);
     gap: 12px; /* 垂直间距调整为12px，与整体间距一致 */
   }
-  
+
   .pagination-controls {
     display: flex;
     align-items: center;
@@ -2869,18 +2869,18 @@ div.jsoneditor-treepath * {
     order: 3;
     flex-wrap: wrap;
   }
-  
+
   /* 不修改按钮大小，与桌面版保持一致 */
   .pagination-controls .btn-sm {
     min-width: 32px;
     height: 32px;
   }
-  
+
   /* 保持与桌面版一致的跳页区域尺寸 */
   .pagination-settings .form-control-sm {
     height: 32px;
   }
-  
+
   /* 保持与桌面版一致的下拉菜单按钮尺寸 */
   .pagination-settings .dropdown-toggle {
     height: 32px;
@@ -3311,7 +3311,7 @@ div[id^="collapse_"] .input-group.mb-2:last-child {
     width: 100%;
     padding-top: 0 !important;
   }
-  
+
   /* 确保侧边栏内容正确定位 */
   #sidebarMenu .sidebar-sticky {
     height: calc(100vh - 54px); /* 计算正确的高度 */
@@ -3345,7 +3345,7 @@ div[data-toggle="collapse"] .btn.text-left i.bi-caret-right-fill {
 }
 
 /* 优化完全收起过程，避免卡顿，特别是当高度接近0时 */
-.collapsing[style*="height: 0"], 
+.collapsing[style*="height: 0"],
 .collapsing[style*="height:0"] {
   padding-top: 0 !important;
   padding-bottom: 0 !important;
@@ -3525,7 +3525,7 @@ input::-moz-list-button {
     padding-left: 15px !important;
     padding-right: 4px !important;
   }
-  
+
   .cloudsaver-password-col,
   .webui-password-col {
     padding-left: 4px !important;
@@ -3539,7 +3539,7 @@ input::-moz-list-button {
   .col-lg-6.col-md-6.mb-2.mb-md-0 {
     padding-right: 4px;
   }
-  
+
   /* 匹配调整，确保任务筛选框左侧的间距 */
   .col-lg-6.col-md-6:not(.mb-2) {
     padding-left: 4px;
@@ -3557,7 +3557,7 @@ input::-moz-list-button {
     padding-left: 10px;
     top: 2.5px;
   }
-  
+
   .task .form-group.row .col-sm-10 {
     width: 100%; /* 全宽 */
     max-width: 100%; /* 最大宽度全宽 */
@@ -3565,38 +3565,38 @@ input::-moz-list-button {
     padding-top: 0; /* 移除顶部内边距 */
     padding-bottom: 0; /* 移除底部内边距 */
   }
-  
+
   /* 确保移动模式下配置选项间距与桌面模式一致 */
   .task .form-group.row {
     margin-bottom: 8px; /* 与桌面模式保持一致的行间距 */
     padding-top: 0; /* 移除顶部内边距 */
     padding-bottom: 0; /* 移除底部内边距 */
   }
-  
+
   /* 调整移动模式下表单控件的间距 */
   .task .form-group.row .form-control,
   .task .form-group.row .input-group {
     margin-bottom: 0; /* 确保无底部边距 */
   }
-  
+
   /* 避免在移动模式下有额外内边距 */
   .task .collapse > div .form-group.row:last-child {
     margin-bottom: 8px; /* 保持最后一个选项与其他选项有相同的间距 */
   }
-  
+
   /* 调整任务配置标签的间距 */
   .task .form-group.row .col-form-label {
     padding-top: 2px; /* 减少顶部内边距 */
     padding-bottom: 2px; /* 减少底部内边距 */
   }
-  
+
   /* 专门针对配置选项标题在配置框上方的情况调整 */
   .task .form-group.row:not(.align-items-center) .col-sm-2 {
     margin-bottom: 4.5px; /* 设置标题与配置框之间的距离 */
     padding-left: 15px; /* 左对齐与其他元素保持一致 */
     font-size: 0.95rem; /* 保持字体大小一致 */
   }
-  
+
   /* 标题在上方时配置框的左内边距调整 */
   .task .form-group.row:not(.align-items-center) .col-sm-10 {
     padding-left: 18.5px; /* 为标题在上方的配置框增加左内边距 */
@@ -3623,7 +3623,7 @@ input::-moz-list-button {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
-  
+
   /* 确保表格使用固定布局算法，保持列宽 */
   #fileSelectModal .table {
     table-layout: fixed;
@@ -3631,28 +3631,28 @@ input::-moz-list-button {
     min-width: 100%;
     margin-bottom: 0; /* 避免多余的底部间距 */
   }
-  
+
   /* 移动模式下面包屑导航宽度与表格匹配 */
   /* 针对选择需转存的文件夹/选择起始文件模式 - 4列表格 */
   #fileSelectModal[data-modal-type="source"] .breadcrumb,
   #fileSelectModal[data-modal-type="start-file"] .breadcrumb {
     min-width: 690px; /* 4列表格总宽度: 230px + 230px + 90px + 140px */
   }
-  
+
   #fileSelectModal[data-modal-type="source"] .table,
   #fileSelectModal[data-modal-type="start-file"] .table {
     width: 690px;
   }
-  
+
   /* 针对选择保存到的文件夹模式 - 带操作列的表格 */
   #fileSelectModal[data-modal-type="target"] .breadcrumb {
     min-width: 648px; /* 4列表格总宽度: 230px + 90px + 140px + 188px */
   }
-  
+
   #fileSelectModal[data-modal-type="target"] .table {
     width: 648px;
   }
-  
+
   /* 针对命名预览模式 - 2列表格 */
   #fileSelectModal[data-modal-type="preview"] .breadcrumb {
     min-width: 460px; /* 2列表格总宽度: 230px + 230px */
@@ -3676,12 +3676,12 @@ input::-moz-list-button {
   #fileSelectModal[data-modal-type="preview-filemanager"] .table {
     width: 460px;
   }
-  
+
   /* 确保面包屑导航内容不被截断 */
   #fileSelectModal .breadcrumb-item {
     white-space: nowrap;
   }
-  
+
   /* 修复模态框内边距问题 */
   #fileSelectModal .modal-body {
     padding-right: 16px !important;
@@ -3689,55 +3689,55 @@ input::-moz-list-button {
     -webkit-overflow-scrolling: touch; /* 在iOS设备上启用惯性滚动 */
     overflow-x: hidden; /* 禁用整个modal-body的水平滚动，由内部元素单独控制 */
   }
-  
+
   /* 修复表格和面包屑导航的边距问题 */
   #fileSelectModal .table-responsive {
     padding-right: 0;
     margin-right: 0;
     width: 100%;
   }
-  
+
   /* 确保表格容器有正确的溢出行为 */
   #fileSelectModal .modal-body > div:not(.alert-warning) {
     overflow-x: auto;
     width: 100%;
     padding-bottom: 8px; /* 添加底部内边距，避免滚动条遮挡内容 */
   }
-  
+
   /* 确保面包屑导航在滚动容器内有正确的空间 */
   #fileSelectModal nav[aria-label="breadcrumb"] {
     padding-right: 16px; /* 确保右侧有足够边距 */
     margin-right: 0;
     margin-bottom: 8px; /* 保持与表格的间距一致 */
   }
-  
+
   /* 特别处理预览模式下的导航栏，防止双重内边距 */
   #fileSelectModal[data-modal-type="preview"] .modal-body > div > nav[aria-label="breadcrumb"] {
     padding-right: 0 !important; /* 清除可能的额外内边距 */
   }
-  
+
   /* 确保模态框内的预览区域也有合适的边距和滚动行为 */
   #fileSelectModal .mb-3[v-if="fileSelect.previewRegex"] {
     padding-right: 16px;
     overflow-x: auto;
     width: 100%;
   }
-  
+
   /* 优化表格的标题行在滚动时始终可见 */
   #fileSelectModal .table th {
     z-index: 5; /* 保证在滚动时标题行位于上层 */
   }
-  
+
   /* 优化滚动条样式，使其更细小不占用过多空间 */
   #fileSelectModal .modal-body > div::-webkit-scrollbar {
     height: 8px; /* 较细的滚动条 */
   }
-  
+
   #fileSelectModal .modal-body > div::-webkit-scrollbar-thumb {
     background-color: var(--border-color); /* 滚动条滑块 */
     border-radius: 4px; /* 圆角滚动条 */
   }
-  
+
   #fileSelectModal .modal-body > div::-webkit-scrollbar-track {
     background-color: #f7f7fa; /* 滚动条轨道 */
     border-radius: 4px; /* 圆角滚动条 */
@@ -3853,12 +3853,12 @@ input.no-spinner {
     flex: 0 0 50%;
     max-width: 50%;
   }
-  
+
   .row.mb-2 .col-sm-6.pr-1 {
     padding-right: 4px !important;
     padding-left: 15px !important;
   }
-  
+
   .row.mb-2 .col-sm-6.pl-1 {
     padding-left: 4px !important;
     padding-right: 15px !important;
@@ -3967,16 +3967,40 @@ table.selectable-records .expand-button:hover {
   top: 2px !important; /* 将"×"标记上移1px */
 }
 
-#fileSelectModal[data-modal-type="preview"] .table td.col-rename > * {
+#fileSelectModal[data-modal-type="preview"] .table td.col-rename > :not(.expand-button) {
   position: relative;
   top: 3px !important;
 }
 
 /* 文件整理页面命名预览模式下的重命名列通用样式 */
-#fileSelectModal[data-modal-type="preview-filemanager"] .table td.col-rename > * {
+#fileSelectModal[data-modal-type="preview-filemanager"] .table td.col-rename > :not(.expand-button) {
   position: relative;
   top: 3px !important; /* 与任务配置页面保持一致 */
 }
+
+/* 确保文件整理页面命名预览模式下的重命名列文本截断样式正确应用 */
+#fileSelectModal[data-modal-type="preview-filemanager"] .table td.col-rename div[style*="white-space: nowrap"] {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  padding-right: 25px !important;
+  max-width: 100% !important;
+  display: block !important;
+}
+
+/* 强制文件整理页面重命名列的所有子元素使用inline显示，确保文本截断正常工作 */
+#fileSelectModal[data-modal-type="preview-filemanager"] .table td.col-rename div[style*="white-space: nowrap"] * {
+  display: inline !important;
+  white-space: nowrap !important;
+}
+
+/* 命名预览模态框 - 重命名列展开按钮位置微调，仅作用于命名预览 */
+#fileSelectModal[data-modal-type="preview"] .table td.col-rename .expand-button,
+#fileSelectModal[data-modal-type="preview-filemanager"] .table td.col-rename .expand-button {
+  top: 6.5px !important;  /* 单独上移 1px（基础为 7.5px） */
+  right: 8px !important; /* 略向左移，参考模态框其他列的间距 */
+}
+
 
 /* 模态框通用文件夹图标样式 */
 #fileSelectModal .bi-folder-fill {
@@ -4607,11 +4631,11 @@ select.task-filter-select,
   .file-manager-rule-bar {
     flex-direction: column;
   }
-  
+
   .file-manager-rule-bar .input-group {
     margin-bottom: 10px;
   }
-  
+
   .batch-rename-btn {
     margin-top: 10px;
     width: 32px;
@@ -4632,7 +4656,7 @@ select.task-filter-select,
   .file-manager-rule-bar-responsive .batch-rename-btn:first-of-type {
     margin-left: 8px;
   }
-  
+
   #batchRenameModal .modal-dialog {
     max-width: 95%;
   }
@@ -4700,7 +4724,7 @@ tr.selected-file .file-size-cell .delete-record-btn {
   border-collapse: collapse !important;
 }
 
-.selectable-files td, 
+.selectable-files td,
 .selectable-files th {
   border: none !important;
   border-top: 1px solid var(--border-color) !important; /* 添加顶部边框线 */
@@ -5526,12 +5550,18 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 #fileSelectModal[data-modal-type="preview-filemanager"] .episode-x {
   position: relative;
   top: 0.5px;
-  display: inline-block;
+  display: inline;
   margin-right: 2px;
 }
 
+/* 确保文件整理页面重命名列中的episode-x在未展开状态下不影响文本截断 */
+#fileSelectModal[data-modal-type="preview-filemanager"] .table td.col-rename div[style*="white-space: nowrap"] .episode-x {
+  display: inline !important;
+  white-space: nowrap !important;
+}
+
 /* 文件整理页面命名预览模式下的绿色重命名文本上移0.5px */
-#fileSelectModal[data-modal-type="preview-filemanager"] .table td.col-rename.text-success > * {
+#fileSelectModal[data-modal-type="preview-filemanager"] .table td.col-rename.text-success > :not(.expand-button) {
   position: relative;
   top: 3px !important; /* 原来是3px，上移0.5px */
 }
