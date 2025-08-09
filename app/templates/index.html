@@ -3185,11 +3185,11 @@
                   auto_search_resources: "enabled"
                 };
               }
-              // 确保电影命名规则字段存在
-              if (!config_data.task_settings.movie_naming_pattern) {
+              // 确保电影命名规则字段存在，只在字段不存在时设置默认值，允许用户设置为空字符串
+              if (config_data.task_settings.movie_naming_pattern === undefined) {
                 config_data.task_settings.movie_naming_pattern = "^(.*)\\.([^.]+)";
               }
-              if (!config_data.task_settings.movie_naming_replace) {
+              if (config_data.task_settings.movie_naming_replace === undefined) {
                 config_data.task_settings.movie_naming_replace = "片名 (年份).\\2";
               }
               // 确保电视忽略后缀设置存在
@@ -5017,31 +5017,54 @@
         getVisiblePageNumbers() {
           const current = parseInt(this.historyParams.page) || 1;
           const total = parseInt(this.totalPages) || 1;
-          const delta = 2; // 当前页左右显示的页码数
+          // 根据屏幕宽度动态调整显示的页码数：移动端显示较少页码，桌面端显示较多页码
+          const isMobile = window.innerWidth <= 768;
+          const delta = isMobile ? 1 : 2; // 移动端左右各显示1个页码，桌面端左右各显示2个页码
           
           // 处理特殊情况
           if (total <= 1) return [];
           
           let range = [];
           
-          // 确定显示范围
-          let rangeStart = Math.max(2, current - delta);
-          let rangeEnd = Math.min(total - 1, current + delta);
-          
-          // 调整范围，确保显示足够的页码
-          if (rangeEnd - rangeStart < delta * 2) {
-            if (current - rangeStart < delta) {
-              // 当前页靠近开始，扩展结束范围
-              rangeEnd = Math.min(total - 1, rangeStart + delta * 2);
+          // 移动端简化逻辑：只显示当前页附近的少数页码
+          if (isMobile) {
+            // 移动端：最多显示4个中间页码按钮（不包括第1页和最后1页），总共5个页码
+            if (current <= 4) {
+              // 当前页在前面时，显示 1, 2, 3, 4
+              for (let i = 2; i <= Math.min(4, total - 1); i++) {
+                range.push(i);
+              }
+            } else if (current >= total - 3) {
+              // 当前页在后面时，显示倒数几页
+              for (let i = Math.max(2, total - 3); i <= total - 1; i++) {
+                range.push(i);
+              }
             } else {
-              // 当前页靠近结束，扩展开始范围
-              rangeStart = Math.max(2, rangeEnd - delta * 2);
+              // 当前页在中间时，显示当前页前后各1页，总共3个中间页码
+              range.push(current - 1);
+              range.push(current);
+              range.push(current + 1);
             }
-          }
-          
-          // 生成页码数组
-          for (let i = rangeStart; i <= rangeEnd; i++) {
-            range.push(i);
+          } else {
+            // 桌面端保持原有逻辑
+            let rangeStart = Math.max(2, current - delta);
+            let rangeEnd = Math.min(total - 1, current + delta);
+            
+            // 调整范围，确保显示足够的页码
+            if (rangeEnd - rangeStart < delta * 2) {
+              if (current - rangeStart < delta) {
+                // 当前页靠近开始，扩展结束范围
+                rangeEnd = Math.min(total - 1, rangeStart + delta * 2);
+              } else {
+                // 当前页靠近结束，扩展开始范围
+                rangeStart = Math.max(2, rangeEnd - delta * 2);
+              }
+            }
+            
+            // 生成页码数组
+            for (let i = rangeStart; i <= rangeEnd; i++) {
+              range.push(i);
+            }
           }
           
           return range;
@@ -6273,31 +6296,54 @@
         getVisibleFolderPageNumbers() {
           const current = parseInt(this.fileManager.currentPage) || 1;
           const total = parseInt(this.fileManager.totalPages) || 1;
-          const delta = 2; // 当前页左右显示的页码数
+          // 根据屏幕宽度动态调整显示的页码数：移动端显示较少页码，桌面端显示较多页码
+          const isMobile = window.innerWidth <= 768;
+          const delta = isMobile ? 1 : 2; // 移动端左右各显示1个页码，桌面端左右各显示2个页码
           
           // 处理特殊情况
           if (total <= 1) return [];
           
           let range = [];
           
-          // 确定显示范围
-          let rangeStart = Math.max(2, current - delta);
-          let rangeEnd = Math.min(total - 1, current + delta);
-          
-          // 调整范围，确保显示足够的页码
-          if (rangeEnd - rangeStart < delta * 2) {
-            if (current - rangeStart < delta) {
-              // 当前页靠近开始，扩展结束范围
-              rangeEnd = Math.min(total - 1, rangeStart + delta * 2);
+          // 移动端简化逻辑：只显示当前页附近的少数页码
+          if (isMobile) {
+            // 移动端：最多显示4个中间页码按钮（不包括第1页和最后1页），总共5个页码
+            if (current <= 4) {
+              // 当前页在前面时，显示 1, 2, 3, 4
+              for (let i = 2; i <= Math.min(4, total - 1); i++) {
+                range.push(i);
+              }
+            } else if (current >= total - 3) {
+              // 当前页在后面时，显示倒数几页
+              for (let i = Math.max(2, total - 3); i <= total - 1; i++) {
+                range.push(i);
+              }
             } else {
-              // 当前页靠近结束，扩展开始范围
-              rangeStart = Math.max(2, rangeEnd - delta * 2);
+              // 当前页在中间时，显示当前页前后各1页，总共3个中间页码
+              range.push(current - 1);
+              range.push(current);
+              range.push(current + 1);
             }
-          }
-          
-          // 生成页码数组
-          for (let i = rangeStart; i <= rangeEnd; i++) {
-            range.push(i);
+          } else {
+            // 桌面端保持原有逻辑
+            let rangeStart = Math.max(2, current - delta);
+            let rangeEnd = Math.min(total - 1, current + delta);
+            
+            // 调整范围，确保显示足够的页码
+            if (rangeEnd - rangeStart < delta * 2) {
+              if (current - rangeStart < delta) {
+                // 当前页靠近开始，扩展结束范围
+                rangeEnd = Math.min(total - 1, rangeStart + delta * 2);
+              } else {
+                // 当前页靠近结束，扩展开始范围
+                rangeStart = Math.max(2, rangeEnd - delta * 2);
+              }
+            }
+            
+            // 生成页码数组
+            for (let i = rangeStart; i <= rangeEnd; i++) {
+              range.push(i);
+            }
           }
           
           return range;
@@ -6864,34 +6910,54 @@
         getVisibleFolderPageNumbers() {
           const current = parseInt(this.fileManager.currentPage) || 1;
           const total = parseInt(this.fileManager.totalPages) || 1;
-          const delta = 2; // 当前页左右显示的页码数
+          // 根据屏幕宽度动态调整显示的页码数：移动端显示较少页码，桌面端显示较多页码
+          const isMobile = window.innerWidth <= 768;
+          const delta = isMobile ? 1 : 2; // 移动端左右各显示1个页码，桌面端左右各显示2个页码
           
           // 处理特殊情况
           if (total <= 1) return [];
-          if (total <= 5) {
-            return Array.from({ length: total - 2 }, (_, i) => i + 2);
-          }
           
           let range = [];
           
-          // 确定显示范围
-          let rangeStart = Math.max(2, current - delta);
-          let rangeEnd = Math.min(total - 1, current + delta);
-          
-          // 调整范围，确保显示足够的页码
-          if (rangeEnd - rangeStart < delta * 2) {
-            if (current - rangeStart < delta) {
-              // 当前页靠近开始，扩展结束范围
-              rangeEnd = Math.min(total - 1, rangeStart + delta * 2);
+          // 移动端简化逻辑：只显示当前页附近的少数页码
+          if (isMobile) {
+            // 移动端：最多显示4个中间页码按钮（不包括第1页和最后1页），总共5个页码
+            if (current <= 4) {
+              // 当前页在前面时，显示 1, 2, 3, 4
+              for (let i = 2; i <= Math.min(4, total - 1); i++) {
+                range.push(i);
+              }
+            } else if (current >= total - 3) {
+              // 当前页在后面时，显示倒数几页
+              for (let i = Math.max(2, total - 3); i <= total - 1; i++) {
+                range.push(i);
+              }
             } else {
-              // 当前页靠近结束，扩展开始范围
-              rangeStart = Math.max(2, rangeEnd - delta * 2);
+              // 当前页在中间时，显示当前页前后各1页，总共3个中间页码
+              range.push(current - 1);
+              range.push(current);
+              range.push(current + 1);
             }
-          }
-          
-          // 生成页码数组
-          for (let i = rangeStart; i <= rangeEnd; i++) {
-            range.push(i);
+          } else {
+            // 桌面端保持原有逻辑
+            let rangeStart = Math.max(2, current - delta);
+            let rangeEnd = Math.min(total - 1, current + delta);
+            
+            // 调整范围，确保显示足够的页码
+            if (rangeEnd - rangeStart < delta * 2) {
+              if (current - rangeStart < delta) {
+                // 当前页靠近开始，扩展结束范围
+                rangeEnd = Math.min(total - 1, rangeStart + delta * 2);
+              } else {
+                // 当前页靠近结束，扩展开始范围
+                rangeStart = Math.max(2, rangeEnd - delta * 2);
+              }
+            }
+            
+            // 生成页码数组
+            for (let i = rangeStart; i <= rangeEnd; i++) {
+              range.push(i);
+            }
           }
           
           return range;

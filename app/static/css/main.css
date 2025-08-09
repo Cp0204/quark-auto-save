@@ -2885,6 +2885,19 @@ div.jsoneditor-treepath * {
   .pagination-settings .dropdown-toggle {
     height: 32px;
   }
+
+  /* 移动端分页按钮优化：确保不换行 */
+  .pagination-controls {
+    flex-wrap: nowrap !important; /* 强制不换行 */
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+  }
+  
+  .pagination-controls::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
 }
 
 .pagination-settings {
