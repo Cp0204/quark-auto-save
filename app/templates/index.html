@@ -2042,6 +2042,9 @@
             <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmCreateAndRunTask">
               创建并运行任务
             </button>
+            <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmCreateRunAndDeleteTask">
+              创建、运行并删除任务
+            </button>
           </div>
         </div>
       </div>
@@ -8009,6 +8012,164 @@
               alert("保存失败: " + (error.response?.data?.message || error.message || "未知错误"));
               this.createTask.loading = false;
             });
+        },
+        confirmCreateRunAndDeleteTask() {
+          // 确认创建、运行并删除任务
+          if (this.createTask.loading) return;
+
+          // 验证必填字段
+          if (!this.createTask.taskData.taskname.trim()) {
+            this.createTask.error = '任务名称不能为空';
+            return;
+          }
+          if (!this.createTask.taskData.shareurl.trim()) {
+            this.createTask.error = '分享链接不能为空';
+            return;
+          }
+          if (!this.createTask.taskData.savepath.trim()) {
+            this.createTask.error = '保存路径不能为空';
+            return;
+          }
+
+          this.createTask.loading = true;
+          this.createTask.error = null;
+
+          // 创建新任务
+          const newTask = { ...this.createTask.taskData };
+
+          // 处理命名模式
+          if (newTask.use_sequence_naming) {
+            newTask.pattern = newTask.sequence_naming;
+          } else if (newTask.use_episode_naming) {
+            newTask.pattern = newTask.episode_naming;
+          }
+
+          // 添加到任务列表
+          if (!this.formData.tasklist) {
+            this.formData.tasklist = [];
+          }
+          this.formData.tasklist.push(newTask);
+
+          // 保存配置（不显示配置更新消息）
+          axios.post('/update', this.formData)
+            .then(response => {
+              if (response.data.success) {
+                this.configModified = false;
+                // 保存成功后更新用户信息
+                this.fetchUserInfo();
+
+                // 显示任务创建成功消息
+                this.showToast('任务创建成功，开始运行并将在完成后自动删除', 'success');
+                this.createTask.loading = false;
+
+                // 先关闭创建任务模态框，然后运行新创建的任务
+                this.cancelCreateTask();
+
+                // 等待模态框完全关闭后再打开运行日志模态框并运行任务
+                setTimeout(async () => {
+                  const taskIndex = this.formData.tasklist.length - 1;
+                  
+                  // 运行任务并等待完成
+                  await this.runScriptNowWithCallback(taskIndex, () => {
+                    // 任务完成后删除该任务
+                    setTimeout(() => {
+                      this.removeTaskSilently(taskIndex);
+                      this.showToast('一次性任务已完成并自动删除', 'info');
+                    }, 1000); // 等待1秒确保任务状态更新
+                  });
+                }, 300);
+              } else {
+                // 错误信息使用alert，确保用户看到
+                alert(response.data.message);
+                this.createTask.loading = false;
+              }
+            })
+            .catch(error => {
+              // 错误处理
+              alert("保存失败: " + (error.response?.data?.message || error.message || "未知错误"));
+              this.createTask.loading = false;
+            });
+        },
+        async runScriptNowWithCallback(task_index, callback) {
+          // 运行任务的包装函数，支持完成回调
+          body = {};
+          if (task_index != null) {
+            task = { ...this.formData.tasklist[task_index] };
+            delete task.runweek;
+            delete task.enddate;
+            body = {
+              "tasklist": [task],
+              "original_index": task_index + 1  // 添加原始索引，从1开始计数
+            };
+          } else if (this.configModified) {
+            if (!confirm('配置已修改但未保存，是否继续运行？')) {
+              return;
+            }
+          }
+          $('#logModal').modal('toggle');
+          this.modalLoading = true;
+          this.run_log = '';
+          try {
+            // 1. 发送 POST 请求
+            const response = await fetch(`/run_script_now`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(body)
+            });
+            if (!response.ok) {
+              throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            // 2. 处理 SSE 流
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let partialData = '';
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) {
+                this.modalLoading = false;
+                // 运行后刷新数据
+                this.fetchData();
+                // 调用完成回调
+                if (callback) callback();
+                break;
+              }
+              partialData += decoder.decode(value);
+              const lines = partialData.split('\n').filter(line => line.trim() !== '');
+              for (const line of lines) {
+                if (line.startsWith('data:')) {
+                  const eventData = line.substring(5).trim();
+                  if (eventData === '[DONE]') {
+                    this.modalLoading = false;
+                    this.fetchData();
+                    // 调用完成回调
+                    if (callback) callback();
+                    return;
+                  }
+                  this.run_log += eventData + '\n';
+                  // 在更新 run_log 后将滚动条滚动到底部
+                  this.$nextTick(() => {
+                    const modalBody = document.querySelector('.modal-body');
+                    modalBody.scrollTop = modalBody.scrollHeight;
+                  });
+                }
+              }
+              partialData = '';
+            }
+          } catch (error) {
+            this.modalLoading = false;
+            // 即使出错也调用回调
+            if (callback) callback();
+          }
+        },
+        removeTaskSilently(index) {
+          // 静默删除任务，不显示确认对话框
+          if (index >= 0 && index < this.formData.tasklist.length) {
+            this.formData.tasklist.splice(index, 1);
+            // 保存配置
+            this.saveConfig();
+          }
         },
         openCreateTaskDatePicker() {
           // 打开创建任务的日期选择器
