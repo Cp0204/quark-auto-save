@@ -6370,3 +6370,32 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   display: inline-block;
   left: 0px; /* 右移2px */
 }
+
+/* 任务列表、文件整理、影视发现页面的命名预览模态框表头样式 */
+#fileSelectModal[data-modal-type="preview"] .table th.col-filename,
+#fileSelectModal[data-modal-type="preview-filemanager"] .table th.col-filename {
+  /* 文件名列的表头样式 */
+  font-weight: 600 !important;
+  font-family: inherit !important;
+  letter-spacing: normal !important;
+  padding-top: 4px !important;
+}
+
+#fileSelectModal[data-modal-type="preview"] .table th.col-rename,
+#fileSelectModal[data-modal-type="preview-filemanager"] .table th.col-rename {
+  /* 命名预览列的表头样式 */
+  font-weight: 600 !important;
+  font-family: inherit !important;
+  letter-spacing: normal !important;
+  padding-top: 4px !important;
+}
+
+/* 确保其他表头样式不受影响 */
+#fileSelectModal .table th.col-size,
+#fileSelectModal .table th.col-date,
+#fileSelectModal .table th.col-action {
+  /* 保持原有的表头样式 */
+  font-weight: normal;
+  font-family: inherit;
+  letter-spacing: normal;
+}
