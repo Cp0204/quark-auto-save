@@ -230,13 +230,15 @@ def sort_file_by_name(file):
     segment_base = 0  # 基础值：上=1, 中=2, 下=3
     sequence_number = 0  # 序号值：用于处理上中下后的数字或中文数字序号
 
-    # 严格匹配上中下标记：只有当上中下与集期话部篇相邻时才认为是段落标记
-    # 避免误匹配文件内容中偶然出现的上中下字符
-    if re.search(r'上[集期话部篇]|[集期话部篇]上', filename):
+    # 严格匹配上中下标记：支持多种格式
+    # 1. 直接相邻：上集、期上
+    # 2. 括号分隔：期（上）、集（中）
+    # 3. 其他分隔符：期-上、集_中
+    if re.search(r'上[集期话部篇]|[集期话部篇]上|[集期话部篇]\s*[（(]\s*上\s*[）)]|[集期话部篇]\s*[-_·丨]\s*上', filename):
         segment_base = 1
-    elif re.search(r'中[集期话部篇]|[集期话部篇]中', filename):
+    elif re.search(r'中[集期话部篇]|[集期话部篇]中|[集期话部篇]\s*[（(]\s*中\s*[）)]|[集期话部篇]\s*[-_·丨]\s*中', filename):
         segment_base = 2
-    elif re.search(r'下[集期话部篇]|[集期话部篇]下', filename):
+    elif re.search(r'下[集期话部篇]|[集期话部篇]下|[集期话部篇]\s*[（(]\s*下\s*[）)]|[集期话部篇]\s*[-_·丨]\s*下', filename):
         segment_base = 3
 
     # 统一的序号提取逻辑，支持多种分隔符和格式
