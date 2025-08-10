@@ -6338,3 +6338,35 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 #fileSelectModal[data-modal-type="preview"] .table td.col-rename > div[style*="white-space: normal"][style*="word-break: break-word"] {
   margin-bottom: 7.5px !important; /* 任务列表页面展开状态下边距增加0.5px */
 }
+
+/* 选择需转存的文件夹模态框重命名列 × 样式 */
+#fileSelectModal[data-modal-type="source"] .episode-x {
+  position: relative;
+  top: 0.5px; /* 下移0.5px */
+  display: inline;
+  margin-right: 2px;
+}
+
+/* 选择需转存的文件夹模态框重命名列无法识别剧集编号样式 */
+#fileSelectModal[data-modal-type="source"] .episode-number-text {
+  position: relative;
+  top: 1.5px; /* 下移1.5px */
+  display: inline-block;
+  left: 0px; /* 右移2px */
+}
+
+/* 选择起始文件模态框重命名列 × 样式 */
+#fileSelectModal[data-modal-type="start-file"] .episode-x {
+  position: relative;
+  top: 0.5px; /* 下移0.5px */
+  display: inline;
+  margin-right: 2px;
+}
+
+/* 选择起始文件模态框重命名列无法识别剧集编号样式 */
+#fileSelectModal[data-modal-type="start-file"] .episode-number-text {
+  position: relative;
+  top: 1.5px; /* 下移1.5px */
+  display: inline-block;
+  left: 0px; /* 右移2px */
+}
