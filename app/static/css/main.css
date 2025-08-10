@@ -6338,3 +6338,64 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 #fileSelectModal[data-modal-type="preview"] .table td.col-rename > div[style*="white-space: normal"][style*="word-break: break-word"] {
   margin-bottom: 7.5px !important; /* 任务列表页面展开状态下边距增加0.5px */
 }
+
+/* 选择需转存的文件夹模态框重命名列 × 样式 */
+#fileSelectModal[data-modal-type="source"] .episode-x {
+  position: relative;
+  top: 0.5px; /* 下移0.5px */
+  display: inline;
+  margin-right: 2px;
+}
+
+/* 选择需转存的文件夹模态框重命名列无法识别剧集编号样式 */
+#fileSelectModal[data-modal-type="source"] .episode-number-text {
+  position: relative;
+  top: 1.5px; /* 下移1.5px */
+  display: inline-block;
+  left: 0px; /* 右移2px */
+}
+
+/* 选择起始文件模态框重命名列 × 样式 */
+#fileSelectModal[data-modal-type="start-file"] .episode-x {
+  position: relative;
+  top: 0.5px; /* 下移0.5px */
+  display: inline;
+  margin-right: 2px;
+}
+
+/* 选择起始文件模态框重命名列无法识别剧集编号样式 */
+#fileSelectModal[data-modal-type="start-file"] .episode-number-text {
+  position: relative;
+  top: 1.5px; /* 下移1.5px */
+  display: inline-block;
+  left: 0px; /* 右移2px */
+}
+
+/* 任务列表、文件整理、影视发现页面的命名预览模态框表头样式 */
+#fileSelectModal[data-modal-type="preview"] .table th.col-filename,
+#fileSelectModal[data-modal-type="preview-filemanager"] .table th.col-filename {
+  /* 文件名列的表头样式 */
+  font-weight: 600 !important;
+  font-family: inherit !important;
+  letter-spacing: normal !important;
+  padding-top: 4px !important;
+}
+
+#fileSelectModal[data-modal-type="preview"] .table th.col-rename,
+#fileSelectModal[data-modal-type="preview-filemanager"] .table th.col-rename {
+  /* 命名预览列的表头样式 */
+  font-weight: 600 !important;
+  font-family: inherit !important;
+  letter-spacing: normal !important;
+  padding-top: 4px !important;
+}
+
+/* 确保其他表头样式不受影响 */
+#fileSelectModal .table th.col-size,
+#fileSelectModal .table th.col-date,
+#fileSelectModal .table th.col-action {
+  /* 保持原有的表头样式 */
+  font-weight: normal;
+  font-family: inherit;
+  letter-spacing: normal;
+}
