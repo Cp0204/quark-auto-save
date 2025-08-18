@@ -8,7 +8,7 @@
 
 对于一些持续更新的资源，隔段时间去转存十分麻烦。
 
-定期执行本脚本自动转存、文件名整理，配合 Alist, rclone, Emby 可达到自动追更的效果。🥳
+定期执行本脚本自动转存、文件名整理，配合 OpenList, SmartStrm, Emby 可达到自动追更的效果。🥳
 
 
 [![wiki][wiki-image]][wiki-url] [![github releases][gitHub-releases-image]][github-url] [![docker pulls][docker-pulls-image]][docker-url] [![docker image size][docker-image-size-image]][docker-url]
