@@ -2,7 +2,7 @@
 // @name         QAS一键推送助手
 // @namespace    https://github.com/Cp0204/quark-auto-save
 // @license      AGPL
-// @version      0.4
+// @version      0.5
 // @description  在夸克网盘分享页面添加推送到 QAS 的按钮
 // @icon         https://pan.quark.cn/favicon.ico
 // @author       Cp0204
@@ -112,7 +112,8 @@
             // 获取数据函数
             function getData() {
                 const currentUrl = window.location.href;
-                taskname = currentUrl.lastIndexOf('-') > 0 ? decodeURIComponent(currentUrl.match(/.*\/[^-]+-(.+)$/)[1]).replace('*101', '-') : document.querySelector('.author-name').textContent;
+                const lastTitle = document.querySelector('.primary .bcrumb-filename:last-child')?.getAttribute('title') || null;
+                taskname = (lastTitle && lastTitle != "全部文件") ? lastTitle : document.querySelector('.author-name').textContent;
                 shareurl = currentUrl;
                 let pathElement = document.querySelector('.path-name');
                 savepath = pathElement ? pathElement.title.replace('全部文件', '').trim() : "";
