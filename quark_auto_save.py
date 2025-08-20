@@ -164,7 +164,7 @@ class MagicRename:
         "{YEAR}": [r"(?<!\d)(18|19|20)\d{2}(?!\d)"],
         "{S}": [r"(?<=[Ss])\d{1,2}(?=[EeXx])", r"(?<=[Ss])\d{1,2}"],
         "{SXX}": [r"[Ss]\d{1,2}(?=[EeXx])", r"[Ss]\d{1,2}"],
-        "{E}": [
+        "{E+}": [
             r"(?<=[Ss]\d\d[Ee])\d{1,3}",
             r"(?<=[Ee])\d{1,3}",
             r"(?<=[Ee][Pp])\d{1,3}",
@@ -224,7 +224,7 @@ class MagicRename:
             return file_name
         # 预处理替换变量
         for key, p_list in self.magic_variable.items():
-            if key in replace:
+            if match_key := re.search(key, replace):
                 # 正则类替换变量
                 if p_list and isinstance(p_list, list):
                     for p in p_list:
@@ -240,7 +240,10 @@ class MagicRename:
                                 value = (
                                     str(datetime.now().year)[: (8 - len(value))] + value
                                 )
-                            replace = replace.replace(key, value)
+                            # 集数零填充处理
+                            elif key == "{E+}":
+                                value = value.lstrip("0").zfill(match_key.group().count("E"))
+                            replace = re.sub(key, value, replace)
                             break
                 # 非正则类替换变量
                 if key == "{TASKNAME}":
@@ -251,7 +254,7 @@ class MagicRename:
                     continue
                 else:
                     # 清理未匹配的 magic_variable key
-                    replace = replace.replace(key, "")
+                    replace = re.sub(key, "", replace)
         if pattern and replace:
             file_name = re.sub(pattern, replace, file_name)
         else:
