@@ -269,6 +269,7 @@ def get_task_suggestions():
         if (ps_data.get("server")):
             ps = PanSou(ps_data.get("server"))
             return ps.search(query)
+        return []
    
     try:
         search_results = []
