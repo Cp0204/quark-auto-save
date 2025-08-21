@@ -281,7 +281,8 @@ def get_task_suggestions():
             for future in as_completed(features):
                 result = future.result()
                 search_results.extend(result)
-                
+        
+        search_results.sort(key=lambda x: x.get("datetime", ""), reverse=True)  
         return jsonify({"success": True, "data": search_results})
     except Exception as e:
         return jsonify({"success": True, "message": f"error: {str(e)}"})
