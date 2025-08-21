@@ -282,8 +282,17 @@ def get_task_suggestions():
                 result = future.result()
                 search_results.extend(result)
         
+        # 按时间排序并去重
+        results = []
+        link_array = []
         search_results.sort(key=lambda x: x.get("datetime", ""), reverse=True)  
-        return jsonify({"success": True, "data": search_results})
+        for item in search_results:
+            url = item.get("shareurl", "")
+            if url != "" and url not in link_array:
+                link_array.append(url)
+                results.append(item)
+                
+        return jsonify({"success": True, "data": results})
     except Exception as e:
         return jsonify({"success": True, "message": f"error: {str(e)}"})
 
