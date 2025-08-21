@@ -223,6 +223,21 @@
               </div>
             </div>
 
+            <div class="row title" title="资源搜索服务配置，用于任务名称智能搜索">
+              <div class="col-10">
+                <h2 style="display: inline-block;"><i class="bi bi-search"></i> PanSou</h2>
+                <span class="badge badge-pill badge-light">
+                  <a href="https://github.com/fish2018/pansou" target="_blank">?</a>
+                </span>
+              </div>
+            </div>
+            <div class="form-group row">
+              <label class="col-sm-2 col-form-label">服务器</label>
+              <div class="col-sm-10">
+                <input type="text" v-model="formData.source.pansou.server" class="form-control" placeholder="资源搜索服务器地址，如 https://so.252035.xyz">
+              </div>
+            </div>
+
           </div>
 
           <div v-if="activeTab === 'tasklist'">
@@ -281,12 +296,14 @@
                       <div class="input-group">
                         <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(index, task)" @input="changeTaskname(index, task)">
                         <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.taskSuggestions.success && smart_param.index === index">
-                          <div class="dropdown-item text-muted text-center" style="font-size:12px;">{{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data.length ? `以下资源来自 ${smart_param.taskSuggestions.source} 搜索，请自行辨识，如有侵权请联系资源方` : "未搜索到资源" }}</div>
+                          <div class="dropdown-item text-muted text-center" style="font-size:12px;">{{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data.length ? `以下资源来自网络搜索，请自行辨识，如有侵权请联系资源方` : "未搜索到资源" }}</div>
                           <div v-for="suggestion in smart_param.taskSuggestions.data" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(index, suggestion)" style="font-size: 12px;" :title="suggestion.content">
                             <span v-html="suggestion.verify ? '✅': '❔'"></span> {{ suggestion.taskname }}
                             <small class="text-muted">
                               <a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a>
                             </small>
+                            <span class="badge bg-transparent border border-success text-success">{{ suggestion.source || "网络公开" }}</span>
+                            <span v-if="suggestion.datetime" class="badge bg-transparent border border-dark text-dark">{{ suggestion.datetime }}</span>
                           </div>
                         </div>
                         <div class="input-group-append" title="深度搜索">
@@ -542,6 +559,9 @@
               username: "",
               password: "",
               token: ""
+            },
+            pansou: {
+              server: ""
             }
           },
         },

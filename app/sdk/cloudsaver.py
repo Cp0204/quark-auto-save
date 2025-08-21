@@ -135,6 +135,7 @@ class CloudSaver:
                                     "tags": item.get("tags", []),
                                     "channel": item.get("channel", ""),
                                     "channel_id": item.get("channelId", ""),
+                                    "source": "CloudSaver"
                                 }
                             )
         return clean_results
