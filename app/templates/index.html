@@ -696,6 +696,11 @@
                   token: ""
                 };
               }
+              if (!config_data.source.pansou) {
+                config_data.source.pansou = {
+                  server: ""
+                };
+              }
               this.formData = config_data;
               setTimeout(() => {
                 this.configModified = false;
