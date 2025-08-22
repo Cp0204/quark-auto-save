@@ -955,6 +955,7 @@
           }
         },
         searchSuggestions(index, taskname, deep = 1) {
+          taskname = taskname.replace(/\((19|20)\d{2}\)/g, '').trim();
           if (taskname.length < 2) {
             console.log(`任务名[${taskname}]过短${taskname.length} 不进行搜索`);
             return;
