@@ -1,5 +1,5 @@
 import re
-import datetime
+from datetime import datetime, timedelta
 
 import requests
 
@@ -60,7 +60,8 @@ class PanSou:
             note = channel.get("note", "")
             tm = channel.get("datetime", "")
             if tm:
-                tm = datetime.datetime.strptime(tm, "%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m-%d %H:%M:%S")
+                utc_tm = datetime.strptime(tm, "%Y-%m-%dT%H:%M:%SZ")
+                tm = (utc_tm + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
 
             match = re.search(pattern, note)
             if match:
