@@ -1,3 +1,4 @@
+import datetime
 import re
 import requests
 
@@ -124,6 +125,10 @@ class CloudSaver:
                         content = content.replace('<mark class="highlight">', "")
                         content = content.replace("</mark>", "")
                         content = content.strip()
+                        # 统一发布时间格式
+                        pubdate = item.get("pubDate", "")
+                        if pubdate:
+                            pubdate = datetime.datetime.strptime(pubdate, "%Y-%m-%dT%H:%M:%S%z").strftime("%Y-%m-%d %H:%M:%S")
                         # 链接去重
                         if link.get("link") not in link_array:
                             link_array.append(link.get("link"))
@@ -132,6 +137,7 @@ class CloudSaver:
                                     "shareurl": link.get("link"),
                                     "taskname": title,
                                     "content": content,
+                                    "datetime": pubdate,
                                     "tags": item.get("tags", []),
                                     "channel": item.get("channel", ""),
                                     "channel_id": item.get("channelId", ""),
