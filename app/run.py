@@ -15,7 +15,9 @@ from flask import (
 )
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from sdk.cloudsaver import CloudSaver
+from sdk.pansou import PanSou
 from datetime import timedelta
 import subprocess
 import requests
@@ -233,8 +235,16 @@ def get_task_suggestions():
         return jsonify({"success": False, "message": "未登录"})
     query = request.args.get("q", "").lower()
     deep = request.args.get("d", "").lower()
-    try:
-        cs_data = config_data.get("source", {}).get("cloudsaver", {})
+    cs_data = config_data.get("source", {}).get("cloudsaver", {})
+    ps_data = config_data.get("source", {}).get("pansou", {})
+    
+    def net_search():
+        base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
+        url = f"{base_url}/task_suggestions?q={query}&d={deep}"
+        response = requests.get(url)
+        return response.json()
+    
+    def cs_search():
         if (
             cs_data.get("server")
             and cs_data.get("username")
@@ -252,18 +262,37 @@ def get_task_suggestions():
                     cs_data["token"] = search.get("new_token")
                     Config.write_json(CONFIG_PATH, config_data)
                 search_results = cs.clean_search_results(search.get("data"))
-                return jsonify(
-                    {"success": True, "source": "CloudSaver", "data": search_results}
-                )
-            else:
-                return jsonify({"success": True, "message": search.get("message")})
-        else:
-            base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
-            url = f"{base_url}/task_suggestions?q={query}&d={deep}"
-            response = requests.get(url)
-            return jsonify(
-                {"success": True, "source": "网络公开", "data": response.json()}
-            )
+                return search_results
+        return []
+    
+    def ps_search():
+        if (ps_data.get("server")):
+            ps = PanSou(ps_data.get("server"))
+            return ps.search(query)
+        return []
+   
+    try:
+        search_results = []
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            features = []
+            features.append(executor.submit(net_search))
+            features.append(executor.submit(cs_search))
+            features.append(executor.submit(ps_search))
+            for future in as_completed(features):
+                result = future.result()
+                search_results.extend(result)
+        
+        # 按时间排序并去重
+        results = []
+        link_array = []
+        search_results.sort(key=lambda x: x.get("datetime", ""), reverse=True)  
+        for item in search_results:
+            url = item.get("shareurl", "")
+            if url != "" and url not in link_array:
+                link_array.append(url)
+                results.append(item)
+                
+        return jsonify({"success": True, "data": results})
     except Exception as e:
         return jsonify({"success": True, "message": f"error: {str(e)}"})
 
