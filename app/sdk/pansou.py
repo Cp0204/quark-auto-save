@@ -1,7 +1,8 @@
 import re
-from datetime import datetime, timedelta
 
 import requests
+
+from sdk.common import iso_to_cst
 
 
 class PanSou:
@@ -55,13 +56,12 @@ class PanSou:
         )
         format_results = []
         link_array = []
-        for channel in search_results:
-            url = channel.get("url", "")
-            note = channel.get("note", "")
-            tm = channel.get("datetime", "")
+        for item in search_results:
+            url = item.get("url", "")
+            note = item.get("note", "")
+            tm = item.get("datetime", "")
             if tm:
-                utc_tm = datetime.strptime(tm, "%Y-%m-%dT%H:%M:%SZ")
-                tm = (utc_tm + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
+                tm = iso_to_cst(tm)
 
             match = re.search(pattern, note)
             if match:
@@ -74,10 +74,11 @@ class PanSou:
             if url != "" and url not in link_array:
                 link_array.append(url)
                 format_results.append({
+                    "shareurl": url,
                     "taskname": title,
                     "content": content,
-                    "shareurl": url,
                     "datetime": tm,
+                    "channel": item.get("source", ""),
                     "source": "PanSou"
                 })
 

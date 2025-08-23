@@ -303,6 +303,7 @@
                               <a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a>
                             </small>
                             <span class="badge bg-transparent border border-success text-success">{{ suggestion.source || "网络公开" }}</span>
+                            <span class="badge bg-transparent border border-info text-info">{{ suggestion.channel }}</span>
                             <span v-if="suggestion.datetime" class="badge bg-transparent border border-dark text-dark">{{ suggestion.datetime }}</span>
                           </div>
                         </div>
