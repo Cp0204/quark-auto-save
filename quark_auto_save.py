@@ -3003,7 +3003,37 @@ class Quark:
             non_dir_files = [f for f in dir_file_list if not f.get("dir", False)]
             is_empty_dir = len(non_dir_files) == 0
 
-
+            # 应用过滤词过滤（修复bug：为本地文件重命名添加过滤规则）
+            if task.get("filterwords"):
+                # 记录过滤前的文件总数
+                original_total_count = len(dir_file_list)
+                
+                # 同时支持中英文逗号分隔
+                filterwords = task["filterwords"].replace("，", ",")
+                filterwords_list = [word.strip().lower() for word in filterwords.split(',')]
+                
+                # 过滤掉包含过滤词的文件
+                filtered_files = []
+                for file in dir_file_list:
+                    if file.get("dir", False):
+                        # 文件夹也需要检查过滤词
+                        file_name = file['file_name'].lower()
+                        file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
+                        
+                        # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
+                        if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
+                            filtered_files.append(file)
+                    else:
+                        # 文件检查过滤词
+                        file_name = file['file_name'].lower()
+                        file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
+                        
+                        # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
+                        if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
+                            filtered_files.append(file)
+                
+                dir_file_list = filtered_files
+                dir_file_name_list = [item["file_name"] for item in dir_file_list]
 
             # 找出当前最大序号
             max_sequence = 0
@@ -3609,6 +3639,37 @@ class Quark:
             is_rename_count = 0
             renamed_files = {}
             
+            # 应用过滤词过滤（修复bug：为本地文件重命名添加过滤规则）
+            if task.get("filterwords"):
+                # 记录过滤前的文件总数
+                original_total_count = len(dir_file_list)
+                
+                # 同时支持中英文逗号分隔
+                filterwords = task["filterwords"].replace("，", ",")
+                filterwords_list = [word.strip().lower() for word in filterwords.split(',')]
+                
+                # 过滤掉包含过滤词的文件
+                filtered_files = []
+                for file in dir_file_list:
+                    if file.get("dir", False):
+                        # 文件夹也需要检查过滤词
+                        file_name = file['file_name'].lower()
+                        file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
+                        
+                        # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
+                        if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
+                            filtered_files.append(file)
+                    else:
+                        # 文件检查过滤词
+                        file_name = file['file_name'].lower()
+                        file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
+                        
+                        # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
+                        if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
+                            filtered_files.append(file)
+                
+                dir_file_list = filtered_files
+            
             # 使用一个列表收集所有需要重命名的操作
             rename_operations = []
             rename_logs = []  # 收集重命名日志
@@ -3753,6 +3814,37 @@ class Quark:
             
             # 获取目录中的文件列表
             dir_file_list = self.ls_dir(self.savepath_fid[savepath])
+            
+            # 应用过滤词过滤（修复bug：为本地文件重命名添加过滤规则）
+            if task.get("filterwords"):
+                # 记录过滤前的文件总数
+                original_total_count = len(dir_file_list)
+                
+                # 同时支持中英文逗号分隔
+                filterwords = task["filterwords"].replace("，", ",")
+                filterwords_list = [word.strip().lower() for word in filterwords.split(',')]
+                
+                # 过滤掉包含过滤词的文件
+                filtered_files = []
+                for file in dir_file_list:
+                    if file.get("dir", False):
+                        # 文件夹也需要检查过滤词
+                        file_name = file['file_name'].lower()
+                        file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
+                        
+                        # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
+                        if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
+                            filtered_files.append(file)
+                    else:
+                        # 文件检查过滤词
+                        file_name = file['file_name'].lower()
+                        file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
+                        
+                        # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
+                        if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
+                            filtered_files.append(file)
+                
+                dir_file_list = filtered_files
             
             # 使用一个列表收集所有需要重命名的操作
             rename_operations = []
