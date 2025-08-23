@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta
 import re
 import requests
+from sdk.common import iso_to_cst
 
 
 class CloudSaver:
@@ -128,8 +128,7 @@ class CloudSaver:
                         # 统一发布时间格式
                         pubdate = item.get("pubDate", "")
                         if pubdate:
-                            utc_tm = datetime.fromisoformat(pubdate)
-                            pubdate = (utc_tm + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
+                            pubdate = iso_to_cst(pubdate)
                         # 链接去重
                         if link.get("link") not in link_array:
                             link_array.append(link.get("link"))
