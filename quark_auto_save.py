@@ -36,6 +36,106 @@ except ImportError:
             def close(self):
                 pass
 
+def advanced_filter_files(file_list, filterwords):
+    """
+    高级过滤函数，支持保留词和过滤词
+    
+    Args:
+        file_list: 文件列表
+        filterwords: 过滤规则字符串，支持以下格式：
+            - "加更，企划，超前，(1)，mkv，nfo"  # 只有过滤词
+            - "期|加更，企划，超前，(1)，mkv，nfo"  # 保留词|过滤词
+            - "期，2160P|加更，企划，超前，(1)，mkv，nfo"  # 多个保留词(或关系)|过滤词
+            - "期|2160P|加更，企划，超前，(1)，mkv，nfo"  # 多个保留词(并关系)|过滤词
+            - "期，2160P|"  # 只有保留词，无过滤词
+    
+    Returns:
+        过滤后的文件列表
+    """
+    if not filterwords or not filterwords.strip():
+        return file_list
+    
+    # 检查是否包含分隔符 |
+    if '|' not in filterwords:
+        # 只有过滤词的情况
+        filterwords = filterwords.replace("，", ",")
+        filterwords_list = [word.strip().lower() for word in filterwords.split(',') if word.strip()]
+        
+        filtered_files = []
+        for file in file_list:
+            file_name = file['file_name'].lower()
+            file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
+            
+            # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
+            if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
+                filtered_files.append(file)
+        
+        return filtered_files
+    
+    # 包含分隔符的情况，需要解析保留词和过滤词
+    parts = filterwords.split('|')
+    if len(parts) < 2:
+        # 格式错误，返回原列表
+        return file_list
+    
+    # 最后一个|后面的是过滤词
+    filter_part = parts[-1].strip()
+    # 前面的都是保留词
+    keep_parts = [part.strip() for part in parts[:-1] if part.strip()]
+    
+    # 解析过滤词
+    filterwords_list = []
+    if filter_part:
+        filter_part = filter_part.replace("，", ",")
+        filterwords_list = [word.strip().lower() for word in filter_part.split(',') if word.strip()]
+    
+    # 解析保留词：每个|分隔的部分都是一个独立的筛选条件
+    # 这些条件需要按顺序依次应用，形成链式筛选
+    keep_conditions = []
+    for part in keep_parts:
+        if part.strip():
+            if ',' in part or '，' in part:
+                # 包含逗号，表示或关系
+                part = part.replace("，", ",")
+                or_words = [word.strip().lower() for word in part.split(',') if word.strip()]
+                keep_conditions.append(("or", or_words))
+            else:
+                # 不包含逗号，表示单个词
+                keep_conditions.append(("single", [part.strip().lower()]))
+    
+    # 第一步：应用保留词筛选（链式筛选）
+    if keep_conditions:
+        for condition_type, words in keep_conditions:
+            filtered_by_keep = []
+            for file in file_list:
+                file_name = file['file_name'].lower()
+                
+                if condition_type == "or":
+                    # 或关系：包含任意一个词即可
+                    if any(word in file_name for word in words):
+                        filtered_by_keep.append(file)
+                elif condition_type == "single":
+                    # 单个词：必须包含
+                    if words[0] in file_name:
+                        filtered_by_keep.append(file)
+            
+            file_list = filtered_by_keep
+    
+    # 第二步：应用过滤词过滤
+    if filterwords_list:
+        filtered_files = []
+        for file in file_list:
+            file_name = file['file_name'].lower()
+            file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
+            
+            # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
+            if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
+                filtered_files.append(file)
+        
+        return filtered_files
+    
+    return file_list
+
 # 全局的文件排序函数
 def sort_file_by_name(file):
     """
@@ -1978,22 +2078,8 @@ class Quark:
             # 记录过滤前的文件总数（包括文件夹）
             original_total_count = len(share_file_list)
 
-            # 同时支持中英文逗号分隔
-            filterwords = task["filterwords"].replace("，", ",")
-            filterwords_list = [word.strip().lower() for word in filterwords.split(',')]
-
-            # 改进过滤逻辑，同时检查文件名和扩展名
-            filtered_files = []
-            for file in share_file_list:
-                file_name = file['file_name'].lower()
-                # 提取文件扩展名（不带点）
-                file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
-
-                # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
-                if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
-                    filtered_files.append(file)
-
-            share_file_list = filtered_files
+            # 使用高级过滤函数处理保留词和过滤词
+            share_file_list = advanced_filter_files(share_file_list, task["filterwords"])
             
             # 打印过滤信息（格式保持不变）
             # 计算剩余文件数
@@ -3008,31 +3094,8 @@ class Quark:
                 # 记录过滤前的文件总数
                 original_total_count = len(dir_file_list)
                 
-                # 同时支持中英文逗号分隔
-                filterwords = task["filterwords"].replace("，", ",")
-                filterwords_list = [word.strip().lower() for word in filterwords.split(',')]
-                
-                # 过滤掉包含过滤词的文件
-                filtered_files = []
-                for file in dir_file_list:
-                    if file.get("dir", False):
-                        # 文件夹也需要检查过滤词
-                        file_name = file['file_name'].lower()
-                        file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
-                        
-                        # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
-                        if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
-                            filtered_files.append(file)
-                    else:
-                        # 文件检查过滤词
-                        file_name = file['file_name'].lower()
-                        file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
-                        
-                        # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
-                        if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
-                            filtered_files.append(file)
-                
-                dir_file_list = filtered_files
+                # 使用高级过滤函数处理保留词和过滤词
+                dir_file_list = advanced_filter_files(dir_file_list, task["filterwords"])
                 dir_file_name_list = [item["file_name"] for item in dir_file_list]
 
             # 找出当前最大序号
@@ -3435,23 +3498,14 @@ class Quark:
                             # 检查过滤词
                             should_filter = False
                             if task.get("filterwords"):
-                                # 同时支持中英文逗号分隔
-                                filterwords = task["filterwords"].replace("，", ",")
-                                filterwords_list = [word.strip().lower() for word in filterwords.split(',')]
-                                
-                                # 检查原始文件名
-                                original_name_lower = share_file["file_name"].lower()
-                                if any(word in original_name_lower for word in filterwords_list):
-                                    should_filter = True
-                                
-                                # 检查目标文件名
-                                save_name_lower = save_name.lower()
-                                if any(word in save_name_lower for word in filterwords_list):
-                                    should_filter = True
-                                
-                                # 检查文件扩展名
-                                file_ext_lower = file_ext.lower().lstrip('.')
-                                if any(word == file_ext_lower for word in filterwords_list):
+                                # 使用高级过滤函数检查文件名
+                                temp_file_list = [{"file_name": share_file["file_name"]}]
+                                if advanced_filter_files(temp_file_list, task["filterwords"]):
+                                    # 检查目标文件名
+                                    temp_save_list = [{"file_name": save_name}]
+                                    if not advanced_filter_files(temp_save_list, task["filterwords"]):
+                                        should_filter = True
+                                else:
                                     should_filter = True
                             
                             # 只处理不需要过滤的文件
@@ -3465,19 +3519,9 @@ class Quark:
                             # 检查过滤词
                             should_filter = False
                             if task.get("filterwords"):
-                                # 同时支持中英文逗号分隔
-                                filterwords = task["filterwords"].replace("，", ",")
-                                filterwords_list = [word.strip().lower() for word in filterwords.split(',')]
-                                
-                                # 检查原始文件名
-                                original_name_lower = share_file["file_name"].lower()
-                                if any(word in original_name_lower for word in filterwords_list):
-                                    should_filter = True
-                                
-                                # 检查文件扩展名
-                                file_ext = os.path.splitext(share_file["file_name"])[1].lower()
-                                file_ext_lower = file_ext.lstrip('.')
-                                if any(word == file_ext_lower for word in filterwords_list):
+                                # 使用高级过滤函数检查文件名
+                                temp_file_list = [{"file_name": share_file["file_name"]}]
+                                if not advanced_filter_files(temp_file_list, task["filterwords"]):
                                     should_filter = True
                             
                             # 只处理不需要过滤的文件
@@ -3644,31 +3688,8 @@ class Quark:
                 # 记录过滤前的文件总数
                 original_total_count = len(dir_file_list)
                 
-                # 同时支持中英文逗号分隔
-                filterwords = task["filterwords"].replace("，", ",")
-                filterwords_list = [word.strip().lower() for word in filterwords.split(',')]
-                
-                # 过滤掉包含过滤词的文件
-                filtered_files = []
-                for file in dir_file_list:
-                    if file.get("dir", False):
-                        # 文件夹也需要检查过滤词
-                        file_name = file['file_name'].lower()
-                        file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
-                        
-                        # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
-                        if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
-                            filtered_files.append(file)
-                    else:
-                        # 文件检查过滤词
-                        file_name = file['file_name'].lower()
-                        file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
-                        
-                        # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
-                        if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
-                            filtered_files.append(file)
-                
-                dir_file_list = filtered_files
+                # 使用高级过滤函数处理保留词和过滤词
+                dir_file_list = advanced_filter_files(dir_file_list, task["filterwords"])
             
             # 使用一个列表收集所有需要重命名的操作
             rename_operations = []
@@ -3820,31 +3841,8 @@ class Quark:
                 # 记录过滤前的文件总数
                 original_total_count = len(dir_file_list)
                 
-                # 同时支持中英文逗号分隔
-                filterwords = task["filterwords"].replace("，", ",")
-                filterwords_list = [word.strip().lower() for word in filterwords.split(',')]
-                
-                # 过滤掉包含过滤词的文件
-                filtered_files = []
-                for file in dir_file_list:
-                    if file.get("dir", False):
-                        # 文件夹也需要检查过滤词
-                        file_name = file['file_name'].lower()
-                        file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
-                        
-                        # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
-                        if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
-                            filtered_files.append(file)
-                    else:
-                        # 文件检查过滤词
-                        file_name = file['file_name'].lower()
-                        file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
-                        
-                        # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
-                        if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
-                            filtered_files.append(file)
-                
-                dir_file_list = filtered_files
+                # 使用高级过滤函数处理保留词和过滤词
+                dir_file_list = advanced_filter_files(dir_file_list, task["filterwords"])
             
             # 使用一个列表收集所有需要重命名的操作
             rename_operations = []

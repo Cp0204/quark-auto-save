@@ -43,6 +43,106 @@ from quark_auto_save import extract_episode_number, sort_file_by_name, chinese_t
 # 导入豆瓣服务
 from sdk.douban_service import douban_service
 
+def advanced_filter_files(file_list, filterwords):
+    """
+    高级过滤函数，支持保留词和过滤词
+    
+    Args:
+        file_list: 文件列表
+        filterwords: 过滤规则字符串，支持以下格式：
+            - "加更，企划，超前，(1)，mkv，nfo"  # 只有过滤词
+            - "期|加更，企划，超前，(1)，mkv，nfo"  # 保留词|过滤词
+            - "期，2160P|加更，企划，超前，(1)，mkv，nfo"  # 多个保留词(或关系)|过滤词
+            - "期|2160P|加更，企划，超前，(1)，mkv，nfo"  # 多个保留词(并关系)|过滤词
+            - "期，2160P|"  # 只有保留词，无过滤词
+    
+    Returns:
+        过滤后的文件列表
+    """
+    if not filterwords or not filterwords.strip():
+        return file_list
+    
+    # 检查是否包含分隔符 |
+    if '|' not in filterwords:
+        # 只有过滤词的情况
+        filterwords = filterwords.replace("，", ",")
+        filterwords_list = [word.strip().lower() for word in filterwords.split(',') if word.strip()]
+        
+        filtered_files = []
+        for file in file_list:
+            file_name = file['file_name'].lower()
+            file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
+            
+            # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
+            if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
+                filtered_files.append(file)
+        
+        return filtered_files
+    
+    # 包含分隔符的情况，需要解析保留词和过滤词
+    parts = filterwords.split('|')
+    if len(parts) < 2:
+        # 格式错误，返回原列表
+        return file_list
+    
+    # 最后一个|后面的是过滤词
+    filter_part = parts[-1].strip()
+    # 前面的都是保留词
+    keep_parts = [part.strip() for part in parts[:-1] if part.strip()]
+    
+    # 解析过滤词
+    filterwords_list = []
+    if filter_part:
+        filter_part = filter_part.replace("，", ",")
+        filterwords_list = [word.strip().lower() for word in filter_part.split(',') if word.strip()]
+    
+    # 解析保留词：每个|分隔的部分都是一个独立的筛选条件
+    # 这些条件需要按顺序依次应用，形成链式筛选
+    keep_conditions = []
+    for part in keep_parts:
+        if part.strip():
+            if ',' in part or '，' in part:
+                # 包含逗号，表示或关系
+                part = part.replace("，", ",")
+                or_words = [word.strip().lower() for word in part.split(',') if word.strip()]
+                keep_conditions.append(("or", or_words))
+            else:
+                # 不包含逗号，表示单个词
+                keep_conditions.append(("single", [part.strip().lower()]))
+    
+    # 第一步：应用保留词筛选（链式筛选）
+    if keep_conditions:
+        for condition_type, words in keep_conditions:
+            filtered_by_keep = []
+            for file in file_list:
+                file_name = file['file_name'].lower()
+                
+                if condition_type == "or":
+                    # 或关系：包含任意一个词即可
+                    if any(word in file_name for word in words):
+                        filtered_by_keep.append(file)
+                elif condition_type == "single":
+                    # 单个词：必须包含
+                    if words[0] in file_name:
+                        filtered_by_keep.append(file)
+            
+            file_list = filtered_by_keep
+    
+    # 第二步：应用过滤词过滤
+    if filterwords_list:
+        filtered_files = []
+        for file in file_list:
+            file_name = file['file_name'].lower()
+            file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
+            
+            # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
+            if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
+                filtered_files.append(file)
+        
+        return filtered_files
+    
+    return file_list
+
 
 def process_season_episode_info(filename, task_name=None):
     """
@@ -924,15 +1024,14 @@ def get_share_detail():
             # 根据提取的排序值进行排序
             sorted_files = sorted(files_to_process, key=extract_sort_value)
             
-            # 应用过滤词过滤
+            # 应用高级过滤词过滤
             filterwords = regex.get("filterwords", "")
             if filterwords:
-                # 同时支持中英文逗号分隔
-                filterwords = filterwords.replace("，", ",")
-                filterwords_list = [word.strip() for word in filterwords.split(',')]
+                # 使用高级过滤函数
+                filtered_files = advanced_filter_files(sorted_files, filterwords)
+                # 标记被过滤的文件
                 for item in sorted_files:
-                    # 被过滤的文件不会有file_name_re，与不匹配正则的文件显示一致
-                    if any(word in item['file_name'] for word in filterwords_list):
+                    if item not in filtered_files:
                         item["filtered"] = True
             
             # 为每个文件分配序号
@@ -982,15 +1081,14 @@ def get_share_detail():
             ]
             episode_patterns.extend(chinese_patterns)
             
-            # 应用过滤词过滤
+            # 应用高级过滤词过滤
             filterwords = regex.get("filterwords", "")
             if filterwords:
-                # 同时支持中英文逗号分隔
-                filterwords = filterwords.replace("，", ",")
-                filterwords_list = [word.strip() for word in filterwords.split(',')]
+                # 使用高级过滤函数
+                filtered_files = advanced_filter_files(share_detail["list"], filterwords)
+                # 标记被过滤的文件
                 for item in share_detail["list"]:
-                    # 被过滤的文件显示一个 ×
-                    if any(word in item['file_name'] for word in filterwords_list):
+                    if item not in filtered_files:
                         item["filtered"] = True
                         item["file_name_re"] = "×"
             
@@ -1019,15 +1117,14 @@ def get_share_detail():
                 regex.get("magic_regex", {}),
             )
             
-            # 应用过滤词过滤
+            # 应用高级过滤词过滤
             filterwords = regex.get("filterwords", "")
             if filterwords:
-                # 同时支持中英文逗号分隔
-                filterwords = filterwords.replace("，", ",")
-                filterwords_list = [word.strip() for word in filterwords.split(',')]
+                # 使用高级过滤函数
+                filtered_files = advanced_filter_files(share_detail["list"], filterwords)
+                # 标记被过滤的文件
                 for item in share_detail["list"]:
-                    # 被过滤的文件不会有file_name_re，与不匹配正则的文件显示一致
-                    if any(word in item['file_name'] for word in filterwords_list):
+                    if item not in filtered_files:
                         item["filtered"] = True
                 
             # 应用正则命名
@@ -2066,25 +2163,12 @@ def preview_rename():
         if isinstance(files, dict) and files.get("error"):
             return jsonify({"success": False, "message": f"获取文件列表失败: {files.get('error', '未知错误')}"})
         
-        # 过滤要排除的文件
-        # 替换中文逗号为英文逗号
-        filterwords = filterwords.replace("，", ",") 
-        filter_list = [keyword.strip() for keyword in filterwords.split(",") if keyword.strip()]
-        filtered_files = []
-        for file in files:
-            # 如果不包含文件夹且当前项是文件夹，跳过
-            if not include_folders and file["dir"]:
-                continue
-                
-            # 检查是否包含过滤关键词
-            should_filter = False
-            for keyword in filter_list:
-                if keyword and keyword in file["file_name"]:
-                    should_filter = True
-                    break
-                    
-            if not should_filter:
-                filtered_files.append(file)
+        # 使用高级过滤函数过滤文件
+        filtered_files = advanced_filter_files(files, filterwords)
+        
+        # 如果不包含文件夹，进一步过滤掉文件夹
+        if not include_folders:
+            filtered_files = [file for file in filtered_files if not file["dir"]]
         
         # 按不同命名模式处理
         preview_results = []

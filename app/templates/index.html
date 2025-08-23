@@ -1044,11 +1044,11 @@
                     </div>
                   </div>
                   
-                  <div class="form-group row" title="名称包含过滤词汇的项目不会被转存，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹">
+                  <div class="form-group row" title="名称包含过滤词汇的项目不会被转存，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹，支持使用保留词|过滤词的格式实现高级过滤，查阅Wiki了解详情">
                     <label class="col-sm-2 col-form-label">过滤规则</label>
                     <div class="col-sm-10">
                       <div class="input-group">
-                        <input type="text" name="filterwords[]" class="form-control" v-model="task.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划，名称包含过滤词汇的项目不会被转存">
+                        <input type="text" name="filterwords[]" class="form-control" v-model="task.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划，名称包含过滤词汇的项目不会被转存，支持使用保留词|过滤词的格式实现高级过滤">
                       </div>
                     </div>
                   </div>
@@ -1359,7 +1359,7 @@
                     @input="detectFileManagerNamingMode"
                     :title="fileManager.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}、剧名.S03E{}等，{}将被替换为集序号（按文件名和修改日期智能排序）' : (fileManager.use_episode_naming ? '输入带[]占位符的重命名格式，如：剧名 - S01E[]、剧名.S03E[]等，[]将被替换为从文件名中提取的集编号' : '只重命名匹配到文件名的文件，留空不会进行重命名')">
                   <input v-if="!fileManager.use_sequence_naming && !fileManager.use_episode_naming" type="text" class="form-control file-manager-input" v-model="fileManager.replace" placeholder="替换表达式" title="替换表达式">
-                  <input type="text" class="form-control file-manager-input" v-model="fileManager.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划" title="名称包含过滤词汇的项目不会被重命名，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹">
+                  <input type="text" class="form-control file-manager-input" v-model="fileManager.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划" title="名称包含过滤词汇的项目不会被重命名，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹，支持使用保留词|过滤词的格式实现高级过滤，查阅Wiki了解详情">
                   <div class="input-group-append">
                     <div class="input-group-text" title="勾选后，重命名和过滤规则也将应用于文件夹">
                       <input type="checkbox" v-model="fileManager.include_folders">&nbsp;含文件夹
@@ -1390,7 +1390,7 @@
                     <div class="input-group-prepend">
                       <span class="input-group-text">过滤规则</span>
                     </div>
-                    <input type="text" class="form-control" v-model="fileManager.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划" title="名称包含过滤词汇的项目不会被重命名，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹">
+                    <input type="text" class="form-control" v-model="fileManager.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划" title="名称包含过滤词汇的项目不会被重命名，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹，支持使用保留词|过滤词的格式实现高级过滤，查阅Wiki了解详情">
                     <span class="input-group-text file-folder-rounded">
                       <input type="checkbox" v-model="fileManager.include_folders">&nbsp;含文件夹
                     </span>
@@ -1971,11 +1971,11 @@
                 </div>
               </div>
 
-              <div class="form-group row" title="名称包含过滤词汇的项目不会被转存，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹">
+              <div class="form-group row" title="名称包含过滤词汇的项目不会被转存，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹，支持使用保留词|过滤词的格式实现高级过滤，查阅Wiki了解详情">
                 <label class="col-sm-2 col-form-label">过滤规则</label>
                 <div class="col-sm-10">
                   <div class="input-group">
-                    <input type="text" name="filterwords[]" class="form-control" v-model="createTask.taskData.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划，名称包含过滤词汇的项目不会被转存">
+                    <input type="text" name="filterwords[]" class="form-control" v-model="createTask.taskData.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，名称包含过滤词汇的项目不会被转存，支持使用保留词|过滤词的格式实现高级过滤">
                   </div>
                 </div>
               </div>
