@@ -139,8 +139,7 @@ class CloudSaver:
                                     "content": content,
                                     "datetime": pubdate,
                                     "tags": item.get("tags", []),
-                                    "channel": item.get("channel", ""),
-                                    "channel_id": item.get("channelId", ""),
+                                    "channel": item.get("channelId", ""),
                                     "source": "CloudSaver"
                                 }
                             )

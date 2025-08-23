@@ -74,10 +74,11 @@ class PanSou:
             if url != "" and url not in link_array:
                 link_array.append(url)
                 format_results.append({
+                    "shareurl": url,
                     "taskname": title,
                     "content": content,
-                    "shareurl": url,
                     "datetime": tm,
+                    "channel": item.get("source", ""),
                     "source": "PanSou"
                 })
 
