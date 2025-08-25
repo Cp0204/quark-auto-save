@@ -486,6 +486,31 @@ def get_data():
                 data["plugins"]["alist"]["storage_id"]
             )
 
+    # 初始化插件配置模式（如果不存在）
+    if "plugin_config_mode" not in data:
+        data["plugin_config_mode"] = {
+            "aria2": "independent",
+            "alist_strm_gen": "independent",
+            "emby": "independent"
+        }
+    
+    # 初始化全局插件配置（如果不存在）
+    if "global_plugin_config" not in data:
+        data["global_plugin_config"] = {
+            "aria2": {
+                "auto_download": True,
+                "pause": False,
+                "auto_delete_quark_files": False
+            },
+            "alist_strm_gen": {
+                "auto_gen": True
+            },
+            "emby": {
+                "try_match": True,
+                "media_id": ""
+            }
+        }
+
     # 发送webui信息，但不发送密码原文
     data["webui"] = {
         "username": config_data["webui"]["username"],
@@ -505,6 +530,7 @@ def sync_task_plugins_config():
     4. 保留原有的自定义配置
     5. 只处理已启用的插件（通过PLUGIN_FLAGS检查）
     6. 清理被禁用插件的配置
+    7. 应用全局插件配置（如果启用）
     """
     global config_data, task_plugins_config_default
     
@@ -516,6 +542,10 @@ def sync_task_plugins_config():
     disabled_plugins = set()
     if PLUGIN_FLAGS:
         disabled_plugins = {name.lstrip('-') for name in PLUGIN_FLAGS.split(',')}
+    
+    # 获取插件配置模式
+    plugin_config_mode = config_data.get("plugin_config_mode", {})
+    global_plugin_config = config_data.get("global_plugin_config", {})
         
     # 遍历所有任务
     for task in config_data["tasklist"]:
@@ -533,23 +563,31 @@ def sync_task_plugins_config():
             # 跳过被禁用的插件
             if plugin_name in disabled_plugins:
                 continue
-                
-            # 如果任务中没有该插件的配置，添加默认配置
-            if plugin_name not in task["addition"]:
-                task["addition"][plugin_name] = default_config.copy()
-            else:
-                # 如果任务中有该插件的配置，检查是否有新的配置项
-                current_config = task["addition"][plugin_name]
-                # 确保current_config是字典类型
-                if not isinstance(current_config, dict):
-                    # 如果不是字典类型，使用默认配置
+            
+            # 检查是否使用全局配置模式
+            if plugin_name in plugin_config_mode and plugin_config_mode[plugin_name] == "global":
+                # 使用全局配置
+                if plugin_name in global_plugin_config:
+                    task["addition"][plugin_name] = global_plugin_config[plugin_name].copy()
+                else:
                     task["addition"][plugin_name] = default_config.copy()
-                    continue
-                    
-                # 遍历默认配置的每个键值对
-                for key, default_value in default_config.items():
-                    if key not in current_config:
-                        current_config[key] = default_value
+            else:
+                # 使用独立配置
+                if plugin_name not in task["addition"]:
+                    task["addition"][plugin_name] = default_config.copy()
+                else:
+                    # 如果任务中有该插件的配置，检查是否有新的配置项
+                    current_config = task["addition"][plugin_name]
+                    # 确保current_config是字典类型
+                    if not isinstance(current_config, dict):
+                        # 如果不是字典类型，使用默认配置
+                        task["addition"][plugin_name] = default_config.copy()
+                        continue
+                        
+                    # 遍历默认配置的每个键值对
+                    for key, default_value in default_config.items():
+                        if key not in current_config:
+                            current_config[key] = default_value
 
 
 def parse_comma_separated_config(value):
@@ -1528,6 +1566,31 @@ def init():
                     if plugin_name in disabled_plugins:
                         del task["addition"][plugin_name]
     
+    # 初始化插件配置模式（如果不存在）
+    if "plugin_config_mode" not in config_data:
+        config_data["plugin_config_mode"] = {
+            "aria2": "independent",
+            "alist_strm_gen": "independent",
+            "emby": "independent"
+        }
+    
+    # 初始化全局插件配置（如果不存在）
+    if "global_plugin_config" not in config_data:
+        config_data["global_plugin_config"] = {
+            "aria2": {
+                "auto_download": True,
+                "pause": False,
+                "auto_delete_quark_files": False
+            },
+            "alist_strm_gen": {
+                "auto_gen": True
+            },
+            "emby": {
+                "try_match": True,
+                "media_id": ""
+            }
+        }
+
     # 同步更新任务的插件配置
     sync_task_plugins_config()
 

@@ -554,6 +554,32 @@
                     :placeholder="getPluginConfigPlaceholder(pluginName, key)"
                     :title="getPluginConfigHelp(pluginName, key)">
                 </div>
+                <!-- 为特定插件添加全局配置选项 -->
+                <div v-if="['aria2', 'alist_strm_gen', 'emby'].includes(pluginName)" class="input-group mb-2">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text" :title="getPluginConfigModeHelp(pluginName)">插件配置模式</span>
+                  </div>
+                  <select class="form-control" v-model="formData.plugin_config_mode[pluginName]" @change="onPluginConfigModeChange(pluginName)" :title="getPluginConfigModeHelp(pluginName)">
+                    <option value="independent">独立配置</option>
+                    <option value="global">全局配置</option>
+                  </select>
+                </div>
+                <!-- 全局插件配置选项 -->
+                <div v-if="['aria2', 'alist_strm_gen', 'emby'].includes(pluginName) && formData.plugin_config_mode[pluginName] === 'global'">
+                  <div v-for="(taskConfig, taskKey) in getPluginTaskConfig(pluginName)" :key="taskKey" class="input-group mb-2">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text" v-html="taskKey" :title="getPluginTaskConfigHelp(pluginName, taskKey)"></span>
+                    </div>
+                    <select v-if="typeof formData.global_plugin_config[pluginName][taskKey] === 'boolean'" class="form-control" v-model="formData.global_plugin_config[pluginName][taskKey]" @change="onGlobalPluginConfigChange()" :title="getPluginTaskConfigHelp(pluginName, taskKey)">
+                      <option :value="true">true</option>
+                      <option :value="false">false</option>
+                    </select>
+                    <input v-else type="text" class="form-control" v-model="formData.global_plugin_config[pluginName][taskKey]"
+                      :placeholder="getPluginTaskConfigPlaceholder(pluginName, taskKey)"
+                      :title="getPluginTaskConfigHelp(pluginName, taskKey)"
+                      @input="onGlobalPluginConfigChange()">
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1096,10 +1122,10 @@
                       </div>
                     </div>
                   </div>
-                  <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" title="单个任务的插件配置，具体键值由插件定义，查阅Wiki了解详情">
+                  <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" :title="getPluginConfigTitle(task)">
                     <label class="col-sm-2 col-form-label">插件配置</label>
                     <div class="col-sm-10">
-                      <v-jsoneditor v-model="task.addition" :options="{mode:'tree'}" :plus="false" height="162px" style="margin-bottom: -8px;"></v-jsoneditor>
+                      <v-jsoneditor v-model="task.addition" :options="{mode:'tree'}" :plus="false" height="162px" style="margin-bottom: -8px;" :disabled="isPluginConfigDisabled(task)"></v-jsoneditor>
                     </div>
                   </div>
                 </div>
@@ -2023,10 +2049,10 @@
                   </div>
                 </div>
               </div>
-              <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" title="单个任务的插件配置，具体键值由插件定义，查阅Wiki了解详情">
+              <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" :title="getCreateTaskPluginConfigTitle()">
                 <label class="col-sm-2 col-form-label">插件配置</label>
                 <div class="col-sm-10">
-                  <v-jsoneditor v-model="createTask.taskData.addition" :options="{mode:'tree'}" :plus="false" height="162px" style="margin-bottom: -8px;"></v-jsoneditor>
+                  <v-jsoneditor v-model="createTask.taskData.addition" :options="{mode:'tree'}" :plus="false" height="162px" style="margin-bottom: -8px;" :disabled="isPluginConfigDisabled(createTask.taskData)"></v-jsoneditor>
                 </div>
               </div>
             </div>
@@ -2111,6 +2137,25 @@
             api_page_size: 200,
             cache_expire_time: 30,
             discovery_items_count: 30
+          },
+          plugin_config_mode: {
+            aria2: "independent",
+            alist_strm_gen: "independent",
+            emby: "independent"
+          },
+          global_plugin_config: {
+            aria2: {
+              auto_download: true,
+              pause: false,
+              auto_delete_quark_files: false
+            },
+            alist_strm_gen: {
+              auto_gen: true
+            },
+            emby: {
+              try_match: true,
+              media_id: ""
+            }
           }
         },
         userInfoList: [], // 用户信息列表
@@ -2743,6 +2788,139 @@
           return '';
         },
 
+        // 获取插件任务配置
+        getPluginTaskConfig(pluginName) {
+          const taskConfigs = {
+            aria2: {
+              auto_download: true,
+              pause: false,
+              auto_delete_quark_files: false
+            },
+            alist_strm_gen: {
+              auto_gen: true
+            },
+            emby: {
+              try_match: true,
+              media_id: ""
+            }
+          };
+          return taskConfigs[pluginName] || {};
+        },
+
+        // 获取插件配置模式的帮助文本
+        getPluginConfigModeHelp(pluginName) {
+          return "选择插件的配置模式：独立配置允许每个任务单独设置，全局配置则所有任务共享同一套设置，且只能在系统配置页面修改";
+        },
+
+        // 获取插件任务配置的帮助文本
+        getPluginTaskConfigHelp(pluginName, key) {
+          const helpTexts = {
+            aria2: {
+              auto_download: "是否自动添加下载任务",
+              pause: "添加任务后为暂停状态，不自动开始（手动下载）",
+              auto_delete_quark_files: "是否在添加下载任务后自动删除夸克网盘文件"
+            },
+            alist_strm_gen: {
+              auto_gen: "是否自动生成 strm 文件"
+            },
+            emby: {
+              try_match: "是否尝试匹配",
+              media_id: "媒体ID，当为0时不刷新"
+            }
+          };
+          return helpTexts[pluginName]?.[key] || '';
+        },
+
+        // 获取插件任务配置的占位符文本
+        getPluginTaskConfigPlaceholder(pluginName, key) {
+          const placeholders = {
+            aria2: {
+              auto_download: "",
+              pause: "",
+              auto_delete_quark_files: ""
+            },
+            alist_strm_gen: {
+              auto_gen: ""
+            },
+            emby: {
+              try_match: "",
+              media_id: "输入媒体ID，留空则自动匹配"
+            }
+          };
+          return placeholders[pluginName]?.[key] || '';
+        },
+
+        // 检查插件配置是否被禁用
+        isPluginConfigDisabled(task) {
+          for (const pluginName of ['aria2', 'alist_strm_gen', 'emby']) {
+            if (this.formData.plugin_config_mode[pluginName] === 'global') {
+              return true;
+            }
+          }
+          return false;
+        },
+
+        // 插件配置模式改变时的处理
+        onPluginConfigModeChange(pluginName) {
+          if (this.formData.plugin_config_mode[pluginName] === 'global') {
+            // 切换到全局模式时，初始化全局配置
+            if (!this.formData.global_plugin_config[pluginName]) {
+              this.formData.global_plugin_config[pluginName] = { ...this.getPluginTaskConfig(pluginName) };
+            }
+          }
+          
+          // 更新新任务的配置，应用全局配置
+          this.applyGlobalPluginConfig(this.newTask);
+          
+          // 更新影视发现页面创建任务的配置，应用全局配置
+          if (this.createTask && this.createTask.taskData) {
+            this.applyGlobalPluginConfig(this.createTask.taskData);
+          }
+        },
+
+        // 全局插件配置改变时的处理
+        onGlobalPluginConfigChange() {
+          // 更新新任务的配置，应用全局配置
+          this.applyGlobalPluginConfig(this.newTask);
+          
+          // 更新影视发现页面创建任务的配置，应用全局配置
+          if (this.createTask && this.createTask.taskData) {
+            this.applyGlobalPluginConfig(this.createTask.taskData);
+          }
+        },
+
+        // 应用全局插件配置到任务
+        applyGlobalPluginConfig(task) {
+          if (!task.addition) {
+            task.addition = {};
+          }
+          
+          for (const pluginName of ['aria2', 'alist_strm_gen', 'emby']) {
+            if (this.formData.plugin_config_mode[pluginName] === 'global') {
+              // 应用全局配置到任务
+              task.addition[pluginName] = { ...this.formData.global_plugin_config[pluginName] };
+            }
+          }
+        },
+
+
+
+        // 获取插件配置的悬停提示文本
+        getPluginConfigTitle(task) {
+          if (this.isPluginConfigDisabled(task)) {
+            return `单个任务的插件配置，具体键值由插件定义，当前有部分插件使用了全局配置模式，在该模式下对应的配置选项将被锁定，若要修改配置，请前往系统配置页面进行操作，查阅Wiki了解详情`;
+          }
+          return "单个任务的插件配置，具体键值由插件定义，查阅Wiki了解详情";
+        },
+
+        // 获取创建任务时的插件配置悬停提示文本
+        getCreateTaskPluginConfigTitle() {
+          if (this.isPluginConfigDisabled(this.createTask.taskData)) {
+            return `单个任务的插件配置，具体键值由插件定义，当前有部分插件使用了全局配置模式，在该模式下对应的配置选项将被锁定，若要修改配置，请前往系统配置页面进行操作，查阅Wiki了解详情`;
+          }
+          return "单个任务的插件配置，具体键值由插件定义，查阅Wiki了解详情";
+        },
+
         fetchUserInfo() {
           // 获取所有cookie对应的用户信息
           axios.get('/get_user_info')
@@ -3153,7 +3331,9 @@
                 if (!this.taskDirs.includes(parentDir))
                   this.taskDirs.push(parentDir);
               });
-              this.newTask.addition = config_data.task_plugins_config_default;
+              // 初始化新任务的插件配置，应用全局配置
+              this.newTask.addition = { ...config_data.task_plugins_config_default };
+              this.applyGlobalPluginConfig(this.newTask);
               // 确保source配置存在
               if (!config_data.source) {
                 config_data.source = {};
@@ -3297,6 +3477,9 @@
                   task.episode_naming = task.pattern;
                 }
               }
+              
+              // 应用全局插件配置
+              this.applyGlobalPluginConfig(task);
             });
           }
           
@@ -3367,6 +3550,9 @@
             newTask.episode_naming = lastTask.episode_naming || "";
             newTask.replace = lastTask.replace || "";
           }
+
+          // 应用全局插件配置到新任务
+          this.applyGlobalPluginConfig(newTask);
 
           this.formData.tasklist.push(newTask)
           const index = this.formData.tasklist.length - 1;
@@ -7548,9 +7734,10 @@
             this.createTask.taskData.startfid = "";
             this.createTask.taskData.update_subdir = "";
 
-            // 设置默认的插件配置
+            // 设置默认的插件配置，并应用全局配置
             if (this.formData.task_plugins_config_default) {
               this.createTask.taskData.addition = { ...this.formData.task_plugins_config_default };
+              this.applyGlobalPluginConfig(this.createTask.taskData);
             }
             return;
           }
@@ -7644,9 +7831,10 @@
           this.createTask.taskData.startfid = "";
           this.createTask.taskData.update_subdir = "";
 
-          // 设置默认的插件配置
+          // 设置默认的插件配置，并应用全局配置
           if (this.formData.task_plugins_config_default) {
             this.createTask.taskData.addition = { ...this.formData.task_plugins_config_default };
+            this.applyGlobalPluginConfig(this.createTask.taskData);
           }
         },
         isUsingCustomTaskSettingsForType(taskSettings, contentType) {
@@ -7974,6 +8162,9 @@
           // 创建新任务
           const newTask = { ...this.createTask.taskData };
 
+          // 应用全局插件配置
+          this.applyGlobalPluginConfig(newTask);
+
           // 处理命名模式
           if (newTask.use_sequence_naming) {
             newTask.pattern = newTask.sequence_naming;
@@ -8033,6 +8224,9 @@
 
           // 创建新任务
           const newTask = { ...this.createTask.taskData };
+
+          // 应用全局插件配置
+          this.applyGlobalPluginConfig(newTask);
 
           // 处理命名模式
           if (newTask.use_sequence_naming) {
@@ -8102,6 +8296,9 @@
 
           // 创建新任务
           const newTask = { ...this.createTask.taskData };
+
+          // 应用全局插件配置
+          this.applyGlobalPluginConfig(newTask);
 
           // 处理命名模式
           if (newTask.use_sequence_naming) {
