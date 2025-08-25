@@ -16,6 +16,10 @@ from flask import (
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sdk.cloudsaver import CloudSaver
+try:
+    from sdk.pansou import PanSou
+except Exception:
+    PanSou = None
 from datetime import timedelta, datetime
 import subprocess
 import requests
@@ -511,6 +515,14 @@ def get_data():
             }
         }
 
+    # 初始化搜索来源默认结构
+    if "source" not in data or not isinstance(data.get("source"), dict):
+        data["source"] = {}
+    # CloudSaver 默认字段
+    data["source"].setdefault("cloudsaver", {"server": "", "username": "", "password": "", "token": ""})
+    # PanSou 默认字段
+    data["source"].setdefault("pansou", {"server": "https://so.252035.xyz"})
+
     # 发送webui信息，但不发送密码原文
     data["webui"] = {
         "username": config_data["webui"]["username"],
@@ -929,7 +941,14 @@ def get_task_suggestions():
     search_query = extract_show_name(query)
     
     try:
-        cs_data = config_data.get("source", {}).get("cloudsaver", {})
+        sources_cfg = config_data.get("source", {}) or {}
+        cs_data = sources_cfg.get("cloudsaver", {})
+        ps_data = sources_cfg.get("pansou", {})
+
+        merged = []
+        providers = []
+
+        # CloudSaver
         if (
             cs_data.get("server")
             and cs_data.get("username")
@@ -941,35 +960,76 @@ def get_task_suggestions():
                 cs_data.get("password", ""),
                 cs_data.get("token", ""),
             )
-            # 使用处理后的搜索关键词
             search = cs.auto_login_search(search_query)
             if search.get("success"):
                 if search.get("new_token"):
                     cs_data["token"] = search.get("new_token")
                     Config.write_json(CONFIG_PATH, config_data)
                 search_results = cs.clean_search_results(search.get("data"))
-                # 在返回结果中添加实际使用的搜索关键词
-                return jsonify(
-                    {
-                        "success": True, 
-                        "source": "CloudSaver", 
-                        "data": search_results
-                    }
-                )
-            else:
-                return jsonify({"success": True, "message": search.get("message")})
-        else:
-            base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
-            # 使用处理后的搜索关键词
-            url = f"{base_url}/task_suggestions?q={search_query}&d={deep}"
-            response = requests.get(url)
-            return jsonify(
-                {
-                    "success": True, 
-                    "source": "网络公开", 
-                    "data": response.json()
-                }
-            )
+                if isinstance(search_results, list):
+                    merged.extend(search_results)
+                    providers.append("CloudSaver")
+
+        # PanSou
+        if ps_data and ps_data.get("server") and PanSou is not None:
+            try:
+                ps = PanSou(ps_data.get("server"))
+                result = ps.search(search_query)
+                if result.get("success") and isinstance(result.get("data"), list):
+                    merged.extend(result.get("data"))
+                    providers.append("PanSou")
+            except Exception as e:
+                logging.warning(f"PanSou 搜索失败: {str(e)}")
+
+        # 去重（按shareurl优先，其次taskname）
+        dedup = []
+        seen = set()
+        for item in merged:
+            if not isinstance(item, dict):
+                continue
+            key = item.get("shareurl") or item.get("taskname")
+            if not key:
+                continue
+            if key in seen:
+                continue
+            seen.add(key)
+            dedup.append(item)
+
+        # 全局时间排序：所有来源的结果混合排序，按时间倒序（最新的在前）
+        if dedup:
+            def parse_datetime_for_sort(item):
+                """解析时间字段，返回可比较的时间戳"""
+                # 兼容两个字段名：publish_date 和 datetime
+                datetime_str = item.get("publish_date") or item.get("datetime")
+                if not datetime_str:
+                    return 0  # 没有时间的排在最后
+                try:
+                    from datetime import datetime
+                    # 尝试解析格式: 2025-01-01 12:00:00
+                    dt = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M:%S")
+                    return dt.timestamp()
+                except:
+                    return 0  # 解析失败排在最后
+            
+            # 按时间倒序排序（最新的在前）
+            dedup.sort(key=parse_datetime_for_sort, reverse=True)
+            
+            return jsonify({
+                "success": True,
+                "source": ", ".join(providers) if providers else "聚合",
+                "data": dedup
+            })
+
+        # 若无本地可用来源，回退到公开网络
+        base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
+        url = f"{base_url}/task_suggestions?q={search_query}&d={deep}"
+        response = requests.get(url)
+        return jsonify({
+            "success": True,
+            "source": "网络公开",
+            "data": response.json()
+        })
+
     except Exception as e:
         return jsonify({"success": True, "message": f"error: {str(e)}"})
 

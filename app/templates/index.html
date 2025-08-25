@@ -509,7 +509,7 @@
 
             <div class="row title" title="通知推送，支持多个渠道，查阅Wiki了解详情">
               <div class="col">
-                <h2 style="display: inline-block; font-size: 1.5rem;">通知</h2>
+                <h2 style="display: inline-block; font-size: 1.5rem;">通知设置</h2>
                 <span class="badge badge-pill badge-light">
                   <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/通知推送服务配置" target="_blank"><i class="bi bi-question-circle"></i></a>
                 </span>
@@ -531,7 +531,7 @@
 
             <div class="row title" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" title="插件配置，具体键值由插件定义，查阅Wiki了解详情">
               <div class="col">
-                <h2 style="display: inline-block; font-size: 1.5rem;">插件</h2>
+                <h2 style="display: inline-block; font-size: 1.5rem;">插件设置</h2>
                 <span class="badge badge-pill badge-light">
                   <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/插件配置" target="_blank"><i class="bi bi-question-circle"></i></a>
                 </span>
@@ -541,7 +541,7 @@
               <div class="form-group row mb-0" style="display:flex; align-items:center;">
                 <div data-toggle="collapse" :data-target="'#collapse_'+pluginName" aria-expanded="true" :aria-controls="'collapse_'+pluginName">
                   <div class="btn btn-block text-left">
-                    <i class="bi bi-caret-right-fill"></i> <span v-html="`${pluginName}`"></span>
+                    <i class="bi bi-caret-right-fill"></i> <span v-html="getPluginDisplayName(pluginName)"></span>
                   </div>
                 </div>
               </div>
@@ -578,6 +578,72 @@
                       :placeholder="getPluginTaskConfigPlaceholder(pluginName, taskKey)"
                       :title="getPluginTaskConfigHelp(pluginName, taskKey)"
                       @input="onGlobalPluginConfigChange()">
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="row title" title="资源搜索服务配置，用于任务名称智能搜索，查阅Wiki了解详情">
+              <div class="col">
+                <h2 style="display: inline-block; font-size: 1.5rem;">搜索来源</h2>
+                <span class="badge badge-pill badge-light">
+                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/CloudSaver搜索源" target="_blank"><i class="bi bi-question-circle"></i></a>
+                </span>
+              </div>
+            </div>
+            <!-- 按插件风格显示为可展开项 -->
+            <div style="margin-bottom: -8px;">
+              <!-- CloudSaver -->
+              <div style="margin-bottom: -8px; margin-top: -8px;">
+                <div class="form-group row mb-0" style="display:flex; align-items:center;">
+                  <div data-toggle="collapse" data-target="#collapse_source_cloudsaver" aria-expanded="true" aria-controls="collapse_source_cloudsaver">
+                    <div class="btn btn-block text-left">
+                      <i class="bi bi-caret-right-fill"></i> CloudSaver
+                    </div>
+                  </div>
+                </div>
+                <div class="collapse" id="collapse_source_cloudsaver" style="margin-left: 26px;">
+                  <div class="input-group mb-2">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text">服务器</span>
+                    </div>
+                    <input type="text" v-model="formData.source.cloudsaver.server" class="form-control" placeholder="资源搜索服务器地址，如 http://172.17.0.1:8008">
+                  </div>
+                  <div class="input-group mb-2">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text">用户名</span>
+                    </div>
+                    <input type="text" v-model="formData.source.cloudsaver.username" class="form-control" placeholder="用户名">
+                  </div>
+                  <div class="input-group mb-2">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text">密码</span>
+                    </div>
+                    <input :type="showCloudSaverPassword ? 'text' : 'password'" v-model="formData.source.cloudsaver.password" class="form-control" placeholder="密码">
+                    <div class="input-group-append">
+                      <button type="button" class="btn btn-outline-secondary" @click="toggleCloudSaverPassword">
+                        <i :class="['bi', showCloudSaverPassword ? 'bi-eye' : 'bi-eye-slash']"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- PanSou -->
+              <div style="margin-bottom: -9.5px;">
+                <div class="form-group row mb-0" style="display:flex; align-items:center;">
+                  <div data-toggle="collapse" data-target="#collapse_source_pansou" aria-expanded="false" aria-controls="collapse_source_pansou">
+                    <div class="btn btn-block text-left">
+                      <i class="bi bi-caret-right-fill"></i> PanSou
+                    </div>
+                  </div>
+                </div>
+                <div class="collapse" id="collapse_source_pansou" style="margin-left: 26px;">
+                  <div class="input-group mb-2" style="margin-bottom: 10.5px !important;">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text">服务器</span>
+                    </div>
+                    <input type="text" v-model="formData.source.pansou.server" class="form-control" placeholder="PanSou 服务器，如 https://so.252035.xyz">
                   </div>
                 </div>
               </div>
@@ -715,59 +781,6 @@
                   <option value="disabled">禁用</option>
                   <option value="enabled">启用</option>
                 </select>
-              </div>
-            </div>
-
-            <div class="row title" title="API接口，用于第三方添加任务等操作，查阅Wiki了解详情">
-              <div class="col">
-                <h2 style="display: inline-block; font-size: 1.5rem;">API</h2>
-                <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/API接口" target="_blank"><i class="bi bi-question-circle"></i></a>
-                </span>
-              </div>
-            </div>
-            <div class="input-group">
-              <div class="input-group-prepend">
-                <span class="input-group-text">Token</span>
-              </div>
-              <input type="text" v-model="formData.api_token" class="form-control" style="background-color:white;" disabled>
-            </div>
-
-            <div class="row title" title="资源搜索服务配置，用于任务名称智能搜索，查阅Wiki了解详情">
-              <div class="col">
-                <h2 style="display: inline-block; font-size: 1.5rem;">CloudSaver</h2>
-                <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/CloudSaver搜索源" target="_blank"><i class="bi bi-question-circle"></i></a>
-                </span>
-              </div>
-            </div>
-            <div class="input-group mb-2">
-              <div class="input-group-prepend">
-                <span class="input-group-text">服务器</span>
-              </div>
-              <input type="text" v-model="formData.source.cloudsaver.server" class="form-control" placeholder="资源搜索服务器地址，如 http://172.17.0.1:8008">
-            </div>
-            <div class="row mb-2">
-              <div class="col cloudsaver-username-col">
-                <div class="input-group">
-                  <div class="input-group-prepend">
-                    <span class="input-group-text">用户名</span>
-                  </div>
-                  <input type="text" v-model="formData.source.cloudsaver.username" class="form-control" placeholder="用户名">
-                </div>
-              </div>
-              <div class="col cloudsaver-password-col">
-                <div class="input-group">
-                  <div class="input-group-prepend">
-                    <span class="input-group-text">密码</span>
-                  </div>
-                  <input :type="showCloudSaverPassword ? 'text' : 'password'" v-model="formData.source.cloudsaver.password" class="form-control" placeholder="密码">
-                  <div class="input-group-append">
-                    <button type="button" class="btn btn-outline-secondary" @click="toggleCloudSaverPassword">
-                      <i :class="['bi', showCloudSaverPassword ? 'bi-eye' : 'bi-eye-slash']"></i>
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -910,6 +923,20 @@
                 </div>
               </div>
             </div>
+            <div class="row title" title="API接口，用于第三方添加任务等操作，查阅Wiki了解详情">
+              <div class="col">
+                <h2 style="display: inline-block; font-size: 1.5rem;">API</h2>
+                <span class="badge badge-pill badge-light">
+                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/API接口" target="_blank"><i class="bi bi-question-circle"></i></a>
+                </span>
+              </div>
+            </div>
+            <div class="input-group">
+              <div class="input-group-prepend">
+                <span class="input-group-text">Token</span>
+              </div>
+              <input type="text" v-model="formData.api_token" class="form-control" style="background-color:white;" disabled>
+            </div>
 
           </div>
 
@@ -999,6 +1026,7 @@
                             <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                             <small class="text-muted">
                               <a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a>
+                              <span v-if="suggestion.source" class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="(suggestion.publish_date || suggestion.datetime) ? ' · ' + (suggestion.publish_date || suggestion.datetime) : ''">{{ suggestion.source }}</span>
                             </small>
                           </div>
                         </div>
@@ -1926,6 +1954,7 @@
                         <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                         <small class="text-muted">
                           <a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a>
+                          <span v-if="suggestion.source" class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="(suggestion.publish_date || suggestion.datetime) ? ' · ' + (suggestion.publish_date || suggestion.datetime) : ''">{{ suggestion.source }}</span>
                         </small>
                       </div>
                     </div>
@@ -2094,6 +2123,14 @@
         showCloudSaverPassword: false,
         showWebuiPassword: false,
         pageWidthMode: 'medium', // 页面宽度模式：narrow, medium, wide
+        pluginDisplayAliases: {
+          alist: 'AList',
+          alist_strm: 'AList Strm',
+          alist_strm_gen: 'AList Strm Gen',
+          aria2: 'Aria2',
+          emby: 'Emby',
+          plex: 'Plex'
+        },
         formData: {
           cookie: [],
           push_config: {},
@@ -2118,6 +2155,9 @@
               username: "",
               password: "",
               token: ""
+            },
+            pansou: {
+              server: "https://so.252035.xyz"
             }
           },
           webui: {
@@ -2718,6 +2758,10 @@
         document.removeEventListener('click', this.handleOutsideClick);
       },
       methods: {
+        // 获取插件展示名称（支持别名，仅用于WebUI显示）
+        getPluginDisplayName(pluginName) {
+          return this.pluginDisplayAliases[pluginName] || pluginName;
+        },
         // 设置移动端任务列表展开/收起状态监听
         setupMobileTaskListToggle() {
           // 监听所有collapse事件
@@ -7632,10 +7676,10 @@
             // 打开创建任务模态框
             $('#createTaskModal').modal('show');
 
-            // 如果启用了自动搜索资源且配置了有效的CloudSaver信息，自动触发资源搜索
+            // 如果启用了自动搜索资源且配置了有效的搜索来源，自动触发资源搜索
             this.$nextTick(() => {
               if (this.formData.task_settings.auto_search_resources === 'enabled' &&
-                  this.isCloudSaverConfigValid() &&
+                  this.hasAnyValidSearchSource() &&
                   this.createTask.taskData.taskname) {
                 this.searchSuggestions(-1, this.createTask.taskData.taskname);
               }
@@ -7644,13 +7688,13 @@
             console.error('创建任务时出错:', error);
           }
         },
-        isCloudSaverConfigValid() {
-          // 检查CloudSaver配置是否有效
-          const csData = this.formData.source && this.formData.source.cloudsaver;
-          return csData &&
-                 csData.server &&
-                 csData.username &&
-                 csData.password;
+        hasAnyValidSearchSource() {
+          const src = this.formData.source || {};
+          const cs = src.cloudsaver || {};
+          const ps = src.pansou || {};
+          const csValid = cs.server && cs.username && cs.password;
+          const psValid = ps.server;
+          return !!(csValid || psValid);
         },
         smartFillTaskData(item, movieData) {
           // 智能填充任务数据

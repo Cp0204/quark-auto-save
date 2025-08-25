@@ -124,6 +124,10 @@ class CloudSaver:
                         content = content.replace('<mark class="highlight">', "")
                         content = content.replace("</mark>", "")
                         content = content.strip()
+                        # 获取发布时间 - 采用与原始实现一致的方式
+                        pubdate = item.get("pubDate", "")  # 使用 pubDate 字段
+                        if pubdate:
+                            pubdate = self._iso_to_cst(pubdate)  # 转换为中国标准时间
                         # 链接去重
                         if link.get("link") not in link_array:
                             link_array.append(link.get("link"))
@@ -132,12 +136,33 @@ class CloudSaver:
                                     "shareurl": link.get("link"),
                                     "taskname": title,
                                     "content": content,
+                                    "datetime": pubdate,  # 使用 datetime 字段名，与原始实现一致
                                     "tags": item.get("tags", []),
-                                    "channel": item.get("channel", ""),
-                                    "channel_id": item.get("channelId", ""),
+                                    "channel": item.get("channelId", ""),
+                                    "source": "CloudSaver"
                                 }
                             )
+        
+        # 注意：排序逻辑已移至全局，这里不再进行内部排序
+        # 返回原始顺序的结果，由全局排序函数统一处理
         return clean_results
+    
+    def _iso_to_cst(self, iso_time_str: str) -> str:
+        """将 ISO 格式的时间字符串转换为 CST(China Standard Time) 时间并格式化为 %Y-%m-%d %H:%M:%S 格式
+        
+        Args:
+            iso_time_str (str): ISO 格式时间字符串
+            
+        Returns:
+            str: CST(China Standard Time) 时间字符串
+        """
+        try:
+            from datetime import datetime, timezone, timedelta
+            dt = datetime.fromisoformat(iso_time_str)
+            dt_cst = dt.astimezone(timezone(timedelta(hours=8)))
+            return dt_cst.strftime("%Y-%m-%d %H:%M:%S") if dt_cst.year >= 1970 else ""
+        except:
+            return iso_time_str  # 转换失败时返回原始字符串
 
 
 # 测试示例
