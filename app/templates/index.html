@@ -607,19 +607,19 @@
                     <div class="input-group-prepend">
                       <span class="input-group-text">服务器</span>
                     </div>
-                    <input type="text" v-model="formData.source.cloudsaver.server" class="form-control" placeholder="资源搜索服务器地址，如 http://172.17.0.1:8008">
+                    <input type="text" v-model="formData.source.cloudsaver.server" class="form-control" placeholder="CloudSaver 服务器地址，如：http://192.168.1.100:8008">
                   </div>
                   <div class="input-group mb-2">
                     <div class="input-group-prepend">
                       <span class="input-group-text">用户名</span>
                     </div>
-                    <input type="text" v-model="formData.source.cloudsaver.username" class="form-control" placeholder="用户名">
+                    <input type="text" v-model="formData.source.cloudsaver.username" class="form-control" placeholder="CloudSaver 用户名">
                   </div>
                   <div class="input-group mb-2">
                     <div class="input-group-prepend">
                       <span class="input-group-text">密码</span>
                     </div>
-                    <input :type="showCloudSaverPassword ? 'text' : 'password'" v-model="formData.source.cloudsaver.password" class="form-control" placeholder="密码">
+                    <input :type="showCloudSaverPassword ? 'text' : 'password'" v-model="formData.source.cloudsaver.password" class="form-control" placeholder="CloudSaver 密码">
                     <div class="input-group-append">
                       <button type="button" class="btn btn-outline-secondary" @click="toggleCloudSaverPassword">
                         <i :class="['bi', showCloudSaverPassword ? 'bi-eye' : 'bi-eye-slash']"></i>
@@ -643,7 +643,7 @@
                     <div class="input-group-prepend">
                       <span class="input-group-text">服务器</span>
                     </div>
-                    <input type="text" v-model="formData.source.pansou.server" class="form-control" placeholder="PanSou 服务器，如 https://so.252035.xyz">
+                    <input type="text" v-model="formData.source.pansou.server" class="form-control" placeholder="PanSou 服务器地址，如：http://192.168.1.100:80，默认地址 https://so.252035.xyz 为 PanSou 官方地址，建议自部署以获得更稳定的体验">
                   </div>
                 </div>
               </div>
