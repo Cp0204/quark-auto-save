@@ -6424,14 +6424,14 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
 }
 
 .source-badge::before {
-  content: "· ";
-  margin-right: 0px;
+  content: " · ";
+  margin-right: 0;
   color: var(--light-text-color);
 }
 
 .source-badge::after {
   content: attr(data-publish-date);
-  margin-left: 2px;
+  margin-left: 0;
   color: var(--light-text-color);
   font-size: 14px;
   line-height: 1.2;

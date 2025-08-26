@@ -1025,8 +1025,8 @@
                           <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(index, suggestion)" style="font-size: 14px;" :title="suggestion.content">
                             <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                             <small class="text-muted">
-                              <a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a>
-                              <span v-if="suggestion.source" class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="(suggestion.publish_date || suggestion.datetime) ? ' · ' + (suggestion.publish_date || suggestion.datetime) : ''">{{ suggestion.source }}</span>
+                              <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.quark\.cn\/s\//, '') }}</a>
+                              <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="(suggestion.publish_date || suggestion.datetime) ? ' · ' + (suggestion.publish_date || suggestion.datetime) : ''">{{ suggestion.source }}</span></template>
                             </small>
                           </div>
                         </div>
@@ -1953,8 +1953,8 @@
                       <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(-1, suggestion)" style="font-size: 14px;" :title="suggestion.content">
                         <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                         <small class="text-muted">
-                          <a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a>
-                          <span v-if="suggestion.source" class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="(suggestion.publish_date || suggestion.datetime) ? ' · ' + (suggestion.publish_date || suggestion.datetime) : ''">{{ suggestion.source }}</span>
+                          <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.quark\.cn\/s\//, '') }}</a>
+                          <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="(suggestion.publish_date || suggestion.datetime) ? ' · ' + (suggestion.publish_date || suggestion.datetime) : ''">{{ suggestion.source }}</span></template>
                         </small>
                       </div>
                     </div>
