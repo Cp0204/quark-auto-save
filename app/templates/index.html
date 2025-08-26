@@ -1020,7 +1020,7 @@
                             <span v-else>正在搜索中...</span>
                           </div>
                           <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
-                            {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${smart_param.taskSuggestions.source} 搜索提供（仅显示有效链接），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
+                            {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
                           </div>
                           <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(index, suggestion)" style="font-size: 14px;" :title="suggestion.content">
                             <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
@@ -1948,7 +1948,7 @@
                         <span v-else>正在搜索中...</span>
                       </div>
                       <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
-                        {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${smart_param.taskSuggestions.source} 搜索提供（仅显示有效链接），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
+                        {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
                       </div>
                       <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(-1, suggestion)" style="font-size: 14px;" :title="suggestion.content">
                         <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
@@ -4310,6 +4310,13 @@
           // 批量处理的大小，每批次最多处理5个链接
           const batchSize = 5;
           
+          // 解析时间用于排序（降序：最新在前）
+          const getItemTs = (item) => {
+            const raw = item.publish_date || item.datetime || '';
+            const ts = Date.parse(raw);
+            return isNaN(ts) ? 0 : ts;
+          };
+          
           // 处理单个链接的函数
           const processLink = (link) => {
             return new Promise((resolve) => {
@@ -4395,26 +4402,16 @@
               }
             });
             
-            // 快速显示：如果已经找到至少3个有效链接，并且还没有显示过结果
-            // 同时已验证的链接数量超过总数的30%或者已经找到5个有效链接
-            const hasEnoughValidLinks = validResults.length >= 3;
-            const hasProcessedEnough = this.smart_param.validateProgress.current >= this.smart_param.validateProgress.total * 0.3 || validResults.length >= 5;
+            // 动态排序（按发布时间/日期降序）
+            validResults.sort((a, b) => getItemTs(b) - getItemTs(a));
             
-            if (hasEnoughValidLinks && hasProcessedEnough && !this.smart_param._hasShownInterimResults) {
-              // 标记已显示过快速结果
-              this.smart_param._hasShownInterimResults = true;
-              
-              // 创建一个中间结果显示，同时保持验证状态
-              const interimResult = {
-                success: searchData.success,
-                source: searchData.source,
-                data: [...validResults], // 复制当前有效结果
-                message: `已找到${validResults.length}个有效链接，验证继续进行中...`
-              };
-              
-              // 更新显示但保持验证状态
-              this.smart_param.taskSuggestions = interimResult;
-            }
+            // 每批次都增量更新到界面，显示当前有效数量并保持正在验证状态
+            this.smart_param.taskSuggestions = {
+              success: searchData.success,
+              source: searchData.source,
+              data: [...validResults],
+              message: `已找到${validResults.length}个有效链接，验证继续进行中...`
+            };
             
             // 继续处理下一批
             processBatch();
@@ -4445,6 +4442,14 @@
         finishValidation(searchData, validResults) {
           // 清除快速显示标记
           this.smart_param._hasShownInterimResults = false;
+          
+          // 结束前做一次排序，确保最终顺序正确
+          const getItemTs = (item) => {
+            const raw = item.publish_date || item.datetime || '';
+            const ts = Date.parse(raw);
+            return isNaN(ts) ? 0 : ts;
+          };
+          validResults.sort((a, b) => getItemTs(b) - getItemTs(a));
           
           // 更新搜索结果
           const result = {
