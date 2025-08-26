@@ -7,7 +7,6 @@ class Smartstrm:
         "strmtask": "",  # SmartStrm 任务名，支持多个如 `tv,movie`
         "xlist_path_fix": "",  # 路径映射， SmartStrm 任务使用 quark 驱动时无须填写；使用 openlist 驱动时需填写 `/storage_mount_path:/quark_root_dir` ，例如把夸克根目录挂载在 OpenList 的 /quark 下，则填写 `/quark:/` ；以及 SmartStrm 会使 OpenList 强制刷新目录，无需再用 alist 插件刷新。
     }
-    default_task_config = {}
     is_active = False
 
     def __init__(self, **kwargs):
@@ -47,16 +46,12 @@ class Smartstrm:
                 json=payload,
                 timeout=5,
             )
-            # 检查响应状态
-            if response.status_code == 200:
-                response = response.json()
-                if response.get("success"):
-                    print(
-                        f"SmartStrm 触发任务: [{response['task']['name']}] {response['task']['storage_path']} 成功✅"
-                    )
-                else:
-                    print(f"SmartStrm 触发任务: {response['message']}")
+            response = response.json()
+            if response.get("success"):
+                print(
+                    f"SmartStrm 触发任务: [{response['task']['name']}] {response['task']['storage_path']} 成功✅"
+                )
             else:
-                print(f"SmartStrm 触发任务: {response.status_code}")
+                print(f"SmartStrm 触发任务: {response['message']}")
         except Exception as e:
-            print(f"SmartStrm 触发任务：出错 {e}")
+            print(f"SmartStrm 触发任务：出错 {str(e)}")
