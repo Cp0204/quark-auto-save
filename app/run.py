@@ -1061,19 +1061,33 @@ def get_task_suggestions():
             seen_fingerprints.add(fingerprint)
             dedup.append(item)
 
-        # 全局时间排序：所有来源的结果混合排序，按时间倒序（最新的在前）
+        # 仅在排序时对多种格式进行解析（优先解析 YYYY-MM-DD HH:mm:ss，其次 ISO）
         if dedup:
             def parse_datetime_for_sort(item):
                 """解析时间字段，返回可比较的时间戳（统一以 publish_date 为准）"""
                 datetime_str = item.get("publish_date")
                 if not datetime_str:
                     return 0  # 没有时间的排在最后
+                from datetime import datetime
+                s = str(datetime_str).strip()
+                # 优先解析标准显示格式
                 try:
-                    from datetime import datetime
-                    # 尝试解析格式: 2025-01-01 12:00:00
-                    dt = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M:%S")
+                    dt = datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
                     return dt.timestamp()
-                except:
+                except Exception:
+                    pass
+                # 补充解析仅日期格式
+                try:
+                    dt = datetime.strptime(s, "%Y-%m-%d")
+                    return dt.timestamp()
+                except Exception:
+                    pass
+                # 其次尝试 ISO（支持 Z/偏移）
+                try:
+                    s2 = s.replace('Z', '+00:00')
+                    dt = datetime.fromisoformat(s2)
+                    return dt.timestamp()
+                except Exception:
                     return 0  # 解析失败排在最后
             
             # 按时间倒序排序（最新的在前）

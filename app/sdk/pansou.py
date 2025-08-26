@@ -57,6 +57,16 @@ class PanSou:
         
         # 解析结果：优先 results，然后 merged_by_type
         cleaned = []
+        # 工具：移除标题中的链接
+        def strip_links(text: str) -> str:
+            if not isinstance(text, str):
+                return text
+            s = text
+            import re
+            s = re.sub(r"https?://\S+", "", s)
+            s = re.sub(r"\bpan\.quark\.cn/\S+", "", s)
+            s = re.sub(r"\s+", " ", s).strip(" -|·,，：:；;" + " ")
+            return s.strip()
         
         try:
             # 1) results: 主要结果数组，每个结果包含 title 和 links
@@ -68,6 +78,7 @@ class PanSou:
                     
                     # 从 result_item 获取标题、内容和发布日期
                     title = result_item.get("title", "")
+                    title = strip_links(title)
                     content = result_item.get("content", "")
                     datetime_str = result_item.get("datetime", "")  # 获取发布日期
                     
@@ -84,7 +95,7 @@ class PanSou:
                                         "content": content,
                                         "shareurl": url,
                                         "tags": [link_type] if link_type else (result_item.get("tags", []) or []),
-                                        "publish_date": datetime_str,  # 添加发布日期字段
+                                        "publish_date": datetime_str,  # 原始时间（可能是 ISO）
                                         "source": "PanSou"  # 添加来源标识
                                     })
             
@@ -99,6 +110,7 @@ class PanSou:
                                     # 从 merged_by_type 获取链接信息
                                     url = link.get("url", "")
                                     note = link.get("note", "")  # 使用 note 字段作为标题
+                                    note = strip_links(note)
                                     datetime_str = link.get("datetime", "")  # 获取发布日期
                                     if url:
                                         cleaned.append({
@@ -106,7 +118,7 @@ class PanSou:
                                             "content": note,  # 如果没有 content，使用 note
                                             "shareurl": url,
                                             "tags": [cloud_type] if cloud_type else [],
-                                            "publish_date": datetime_str,  # 添加发布日期字段
+                                            "publish_date": datetime_str,  # 原始时间
                                             "source": "PanSou"  # 添加来源标识
                                         })
             
@@ -119,7 +131,7 @@ class PanSou:
                             "content": item.get("content", ""),
                             "shareurl": item.get("url", ""),
                             "tags": item.get("tags", []) or [],
-                            "publish_date": item.get("datetime", ""),  # 添加发布日期字段
+                            "publish_date": item.get("datetime", ""),  # 原始时间
                             "source": "PanSou"  # 添加来源标识
                         })
                         
@@ -152,37 +164,5 @@ class PanSou:
             if url and url not in seen_urls:
                 seen_urls.add(url)
                 unique_results.append(item)
-        
-        # 按发布日期排序：最新的在前
-        def parse_datetime(datetime_str):
-            """解析日期时间字符串，返回可比较的时间戳"""
-            if not datetime_str:
-                return 0  # 没有日期的排在最后
-            try:
-                from datetime import datetime, timezone, timedelta
-                # 尝试解析 ISO 8601 格式: 2025-07-28T20:43:27Z
-                dt = datetime.fromisoformat(datetime_str.replace('Z', '+00:00'))
-                return dt.timestamp()
-            except:
-                return 0  # 解析失败排在最后
-        
-        def convert_to_cst(datetime_str):
-            """将 ISO 时间转换为中国标准时间 (CST)"""
-            if not datetime_str:
-                return ""
-            try:
-                from datetime import datetime, timezone, timedelta
-                dt = datetime.fromisoformat(datetime_str.replace('Z', '+00:00'))
-                dt_cst = dt.astimezone(timezone(timedelta(hours=8)))
-                return dt_cst.strftime("%Y-%m-%d %H:%M:%S")
-            except:
-                return datetime_str  # 转换失败时返回原始字符串
-        
-        # 转换时间为中国标准时间格式
-        for item in unique_results:
-            if item.get("publish_date"):
-                item["publish_date"] = convert_to_cst(item["publish_date"])
-        
-        # 注意：排序逻辑已移至全局，这里不再进行内部排序
-        # 返回原始顺序的结果，由全局排序函数统一处理
+
         return {"success": True, "data": unique_results}

@@ -106,6 +106,19 @@ class CloudSaver:
         pattern_title = r"(名称|标题)[：:]?(.*)"
         pattern_content = r"(描述|简介)[：:]?(.*)(链接|标签)"
         clean_results = []
+        # 工具：移除标题中的链接（http/https 以及常见裸域名的夸克分享）
+        def strip_links(text: str) -> str:
+            if not isinstance(text, str):
+                return text
+            s = text
+            import re
+            # 去除 http/https 链接
+            s = re.sub(r"https?://\S+", "", s)
+            # 去除裸域夸克分享链接（不带协议的 pan.quark.cn/...）
+            s = re.sub(r"\bpan\.quark\.cn/\S+", "", s)
+            # 收尾多余空白和分隔符
+            s = re.sub(r"\s+", " ", s).strip(" -|·,，：:；;" + " ")
+            return s.strip()
         link_array = []
         for channel in search_results:
             for item in channel.get("list", []):
@@ -117,6 +130,8 @@ class CloudSaver:
                         if match := re.search(pattern_title, title, re.DOTALL):
                             title = match.group(2)
                         title = title.replace("&amp;", "&").strip()
+                        # 标题去除链接
+                        title = strip_links(title)
                         # 清洗内容
                         content = item.get("content", "")
                         if match := re.search(pattern_content, content, re.DOTALL):
@@ -125,9 +140,8 @@ class CloudSaver:
                         content = content.replace("</mark>", "")
                         content = content.strip()
                         # 获取发布时间 - 采用与原始实现一致的方式
-                        pubdate = item.get("pubDate", "")  # 使用 pubDate 字段
-                        if pubdate:
-                            pubdate = self._iso_to_cst(pubdate)  # 转换为中国标准时间
+                        pubdate_iso = item.get("pubDate", "")  # 原始时间字符串（可能为 ISO 或已是北京时间）
+                        pubdate = pubdate_iso  # 不做时区转换，保留来源原始时间
                         # 链接去重
                         if link.get("link") not in link_array:
                             link_array.append(link.get("link"))
@@ -136,7 +150,7 @@ class CloudSaver:
                                     "shareurl": link.get("link"),
                                     "taskname": title,
                                     "content": content,
-                                    "datetime": pubdate,  # 使用 datetime 字段名，与原始实现一致
+                                    "datetime": pubdate,  # 显示用时间
                                     "tags": item.get("tags", []),
                                     "channel": item.get("channelId", ""),
                                     "source": "CloudSaver"
@@ -146,24 +160,6 @@ class CloudSaver:
         # 注意：排序逻辑已移至全局，这里不再进行内部排序
         # 返回原始顺序的结果，由全局排序函数统一处理
         return clean_results
-    
-    def _iso_to_cst(self, iso_time_str: str) -> str:
-        """将 ISO 格式的时间字符串转换为 CST(China Standard Time) 时间并格式化为 %Y-%m-%d %H:%M:%S 格式
-        
-        Args:
-            iso_time_str (str): ISO 格式时间字符串
-            
-        Returns:
-            str: CST(China Standard Time) 时间字符串
-        """
-        try:
-            from datetime import datetime, timezone, timedelta
-            dt = datetime.fromisoformat(iso_time_str)
-            dt_cst = dt.astimezone(timezone(timedelta(hours=8)))
-            return dt_cst.strftime("%Y-%m-%d %H:%M:%S") if dt_cst.year >= 1970 else ""
-        except:
-            return iso_time_str  # 转换失败时返回原始字符串
-
 
 # 测试示例
 if __name__ == "__main__":

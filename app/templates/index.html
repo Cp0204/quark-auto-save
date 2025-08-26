@@ -587,7 +587,7 @@
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">搜索来源</h2>
                 <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/CloudSaver搜索源" target="_blank"><i class="bi bi-question-circle"></i></a>
+                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/资源搜索" target="_blank"><i class="bi bi-question-circle"></i></a>
                 </span>
               </div>
             </div>
@@ -1026,7 +1026,7 @@
                             <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                             <small class="text-muted">
                               <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.quark\.cn\/s\//, '') }}</a>
-                              <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + suggestion.publish_date : ''">{{ suggestion.source }}</span></template>
+                              <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date) : ''">{{ suggestion.source }}</span></template>
                             </small>
                           </div>
                         </div>
@@ -1954,7 +1954,7 @@
                         <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                         <small class="text-muted">
                           <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.quark\.cn\/s\//, '') }}</a>
-                          <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + suggestion.publish_date : ''">{{ suggestion.source }}</span></template>
+                          <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date) : ''">{{ suggestion.source }}</span></template>
                         </small>
                       </div>
                     </div>
@@ -4329,11 +4329,7 @@
           const batchSize = 5;
           
           // 解析时间用于排序（降序：最新在前）
-          const getItemTs = (item) => {
-            const raw = item.publish_date || '';
-            const ts = Date.parse(raw);
-            return isNaN(ts) ? 0 : ts;
-          };
+          const getItemTs = (item) => this.parsePublishTs(item && item.publish_date);
           
           // 处理单个链接的函数
           const processLink = (link) => {
@@ -4462,11 +4458,7 @@
           this.smart_param._hasShownInterimResults = false;
           
           // 结束前做一次排序，确保最终顺序正确
-          const getItemTs = (item) => {
-            const raw = item.publish_date || '';
-            const ts = Date.parse(raw);
-            return isNaN(ts) ? 0 : ts;
-          };
+          const getItemTs = (item) => this.parsePublishTs(item && item.publish_date);
           validResults.sort((a, b) => getItemTs(b) - getItemTs(a));
           
           // 更新搜索结果
@@ -6534,6 +6526,44 @@
           const minutes = String(d.getMinutes()).padStart(2, '0');
           const seconds = String(d.getSeconds()).padStart(2, '0');
           return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        },
+        // 统一解析资源发布日期为时间戳
+        parsePublishTs(raw) {
+          if (!raw) return 0;
+          const s = String(raw).trim();
+          // YYYY-MM-DD HH:mm:ss
+          let m = /^\s*(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})\s*$/.exec(s);
+          if (m) {
+            const [, y, mo, d, h, mi, se] = m;
+            return new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(se)).getTime();
+          }
+          // YYYY-MM-DD
+          m = /^\s*(\d{4})-(\d{2})-(\d{2})\s*$/.exec(s);
+          if (m) {
+            const [, y, mo, d] = m;
+            return new Date(Number(y), Number(mo) - 1, Number(d), 0, 0, 0).getTime();
+          }
+          // ISO 回退
+          const ts = Date.parse(s);
+          return isNaN(ts) ? 0 : ts;
+        },
+        // 规范化资源发布日期展示：将 ISO 格式（含 T/Z/偏移）转为 "YYYY-MM-DD HH:mm:ss"
+        formatPublishDate(value) {
+          if (!value) return '';
+          const s = String(value).trim();
+          // 已是标准格式则直接返回
+          if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/.test(s)) return s;
+          // 优先匹配 ISO 主体部分
+          const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/.exec(s);
+          if (m) {
+            const [, y, mo, d, h, mi, se] = m;
+            return `${y}-${mo}-${d} ${h}:${mi}:${se}`;
+          }
+          // 回退：简单替换T为空格并去除尾部Z/时区偏移
+          let out = s.replace('T', ' ');
+          out = out.replace(/Z$/i, '');
+          out = out.replace(/([+-]\d{2}:?\d{2})$/i, '');
+          return out;
         },
         changeFolderPage(page) {
           if (page < 1) page = 1;
