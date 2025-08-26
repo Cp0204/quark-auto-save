@@ -515,6 +515,16 @@
                 </span>
               </div>
             </div>
+            <div class="input-group mb-2">
+              <div class="input-group-prepend">
+                <span class="input-group-text">推送通知</span>
+              </div>
+              <select v-model="formData.push_notify_type" class="form-control">
+                <option value="full">推送完整信息（转存成功、转存失败、资源失效）</option>
+                <option value="success_only">推送成功信息（转存成功）</option>
+                <option value="exclude_invalid">排除失效信息（转存成功、转存失败）</option>
+              </select>
+            </div>
             <div v-for="(value, key, index) in formData.push_config" :key="key" class="input-group mb-2">
               <div class="input-group-prepend">
                 <span class="input-group-text" v-html="key"></span>
@@ -2134,6 +2144,7 @@
         formData: {
           cookie: [],
           push_config: {},
+          push_notify_type: 'full',
           media_servers: {},
           tasklist: [],
           magic_regex: {},

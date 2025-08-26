@@ -515,6 +515,10 @@ def get_data():
             }
         }
 
+    # 初始化推送通知类型配置（如果不存在）
+    if "push_notify_type" not in data:
+        data["push_notify_type"] = "full"
+
     # 初始化搜索来源默认结构
     if "source" not in data or not isinstance(data.get("source"), dict):
         data["source"] = {}
@@ -1729,6 +1733,10 @@ def init():
                 "media_id": ""
             }
         }
+
+    # 初始化推送通知类型配置（如果不存在）
+    if "push_notify_type" not in config_data:
+        config_data["push_notify_type"] = "full"
 
     # 同步更新任务的插件配置
     sync_task_plugins_config()

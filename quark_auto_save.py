@@ -829,6 +829,28 @@ def add_notify(text):
     # 防止重复添加相同的通知
     if text in NOTIFYS:
         return text
+    
+    # 检查推送通知类型配置
+    push_notify_type = CONFIG_DATA.get("push_notify_type", "full")
+    
+    # 如果设置为仅推送成功信息，则过滤掉失败和错误信息
+    if push_notify_type == "success_only":
+        # 检查是否包含失败或错误相关的关键词
+        failure_keywords = ["❌", "❗", "失败", "失效", "错误", "异常", "无效", "登录失败"]
+        if any(keyword in text for keyword in failure_keywords):
+            # 只打印到控制台，不添加到通知列表
+            print(text)
+            return text
+    
+    # 如果设置为排除失效信息，则过滤掉资源失效信息，但保留转存失败信息
+    elif push_notify_type == "exclude_invalid":
+        # 检查是否包含资源失效相关的关键词（主要是分享资源失效）
+        invalid_keywords = ["分享资源已失效", "分享详情获取失败", "分享为空", "文件已被分享者删除"]
+        if any(keyword in text for keyword in invalid_keywords):
+            # 只打印到控制台，不添加到通知列表
+            print(text)
+            return text
+    
     NOTIFYS.append(text)
     print(text)
     return text
@@ -4485,7 +4507,7 @@ def do_save(account, tasklist=[]):
                 
                 # 添加成功通知，带文件数量图标
                 # 这个通知会在下面的新逻辑中添加，这里注释掉
-                # add_notify(f"✅《{task['taskname']}》添加追更:")
+                # add_notify(f"✅《{task['taskname']}》新增文件:")
                 # add_notify(f"/{task['savepath']}")
                 
                 # 移除调试信息
@@ -4767,7 +4789,7 @@ def do_save(account, tasklist=[]):
                     pass
                 else:
                     # 添加基本通知
-                    add_notify(f"✅《{task['taskname']}》添加追更:")
+                    add_notify(f"✅《{task['taskname']}》新增文件:")
                     add_notify(f"{re.sub(r'/{2,}', '/', f'/{task['savepath']}')}")
                     
                     # 修正首次运行时对子目录的处理 - 只有在首次运行且有新增的子目录时才显示子目录内容
@@ -5098,7 +5120,7 @@ def do_save(account, tasklist=[]):
                 
                 # 添加成功通知 - 修复问题：确保在有文件时添加通知
                 if display_files:
-                    add_notify(f"✅《{task['taskname']}》添加追更:")
+                    add_notify(f"✅《{task['taskname']}》新增文件:")
                     add_notify(f"{re.sub(r'/{2,}', '/', f'/{task['savepath']}')}")
                 
                 
@@ -5188,7 +5210,7 @@ def do_save(account, tasklist=[]):
                     display_files = [file["file_name"] for file in file_nodes]
                 
                 # 添加成功通知
-                add_notify(f"✅《{task['taskname']}》添加追更:")
+                add_notify(f"✅《{task['taskname']}》新增文件:")
                 add_notify(f"{re.sub(r'/{2,}', '/', f'/{task['savepath']}')}")
                 
                 # 打印文件列表
@@ -5339,7 +5361,12 @@ def main():
     if NOTIFYS:
         notify_body = "\n".join(NOTIFYS)
         print(f"===============推送通知===============")
-        send_ql_notify("【夸克自动追更】", notify_body)
+        send_ql_notify("【夸克自动转存】", notify_body)
+        print()
+    else:
+        # 如果没有通知内容，显示统一提示
+        print(f"===============推送通知===============")
+        print("📭 本次运行没有新的转存，未推送通知")
         print()
     if cookie_form_file:
         # 更新配置
