@@ -981,26 +981,91 @@ def get_task_suggestions():
             except Exception as e:
                 logging.warning(f"PanSou 搜索失败: {str(e)}")
 
-        # 去重（按shareurl优先，其次taskname）
+        # 去重并统一时间字段为 publish_date
+        # 规则：
+        # 1) shareurl 相同视为同一资源
+        # 2) 当 taskname 与 publish_date 同时完全一致时，也视为同一资源（即使 shareurl 不同）
         dedup = []
-        seen = set()
+        seen_shareurls = set()
+        seen_title_date = set()
+        seen_fingerprints = set()
+        # 规范化工具
+        def normalize_shareurl(url: str) -> str:
+            try:
+                if not url:
+                    return ""
+                u = url.strip()
+                # 仅取夸克分享ID: pan.quark.cn/s/<id>[?...]
+                # 同时支持直接传入ID的情况
+                match = re.search(r"/s/([^\?/#\s]+)", u)
+                if match:
+                    return match.group(1)
+                # 如果没有域名路径，尝试去掉查询参数
+                return u.split('?')[0]
+            except Exception:
+                return url or ""
+        def normalize_title(title: str) -> str:
+            try:
+                if not title:
+                    return ""
+                import unicodedata
+                t = unicodedata.normalize('NFKC', title)
+                t = t.replace('\u3000', ' ').replace('\t', ' ')
+                t = re.sub(r"\s+", " ", t).strip()
+                return t
+            except Exception:
+                return title or ""
+        def normalize_date(date_str: str) -> str:
+            try:
+                if not date_str:
+                    return ""
+                import unicodedata
+                ds = unicodedata.normalize('NFKC', date_str).strip()
+                return ds
+            except Exception:
+                return (date_str or "").strip()
         for item in merged:
             if not isinstance(item, dict):
                 continue
-            key = item.get("shareurl") or item.get("taskname")
-            if not key:
+            # 统一时间字段：优先使用已存在的 publish_date，否则使用 datetime，并写回 publish_date
+            try:
+                if not item.get("publish_date") and item.get("datetime"):
+                    item["publish_date"] = item.get("datetime")
+            except Exception:
+                pass
+
+            shareurl = normalize_shareurl(item.get("shareurl") or "")
+            title = normalize_title(item.get("taskname") or "")
+            pubdate = normalize_date(item.get("publish_date") or "")
+            source = (item.get("source") or "").strip()
+
+            # 条件1：按 shareurl 去重
+            if shareurl and shareurl in seen_shareurls:
                 continue
-            if key in seen:
+
+            # 条件2：标题 + 发布时间 同时一致则判定为同一资源
+            title_date_key = f"{title}||{pubdate}" if title and pubdate else None
+            if title_date_key and title_date_key in seen_title_date:
                 continue
-            seen.add(key)
+
+            # 条件3：完整指纹键（shareurl+title+date+source）去重，兜底完全相同的重复项
+            fingerprint = f"{shareurl}|{title}|{pubdate}|{source}"
+            if fingerprint in seen_fingerprints:
+                continue
+
+            # 记录已见键并保留该条
+            if shareurl:
+                seen_shareurls.add(shareurl)
+            if title_date_key:
+                seen_title_date.add(title_date_key)
+            seen_fingerprints.add(fingerprint)
             dedup.append(item)
 
         # 全局时间排序：所有来源的结果混合排序，按时间倒序（最新的在前）
         if dedup:
             def parse_datetime_for_sort(item):
-                """解析时间字段，返回可比较的时间戳"""
-                # 兼容两个字段名：publish_date 和 datetime
-                datetime_str = item.get("publish_date") or item.get("datetime")
+                """解析时间字段，返回可比较的时间戳（统一以 publish_date 为准）"""
+                datetime_str = item.get("publish_date")
                 if not datetime_str:
                     return 0  # 没有时间的排在最后
                 try:

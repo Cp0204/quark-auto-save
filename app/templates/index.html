@@ -1017,16 +1017,16 @@
                               <i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i> 
                               正在验证链接有效性...（{{ smart_param.validateProgress.current }}/{{ smart_param.validateProgress.total }}）<span v-if="smart_param.validateProgress.valid > 0">已找到 {{ smart_param.validateProgress.valid }} 个有效链接</span>
                             </span>
-                            <span v-else>正在搜索中...</span>
+                            <span v-else>正在搜索资源...</span>
                           </div>
                           <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
                             {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
                           </div>
-                          <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(index, suggestion)" style="font-size: 14px;" :title="suggestion.content">
+                          <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(index, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
                             <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                             <small class="text-muted">
                               <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.quark\.cn\/s\//, '') }}</a>
-                              <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="(suggestion.publish_date || suggestion.datetime) ? ' · ' + (suggestion.publish_date || suggestion.datetime) : ''">{{ suggestion.source }}</span></template>
+                              <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + suggestion.publish_date : ''">{{ suggestion.source }}</span></template>
                             </small>
                           </div>
                         </div>
@@ -1945,16 +1945,16 @@
                           <i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
                           正在验证链接有效性...（{{ smart_param.validateProgress.current }}/{{ smart_param.validateProgress.total }}）<span v-if="smart_param.validateProgress.valid > 0">已找到 {{ smart_param.validateProgress.valid }} 个有效链接</span>
                         </span>
-                        <span v-else>正在搜索中...</span>
+                        <span v-else>正在搜索资源...</span>
                       </div>
                       <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
                         {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
                       </div>
-                      <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(-1, suggestion)" style="font-size: 14px;" :title="suggestion.content">
+                      <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(-1, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
                         <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                         <small class="text-muted">
                           <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.quark\.cn\/s\//, '') }}</a>
-                          <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="(suggestion.publish_date || suggestion.datetime) ? ' · ' + (suggestion.publish_date || suggestion.datetime) : ''">{{ suggestion.source }}</span></template>
+                          <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + suggestion.publish_date : ''">{{ suggestion.source }}</span></template>
                         </small>
                       </div>
                     </div>
@@ -2758,6 +2758,24 @@
         document.removeEventListener('click', this.handleOutsideClick);
       },
       methods: {
+        // 仅当有有效信息时返回悬停提示，否则返回null以不显示
+        getSuggestionHoverTitle(suggestion) {
+          if (!suggestion) return null;
+          let content = (suggestion.content || '').trim();
+          if (!content) return null;
+          // 统一标点为英文冒号，统一逗号
+          const normalized = content
+            .replace(/：/g, ':')
+            .replace(/，/g, ',')
+            .replace(/\s+/g, ' ')
+            .trim();
+          // 仅在明确的占位文本时隐藏：
+          // 1) 全文就是“大小:-”
+          if (/^大小\s*:\s*-$/i.test(normalized)) return null;
+          // 2) 完全匹配“类别:xx, 文件类型:yy, 大小:-”这类占位
+          if (/^类别\s*:[^,]*,\s*文件类型\s*:[^,]*,\s*大小\s*:\s*-$/i.test(normalized)) return null;
+          return content;
+        },
         // 获取插件展示名称（支持别名，仅用于WebUI显示）
         getPluginDisplayName(pluginName) {
           return this.pluginDisplayAliases[pluginName] || pluginName;
@@ -4312,7 +4330,7 @@
           
           // 解析时间用于排序（降序：最新在前）
           const getItemTs = (item) => {
-            const raw = item.publish_date || item.datetime || '';
+            const raw = item.publish_date || '';
             const ts = Date.parse(raw);
             return isNaN(ts) ? 0 : ts;
           };
@@ -4445,7 +4463,7 @@
           
           // 结束前做一次排序，确保最终顺序正确
           const getItemTs = (item) => {
-            const raw = item.publish_date || item.datetime || '';
+            const raw = item.publish_date || '';
             const ts = Date.parse(raw);
             return isNaN(ts) ? 0 : ts;
           };
