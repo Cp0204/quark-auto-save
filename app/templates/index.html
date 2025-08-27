@@ -509,11 +509,21 @@
 
             <div class="row title" title="通知推送，支持多个渠道，查阅Wiki了解详情">
               <div class="col">
-                <h2 style="display: inline-block; font-size: 1.5rem;">通知</h2>
+                <h2 style="display: inline-block; font-size: 1.5rem;">通知设置</h2>
                 <span class="badge badge-pill badge-light">
                   <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/通知推送服务配置" target="_blank"><i class="bi bi-question-circle"></i></a>
                 </span>
               </div>
+            </div>
+            <div class="input-group mb-2">
+              <div class="input-group-prepend">
+                <span class="input-group-text">推送通知</span>
+              </div>
+              <select v-model="formData.push_notify_type" class="form-control">
+                <option value="full">推送完整信息（转存成功、转存失败、资源失效）</option>
+                <option value="success_only">推送成功信息（转存成功）</option>
+                <option value="exclude_invalid">排除失效信息（转存成功、转存失败）</option>
+              </select>
             </div>
             <div v-for="(value, key, index) in formData.push_config" :key="key" class="input-group mb-2">
               <div class="input-group-prepend">
@@ -531,7 +541,7 @@
 
             <div class="row title" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" title="插件配置，具体键值由插件定义，查阅Wiki了解详情">
               <div class="col">
-                <h2 style="display: inline-block; font-size: 1.5rem;">插件</h2>
+                <h2 style="display: inline-block; font-size: 1.5rem;">插件设置</h2>
                 <span class="badge badge-pill badge-light">
                   <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/插件配置" target="_blank"><i class="bi bi-question-circle"></i></a>
                 </span>
@@ -541,7 +551,7 @@
               <div class="form-group row mb-0" style="display:flex; align-items:center;">
                 <div data-toggle="collapse" :data-target="'#collapse_'+pluginName" aria-expanded="true" :aria-controls="'collapse_'+pluginName">
                   <div class="btn btn-block text-left">
-                    <i class="bi bi-caret-right-fill"></i> <span v-html="`${pluginName}`"></span>
+                    <i class="bi bi-caret-right-fill"></i> <span v-html="getPluginDisplayName(pluginName)"></span>
                   </div>
                 </div>
               </div>
@@ -553,6 +563,98 @@
                   <input type="text" v-model="formData.plugins[pluginName][key]" class="form-control"
                     :placeholder="getPluginConfigPlaceholder(pluginName, key)"
                     :title="getPluginConfigHelp(pluginName, key)">
+                </div>
+                <!-- 为特定插件添加全局配置选项 -->
+                <div v-if="['aria2', 'alist_strm_gen', 'emby'].includes(pluginName)" class="input-group mb-2">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text" :title="getPluginConfigModeHelp(pluginName)">插件配置模式</span>
+                  </div>
+                  <select class="form-control" v-model="formData.plugin_config_mode[pluginName]" @change="onPluginConfigModeChange(pluginName)" :title="getPluginConfigModeHelp(pluginName)">
+                    <option value="independent">独立配置</option>
+                    <option value="global">全局配置</option>
+                  </select>
+                </div>
+                <!-- 全局插件配置选项 -->
+                <div v-if="['aria2', 'alist_strm_gen', 'emby'].includes(pluginName) && formData.plugin_config_mode[pluginName] === 'global'">
+                  <div v-for="(taskConfig, taskKey) in getPluginTaskConfig(pluginName)" :key="taskKey" class="input-group mb-2">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text" v-html="taskKey" :title="getPluginTaskConfigHelp(pluginName, taskKey)"></span>
+                    </div>
+                    <select v-if="typeof formData.global_plugin_config[pluginName][taskKey] === 'boolean'" class="form-control" v-model="formData.global_plugin_config[pluginName][taskKey]" @change="onGlobalPluginConfigChange()" :title="getPluginTaskConfigHelp(pluginName, taskKey)">
+                      <option :value="true">true</option>
+                      <option :value="false">false</option>
+                    </select>
+                    <input v-else type="text" class="form-control" v-model="formData.global_plugin_config[pluginName][taskKey]"
+                      :placeholder="getPluginTaskConfigPlaceholder(pluginName, taskKey)"
+                      :title="getPluginTaskConfigHelp(pluginName, taskKey)"
+                      @input="onGlobalPluginConfigChange()">
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="row title" title="资源搜索服务配置，用于任务名称智能搜索，查阅Wiki了解详情">
+              <div class="col">
+                <h2 style="display: inline-block; font-size: 1.5rem;">搜索来源</h2>
+                <span class="badge badge-pill badge-light">
+                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/资源搜索" target="_blank"><i class="bi bi-question-circle"></i></a>
+                </span>
+              </div>
+            </div>
+            <!-- 按插件风格显示为可展开项 -->
+            <div style="margin-bottom: -8px;">
+              <!-- CloudSaver -->
+              <div style="margin-bottom: -8px; margin-top: -8px;">
+                <div class="form-group row mb-0" style="display:flex; align-items:center;">
+                  <div data-toggle="collapse" data-target="#collapse_source_cloudsaver" aria-expanded="true" aria-controls="collapse_source_cloudsaver">
+                    <div class="btn btn-block text-left">
+                      <i class="bi bi-caret-right-fill"></i> CloudSaver
+                    </div>
+                  </div>
+                </div>
+                <div class="collapse" id="collapse_source_cloudsaver" style="margin-left: 26px;">
+                  <div class="input-group mb-2">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text">服务器</span>
+                    </div>
+                    <input type="text" v-model="formData.source.cloudsaver.server" class="form-control" placeholder="CloudSaver 服务器地址，如：http://192.168.1.100:8008">
+                  </div>
+                  <div class="input-group mb-2">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text">用户名</span>
+                    </div>
+                    <input type="text" v-model="formData.source.cloudsaver.username" class="form-control" placeholder="CloudSaver 用户名">
+                  </div>
+                  <div class="input-group mb-2">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text">密码</span>
+                    </div>
+                    <input :type="showCloudSaverPassword ? 'text' : 'password'" v-model="formData.source.cloudsaver.password" class="form-control" placeholder="CloudSaver 密码">
+                    <div class="input-group-append">
+                      <button type="button" class="btn btn-outline-secondary" @click="toggleCloudSaverPassword">
+                        <i :class="['bi', showCloudSaverPassword ? 'bi-eye' : 'bi-eye-slash']"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- PanSou -->
+              <div style="margin-bottom: -9.5px;">
+                <div class="form-group row mb-0" style="display:flex; align-items:center;">
+                  <div data-toggle="collapse" data-target="#collapse_source_pansou" aria-expanded="false" aria-controls="collapse_source_pansou">
+                    <div class="btn btn-block text-left">
+                      <i class="bi bi-caret-right-fill"></i> PanSou
+                    </div>
+                  </div>
+                </div>
+                <div class="collapse" id="collapse_source_pansou" style="margin-left: 26px;">
+                  <div class="input-group mb-2" style="margin-bottom: 10.5px !important;">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text">服务器</span>
+                    </div>
+                    <input type="text" v-model="formData.source.pansou.server" class="form-control" placeholder="PanSou 服务器地址，如：http://192.168.1.100:80，默认地址 https://so.252035.xyz 为 PanSou 官方地址，建议自部署以获得更稳定的体验">
+                  </div>
                 </div>
               </div>
             </div>
@@ -689,59 +791,6 @@
                   <option value="disabled">禁用</option>
                   <option value="enabled">启用</option>
                 </select>
-              </div>
-            </div>
-
-            <div class="row title" title="API接口，用于第三方添加任务等操作，查阅Wiki了解详情">
-              <div class="col">
-                <h2 style="display: inline-block; font-size: 1.5rem;">API</h2>
-                <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/API接口" target="_blank"><i class="bi bi-question-circle"></i></a>
-                </span>
-              </div>
-            </div>
-            <div class="input-group">
-              <div class="input-group-prepend">
-                <span class="input-group-text">Token</span>
-              </div>
-              <input type="text" v-model="formData.api_token" class="form-control" style="background-color:white;" disabled>
-            </div>
-
-            <div class="row title" title="资源搜索服务配置，用于任务名称智能搜索，查阅Wiki了解详情">
-              <div class="col">
-                <h2 style="display: inline-block; font-size: 1.5rem;">CloudSaver</h2>
-                <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/CloudSaver搜索源" target="_blank"><i class="bi bi-question-circle"></i></a>
-                </span>
-              </div>
-            </div>
-            <div class="input-group mb-2">
-              <div class="input-group-prepend">
-                <span class="input-group-text">服务器</span>
-              </div>
-              <input type="text" v-model="formData.source.cloudsaver.server" class="form-control" placeholder="资源搜索服务器地址，如 http://172.17.0.1:8008">
-            </div>
-            <div class="row mb-2">
-              <div class="col cloudsaver-username-col">
-                <div class="input-group">
-                  <div class="input-group-prepend">
-                    <span class="input-group-text">用户名</span>
-                  </div>
-                  <input type="text" v-model="formData.source.cloudsaver.username" class="form-control" placeholder="用户名">
-                </div>
-              </div>
-              <div class="col cloudsaver-password-col">
-                <div class="input-group">
-                  <div class="input-group-prepend">
-                    <span class="input-group-text">密码</span>
-                  </div>
-                  <input :type="showCloudSaverPassword ? 'text' : 'password'" v-model="formData.source.cloudsaver.password" class="form-control" placeholder="密码">
-                  <div class="input-group-append">
-                    <button type="button" class="btn btn-outline-secondary" @click="toggleCloudSaverPassword">
-                      <i :class="['bi', showCloudSaverPassword ? 'bi-eye' : 'bi-eye-slash']"></i>
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -884,6 +933,20 @@
                 </div>
               </div>
             </div>
+            <div class="row title" title="API接口，用于第三方添加任务等操作，查阅Wiki了解详情">
+              <div class="col">
+                <h2 style="display: inline-block; font-size: 1.5rem;">API</h2>
+                <span class="badge badge-pill badge-light">
+                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/API接口" target="_blank"><i class="bi bi-question-circle"></i></a>
+                </span>
+              </div>
+            </div>
+            <div class="input-group">
+              <div class="input-group-prepend">
+                <span class="input-group-text">Token</span>
+              </div>
+              <input type="text" v-model="formData.api_token" class="form-control" style="background-color:white;" disabled>
+            </div>
 
           </div>
 
@@ -964,15 +1027,16 @@
                               <i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i> 
                               正在验证链接有效性...（{{ smart_param.validateProgress.current }}/{{ smart_param.validateProgress.total }}）<span v-if="smart_param.validateProgress.valid > 0">已找到 {{ smart_param.validateProgress.valid }} 个有效链接</span>
                             </span>
-                            <span v-else>正在搜索中...</span>
+                            <span v-else>正在搜索资源...</span>
                           </div>
                           <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
-                            {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${smart_param.taskSuggestions.source} 搜索提供（仅显示有效链接），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
+                            {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
                           </div>
-                          <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(index, suggestion)" style="font-size: 14px;" :title="suggestion.content">
+                          <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(index, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
                             <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                             <small class="text-muted">
-                              <a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a>
+                              <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.quark\.cn\/s\//, '') }}</a>
+                              <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date) : ''">{{ suggestion.source }}</span></template>
                             </small>
                           </div>
                         </div>
@@ -1044,11 +1108,11 @@
                     </div>
                   </div>
                   
-                  <div class="form-group row" title="名称包含过滤词汇的项目不会被转存，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹">
+                  <div class="form-group row" title="名称包含过滤词汇的项目不会被转存，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹，支持使用保留词|过滤词的格式实现高级过滤，查阅Wiki了解详情">
                     <label class="col-sm-2 col-form-label">过滤规则</label>
                     <div class="col-sm-10">
                       <div class="input-group">
-                        <input type="text" name="filterwords[]" class="form-control" v-model="task.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划，名称包含过滤词汇的项目不会被转存">
+                        <input type="text" name="filterwords[]" class="form-control" v-model="task.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划，名称包含过滤词汇的项目不会被转存，支持使用保留词|过滤词的格式实现高级过滤">
                       </div>
                     </div>
                   </div>
@@ -1096,10 +1160,10 @@
                       </div>
                     </div>
                   </div>
-                  <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" title="单个任务的插件配置，具体键值由插件定义，查阅Wiki了解详情">
+                  <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" :title="getPluginConfigTitle(task)">
                     <label class="col-sm-2 col-form-label">插件配置</label>
                     <div class="col-sm-10">
-                      <v-jsoneditor v-model="task.addition" :options="{mode:'tree'}" :plus="false" height="162px" style="margin-bottom: -8px;"></v-jsoneditor>
+                      <v-jsoneditor v-model="task.addition" :options="{mode:'tree'}" :plus="false" height="162px" style="margin-bottom: -8px;" :disabled="isPluginConfigDisabled(task)"></v-jsoneditor>
                     </div>
                   </div>
                 </div>
@@ -1359,7 +1423,7 @@
                     @input="detectFileManagerNamingMode"
                     :title="fileManager.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}、剧名.S03E{}等，{}将被替换为集序号（按文件名和修改日期智能排序）' : (fileManager.use_episode_naming ? '输入带[]占位符的重命名格式，如：剧名 - S01E[]、剧名.S03E[]等，[]将被替换为从文件名中提取的集编号' : '只重命名匹配到文件名的文件，留空不会进行重命名')">
                   <input v-if="!fileManager.use_sequence_naming && !fileManager.use_episode_naming" type="text" class="form-control file-manager-input" v-model="fileManager.replace" placeholder="替换表达式" title="替换表达式">
-                  <input type="text" class="form-control file-manager-input" v-model="fileManager.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划" title="名称包含过滤词汇的项目不会被重命名，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹">
+                  <input type="text" class="form-control file-manager-input" v-model="fileManager.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划" title="名称包含过滤词汇的项目不会被重命名，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹，支持使用保留词|过滤词的格式实现高级过滤，查阅Wiki了解详情">
                   <div class="input-group-append">
                     <div class="input-group-text" title="勾选后，重命名和过滤规则也将应用于文件夹">
                       <input type="checkbox" v-model="fileManager.include_folders">&nbsp;含文件夹
@@ -1390,7 +1454,7 @@
                     <div class="input-group-prepend">
                       <span class="input-group-text">过滤规则</span>
                     </div>
-                    <input type="text" class="form-control" v-model="fileManager.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划" title="名称包含过滤词汇的项目不会被重命名，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹">
+                    <input type="text" class="form-control" v-model="fileManager.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划" title="名称包含过滤词汇的项目不会被重命名，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹，支持使用保留词|过滤词的格式实现高级过滤，查阅Wiki了解详情">
                     <span class="input-group-text file-folder-rounded">
                       <input type="checkbox" v-model="fileManager.include_folders">&nbsp;含文件夹
                     </span>
@@ -1891,15 +1955,16 @@
                           <i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
                           正在验证链接有效性...（{{ smart_param.validateProgress.current }}/{{ smart_param.validateProgress.total }}）<span v-if="smart_param.validateProgress.valid > 0">已找到 {{ smart_param.validateProgress.valid }} 个有效链接</span>
                         </span>
-                        <span v-else>正在搜索中...</span>
+                        <span v-else>正在搜索资源...</span>
                       </div>
                       <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
-                        {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${smart_param.taskSuggestions.source} 搜索提供（仅显示有效链接），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
+                        {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
                       </div>
-                      <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(-1, suggestion)" style="font-size: 14px;" :title="suggestion.content">
+                      <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(-1, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
                         <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                         <small class="text-muted">
-                          <a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a>
+                          <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.quark\.cn\/s\//, '') }}</a>
+                          <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date) : ''">{{ suggestion.source }}</span></template>
                         </small>
                       </div>
                     </div>
@@ -1971,11 +2036,11 @@
                 </div>
               </div>
 
-              <div class="form-group row" title="名称包含过滤词汇的项目不会被转存，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹">
+              <div class="form-group row" title="名称包含过滤词汇的项目不会被转存，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹，支持使用保留词|过滤词的格式实现高级过滤，查阅Wiki了解详情">
                 <label class="col-sm-2 col-form-label">过滤规则</label>
                 <div class="col-sm-10">
                   <div class="input-group">
-                    <input type="text" name="filterwords[]" class="form-control" v-model="createTask.taskData.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划，名称包含过滤词汇的项目不会被转存">
+                    <input type="text" name="filterwords[]" class="form-control" v-model="createTask.taskData.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，名称包含过滤词汇的项目不会被转存，支持使用保留词|过滤词的格式实现高级过滤">
                   </div>
                 </div>
               </div>
@@ -2023,10 +2088,10 @@
                   </div>
                 </div>
               </div>
-              <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" title="单个任务的插件配置，具体键值由插件定义，查阅Wiki了解详情">
+              <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" :title="getCreateTaskPluginConfigTitle()">
                 <label class="col-sm-2 col-form-label">插件配置</label>
                 <div class="col-sm-10">
-                  <v-jsoneditor v-model="createTask.taskData.addition" :options="{mode:'tree'}" :plus="false" height="162px" style="margin-bottom: -8px;"></v-jsoneditor>
+                  <v-jsoneditor v-model="createTask.taskData.addition" :options="{mode:'tree'}" :plus="false" height="162px" style="margin-bottom: -8px;" :disabled="isPluginConfigDisabled(createTask.taskData)"></v-jsoneditor>
                 </div>
               </div>
             </div>
@@ -2068,9 +2133,18 @@
         showCloudSaverPassword: false,
         showWebuiPassword: false,
         pageWidthMode: 'medium', // 页面宽度模式：narrow, medium, wide
+        pluginDisplayAliases: {
+          alist: 'AList',
+          alist_strm: 'AList Strm',
+          alist_strm_gen: 'AList Strm Gen',
+          aria2: 'Aria2',
+          emby: 'Emby',
+          plex: 'Plex'
+        },
         formData: {
           cookie: [],
           push_config: {},
+          push_notify_type: 'full',
           media_servers: {},
           tasklist: [],
           magic_regex: {},
@@ -2092,6 +2166,9 @@
               username: "",
               password: "",
               token: ""
+            },
+            pansou: {
+              server: "https://so.252035.xyz"
             }
           },
           webui: {
@@ -2111,6 +2188,25 @@
             api_page_size: 200,
             cache_expire_time: 30,
             discovery_items_count: 30
+          },
+          plugin_config_mode: {
+            aria2: "independent",
+            alist_strm_gen: "independent",
+            emby: "independent"
+          },
+          global_plugin_config: {
+            aria2: {
+              auto_download: true,
+              pause: false,
+              auto_delete_quark_files: false
+            },
+            alist_strm_gen: {
+              auto_gen: true
+            },
+            emby: {
+              try_match: true,
+              media_id: ""
+            }
           }
         },
         userInfoList: [], // 用户信息列表
@@ -2155,6 +2251,8 @@
             valid: 0
           },
           searchTimer: null,
+          // 新增：搜索会话号用于取消上一次验证/渲染，避免卡死和重复
+          searchSessionId: 0
         },
         activeTab: 'config',
         configModified: false,
@@ -2673,6 +2771,28 @@
         document.removeEventListener('click', this.handleOutsideClick);
       },
       methods: {
+        // 仅当有有效信息时返回悬停提示，否则返回null以不显示
+        getSuggestionHoverTitle(suggestion) {
+          if (!suggestion) return null;
+          let content = (suggestion.content || '').trim();
+          if (!content) return null;
+          // 统一标点为英文冒号，统一逗号
+          const normalized = content
+            .replace(/：/g, ':')
+            .replace(/，/g, ',')
+            .replace(/\s+/g, ' ')
+            .trim();
+          // 仅在明确的占位文本时隐藏：
+          // 1) 全文就是“大小:-”
+          if (/^大小\s*:\s*-$/i.test(normalized)) return null;
+          // 2) 完全匹配“类别:xx, 文件类型:yy, 大小:-”这类占位
+          if (/^类别\s*:[^,]*,\s*文件类型\s*:[^,]*,\s*大小\s*:\s*-$/i.test(normalized)) return null;
+          return content;
+        },
+        // 获取插件展示名称（支持别名，仅用于WebUI显示）
+        getPluginDisplayName(pluginName) {
+          return this.pluginDisplayAliases[pluginName] || pluginName;
+        },
         // 设置移动端任务列表展开/收起状态监听
         setupMobileTaskListToggle() {
           // 监听所有collapse事件
@@ -2741,6 +2861,139 @@
             return '多账号支持：多个存储ID用逗号分隔，顺序与Cookie顺序对应，如：1, 2, 3';
           }
           return '';
+        },
+
+        // 获取插件任务配置
+        getPluginTaskConfig(pluginName) {
+          const taskConfigs = {
+            aria2: {
+              auto_download: true,
+              pause: false,
+              auto_delete_quark_files: false
+            },
+            alist_strm_gen: {
+              auto_gen: true
+            },
+            emby: {
+              try_match: true,
+              media_id: ""
+            }
+          };
+          return taskConfigs[pluginName] || {};
+        },
+
+        // 获取插件配置模式的帮助文本
+        getPluginConfigModeHelp(pluginName) {
+          return "选择插件的配置模式：独立配置允许每个任务单独设置，全局配置则所有任务共享同一套设置，且只能在系统配置页面修改";
+        },
+
+        // 获取插件任务配置的帮助文本
+        getPluginTaskConfigHelp(pluginName, key) {
+          const helpTexts = {
+            aria2: {
+              auto_download: "是否自动添加下载任务",
+              pause: "添加任务后为暂停状态，不自动开始（手动下载）",
+              auto_delete_quark_files: "是否在添加下载任务后自动删除夸克网盘文件"
+            },
+            alist_strm_gen: {
+              auto_gen: "是否自动生成 strm 文件"
+            },
+            emby: {
+              try_match: "是否尝试匹配",
+              media_id: "媒体ID，当为0时不刷新"
+            }
+          };
+          return helpTexts[pluginName]?.[key] || '';
+        },
+
+        // 获取插件任务配置的占位符文本
+        getPluginTaskConfigPlaceholder(pluginName, key) {
+          const placeholders = {
+            aria2: {
+              auto_download: "",
+              pause: "",
+              auto_delete_quark_files: ""
+            },
+            alist_strm_gen: {
+              auto_gen: ""
+            },
+            emby: {
+              try_match: "",
+              media_id: "输入媒体ID，留空则自动匹配"
+            }
+          };
+          return placeholders[pluginName]?.[key] || '';
+        },
+
+        // 检查插件配置是否被禁用
+        isPluginConfigDisabled(task) {
+          for (const pluginName of ['aria2', 'alist_strm_gen', 'emby']) {
+            if (this.formData.plugin_config_mode[pluginName] === 'global') {
+              return true;
+            }
+          }
+          return false;
+        },
+
+        // 插件配置模式改变时的处理
+        onPluginConfigModeChange(pluginName) {
+          if (this.formData.plugin_config_mode[pluginName] === 'global') {
+            // 切换到全局模式时，初始化全局配置
+            if (!this.formData.global_plugin_config[pluginName]) {
+              this.formData.global_plugin_config[pluginName] = { ...this.getPluginTaskConfig(pluginName) };
+            }
+          }
+          
+          // 更新新任务的配置，应用全局配置
+          this.applyGlobalPluginConfig(this.newTask);
+          
+          // 更新影视发现页面创建任务的配置，应用全局配置
+          if (this.createTask && this.createTask.taskData) {
+            this.applyGlobalPluginConfig(this.createTask.taskData);
+          }
+        },
+
+        // 全局插件配置改变时的处理
+        onGlobalPluginConfigChange() {
+          // 更新新任务的配置，应用全局配置
+          this.applyGlobalPluginConfig(this.newTask);
+          
+          // 更新影视发现页面创建任务的配置，应用全局配置
+          if (this.createTask && this.createTask.taskData) {
+            this.applyGlobalPluginConfig(this.createTask.taskData);
+          }
+        },
+
+        // 应用全局插件配置到任务
+        applyGlobalPluginConfig(task) {
+          if (!task.addition) {
+            task.addition = {};
+          }
+          
+          for (const pluginName of ['aria2', 'alist_strm_gen', 'emby']) {
+            if (this.formData.plugin_config_mode[pluginName] === 'global') {
+              // 应用全局配置到任务
+              task.addition[pluginName] = { ...this.formData.global_plugin_config[pluginName] };
+            }
+          }
+        },
+
+
+
+        // 获取插件配置的悬停提示文本
+        getPluginConfigTitle(task) {
+          if (this.isPluginConfigDisabled(task)) {
+            return `单个任务的插件配置，具体键值由插件定义，当前有部分插件使用了全局配置模式，在该模式下对应的配置选项将被锁定，若要修改配置，请前往系统配置页面进行操作，查阅Wiki了解详情`;
+          }
+          return "单个任务的插件配置，具体键值由插件定义，查阅Wiki了解详情";
+        },
+
+        // 获取创建任务时的插件配置悬停提示文本
+        getCreateTaskPluginConfigTitle() {
+          if (this.isPluginConfigDisabled(this.createTask.taskData)) {
+            return `单个任务的插件配置，具体键值由插件定义，当前有部分插件使用了全局配置模式，在该模式下对应的配置选项将被锁定，若要修改配置，请前往系统配置页面进行操作，查阅Wiki了解详情`;
+          }
+          return "单个任务的插件配置，具体键值由插件定义，查阅Wiki了解详情";
         },
 
         fetchUserInfo() {
@@ -3153,7 +3406,9 @@
                 if (!this.taskDirs.includes(parentDir))
                   this.taskDirs.push(parentDir);
               });
-              this.newTask.addition = config_data.task_plugins_config_default;
+              // 初始化新任务的插件配置，应用全局配置
+              this.newTask.addition = { ...config_data.task_plugins_config_default };
+              this.applyGlobalPluginConfig(this.newTask);
               // 确保source配置存在
               if (!config_data.source) {
                 config_data.source = {};
@@ -3297,6 +3552,9 @@
                   task.episode_naming = task.pattern;
                 }
               }
+              
+              // 应用全局插件配置
+              this.applyGlobalPluginConfig(task);
             });
           }
           
@@ -3367,6 +3625,9 @@
             newTask.episode_naming = lastTask.episode_naming || "";
             newTask.replace = lastTask.replace || "";
           }
+
+          // 应用全局插件配置到新任务
+          this.applyGlobalPluginConfig(newTask);
 
           this.formData.tasklist.push(newTask)
           const index = this.formData.tasklist.length - 1;
@@ -4015,6 +4276,8 @@
           // 确保显示下拉菜单
           this.smart_param.showSuggestions = true;
           try {
+            // 启动新的搜索会话，后续增量结果仅在会话一致时才渲染
+            const sessionId = ++this.smart_param.searchSessionId;
             axios.get('/task_suggestions', {
               params: {
                 q: taskname,
@@ -4022,9 +4285,10 @@
               }
             }).then(response => {
               // 接收到数据后，过滤无效链接
+              if (sessionId !== this.smart_param.searchSessionId) return; // 旧会话结果忽略
               if (response.data.success && response.data.data && response.data.data.length > 0) {
                 // 使用新增的方法验证链接有效性
-                this.validateSearchResults(response.data);
+                this.validateSearchResults(response.data, sessionId);
               } else {
                 this.smart_param.taskSuggestions = response.data;
                 // 重新确认设置为true
@@ -4035,6 +4299,7 @@
             }).catch(error => {
               this.smart_param.isSearching = false;
               this.smart_param.validating = false; // 重置验证状态
+              
             });
           } catch (e) {
             this.smart_param.taskSuggestions = {
@@ -4042,10 +4307,11 @@
             };
             this.smart_param.isSearching = false;
             this.smart_param.validating = false; // 重置验证状态
+            
           }
         },
         // 添加新方法来验证搜索结果
-        validateSearchResults(searchData) {
+        validateSearchResults(searchData, sessionId) {
           const invalidTerms = [
             "分享者用户封禁链接查看受限",
             "好友已取消了分享",
@@ -4080,11 +4346,15 @@
           // 批量处理的大小，每批次最多处理5个链接
           const batchSize = 5;
           
+          // 解析时间用于排序（降序：最新在前）
+          const getItemTs = (item) => this.parsePublishTs(item && item.publish_date);
+          
           // 处理单个链接的函数
           const processLink = (link) => {
             return new Promise((resolve) => {
               if (!link.shareurl) {
                 // 没有分享链接，直接跳过
+                
                 resolve(null);
                 return;
               }
@@ -4096,6 +4366,10 @@
               .then(response => {
                 // 更新进度
                 this.smart_param.validateProgress.current++;
+                if (sessionId !== this.smart_param.searchSessionId) {
+                  resolve(null);
+                  return;
+                }
                 
                 if (response.data.success) {
                   // 检查文件列表是否为空
@@ -4103,6 +4377,7 @@
                   if (shareDetail.list && shareDetail.list.length > 0) {
                     // 链接有效，添加到有效结果列表
                     this.smart_param.validateProgress.valid++;
+                    
                     resolve(link);
                     return;
                   }
@@ -4128,18 +4403,21 @@
                   // 如果不是已知的失效原因，保留该结果
                   if (!isInvalid) {
                     this.smart_param.validateProgress.valid++;
+                    
                     resolve(link);
                     return;
                   }
                 }
                 
                 // 链接无效
+                
                 resolve(null);
               })
               .catch(error => {
                 // 验证出错，保守处理为有效
                 this.smart_param.validateProgress.current++;
                 this.smart_param.validateProgress.valid++;
+                
                 resolve(link);
               });
             });
@@ -4147,6 +4425,8 @@
           
           // 修改processBatch函数，增加快速显示功能
           const processBatch = async () => {
+            // 新会话已开始或已被取消（validating=false）则停止当前批次
+            if (sessionId !== this.smart_param.searchSessionId || !this.smart_param.validating) return;
             // 取下一批处理
             const batch = toProcess.splice(0, batchSize);
             if (batch.length === 0) {
@@ -4165,26 +4445,17 @@
               }
             });
             
-            // 快速显示：如果已经找到至少3个有效链接，并且还没有显示过结果
-            // 同时已验证的链接数量超过总数的30%或者已经找到5个有效链接
-            const hasEnoughValidLinks = validResults.length >= 3;
-            const hasProcessedEnough = this.smart_param.validateProgress.current >= this.smart_param.validateProgress.total * 0.3 || validResults.length >= 5;
+            // 动态排序（按发布时间/日期降序）
+            validResults.sort((a, b) => getItemTs(b) - getItemTs(a));
             
-            if (hasEnoughValidLinks && hasProcessedEnough && !this.smart_param._hasShownInterimResults) {
-              // 标记已显示过快速结果
-              this.smart_param._hasShownInterimResults = true;
-              
-              // 创建一个中间结果显示，同时保持验证状态
-              const interimResult = {
-                success: searchData.success,
-                source: searchData.source,
-                data: [...validResults], // 复制当前有效结果
-                message: `已找到${validResults.length}个有效链接，验证继续进行中...`
-              };
-              
-              // 更新显示但保持验证状态
-              this.smart_param.taskSuggestions = interimResult;
-            }
+            // 每批次都增量更新到界面，显示当前有效数量并保持正在验证状态
+            if (sessionId !== this.smart_param.searchSessionId || !this.smart_param.validating) return; // 渲染前再次检查会话
+            this.smart_param.taskSuggestions = {
+              success: searchData.success,
+              source: searchData.source,
+              data: [...validResults],
+              message: `已找到${validResults.length}个有效链接，验证继续进行中...`
+            };
             
             // 继续处理下一批
             processBatch();
@@ -4197,7 +4468,10 @@
           // 设置超时，避免永久等待
           setTimeout(() => {
             // 如果验证还在进行中，强制完成
-            if (this.smart_param.validating) {
+            if (this.smart_param.validating && sessionId === this.smart_param.searchSessionId) {
+              // 在收尾前立即取消会话，避免后续批次继续追加导致重复
+              this.smart_param.validating = false;
+              this.smart_param.searchSessionId++;
               // 将剩余未验证的链接添加到结果中
               const remaining = toProcess.filter(item => item.shareurl);
               validResults.push(...remaining);
@@ -4208,6 +4482,7 @@
               
               // 完成验证
               this.finishValidation(searchData, validResults);
+              
             }
           }, 30000); // 30秒超时
         },
@@ -4216,6 +4491,10 @@
           // 清除快速显示标记
           this.smart_param._hasShownInterimResults = false;
           
+          // 结束前做一次排序，确保最终顺序正确
+          const getItemTs = (item) => this.parsePublishTs(item && item.publish_date);
+          validResults.sort((a, b) => getItemTs(b) - getItemTs(a));
+          
           // 更新搜索结果
           const result = {
             success: searchData.success,
@@ -4223,6 +4502,7 @@
             data: validResults,
             message: validResults.length === 0 ? "未找到有效的分享链接" : searchData.message
           };
+          
           
           this.smart_param.taskSuggestions = result;
           this.smart_param.isSearching = false;
@@ -6282,6 +6562,44 @@
           const seconds = String(d.getSeconds()).padStart(2, '0');
           return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         },
+        // 统一解析资源发布日期为时间戳
+        parsePublishTs(raw) {
+          if (!raw) return 0;
+          const s = String(raw).trim();
+          // YYYY-MM-DD HH:mm:ss
+          let m = /^\s*(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})\s*$/.exec(s);
+          if (m) {
+            const [, y, mo, d, h, mi, se] = m;
+            return new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(se)).getTime();
+          }
+          // YYYY-MM-DD
+          m = /^\s*(\d{4})-(\d{2})-(\d{2})\s*$/.exec(s);
+          if (m) {
+            const [, y, mo, d] = m;
+            return new Date(Number(y), Number(mo) - 1, Number(d), 0, 0, 0).getTime();
+          }
+          // ISO 回退
+          const ts = Date.parse(s);
+          return isNaN(ts) ? 0 : ts;
+        },
+        // 规范化资源发布日期展示：将 ISO 格式（含 T/Z/偏移）转为 "YYYY-MM-DD HH:mm:ss"
+        formatPublishDate(value) {
+          if (!value) return '';
+          const s = String(value).trim();
+          // 已是标准格式则直接返回
+          if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/.test(s)) return s;
+          // 优先匹配 ISO 主体部分
+          const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/.exec(s);
+          if (m) {
+            const [, y, mo, d, h, mi, se] = m;
+            return `${y}-${mo}-${d} ${h}:${mi}:${se}`;
+          }
+          // 回退：简单替换T为空格并去除尾部Z/时区偏移
+          let out = s.replace('T', ' ');
+          out = out.replace(/Z$/i, '');
+          out = out.replace(/([+-]\d{2}:?\d{2})$/i, '');
+          return out;
+        },
         changeFolderPage(page) {
           if (page < 1) page = 1;
           if (page > this.fileManager.totalPages) page = this.fileManager.totalPages;
@@ -7446,10 +7764,10 @@
             // 打开创建任务模态框
             $('#createTaskModal').modal('show');
 
-            // 如果启用了自动搜索资源且配置了有效的CloudSaver信息，自动触发资源搜索
+            // 如果启用了自动搜索资源且配置了有效的搜索来源，自动触发资源搜索
             this.$nextTick(() => {
               if (this.formData.task_settings.auto_search_resources === 'enabled' &&
-                  this.isCloudSaverConfigValid() &&
+                  this.hasAnyValidSearchSource() &&
                   this.createTask.taskData.taskname) {
                 this.searchSuggestions(-1, this.createTask.taskData.taskname);
               }
@@ -7458,13 +7776,13 @@
             console.error('创建任务时出错:', error);
           }
         },
-        isCloudSaverConfigValid() {
-          // 检查CloudSaver配置是否有效
-          const csData = this.formData.source && this.formData.source.cloudsaver;
-          return csData &&
-                 csData.server &&
-                 csData.username &&
-                 csData.password;
+        hasAnyValidSearchSource() {
+          const src = this.formData.source || {};
+          const cs = src.cloudsaver || {};
+          const ps = src.pansou || {};
+          const csValid = cs.server && cs.username && cs.password;
+          const psValid = ps.server;
+          return !!(csValid || psValid);
         },
         smartFillTaskData(item, movieData) {
           // 智能填充任务数据
@@ -7548,9 +7866,10 @@
             this.createTask.taskData.startfid = "";
             this.createTask.taskData.update_subdir = "";
 
-            // 设置默认的插件配置
+            // 设置默认的插件配置，并应用全局配置
             if (this.formData.task_plugins_config_default) {
               this.createTask.taskData.addition = { ...this.formData.task_plugins_config_default };
+              this.applyGlobalPluginConfig(this.createTask.taskData);
             }
             return;
           }
@@ -7644,9 +7963,10 @@
           this.createTask.taskData.startfid = "";
           this.createTask.taskData.update_subdir = "";
 
-          // 设置默认的插件配置
+          // 设置默认的插件配置，并应用全局配置
           if (this.formData.task_plugins_config_default) {
             this.createTask.taskData.addition = { ...this.formData.task_plugins_config_default };
+            this.applyGlobalPluginConfig(this.createTask.taskData);
           }
         },
         isUsingCustomTaskSettingsForType(taskSettings, contentType) {
@@ -7974,6 +8294,9 @@
           // 创建新任务
           const newTask = { ...this.createTask.taskData };
 
+          // 应用全局插件配置
+          this.applyGlobalPluginConfig(newTask);
+
           // 处理命名模式
           if (newTask.use_sequence_naming) {
             newTask.pattern = newTask.sequence_naming;
@@ -8033,6 +8356,9 @@
 
           // 创建新任务
           const newTask = { ...this.createTask.taskData };
+
+          // 应用全局插件配置
+          this.applyGlobalPluginConfig(newTask);
 
           // 处理命名模式
           if (newTask.use_sequence_naming) {
@@ -8102,6 +8428,9 @@
 
           // 创建新任务
           const newTask = { ...this.createTask.taskData };
+
+          // 应用全局插件配置
+          this.applyGlobalPluginConfig(newTask);
 
           // 处理命名模式
           if (newTask.use_sequence_naming) {

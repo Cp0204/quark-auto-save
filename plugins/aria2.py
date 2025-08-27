@@ -45,7 +45,7 @@ class Aria2:
         "dir": "/downloads",  # 下载目录，需要Aria2有权限访问
     }
     default_task_config = {
-        "auto_download": False,  # 是否自动添加下载任务
+        "auto_download": True,  # 是否自动添加下载任务
         "pause": False,  # 添加任务后为暂停状态，不自动开始（手动下载）
         "auto_delete_quark_files": False,  # 是否在添加下载任务后自动删除夸克网盘文件
     }

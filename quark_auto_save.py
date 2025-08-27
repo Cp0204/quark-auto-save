@@ -36,6 +36,106 @@ except ImportError:
             def close(self):
                 pass
 
+def advanced_filter_files(file_list, filterwords):
+    """
+    高级过滤函数，支持保留词和过滤词
+    
+    Args:
+        file_list: 文件列表
+        filterwords: 过滤规则字符串，支持以下格式：
+            - "加更，企划，超前，(1)，mkv，nfo"  # 只有过滤词
+            - "期|加更，企划，超前，(1)，mkv，nfo"  # 保留词|过滤词
+            - "期，2160P|加更，企划，超前，(1)，mkv，nfo"  # 多个保留词(或关系)|过滤词
+            - "期|2160P|加更，企划，超前，(1)，mkv，nfo"  # 多个保留词(并关系)|过滤词
+            - "期，2160P|"  # 只有保留词，无过滤词
+    
+    Returns:
+        过滤后的文件列表
+    """
+    if not filterwords or not filterwords.strip():
+        return file_list
+    
+    # 检查是否包含分隔符 |
+    if '|' not in filterwords:
+        # 只有过滤词的情况
+        filterwords = filterwords.replace("，", ",")
+        filterwords_list = [word.strip().lower() for word in filterwords.split(',') if word.strip()]
+        
+        filtered_files = []
+        for file in file_list:
+            file_name = file['file_name'].lower()
+            file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
+            
+            # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
+            if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
+                filtered_files.append(file)
+        
+        return filtered_files
+    
+    # 包含分隔符的情况，需要解析保留词和过滤词
+    parts = filterwords.split('|')
+    if len(parts) < 2:
+        # 格式错误，返回原列表
+        return file_list
+    
+    # 最后一个|后面的是过滤词
+    filter_part = parts[-1].strip()
+    # 前面的都是保留词
+    keep_parts = [part.strip() for part in parts[:-1] if part.strip()]
+    
+    # 解析过滤词
+    filterwords_list = []
+    if filter_part:
+        filter_part = filter_part.replace("，", ",")
+        filterwords_list = [word.strip().lower() for word in filter_part.split(',') if word.strip()]
+    
+    # 解析保留词：每个|分隔的部分都是一个独立的筛选条件
+    # 这些条件需要按顺序依次应用，形成链式筛选
+    keep_conditions = []
+    for part in keep_parts:
+        if part.strip():
+            if ',' in part or '，' in part:
+                # 包含逗号，表示或关系
+                part = part.replace("，", ",")
+                or_words = [word.strip().lower() for word in part.split(',') if word.strip()]
+                keep_conditions.append(("or", or_words))
+            else:
+                # 不包含逗号，表示单个词
+                keep_conditions.append(("single", [part.strip().lower()]))
+    
+    # 第一步：应用保留词筛选（链式筛选）
+    if keep_conditions:
+        for condition_type, words in keep_conditions:
+            filtered_by_keep = []
+            for file in file_list:
+                file_name = file['file_name'].lower()
+                
+                if condition_type == "or":
+                    # 或关系：包含任意一个词即可
+                    if any(word in file_name for word in words):
+                        filtered_by_keep.append(file)
+                elif condition_type == "single":
+                    # 单个词：必须包含
+                    if words[0] in file_name:
+                        filtered_by_keep.append(file)
+            
+            file_list = filtered_by_keep
+    
+    # 第二步：应用过滤词过滤
+    if filterwords_list:
+        filtered_files = []
+        for file in file_list:
+            file_name = file['file_name'].lower()
+            file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
+            
+            # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
+            if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
+                filtered_files.append(file)
+        
+        return filtered_files
+    
+    return file_list
+
 # 全局的文件排序函数
 def sort_file_by_name(file):
     """
@@ -729,6 +829,28 @@ def add_notify(text):
     # 防止重复添加相同的通知
     if text in NOTIFYS:
         return text
+    
+    # 检查推送通知类型配置
+    push_notify_type = CONFIG_DATA.get("push_notify_type", "full")
+    
+    # 如果设置为仅推送成功信息，则过滤掉失败和错误信息
+    if push_notify_type == "success_only":
+        # 检查是否包含失败或错误相关的关键词
+        failure_keywords = ["❌", "❗", "失败", "失效", "错误", "异常", "无效", "登录失败"]
+        if any(keyword in text for keyword in failure_keywords):
+            # 只打印到控制台，不添加到通知列表
+            print(text)
+            return text
+    
+    # 如果设置为排除失效信息，则过滤掉资源失效信息，但保留转存失败信息
+    elif push_notify_type == "exclude_invalid":
+        # 检查是否包含资源失效相关的关键词（主要是分享资源失效）
+        invalid_keywords = ["分享资源已失效", "分享详情获取失败", "分享为空", "文件已被分享者删除"]
+        if any(keyword in text for keyword in invalid_keywords):
+            # 只打印到控制台，不添加到通知列表
+            print(text)
+            return text
+    
     NOTIFYS.append(text)
     print(text)
     return text
@@ -1103,18 +1225,39 @@ class Quark:
                 "_fetch_total": "1",
                 "_sort": "file_type:asc,updated_at:desc",
             }
-            response = self._send_request("GET", url, params=querystring).json()
-            if response["code"] != 0:
-                return {"error": response["message"]}
-            if response["data"]["list"]:
-                list_merge += response["data"]["list"]
+            # 兼容网络错误或服务端异常
+            try:
+                response = self._send_request("GET", url, params=querystring).json()
+            except Exception:
+                return {"error": "request error"}
+
+            # 统一判错：某些情况下返回没有 code 字段
+            code = response.get("code")
+            status = response.get("status")
+            if code not in (0, None):
+                return {"error": response.get("message", "unknown error")}
+            if status not in (None, 200):
+                return {"error": response.get("message", "request error")}
+
+            data = response.get("data") or {}
+            metadata = response.get("metadata") or {}
+
+            if data.get("list"):
+                list_merge += data["list"]
                 page += 1
             else:
                 break
-            if len(list_merge) >= response["metadata"]["_total"]:
+            # 防御性：metadata 或 _total 缺失时不再访问嵌套键
+            total = metadata.get("_total") if isinstance(metadata, dict) else None
+            if isinstance(total, int) and len(list_merge) >= total:
                 break
-        response["data"]["list"] = list_merge
-        return response["data"]
+        # 统一输出结构，缺失字段时提供默认值
+        if not isinstance(data, dict):
+            return {"error": response.get("message", "request error")}
+        data["list"] = list_merge
+        if "paths" not in data:
+            data["paths"] = []
+        return data
 
     def get_fids(self, file_paths):
         fids = []
@@ -1978,22 +2121,8 @@ class Quark:
             # 记录过滤前的文件总数（包括文件夹）
             original_total_count = len(share_file_list)
 
-            # 同时支持中英文逗号分隔
-            filterwords = task["filterwords"].replace("，", ",")
-            filterwords_list = [word.strip().lower() for word in filterwords.split(',')]
-
-            # 改进过滤逻辑，同时检查文件名和扩展名
-            filtered_files = []
-            for file in share_file_list:
-                file_name = file['file_name'].lower()
-                # 提取文件扩展名（不带点）
-                file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
-
-                # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
-                if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
-                    filtered_files.append(file)
-
-            share_file_list = filtered_files
+            # 使用高级过滤函数处理保留词和过滤词
+            share_file_list = advanced_filter_files(share_file_list, task["filterwords"])
             
             # 打印过滤信息（格式保持不变）
             # 计算剩余文件数
@@ -3003,7 +3132,14 @@ class Quark:
             non_dir_files = [f for f in dir_file_list if not f.get("dir", False)]
             is_empty_dir = len(non_dir_files) == 0
 
-
+            # 应用过滤词过滤（修复bug：为本地文件重命名添加过滤规则）
+            if task.get("filterwords"):
+                # 记录过滤前的文件总数
+                original_total_count = len(dir_file_list)
+                
+                # 使用高级过滤函数处理保留词和过滤词
+                dir_file_list = advanced_filter_files(dir_file_list, task["filterwords"])
+                dir_file_name_list = [item["file_name"] for item in dir_file_list]
 
             # 找出当前最大序号
             max_sequence = 0
@@ -3405,23 +3541,14 @@ class Quark:
                             # 检查过滤词
                             should_filter = False
                             if task.get("filterwords"):
-                                # 同时支持中英文逗号分隔
-                                filterwords = task["filterwords"].replace("，", ",")
-                                filterwords_list = [word.strip().lower() for word in filterwords.split(',')]
-                                
-                                # 检查原始文件名
-                                original_name_lower = share_file["file_name"].lower()
-                                if any(word in original_name_lower for word in filterwords_list):
-                                    should_filter = True
-                                
-                                # 检查目标文件名
-                                save_name_lower = save_name.lower()
-                                if any(word in save_name_lower for word in filterwords_list):
-                                    should_filter = True
-                                
-                                # 检查文件扩展名
-                                file_ext_lower = file_ext.lower().lstrip('.')
-                                if any(word == file_ext_lower for word in filterwords_list):
+                                # 使用高级过滤函数检查文件名
+                                temp_file_list = [{"file_name": share_file["file_name"]}]
+                                if advanced_filter_files(temp_file_list, task["filterwords"]):
+                                    # 检查目标文件名
+                                    temp_save_list = [{"file_name": save_name}]
+                                    if not advanced_filter_files(temp_save_list, task["filterwords"]):
+                                        should_filter = True
+                                else:
                                     should_filter = True
                             
                             # 只处理不需要过滤的文件
@@ -3435,19 +3562,9 @@ class Quark:
                             # 检查过滤词
                             should_filter = False
                             if task.get("filterwords"):
-                                # 同时支持中英文逗号分隔
-                                filterwords = task["filterwords"].replace("，", ",")
-                                filterwords_list = [word.strip().lower() for word in filterwords.split(',')]
-                                
-                                # 检查原始文件名
-                                original_name_lower = share_file["file_name"].lower()
-                                if any(word in original_name_lower for word in filterwords_list):
-                                    should_filter = True
-                                
-                                # 检查文件扩展名
-                                file_ext = os.path.splitext(share_file["file_name"])[1].lower()
-                                file_ext_lower = file_ext.lstrip('.')
-                                if any(word == file_ext_lower for word in filterwords_list):
+                                # 使用高级过滤函数检查文件名
+                                temp_file_list = [{"file_name": share_file["file_name"]}]
+                                if not advanced_filter_files(temp_file_list, task["filterwords"]):
                                     should_filter = True
                             
                             # 只处理不需要过滤的文件
@@ -3609,6 +3726,14 @@ class Quark:
             is_rename_count = 0
             renamed_files = {}
             
+            # 应用过滤词过滤（修复bug：为本地文件重命名添加过滤规则）
+            if task.get("filterwords"):
+                # 记录过滤前的文件总数
+                original_total_count = len(dir_file_list)
+                
+                # 使用高级过滤函数处理保留词和过滤词
+                dir_file_list = advanced_filter_files(dir_file_list, task["filterwords"])
+            
             # 使用一个列表收集所有需要重命名的操作
             rename_operations = []
             rename_logs = []  # 收集重命名日志
@@ -3753,6 +3878,14 @@ class Quark:
             
             # 获取目录中的文件列表
             dir_file_list = self.ls_dir(self.savepath_fid[savepath])
+            
+            # 应用过滤词过滤（修复bug：为本地文件重命名添加过滤规则）
+            if task.get("filterwords"):
+                # 记录过滤前的文件总数
+                original_total_count = len(dir_file_list)
+                
+                # 使用高级过滤函数处理保留词和过滤词
+                dir_file_list = advanced_filter_files(dir_file_list, task["filterwords"])
             
             # 使用一个列表收集所有需要重命名的操作
             rename_operations = []
@@ -4395,7 +4528,7 @@ def do_save(account, tasklist=[]):
                 
                 # 添加成功通知，带文件数量图标
                 # 这个通知会在下面的新逻辑中添加，这里注释掉
-                # add_notify(f"✅《{task['taskname']}》添加追更:")
+                # add_notify(f"✅《{task['taskname']}》新增文件:")
                 # add_notify(f"/{task['savepath']}")
                 
                 # 移除调试信息
@@ -4677,7 +4810,7 @@ def do_save(account, tasklist=[]):
                     pass
                 else:
                     # 添加基本通知
-                    add_notify(f"✅《{task['taskname']}》添加追更:")
+                    add_notify(f"✅《{task['taskname']}》新增文件:")
                     add_notify(f"{re.sub(r'/{2,}', '/', f'/{task['savepath']}')}")
                     
                     # 修正首次运行时对子目录的处理 - 只有在首次运行且有新增的子目录时才显示子目录内容
@@ -5008,7 +5141,7 @@ def do_save(account, tasklist=[]):
                 
                 # 添加成功通知 - 修复问题：确保在有文件时添加通知
                 if display_files:
-                    add_notify(f"✅《{task['taskname']}》添加追更:")
+                    add_notify(f"✅《{task['taskname']}》新增文件:")
                     add_notify(f"{re.sub(r'/{2,}', '/', f'/{task['savepath']}')}")
                 
                 
@@ -5098,7 +5231,7 @@ def do_save(account, tasklist=[]):
                     display_files = [file["file_name"] for file in file_nodes]
                 
                 # 添加成功通知
-                add_notify(f"✅《{task['taskname']}》添加追更:")
+                add_notify(f"✅《{task['taskname']}》新增文件:")
                 add_notify(f"{re.sub(r'/{2,}', '/', f'/{task['savepath']}')}")
                 
                 # 打印文件列表
@@ -5249,7 +5382,12 @@ def main():
     if NOTIFYS:
         notify_body = "\n".join(NOTIFYS)
         print(f"===============推送通知===============")
-        send_ql_notify("【夸克自动追更】", notify_body)
+        send_ql_notify("【夸克自动转存】", notify_body)
+        print()
+    else:
+        # 如果没有通知内容，显示统一提示
+        print(f"===============推送通知===============")
+        print("📭 本次运行没有新的转存，未推送通知")
         print()
     if cookie_form_file:
         # 更新配置

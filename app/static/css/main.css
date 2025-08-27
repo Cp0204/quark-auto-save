@@ -3218,7 +3218,7 @@ div[data-toggle="collapse"] .btn.text-left i.bi-caret-right-fill {
   color: inherit;
   transition: transform 0.2s;
   position: relative;
-  top: 0.5px; /* 调整箭头垂直对齐，使其与文本居中 */
+  top: 0; /* 调整箭头垂直对齐，使其与文本居中 */
   font-size: 0.95rem; /* 调整箭头大小与文本比例协调 */
   margin-right: 4px; /* 添加右侧间距使与文字有适当间距 */
 }
@@ -6398,4 +6398,43 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   font-weight: normal;
   font-family: inherit;
   letter-spacing: normal;
+}
+
+/* 仅在“搜索来源”前的最后一个插件折叠时，将间距减少 2px */
+div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
+  margin-bottom: -10px !important; /* override inline -8px only for collapsed state */
+}
+
+/* 修复系统配置页面性能设置与API接口模块间距问题 */
+.row.mb-2.performance-setting-row + .row.title[title^="API接口"] {
+  margin-top: 0 !important;      /* prevent unexpected collapse stacking */
+  padding-top: 4px !important;   /* adds effective +4px spacing */
+}
+
+/* --------------- 来源标识样式 --------------- */
+.source-badge {
+  display: inline-block;
+  margin-left: 1px;
+  font-size: 14px;
+  line-height: 1.2;
+  white-space: nowrap;
+  vertical-align: baseline;
+  color: var(--light-text-color);
+  background-color: transparent;
+}
+
+.source-badge::before {
+  content: " · ";
+  margin-right: 0;
+  color: var(--light-text-color);
+}
+
+.source-badge::after {
+  content: attr(data-publish-date);
+  margin-left: 0;
+  color: var(--light-text-color);
+  font-size: 14px;
+  line-height: 1.2;
+  white-space: nowrap;
+  vertical-align: baseline;
 }

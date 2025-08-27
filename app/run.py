@@ -16,6 +16,10 @@ from flask import (
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sdk.cloudsaver import CloudSaver
+try:
+    from sdk.pansou import PanSou
+except Exception:
+    PanSou = None
 from datetime import timedelta, datetime
 import subprocess
 import requests
@@ -42,6 +46,106 @@ from quark_auto_save import extract_episode_number, sort_file_by_name, chinese_t
 
 # 导入豆瓣服务
 from sdk.douban_service import douban_service
+
+def advanced_filter_files(file_list, filterwords):
+    """
+    高级过滤函数，支持保留词和过滤词
+    
+    Args:
+        file_list: 文件列表
+        filterwords: 过滤规则字符串，支持以下格式：
+            - "加更，企划，超前，(1)，mkv，nfo"  # 只有过滤词
+            - "期|加更，企划，超前，(1)，mkv，nfo"  # 保留词|过滤词
+            - "期，2160P|加更，企划，超前，(1)，mkv，nfo"  # 多个保留词(或关系)|过滤词
+            - "期|2160P|加更，企划，超前，(1)，mkv，nfo"  # 多个保留词(并关系)|过滤词
+            - "期，2160P|"  # 只有保留词，无过滤词
+    
+    Returns:
+        过滤后的文件列表
+    """
+    if not filterwords or not filterwords.strip():
+        return file_list
+    
+    # 检查是否包含分隔符 |
+    if '|' not in filterwords:
+        # 只有过滤词的情况
+        filterwords = filterwords.replace("，", ",")
+        filterwords_list = [word.strip().lower() for word in filterwords.split(',') if word.strip()]
+        
+        filtered_files = []
+        for file in file_list:
+            file_name = file['file_name'].lower()
+            file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
+            
+            # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
+            if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
+                filtered_files.append(file)
+        
+        return filtered_files
+    
+    # 包含分隔符的情况，需要解析保留词和过滤词
+    parts = filterwords.split('|')
+    if len(parts) < 2:
+        # 格式错误，返回原列表
+        return file_list
+    
+    # 最后一个|后面的是过滤词
+    filter_part = parts[-1].strip()
+    # 前面的都是保留词
+    keep_parts = [part.strip() for part in parts[:-1] if part.strip()]
+    
+    # 解析过滤词
+    filterwords_list = []
+    if filter_part:
+        filter_part = filter_part.replace("，", ",")
+        filterwords_list = [word.strip().lower() for word in filter_part.split(',') if word.strip()]
+    
+    # 解析保留词：每个|分隔的部分都是一个独立的筛选条件
+    # 这些条件需要按顺序依次应用，形成链式筛选
+    keep_conditions = []
+    for part in keep_parts:
+        if part.strip():
+            if ',' in part or '，' in part:
+                # 包含逗号，表示或关系
+                part = part.replace("，", ",")
+                or_words = [word.strip().lower() for word in part.split(',') if word.strip()]
+                keep_conditions.append(("or", or_words))
+            else:
+                # 不包含逗号，表示单个词
+                keep_conditions.append(("single", [part.strip().lower()]))
+    
+    # 第一步：应用保留词筛选（链式筛选）
+    if keep_conditions:
+        for condition_type, words in keep_conditions:
+            filtered_by_keep = []
+            for file in file_list:
+                file_name = file['file_name'].lower()
+                
+                if condition_type == "or":
+                    # 或关系：包含任意一个词即可
+                    if any(word in file_name for word in words):
+                        filtered_by_keep.append(file)
+                elif condition_type == "single":
+                    # 单个词：必须包含
+                    if words[0] in file_name:
+                        filtered_by_keep.append(file)
+            
+            file_list = filtered_by_keep
+    
+    # 第二步：应用过滤词过滤
+    if filterwords_list:
+        filtered_files = []
+        for file in file_list:
+            file_name = file['file_name'].lower()
+            file_ext = os.path.splitext(file_name)[1].lower().lstrip('.')
+            
+            # 检查过滤词是否存在于文件名中，或者过滤词等于扩展名
+            if not any(word in file_name for word in filterwords_list) and not any(word == file_ext for word in filterwords_list):
+                filtered_files.append(file)
+        
+        return filtered_files
+    
+    return file_list
 
 
 def process_season_episode_info(filename, task_name=None):
@@ -386,6 +490,43 @@ def get_data():
                 data["plugins"]["alist"]["storage_id"]
             )
 
+    # 初始化插件配置模式（如果不存在）
+    if "plugin_config_mode" not in data:
+        data["plugin_config_mode"] = {
+            "aria2": "independent",
+            "alist_strm_gen": "independent",
+            "emby": "independent"
+        }
+    
+    # 初始化全局插件配置（如果不存在）
+    if "global_plugin_config" not in data:
+        data["global_plugin_config"] = {
+            "aria2": {
+                "auto_download": True,
+                "pause": False,
+                "auto_delete_quark_files": False
+            },
+            "alist_strm_gen": {
+                "auto_gen": True
+            },
+            "emby": {
+                "try_match": True,
+                "media_id": ""
+            }
+        }
+
+    # 初始化推送通知类型配置（如果不存在）
+    if "push_notify_type" not in data:
+        data["push_notify_type"] = "full"
+
+    # 初始化搜索来源默认结构
+    if "source" not in data or not isinstance(data.get("source"), dict):
+        data["source"] = {}
+    # CloudSaver 默认字段
+    data["source"].setdefault("cloudsaver", {"server": "", "username": "", "password": "", "token": ""})
+    # PanSou 默认字段
+    data["source"].setdefault("pansou", {"server": "https://so.252035.xyz"})
+
     # 发送webui信息，但不发送密码原文
     data["webui"] = {
         "username": config_data["webui"]["username"],
@@ -405,6 +546,7 @@ def sync_task_plugins_config():
     4. 保留原有的自定义配置
     5. 只处理已启用的插件（通过PLUGIN_FLAGS检查）
     6. 清理被禁用插件的配置
+    7. 应用全局插件配置（如果启用）
     """
     global config_data, task_plugins_config_default
     
@@ -416,6 +558,10 @@ def sync_task_plugins_config():
     disabled_plugins = set()
     if PLUGIN_FLAGS:
         disabled_plugins = {name.lstrip('-') for name in PLUGIN_FLAGS.split(',')}
+    
+    # 获取插件配置模式
+    plugin_config_mode = config_data.get("plugin_config_mode", {})
+    global_plugin_config = config_data.get("global_plugin_config", {})
         
     # 遍历所有任务
     for task in config_data["tasklist"]:
@@ -433,23 +579,31 @@ def sync_task_plugins_config():
             # 跳过被禁用的插件
             if plugin_name in disabled_plugins:
                 continue
-                
-            # 如果任务中没有该插件的配置，添加默认配置
-            if plugin_name not in task["addition"]:
-                task["addition"][plugin_name] = default_config.copy()
-            else:
-                # 如果任务中有该插件的配置，检查是否有新的配置项
-                current_config = task["addition"][plugin_name]
-                # 确保current_config是字典类型
-                if not isinstance(current_config, dict):
-                    # 如果不是字典类型，使用默认配置
+            
+            # 检查是否使用全局配置模式
+            if plugin_name in plugin_config_mode and plugin_config_mode[plugin_name] == "global":
+                # 使用全局配置
+                if plugin_name in global_plugin_config:
+                    task["addition"][plugin_name] = global_plugin_config[plugin_name].copy()
+                else:
                     task["addition"][plugin_name] = default_config.copy()
-                    continue
-                    
-                # 遍历默认配置的每个键值对
-                for key, default_value in default_config.items():
-                    if key not in current_config:
-                        current_config[key] = default_value
+            else:
+                # 使用独立配置
+                if plugin_name not in task["addition"]:
+                    task["addition"][plugin_name] = default_config.copy()
+                else:
+                    # 如果任务中有该插件的配置，检查是否有新的配置项
+                    current_config = task["addition"][plugin_name]
+                    # 确保current_config是字典类型
+                    if not isinstance(current_config, dict):
+                        # 如果不是字典类型，使用默认配置
+                        task["addition"][plugin_name] = default_config.copy()
+                        continue
+                        
+                    # 遍历默认配置的每个键值对
+                    for key, default_value in default_config.items():
+                        if key not in current_config:
+                            current_config[key] = default_value
 
 
 def parse_comma_separated_config(value):
@@ -791,7 +945,14 @@ def get_task_suggestions():
     search_query = extract_show_name(query)
     
     try:
-        cs_data = config_data.get("source", {}).get("cloudsaver", {})
+        sources_cfg = config_data.get("source", {}) or {}
+        cs_data = sources_cfg.get("cloudsaver", {})
+        ps_data = sources_cfg.get("pansou", {})
+
+        merged = []
+        providers = []
+
+        # CloudSaver
         if (
             cs_data.get("server")
             and cs_data.get("username")
@@ -803,35 +964,214 @@ def get_task_suggestions():
                 cs_data.get("password", ""),
                 cs_data.get("token", ""),
             )
-            # 使用处理后的搜索关键词
             search = cs.auto_login_search(search_query)
             if search.get("success"):
                 if search.get("new_token"):
                     cs_data["token"] = search.get("new_token")
                     Config.write_json(CONFIG_PATH, config_data)
                 search_results = cs.clean_search_results(search.get("data"))
-                # 在返回结果中添加实际使用的搜索关键词
-                return jsonify(
-                    {
-                        "success": True, 
-                        "source": "CloudSaver", 
-                        "data": search_results
-                    }
-                )
+                if isinstance(search_results, list):
+                    merged.extend(search_results)
+                    providers.append("CloudSaver")
+
+        # PanSou
+        if ps_data and ps_data.get("server") and PanSou is not None:
+            try:
+                ps = PanSou(ps_data.get("server"))
+                result = ps.search(search_query)
+                if result.get("success") and isinstance(result.get("data"), list):
+                    merged.extend(result.get("data"))
+                    providers.append("PanSou")
+            except Exception as e:
+                logging.warning(f"PanSou 搜索失败: {str(e)}")
+
+        # 去重并统一时间字段为 publish_date
+        # 规则：
+        # 1) 首轮仅按 shareurl 归并：同一链接保留发布时间最新的一条（展示以该条为准）
+        # 2) 兜底（极少）：无链接时按完整指纹（shareurl|title|date|source）归并
+        # 3) 二次归并：对所有候选结果再按 标题+发布时间 做一次归并（无论 shareurl 是否相同），取最新
+        # 注意：当发生归并冲突时，始终保留发布时间最新的记录
+        dedup_map = {}          # 按 shareurl 归并
+        fingerprint_map = {}    # 兜底：完整指纹归并（仅当缺失链接时）
+        # 规范化工具
+        def normalize_shareurl(url: str) -> str:
+            try:
+                if not url:
+                    return ""
+                u = url.strip()
+                # 仅取夸克分享ID: pan.quark.cn/s/<id>[?...]
+                # 同时支持直接传入ID的情况
+                match = re.search(r"/s/([^\?/#\s]+)", u)
+                if match:
+                    return match.group(1)
+                # 如果没有域名路径，尝试去掉查询参数
+                return u.split('?')[0]
+            except Exception:
+                return url or ""
+        def normalize_title(title: str) -> str:
+            try:
+                if not title:
+                    return ""
+                import unicodedata
+                t = unicodedata.normalize('NFKC', title)
+                t = t.replace('\u3000', ' ').replace('\t', ' ')
+                t = re.sub(r"\s+", " ", t).strip()
+                return t
+            except Exception:
+                return title or ""
+        def normalize_date(date_str: str) -> str:
+            try:
+                if not date_str:
+                    return ""
+                import unicodedata
+                ds = unicodedata.normalize('NFKC', date_str).strip()
+                return ds
+            except Exception:
+                return (date_str or "").strip()
+        # 解析时间供比较
+        def to_ts(datetime_str):
+            if not datetime_str:
+                return 0
+            try:
+                s = str(datetime_str).strip()
+                from datetime import datetime
+                try:
+                    return datetime.strptime(s, "%Y-%m-%d %H:%M:%S").timestamp()
+                except Exception:
+                    pass
+                try:
+                    return datetime.strptime(s, "%Y-%m-%d").timestamp()
+                except Exception:
+                    pass
+                try:
+                    s2 = s.replace('Z', '+00:00')
+                    return datetime.fromisoformat(s2).timestamp()
+                except Exception:
+                    return 0
+            except Exception:
+                return 0
+
+        for item in merged:
+            if not isinstance(item, dict):
+                continue
+            # 统一时间字段：优先使用已存在的 publish_date，否则使用 datetime，并写回 publish_date
+            try:
+                if not item.get("publish_date") and item.get("datetime"):
+                    item["publish_date"] = item.get("datetime")
+            except Exception:
+                pass
+
+            shareurl = normalize_shareurl(item.get("shareurl") or "")
+            title = normalize_title(item.get("taskname") or "")
+            pubdate = normalize_date(item.get("publish_date") or "")
+            source = (item.get("source") or "").strip()
+
+            timestamp = to_ts(pubdate)
+
+            # 条件1：按 shareurl 归并，取最新
+            if shareurl:
+                existed = dedup_map.get(shareurl)
+                if not existed or to_ts(existed.get("publish_date")) < timestamp:
+                    dedup_map[shareurl] = item
             else:
-                return jsonify({"success": True, "message": search.get("message")})
-        else:
-            base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
-            # 使用处理后的搜索关键词
-            url = f"{base_url}/task_suggestions?q={search_query}&d={deep}"
-            response = requests.get(url)
-            return jsonify(
-                {
-                    "success": True, 
-                    "source": "网络公开", 
-                    "data": response.json()
-                }
-            )
+                # 条件2（兜底）：完整指纹归并（极少发生），依然取最新
+                fingerprint = f"{shareurl}|{title}|{pubdate}|{source}"
+                existed = fingerprint_map.get(fingerprint)
+                if not existed or to_ts(existed.get("publish_date")) < timestamp:
+                    fingerprint_map[fingerprint] = item
+
+        # 第一轮：汇总归并后的候选结果
+        candidates = list(dedup_map.values()) + list(fingerprint_map.values())
+
+        # 第二轮：无论 shareurl 是否相同，再按 标题+发布时间 归并一次（使用时间戳作为键，兼容不同时间格式），保留最新
+        final_map = {}
+        for item in candidates:
+            try:
+                t = normalize_title(item.get("taskname") or "")
+                d = normalize_date(item.get("publish_date") or "")
+                s = normalize_shareurl(item.get("shareurl") or "")
+                src = (item.get("source") or "").strip()
+                # 优先采用 标题+时间 作为归并键
+                ts_val = to_ts(d)
+                if t and ts_val:
+                    key = f"TD::{t}||{int(ts_val)}"
+                elif s:
+                    key = f"URL::{s}"
+                else:
+                    key = f"FP::{s}|{t}|{d}|{src}"
+                existed = final_map.get(key)
+                current_ts = to_ts(item.get("publish_date"))
+                if not existed:
+                    final_map[key] = item
+                else:
+                    existed_ts = to_ts(existed.get("publish_date"))
+                    if current_ts > existed_ts:
+                        final_map[key] = item
+                    elif current_ts == existed_ts:
+                        # 时间完全相同，使用确定性优先级打破平手
+                        source_priority = {"CloudSaver": 2, "PanSou": 1}
+                        existed_pri = source_priority.get((existed.get("source") or "").strip(), 0)
+                        current_pri = source_priority.get(src, 0)
+                        if current_pri > existed_pri:
+                            final_map[key] = item
+                        elif current_pri == existed_pri:
+                            # 进一步比较信息丰富度（content 长度）
+                            if len(str(item.get("content") or "")) > len(str(existed.get("content") or "")):
+                                final_map[key] = item
+            except Exception:
+                # 出现异常则跳过该项
+                continue
+
+        dedup = list(final_map.values())
+
+        # 仅在排序时对多种格式进行解析（优先解析 YYYY-MM-DD HH:mm:ss，其次 ISO）
+        if dedup:
+            def parse_datetime_for_sort(item):
+                """解析时间字段，返回可比较的时间戳（统一以 publish_date 为准）"""
+                datetime_str = item.get("publish_date")
+                if not datetime_str:
+                    return 0  # 没有时间的排在最后
+                from datetime import datetime
+                s = str(datetime_str).strip()
+                # 优先解析标准显示格式
+                try:
+                    dt = datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+                    return dt.timestamp()
+                except Exception:
+                    pass
+                # 补充解析仅日期格式
+                try:
+                    dt = datetime.strptime(s, "%Y-%m-%d")
+                    return dt.timestamp()
+                except Exception:
+                    pass
+                # 其次尝试 ISO（支持 Z/偏移）
+                try:
+                    s2 = s.replace('Z', '+00:00')
+                    dt = datetime.fromisoformat(s2)
+                    return dt.timestamp()
+                except Exception:
+                    return 0  # 解析失败排在最后
+            
+            # 按时间倒序排序（最新的在前）
+            dedup.sort(key=parse_datetime_for_sort, reverse=True)
+            
+            return jsonify({
+                "success": True,
+                "source": ", ".join(providers) if providers else "聚合",
+                "data": dedup
+            })
+
+        # 若无本地可用来源，回退到公开网络
+        base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
+        url = f"{base_url}/task_suggestions?q={search_query}&d={deep}"
+        response = requests.get(url)
+        return jsonify({
+            "success": True,
+            "source": "网络公开",
+            "data": response.json()
+        })
+
     except Exception as e:
         return jsonify({"success": True, "message": f"error: {str(e)}"})
 
@@ -860,6 +1200,10 @@ def get_share_detail():
         if not is_sharing:
             return jsonify({"success": False, "data": {"error": stoken}})
     share_detail = account.get_detail(pwd_id, stoken, pdir_fid, _fetch_share=1)
+    # 统一错误返回，避免前端崩溃
+    if isinstance(share_detail, dict) and share_detail.get("error"):
+        return jsonify({"success": False, "data": {"error": share_detail.get("error")}})
+
     share_detail["paths"] = paths
     share_detail["stoken"] = stoken
 
@@ -924,15 +1268,14 @@ def get_share_detail():
             # 根据提取的排序值进行排序
             sorted_files = sorted(files_to_process, key=extract_sort_value)
             
-            # 应用过滤词过滤
+            # 应用高级过滤词过滤
             filterwords = regex.get("filterwords", "")
             if filterwords:
-                # 同时支持中英文逗号分隔
-                filterwords = filterwords.replace("，", ",")
-                filterwords_list = [word.strip() for word in filterwords.split(',')]
+                # 使用高级过滤函数
+                filtered_files = advanced_filter_files(sorted_files, filterwords)
+                # 标记被过滤的文件
                 for item in sorted_files:
-                    # 被过滤的文件不会有file_name_re，与不匹配正则的文件显示一致
-                    if any(word in item['file_name'] for word in filterwords_list):
+                    if item not in filtered_files:
                         item["filtered"] = True
             
             # 为每个文件分配序号
@@ -982,15 +1325,14 @@ def get_share_detail():
             ]
             episode_patterns.extend(chinese_patterns)
             
-            # 应用过滤词过滤
+            # 应用高级过滤词过滤
             filterwords = regex.get("filterwords", "")
             if filterwords:
-                # 同时支持中英文逗号分隔
-                filterwords = filterwords.replace("，", ",")
-                filterwords_list = [word.strip() for word in filterwords.split(',')]
+                # 使用高级过滤函数
+                filtered_files = advanced_filter_files(share_detail["list"], filterwords)
+                # 标记被过滤的文件
                 for item in share_detail["list"]:
-                    # 被过滤的文件显示一个 ×
-                    if any(word in item['file_name'] for word in filterwords_list):
+                    if item not in filtered_files:
                         item["filtered"] = True
                         item["file_name_re"] = "×"
             
@@ -1019,15 +1361,14 @@ def get_share_detail():
                 regex.get("magic_regex", {}),
             )
             
-            # 应用过滤词过滤
+            # 应用高级过滤词过滤
             filterwords = regex.get("filterwords", "")
             if filterwords:
-                # 同时支持中英文逗号分隔
-                filterwords = filterwords.replace("，", ",")
-                filterwords_list = [word.strip() for word in filterwords.split(',')]
+                # 使用高级过滤函数
+                filtered_files = advanced_filter_files(share_detail["list"], filterwords)
+                # 标记被过滤的文件
                 for item in share_detail["list"]:
-                    # 被过滤的文件不会有file_name_re，与不匹配正则的文件显示一致
-                    if any(word in item['file_name'] for word in filterwords_list):
+                    if item not in filtered_files:
                         item["filtered"] = True
                 
             # 应用正则命名
@@ -1431,6 +1772,35 @@ def init():
                     if plugin_name in disabled_plugins:
                         del task["addition"][plugin_name]
     
+    # 初始化插件配置模式（如果不存在）
+    if "plugin_config_mode" not in config_data:
+        config_data["plugin_config_mode"] = {
+            "aria2": "independent",
+            "alist_strm_gen": "independent",
+            "emby": "independent"
+        }
+    
+    # 初始化全局插件配置（如果不存在）
+    if "global_plugin_config" not in config_data:
+        config_data["global_plugin_config"] = {
+            "aria2": {
+                "auto_download": True,
+                "pause": False,
+                "auto_delete_quark_files": False
+            },
+            "alist_strm_gen": {
+                "auto_gen": True
+            },
+            "emby": {
+                "try_match": True,
+                "media_id": ""
+            }
+        }
+
+    # 初始化推送通知类型配置（如果不存在）
+    if "push_notify_type" not in config_data:
+        config_data["push_notify_type"] = "full"
+
     # 同步更新任务的插件配置
     sync_task_plugins_config()
 
@@ -2066,25 +2436,12 @@ def preview_rename():
         if isinstance(files, dict) and files.get("error"):
             return jsonify({"success": False, "message": f"获取文件列表失败: {files.get('error', '未知错误')}"})
         
-        # 过滤要排除的文件
-        # 替换中文逗号为英文逗号
-        filterwords = filterwords.replace("，", ",") 
-        filter_list = [keyword.strip() for keyword in filterwords.split(",") if keyword.strip()]
-        filtered_files = []
-        for file in files:
-            # 如果不包含文件夹且当前项是文件夹，跳过
-            if not include_folders and file["dir"]:
-                continue
-                
-            # 检查是否包含过滤关键词
-            should_filter = False
-            for keyword in filter_list:
-                if keyword and keyword in file["file_name"]:
-                    should_filter = True
-                    break
-                    
-            if not should_filter:
-                filtered_files.append(file)
+        # 使用高级过滤函数过滤文件
+        filtered_files = advanced_filter_files(files, filterwords)
+        
+        # 如果不包含文件夹，进一步过滤掉文件夹
+        if not include_folders:
+            filtered_files = [file for file in filtered_files if not file["dir"]]
         
         # 按不同命名模式处理
         preview_results = []
