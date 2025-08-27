@@ -987,12 +987,12 @@ def get_task_suggestions():
 
         # 去重并统一时间字段为 publish_date
         # 规则：
-        # 1) shareurl 相同视为同一资源
-        # 2) 当 taskname 与 publish_date 同时完全一致时，也视为同一资源（即使 shareurl 不同）
-        dedup = []
-        seen_shareurls = set()
-        seen_title_date = set()
-        seen_fingerprints = set()
+        # 1) 首轮仅按 shareurl 归并：同一链接保留发布时间最新的一条（展示以该条为准）
+        # 2) 兜底（极少）：无链接时按完整指纹（shareurl|title|date|source）归并
+        # 3) 二次归并：对所有候选结果再按 标题+发布时间 做一次归并（无论 shareurl 是否相同），取最新
+        # 注意：当发生归并冲突时，始终保留发布时间最新的记录
+        dedup_map = {}          # 按 shareurl 归并
+        fingerprint_map = {}    # 兜底：完整指纹归并（仅当缺失链接时）
         # 规范化工具
         def normalize_shareurl(url: str) -> str:
             try:
@@ -1028,6 +1028,29 @@ def get_task_suggestions():
                 return ds
             except Exception:
                 return (date_str or "").strip()
+        # 解析时间供比较
+        def to_ts(datetime_str):
+            if not datetime_str:
+                return 0
+            try:
+                s = str(datetime_str).strip()
+                from datetime import datetime
+                try:
+                    return datetime.strptime(s, "%Y-%m-%d %H:%M:%S").timestamp()
+                except Exception:
+                    pass
+                try:
+                    return datetime.strptime(s, "%Y-%m-%d").timestamp()
+                except Exception:
+                    pass
+                try:
+                    s2 = s.replace('Z', '+00:00')
+                    return datetime.fromisoformat(s2).timestamp()
+                except Exception:
+                    return 0
+            except Exception:
+                return 0
+
         for item in merged:
             if not isinstance(item, dict):
                 continue
@@ -1043,27 +1066,63 @@ def get_task_suggestions():
             pubdate = normalize_date(item.get("publish_date") or "")
             source = (item.get("source") or "").strip()
 
-            # 条件1：按 shareurl 去重
-            if shareurl and shareurl in seen_shareurls:
-                continue
+            timestamp = to_ts(pubdate)
 
-            # 条件2：标题 + 发布时间 同时一致则判定为同一资源
-            title_date_key = f"{title}||{pubdate}" if title and pubdate else None
-            if title_date_key and title_date_key in seen_title_date:
-                continue
-
-            # 条件3：完整指纹键（shareurl+title+date+source）去重，兜底完全相同的重复项
-            fingerprint = f"{shareurl}|{title}|{pubdate}|{source}"
-            if fingerprint in seen_fingerprints:
-                continue
-
-            # 记录已见键并保留该条
+            # 条件1：按 shareurl 归并，取最新
             if shareurl:
-                seen_shareurls.add(shareurl)
-            if title_date_key:
-                seen_title_date.add(title_date_key)
-            seen_fingerprints.add(fingerprint)
-            dedup.append(item)
+                existed = dedup_map.get(shareurl)
+                if not existed or to_ts(existed.get("publish_date")) < timestamp:
+                    dedup_map[shareurl] = item
+            else:
+                # 条件2（兜底）：完整指纹归并（极少发生），依然取最新
+                fingerprint = f"{shareurl}|{title}|{pubdate}|{source}"
+                existed = fingerprint_map.get(fingerprint)
+                if not existed or to_ts(existed.get("publish_date")) < timestamp:
+                    fingerprint_map[fingerprint] = item
+
+        # 第一轮：汇总归并后的候选结果
+        candidates = list(dedup_map.values()) + list(fingerprint_map.values())
+
+        # 第二轮：无论 shareurl 是否相同，再按 标题+发布时间 归并一次（使用时间戳作为键，兼容不同时间格式），保留最新
+        final_map = {}
+        for item in candidates:
+            try:
+                t = normalize_title(item.get("taskname") or "")
+                d = normalize_date(item.get("publish_date") or "")
+                s = normalize_shareurl(item.get("shareurl") or "")
+                src = (item.get("source") or "").strip()
+                # 优先采用 标题+时间 作为归并键
+                ts_val = to_ts(d)
+                if t and ts_val:
+                    key = f"TD::{t}||{int(ts_val)}"
+                elif s:
+                    key = f"URL::{s}"
+                else:
+                    key = f"FP::{s}|{t}|{d}|{src}"
+                existed = final_map.get(key)
+                current_ts = to_ts(item.get("publish_date"))
+                if not existed:
+                    final_map[key] = item
+                else:
+                    existed_ts = to_ts(existed.get("publish_date"))
+                    if current_ts > existed_ts:
+                        final_map[key] = item
+                    elif current_ts == existed_ts:
+                        # 时间完全相同，使用确定性优先级打破平手
+                        source_priority = {"CloudSaver": 2, "PanSou": 1}
+                        existed_pri = source_priority.get((existed.get("source") or "").strip(), 0)
+                        current_pri = source_priority.get(src, 0)
+                        if current_pri > existed_pri:
+                            final_map[key] = item
+                        elif current_pri == existed_pri:
+                            # 进一步比较信息丰富度（content 长度）
+                            if len(str(item.get("content") or "")) > len(str(existed.get("content") or "")):
+                                final_map[key] = item
+            except Exception:
+                # 出现异常则跳过该项
+                continue
+
+        dedup = list(final_map.values())
 
         # 仅在排序时对多种格式进行解析（优先解析 YYYY-MM-DD HH:mm:ss，其次 ISO）
         if dedup:
