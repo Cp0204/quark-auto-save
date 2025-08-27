@@ -1225,18 +1225,39 @@ class Quark:
                 "_fetch_total": "1",
                 "_sort": "file_type:asc,updated_at:desc",
             }
-            response = self._send_request("GET", url, params=querystring).json()
-            if response["code"] != 0:
-                return {"error": response["message"]}
-            if response["data"]["list"]:
-                list_merge += response["data"]["list"]
+            # 兼容网络错误或服务端异常
+            try:
+                response = self._send_request("GET", url, params=querystring).json()
+            except Exception:
+                return {"error": "request error"}
+
+            # 统一判错：某些情况下返回没有 code 字段
+            code = response.get("code")
+            status = response.get("status")
+            if code not in (0, None):
+                return {"error": response.get("message", "unknown error")}
+            if status not in (None, 200):
+                return {"error": response.get("message", "request error")}
+
+            data = response.get("data") or {}
+            metadata = response.get("metadata") or {}
+
+            if data.get("list"):
+                list_merge += data["list"]
                 page += 1
             else:
                 break
-            if len(list_merge) >= response["metadata"]["_total"]:
+            # 防御性：metadata 或 _total 缺失时不再访问嵌套键
+            total = metadata.get("_total") if isinstance(metadata, dict) else None
+            if isinstance(total, int) and len(list_merge) >= total:
                 break
-        response["data"]["list"] = list_merge
-        return response["data"]
+        # 统一输出结构，缺失字段时提供默认值
+        if not isinstance(data, dict):
+            return {"error": response.get("message", "request error")}
+        data["list"] = list_merge
+        if "paths" not in data:
+            data["paths"] = []
+        return data
 
     def get_fids(self, file_paths):
         fids = []

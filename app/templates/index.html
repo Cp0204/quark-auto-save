@@ -1032,7 +1032,7 @@
                           <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
                             {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
                           </div>
-                          <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(index, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
+                          <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(index, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
                             <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                             <small class="text-muted">
                               <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.quark\.cn\/s\//, '') }}</a>
@@ -1960,7 +1960,7 @@
                       <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
                         {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
                       </div>
-                      <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(-1, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
+                      <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(-1, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
                         <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                         <small class="text-muted">
                           <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.quark\.cn\/s\//, '') }}</a>
@@ -2251,6 +2251,8 @@
             valid: 0
           },
           searchTimer: null,
+          // 新增：搜索会话号用于取消上一次验证/渲染，避免卡死和重复
+          searchSessionId: 0
         },
         activeTab: 'config',
         configModified: false,
@@ -4274,6 +4276,8 @@
           // 确保显示下拉菜单
           this.smart_param.showSuggestions = true;
           try {
+            // 启动新的搜索会话，后续增量结果仅在会话一致时才渲染
+            const sessionId = ++this.smart_param.searchSessionId;
             axios.get('/task_suggestions', {
               params: {
                 q: taskname,
@@ -4281,9 +4285,10 @@
               }
             }).then(response => {
               // 接收到数据后，过滤无效链接
+              if (sessionId !== this.smart_param.searchSessionId) return; // 旧会话结果忽略
               if (response.data.success && response.data.data && response.data.data.length > 0) {
                 // 使用新增的方法验证链接有效性
-                this.validateSearchResults(response.data);
+                this.validateSearchResults(response.data, sessionId);
               } else {
                 this.smart_param.taskSuggestions = response.data;
                 // 重新确认设置为true
@@ -4294,6 +4299,7 @@
             }).catch(error => {
               this.smart_param.isSearching = false;
               this.smart_param.validating = false; // 重置验证状态
+              
             });
           } catch (e) {
             this.smart_param.taskSuggestions = {
@@ -4301,10 +4307,11 @@
             };
             this.smart_param.isSearching = false;
             this.smart_param.validating = false; // 重置验证状态
+            
           }
         },
         // 添加新方法来验证搜索结果
-        validateSearchResults(searchData) {
+        validateSearchResults(searchData, sessionId) {
           const invalidTerms = [
             "分享者用户封禁链接查看受限",
             "好友已取消了分享",
@@ -4347,6 +4354,7 @@
             return new Promise((resolve) => {
               if (!link.shareurl) {
                 // 没有分享链接，直接跳过
+                
                 resolve(null);
                 return;
               }
@@ -4358,6 +4366,10 @@
               .then(response => {
                 // 更新进度
                 this.smart_param.validateProgress.current++;
+                if (sessionId !== this.smart_param.searchSessionId) {
+                  resolve(null);
+                  return;
+                }
                 
                 if (response.data.success) {
                   // 检查文件列表是否为空
@@ -4365,6 +4377,7 @@
                   if (shareDetail.list && shareDetail.list.length > 0) {
                     // 链接有效，添加到有效结果列表
                     this.smart_param.validateProgress.valid++;
+                    
                     resolve(link);
                     return;
                   }
@@ -4390,18 +4403,21 @@
                   // 如果不是已知的失效原因，保留该结果
                   if (!isInvalid) {
                     this.smart_param.validateProgress.valid++;
+                    
                     resolve(link);
                     return;
                   }
                 }
                 
                 // 链接无效
+                
                 resolve(null);
               })
               .catch(error => {
                 // 验证出错，保守处理为有效
                 this.smart_param.validateProgress.current++;
                 this.smart_param.validateProgress.valid++;
+                
                 resolve(link);
               });
             });
@@ -4409,6 +4425,8 @@
           
           // 修改processBatch函数，增加快速显示功能
           const processBatch = async () => {
+            // 新会话已开始或已被取消（validating=false）则停止当前批次
+            if (sessionId !== this.smart_param.searchSessionId || !this.smart_param.validating) return;
             // 取下一批处理
             const batch = toProcess.splice(0, batchSize);
             if (batch.length === 0) {
@@ -4431,6 +4449,7 @@
             validResults.sort((a, b) => getItemTs(b) - getItemTs(a));
             
             // 每批次都增量更新到界面，显示当前有效数量并保持正在验证状态
+            if (sessionId !== this.smart_param.searchSessionId || !this.smart_param.validating) return; // 渲染前再次检查会话
             this.smart_param.taskSuggestions = {
               success: searchData.success,
               source: searchData.source,
@@ -4449,7 +4468,10 @@
           // 设置超时，避免永久等待
           setTimeout(() => {
             // 如果验证还在进行中，强制完成
-            if (this.smart_param.validating) {
+            if (this.smart_param.validating && sessionId === this.smart_param.searchSessionId) {
+              // 在收尾前立即取消会话，避免后续批次继续追加导致重复
+              this.smart_param.validating = false;
+              this.smart_param.searchSessionId++;
               // 将剩余未验证的链接添加到结果中
               const remaining = toProcess.filter(item => item.shareurl);
               validResults.push(...remaining);
@@ -4460,6 +4482,7 @@
               
               // 完成验证
               this.finishValidation(searchData, validResults);
+              
             }
           }, 30000); // 30秒超时
         },
@@ -4479,6 +4502,7 @@
             data: validResults,
             message: validResults.length === 0 ? "未找到有效的分享链接" : searchData.message
           };
+          
           
           this.smart_param.taskSuggestions = result;
           this.smart_param.isSearching = false;

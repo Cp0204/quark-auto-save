@@ -1200,6 +1200,10 @@ def get_share_detail():
         if not is_sharing:
             return jsonify({"success": False, "data": {"error": stoken}})
     share_detail = account.get_detail(pwd_id, stoken, pdir_fid, _fetch_share=1)
+    # 统一错误返回，避免前端崩溃
+    if isinstance(share_detail, dict) and share_detail.get("error"):
+        return jsonify({"success": False, "data": {"error": share_detail.get("error")}})
+
     share_detail["paths"] = paths
     share_detail["stoken"] = stoken
 
