@@ -4770,11 +4770,38 @@
                   this.checkPreviewScrollbar();
                 });
               }
+              // 成功加载后关闭加载状态
+              this.modalLoading = false;
             } else {
-              // 使用格式化函数处理错误信息
-              this.fileSelect.error = this.formatShareUrlBanMessage(response.data.data.error);
+              // 非法token等可恢复错误：执行一次无感自动重试
+              const rawError = (response && response.data && response.data.data && response.data.data.error) ? response.data.data.error : '';
+              const errorText = typeof rawError === 'string' ? rawError : String(rawError || '');
+              const isIllegalToken = errorText.includes('非法token') || errorText.includes('Bad Parameter');
+              const isRequestError = errorText.toLowerCase().includes('request error');
+              if (isIllegalToken || isRequestError) {
+                if (retryCount < maxRetries) {
+                  console.log(`分享详情获取失败(${isIllegalToken ? '非法token' : 'request error'})，进行第 ${retryCount + 1} 次重试...`);
+                  setTimeout(() => {
+                    const fileSelectModal = document.getElementById('fileSelectModal');
+                    if (!(fileSelectModal && fileSelectModal.classList.contains('show'))) {
+                      this.modalLoading = false;
+                      return;
+                    }
+                    // 清空stoken以强制刷新
+                    this.fileSelect.stoken = "";
+                    this.getShareDetail(retryCount + 1, maxRetries);
+                  }, 600);
+                  return; // 等待重试结果，不立刻结束loading
+                }
+                // 重试已用尽，给出统一提示
+                this.fileSelect.error = "获取文件夹列表失败，请关闭窗口再试一次";
+                this.modalLoading = false;
+              } else {
+                // 使用格式化函数处理不可恢复错误
+                this.fileSelect.error = this.formatShareUrlBanMessage(rawError);
+                this.modalLoading = false;
+              }
             }
-            this.modalLoading = false;
           }).catch(error => {
             // 增强版无感重试：清空 stoken 强制刷新令牌，并仅在模态框仍打开时重试
             if (retryCount < maxRetries) {
