@@ -4628,15 +4628,23 @@
             }
             this.modalLoading = false;
           }).catch(error => {
-            // 如果还有重试次数，则进行重试
+            // 增强版无感重试：添加缓存破坏参数，并仅在模态框仍打开时重试
             if (retryCount < maxRetries) {
               console.log(`获取文件夹列表失败，正在进行第 ${retryCount + 1} 次重试...`);
-              // 短暂延迟后重试
               setTimeout(() => {
+                // 确保模态框仍处于打开状态，否则中止并结束loading
+                const fileSelectModal = document.getElementById('fileSelectModal');
+                if (!(fileSelectModal && fileSelectModal.classList.contains('show'))) {
+                  this.modalLoading = false;
+                  return;
+                }
+                // 为请求参数添加时间戳，避免潜在的缓存干扰
+                if (typeof params === 'object' && params !== null) {
+                  params._ts = Date.now();
+                }
                 this.getSavepathDetail(params, retryCount + 1, maxRetries);
-              }, 1000); // 1秒后重试
+              }, 600);
             } else {
-              // 超过最大重试次数，显示错误信息
               this.fileSelect.error = "获取文件夹列表失败，请关闭窗口再试一次";
               this.modalLoading = false;
             }
@@ -4768,15 +4776,20 @@
             }
             this.modalLoading = false;
           }).catch(error => {
-            // 如果还有重试次数，则进行重试
+            // 增强版无感重试：清空 stoken 强制刷新令牌，并仅在模态框仍打开时重试
             if (retryCount < maxRetries) {
               console.log(`获取文件夹列表失败，正在进行第 ${retryCount + 1} 次重试...`);
-              // 短暂延迟后重试
               setTimeout(() => {
+                const fileSelectModal = document.getElementById('fileSelectModal');
+                if (!(fileSelectModal && fileSelectModal.classList.contains('show'))) {
+                  this.modalLoading = false;
+                  return;
+                }
+                // 清空stoken，促使后端重新获取有效的stoken
+                this.fileSelect.stoken = "";
                 this.getShareDetail(retryCount + 1, maxRetries);
-              }, 1000); // 1秒后重试
+              }, 600);
             } else {
-              // 超过最大重试次数，显示错误信息
               this.fileSelect.error = "获取文件夹列表失败，请关闭窗口再试一次";
               this.modalLoading = false;
             }
