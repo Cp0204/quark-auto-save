@@ -2675,7 +2675,9 @@
           if (e.target.closest('.input-group input') || 
               e.target.closest('.btn-primary[type="button"]') || 
               e.target.closest('.dropdown-menu.task-suggestions') ||
-              e.target.closest('.bi-search')) {
+              e.target.closest('.bi-search') ||
+              // 新增：点击发生在文件选择模态框内（包括右上角关闭按钮）时，不关闭下拉
+              e.target.closest('#fileSelectModal')) {
             return;
           }
           // 只隐藏下拉菜单，不清空搜索结果，这样点击同一任务的输入框时还能看到之前的搜索结果
@@ -4510,8 +4512,6 @@
           this.smart_param.showSuggestions = true;
         },
         selectSuggestion(index, suggestion) {
-          this.smart_param.showSuggestions = false;
-
           // 不直接设置分享链接到输入框，只是打开文件选择模态框让用户浏览
           // 用户在模态框中导航后，最终的 this.fileSelect.shareurl 才是需要的地址
 
@@ -4628,15 +4628,23 @@
             }
             this.modalLoading = false;
           }).catch(error => {
-            // 如果还有重试次数，则进行重试
+            // 增强版无感重试：添加缓存破坏参数，并仅在模态框仍打开时重试
             if (retryCount < maxRetries) {
               console.log(`获取文件夹列表失败，正在进行第 ${retryCount + 1} 次重试...`);
-              // 短暂延迟后重试
               setTimeout(() => {
+                // 确保模态框仍处于打开状态，否则中止并结束loading
+                const fileSelectModal = document.getElementById('fileSelectModal');
+                if (!(fileSelectModal && fileSelectModal.classList.contains('show'))) {
+                  this.modalLoading = false;
+                  return;
+                }
+                // 为请求参数添加时间戳，避免潜在的缓存干扰
+                if (typeof params === 'object' && params !== null) {
+                  params._ts = Date.now();
+                }
                 this.getSavepathDetail(params, retryCount + 1, maxRetries);
-              }, 1000); // 1秒后重试
+              }, 600);
             } else {
-              // 超过最大重试次数，显示错误信息
               this.fileSelect.error = "获取文件夹列表失败，请关闭窗口再试一次";
               this.modalLoading = false;
             }
@@ -4762,21 +4770,53 @@
                   this.checkPreviewScrollbar();
                 });
               }
+              // 成功加载后关闭加载状态
+              this.modalLoading = false;
             } else {
-              // 使用格式化函数处理错误信息
-              this.fileSelect.error = this.formatShareUrlBanMessage(response.data.data.error);
+              // 非法token等可恢复错误：执行一次无感自动重试
+              const rawError = (response && response.data && response.data.data && response.data.data.error) ? response.data.data.error : '';
+              const errorText = typeof rawError === 'string' ? rawError : String(rawError || '');
+              const isIllegalToken = errorText.includes('非法token') || errorText.includes('Bad Parameter');
+              const isRequestError = errorText.toLowerCase().includes('request error');
+              if (isIllegalToken || isRequestError) {
+                if (retryCount < maxRetries) {
+                  console.log(`分享详情获取失败(${isIllegalToken ? '非法token' : 'request error'})，进行第 ${retryCount + 1} 次重试...`);
+                  setTimeout(() => {
+                    const fileSelectModal = document.getElementById('fileSelectModal');
+                    if (!(fileSelectModal && fileSelectModal.classList.contains('show'))) {
+                      this.modalLoading = false;
+                      return;
+                    }
+                    // 清空stoken以强制刷新
+                    this.fileSelect.stoken = "";
+                    this.getShareDetail(retryCount + 1, maxRetries);
+                  }, 600);
+                  return; // 等待重试结果，不立刻结束loading
+                }
+                // 重试已用尽，给出统一提示
+                this.fileSelect.error = "获取文件夹列表失败，请关闭窗口再试一次";
+                this.modalLoading = false;
+              } else {
+                // 使用格式化函数处理不可恢复错误
+                this.fileSelect.error = this.formatShareUrlBanMessage(rawError);
+                this.modalLoading = false;
+              }
             }
-            this.modalLoading = false;
           }).catch(error => {
-            // 如果还有重试次数，则进行重试
+            // 增强版无感重试：清空 stoken 强制刷新令牌，并仅在模态框仍打开时重试
             if (retryCount < maxRetries) {
               console.log(`获取文件夹列表失败，正在进行第 ${retryCount + 1} 次重试...`);
-              // 短暂延迟后重试
               setTimeout(() => {
+                const fileSelectModal = document.getElementById('fileSelectModal');
+                if (!(fileSelectModal && fileSelectModal.classList.contains('show'))) {
+                  this.modalLoading = false;
+                  return;
+                }
+                // 清空stoken，促使后端重新获取有效的stoken
+                this.fileSelect.stoken = "";
                 this.getShareDetail(retryCount + 1, maxRetries);
-              }, 1000); // 1秒后重试
+              }, 600);
             } else {
-              // 超过最大重试次数，显示错误信息
               this.fileSelect.error = "获取文件夹列表失败，请关闭窗口再试一次";
               this.modalLoading = false;
             }
@@ -4932,6 +4972,8 @@
           }
           if (!this.fileSelect.moveMode) {
             $('#fileSelectModal').modal('hide')
+            // 用户已确认选择，自动关闭搜索结果下拉菜单
+            this.smart_param.showSuggestions = false;
           }
         },
         // 移动文件到当前文件夹
@@ -8629,7 +8671,9 @@
           if (e.target.closest('.input-group input') || 
               e.target.closest('.btn-primary[type="button"]') || 
               e.target.closest('.dropdown-menu.task-suggestions') ||
-              e.target.closest('.bi-search')) {
+              e.target.closest('.bi-search') ||
+              // 点击发生在文件选择模态框内（包括右上角关闭按钮）时，不关闭下拉
+              e.target.closest('#fileSelectModal')) {
             return;
           }
           // 只隐藏下拉菜单，不清空搜索结果，这样点击同一任务的输入框时还能看到之前的搜索结果
