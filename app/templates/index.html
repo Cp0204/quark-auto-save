@@ -2675,7 +2675,9 @@
           if (e.target.closest('.input-group input') || 
               e.target.closest('.btn-primary[type="button"]') || 
               e.target.closest('.dropdown-menu.task-suggestions') ||
-              e.target.closest('.bi-search')) {
+              e.target.closest('.bi-search') ||
+              // 新增：点击发生在文件选择模态框内（包括右上角关闭按钮）时，不关闭下拉
+              e.target.closest('#fileSelectModal')) {
             return;
           }
           // 只隐藏下拉菜单，不清空搜索结果，这样点击同一任务的输入框时还能看到之前的搜索结果
@@ -4510,8 +4512,6 @@
           this.smart_param.showSuggestions = true;
         },
         selectSuggestion(index, suggestion) {
-          this.smart_param.showSuggestions = false;
-
           // 不直接设置分享链接到输入框，只是打开文件选择模态框让用户浏览
           // 用户在模态框中导航后，最终的 this.fileSelect.shareurl 才是需要的地址
 
@@ -4972,6 +4972,8 @@
           }
           if (!this.fileSelect.moveMode) {
             $('#fileSelectModal').modal('hide')
+            // 用户已确认选择，自动关闭搜索结果下拉菜单
+            this.smart_param.showSuggestions = false;
           }
         },
         // 移动文件到当前文件夹
@@ -8669,7 +8671,9 @@
           if (e.target.closest('.input-group input') || 
               e.target.closest('.btn-primary[type="button"]') || 
               e.target.closest('.dropdown-menu.task-suggestions') ||
-              e.target.closest('.bi-search')) {
+              e.target.closest('.bi-search') ||
+              // 点击发生在文件选择模态框内（包括右上角关闭按钮）时，不关闭下拉
+              e.target.closest('#fileSelectModal')) {
             return;
           }
           // 只隐藏下拉菜单，不清空搜索结果，这样点击同一任务的输入框时还能看到之前的搜索结果
