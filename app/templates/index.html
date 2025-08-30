@@ -3067,9 +3067,19 @@
           // 有昵称且账号激活
           if (userInfo.nickname && userInfo.is_active) {
             if (userInfo.has_mparam) {
-              return "账号已登录，支持转存和签到";
+              // 第一个账号支持转存和签到，其他账号只支持签到
+              if (userInfo.index === 0) {
+                return "账号已登录，支持转存和签到";
+              } else {
+                return "账号已登录，仅支持签到功能";
+              }
             } else {
-              return "账号已登录，仅支持转存功能";
+              // 第一个账号支持转存，其他账号不支持任何功能
+              if (userInfo.index === 0) {
+                return "账号已登录，仅支持转存功能";
+              } else {
+                return "账号已登录，不支持转存和签到";
+              }
             }
           }
           
