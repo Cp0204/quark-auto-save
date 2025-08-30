@@ -463,12 +463,14 @@
             <p style="margin-top: -4px; margin-bottom: 4px;">所有账号都会进行签到（纯签到只需填写移动端参数），只有第一个账号会进行转存，请自行确认账号顺序；所有填写了 Cookie 的账号均支持文件整理，如需签到请在 Cookie 后方添加签到参数。</p>
             <div v-for="(value, index) in formData.cookie" :key="index" class="input-group mb-2">
               <div class="input-group-prepend" v-if="userInfoList[index]">
-                <span class="input-group-text" :style="userInfoList[index].nickname ? (userInfoList[index].is_active ? 'color: var(--dark-text-color);' : 'color: red;') : 'color: var(--dark-text-color);'">
+                <span class="input-group-text" 
+                      :style="userInfoList[index].nickname ? (userInfoList[index].is_active ? 'color: var(--dark-text-color);' : 'color: red;') : 'color: var(--dark-text-color);'"
+                      :title="getCookieStatusTooltip(userInfoList[index])">
                   {{ userInfoList[index].nickname || (userInfoList[index].has_mparam ? '仅签到' : '未登录') }}
                 </span>
               </div>
               <div class="input-group-prepend" v-else>
-                <span class="input-group-text" style="color: var(--dark-text-color);">未验证</span>
+                <span class="input-group-text" style="color: var(--dark-text-color);" title="账号信息未验证，请获取Cookie后自动验证">未验证</span>
               </div>
               <input type="text" v-model="formData.cookie[index]" class="form-control" placeholder="打开 pan.quark.com 按 F12 抓取" @change="fetchUserInfo">
               <div class="input-group-append">
@@ -2847,22 +2849,80 @@
 
         // 获取插件配置的占位符文本
         getPluginConfigPlaceholder(pluginName, key) {
-          if (pluginName === 'plex' && key === 'quark_root_path') {
-            return '输入夸克根目录相对于 Plex 媒体库目录的路径，多个路径用逗号分隔';
-          } else if (pluginName === 'alist' && key === 'storage_id') {
-            return '输入 AList 服务器夸克存储的 ID，多个 ID 用逗号分隔';
-          }
-          return '';
+          const placeholders = {
+            aria2: {
+              host_port: "Aria2 RPC 地址，如：192.168.1.100:6800",
+              secret: "Aria2 RPC 密钥",
+              dir: "下载目录，需要 Aria2 拥有读写权限，如：/downloads"
+            },
+            alist: {
+              url: "AList 服务器地址，如：http://192.168.1.100:5244",
+              token: "AList 访问令牌，在 AList 的管理 - 设置 - 其他中获取", 
+              storage_id: "AList 服务器夸克存储的 ID，多个 ID 用逗号分隔，如：1, 2, 3"
+            },
+            alist_strm: {
+              url: "AList Strm 服务器地址，如：http://192.168.1.100:5000",
+              cookie: "AList Strm 的 Cookie，通过 F12 抓取，关键参数：session=ey***",
+              config_id: "要触发运行的配置 ID，多个 ID 用逗号分隔，如：1, 2, 3"
+            },
+            alist_strm_gen: {
+              url: "AList 服务器地址，如：http://192.168.1.100:5244",
+              token: "AList 访问令牌，在 AList 的管理 - 设置 - 其他中获取",
+              storage_id: "AList 服务器夸克存储的 ID",
+              strm_save_dir: "生成的 strm 文件的保存路径，如：/volume1/media/strm，请确保宿主机路径和容器路径映射一致",
+              strm_replace_host: "strm 文件内链接的主机地址，可选，缺省时使用 url"
+            },
+            plex: {
+              url: "Plex 服务器地址，如：http://192.168.1.100:32400",
+              token: "Plex 访问令牌，通过 F12 抓取（或通过 XML 地址获取）",
+              quark_root_path: "夸克根目录在 Plex 中的路径，多个路径用逗号分隔，如：/volume1/media/quark1, /volume1/media/quark2"
+            },
+            emby: {
+              url: "Emby 服务器地址，如：http://192.168.1.100:8096",
+              token: "Emby 的 API 密钥，在 Emby 的管理 - 高级 - API 密钥中生成"
+            }
+          };
+          
+          return placeholders[pluginName]?.[key] || '';
         },
 
         // 获取插件配置的帮助文本
         getPluginConfigHelp(pluginName, key) {
-          if (pluginName === 'plex' && key === 'quark_root_path') {
-            return '多账号支持：多个路径用逗号分隔，顺序与Cookie顺序对应，如：/path1, /path2';
-          } else if (pluginName === 'alist' && key === 'storage_id') {
-            return '多账号支持：多个存储ID用逗号分隔，顺序与Cookie顺序对应，如：1, 2, 3';
-          }
-          return '';
+          const helpTexts = {
+            aria2: {
+              host_port: "Aria2 RPC服务地址，确保网络可达且端口开放",
+              secret: "Aria2 RPC密钥，用于安全认证",
+              dir: "下载文件的保存目录，确保Aria2有读写权限"
+            },
+            alist: {
+              url: "AList服务器地址，用于获取存储信息",
+              token: "AList访问令牌，用于API调用",
+              storage_id: "多账号支持：多个存储ID用逗号分隔，顺序与Cookie顺序对应，如：1, 2, 3"
+            },
+            alist_strm: {
+              url: "AList Strm服务器地址",
+              cookie: "AList Strm的Cookie",
+              config_id: "要触发运行的配置ID，多个ID用逗号分隔，如：1, 2, 3"
+            },
+            alist_strm_gen: {
+              url: "AList服务器地址，用于获取存储信息",
+              token: "AList访问令牌，用于API调用",
+              storage_id: "夸克网盘在AList中的存储ID，在AList的存储管理中查看",
+              strm_save_dir: "生成的strm文件的保存路径，确保有写入权限",
+              strm_replace_host: "strm文件内链接的主机地址，用于替换默认的AList地址"
+            },
+            plex: {
+              url: "Plex服务器地址",
+              token: "Plex访问令牌",
+              quark_root_path: "夸克根目录在Plex中的路径，多个路径用逗号分隔，如：/volume1/media/quark1, /volume1/media/quark2"
+            },
+            emby: {
+              url: "Emby服务器地址",
+              token: "Emby的API密钥"
+            }
+          };
+          
+          return helpTexts[pluginName]?.[key] || '';
         },
 
         // 获取插件任务配置
@@ -2898,11 +2958,11 @@
               auto_delete_quark_files: "是否在添加下载任务后自动删除夸克网盘文件"
             },
             alist_strm_gen: {
-              auto_gen: "是否自动生成 strm 文件"
+              auto_gen: "是否自动生成strm文件"
             },
             emby: {
-              try_match: "是否尝试匹配",
-              media_id: "媒体ID，当为0时不刷新"
+              try_match: "是否尝试自动匹配媒体",
+              media_id: "指定要刷新的媒体ID，留空则自动匹配，0表示不刷新"
             }
           };
           return helpTexts[pluginName]?.[key] || '';
@@ -2921,7 +2981,7 @@
             },
             emby: {
               try_match: "",
-              media_id: "输入媒体ID，留空则自动匹配"
+              media_id: "输入媒体 ID，留空则自动匹配，0 表示不刷新"
             }
           };
           return placeholders[pluginName]?.[key] || '';
@@ -2996,6 +3056,35 @@
             return `单个任务的插件配置，具体键值由插件定义，当前有部分插件使用了全局配置模式，在该模式下对应的配置选项将被锁定，若要修改配置，请前往系统配置页面进行操作，查阅Wiki了解详情`;
           }
           return "单个任务的插件配置，具体键值由插件定义，查阅Wiki了解详情";
+        },
+
+        // 获取Cookie状态悬停提示信息
+        getCookieStatusTooltip(userInfo) {
+          if (!userInfo) {
+            return "账号未验证，请获取Cookie";
+          }
+          
+          // 有昵称且账号激活
+          if (userInfo.nickname && userInfo.is_active) {
+            if (userInfo.has_mparam) {
+              return "账号已登录，支持转存和签到";
+            } else {
+              return "账号已登录，仅支持转存功能";
+            }
+          }
+          
+          // 有昵称但账号未激活
+          if (userInfo.nickname && !userInfo.is_active) {
+            return "账号已失效，请重新获取Cookie";
+          }
+          
+          // 没有昵称但有移动端参数
+          if (!userInfo.nickname && userInfo.has_mparam) {
+            return "仅支持签到功能";
+          }
+          
+          // 没有昵称也没有移动端参数
+          return "账号未登录，请获取Cookie";
         },
 
         fetchUserInfo() {
