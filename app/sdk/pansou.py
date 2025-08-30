@@ -24,10 +24,33 @@ class PanSou:
         except Exception as e:
             return {"success": False, "message": str(e)}
 
+    def _get_pansou_source(self, result_item: dict, merged_item: dict = None) -> str:
+        """
+        获取PanSou内部来源信息
+        返回格式：
+        - "tg:频道名称" - 来自Telegram频道，需要+8小时
+        - "plugin:插件名" - 来自指定插件，不+8小时  
+        - "unknown" - 未知来源，不+8小时
+        """
+        # 优先从 results 的 channel 字段判断
+        if result_item and result_item.get("channel"):
+            channel = result_item.get("channel", "").strip()
+            if channel:
+                return f"tg:{channel}"
+        
+        # 从 merged_by_type 的 source 字段获取
+        if merged_item and merged_item.get("source"):
+            source = merged_item.get("source", "").strip()
+            if source:
+                return source
+        
+        # 默认返回 unknown
+        return "unknown"
+
     def search(self, keyword: str):
         """
         搜索资源（仅返回夸克网盘结果）
-        返回：{"success": True, "data": [{taskname, content, shareurl, tags[]}]}
+        返回：{"success": True, "data": [{taskname, content, shareurl, tags[], pansou_source}]}
         """
         if not self.server:
             return {"success": False, "message": "PanSou未配置服务器"}
@@ -82,6 +105,9 @@ class PanSou:
                     content = result_item.get("content", "")
                     datetime_str = result_item.get("datetime", "")  # 获取发布日期
                     
+                    # 获取PanSou内部来源
+                    pansou_source = self._get_pansou_source(result_item)
+                    
                     # 从 links 获取具体链接
                     links = result_item.get("links", [])
                     if isinstance(links, list):
@@ -96,7 +122,8 @@ class PanSou:
                                         "shareurl": url,
                                         "tags": [link_type] if link_type else (result_item.get("tags", []) or []),
                                         "publish_date": datetime_str,  # 原始时间（可能是 ISO）
-                                        "source": "PanSou"  # 添加来源标识
+                                        "source": "PanSou",  # 添加来源标识
+                                        "pansou_source": pansou_source  # 添加PanSou内部来源
                                     })
             
             # 2) merged_by_type: 兜底解析，使用 note 字段作为标题
@@ -112,6 +139,10 @@ class PanSou:
                                     note = link.get("note", "")  # 使用 note 字段作为标题
                                     note = strip_links(note)
                                     datetime_str = link.get("datetime", "")  # 获取发布日期
+                                    
+                                    # 获取PanSou内部来源
+                                    pansou_source = self._get_pansou_source(None, link)
+                                    
                                     if url:
                                         cleaned.append({
                                             "taskname": note,
@@ -119,7 +150,8 @@ class PanSou:
                                             "shareurl": url,
                                             "tags": [cloud_type] if cloud_type else [],
                                             "publish_date": datetime_str,  # 原始时间
-                                            "source": "PanSou"  # 添加来源标识
+                                            "source": "PanSou",  # 添加来源标识
+                                            "pansou_source": pansou_source  # 添加PanSou内部来源
                                         })
             
             # 3) 直接 data 数组兜底
@@ -132,7 +164,8 @@ class PanSou:
                             "shareurl": item.get("url", ""),
                             "tags": item.get("tags", []) or [],
                             "publish_date": item.get("datetime", ""),  # 原始时间
-                            "source": "PanSou"  # 添加来源标识
+                            "source": "PanSou",  # 添加来源标识
+                            "pansou_source": "unknown"  # 兜底来源
                         })
                         
         except Exception as e:

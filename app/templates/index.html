@@ -1038,7 +1038,7 @@
                             <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                             <small class="text-muted">
                               <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.quark\.cn\/s\//, '') }}</a>
-                              <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date) : ''">{{ suggestion.source }}</span></template>
+                              <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date, suggestion.pansou_source, suggestion.source) : ''">{{ suggestion.source }}</span></template>
                             </small>
                           </div>
                         </div>
@@ -1966,7 +1966,7 @@
                         <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                         <small class="text-muted">
                           <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.quark\.cn\/s\//, '') }}</a>
-                          <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date) : ''">{{ suggestion.source }}</span></template>
+                          <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date, suggestion.pansou_source, suggestion.source) : ''">{{ suggestion.source }}</span></template>
                         </small>
                       </div>
                     </div>
@@ -6724,7 +6724,7 @@
           return isNaN(ts) ? 0 : ts;
         },
         // 规范化资源发布日期展示：将 ISO 格式（含 T/Z/偏移）转为 "YYYY-MM-DD HH:mm:ss"
-        formatPublishDate(value) {
+        formatPublishDate(value, pansouSource = null, source = null) {
           if (!value) return '';
           const s = String(value).trim();
           
@@ -6735,8 +6735,14 @@
           const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/.exec(s);
           if (m) {
             const [, y, mo, d, h, mi, se] = m;
-            // 修复时区问题：如果时间以Z结尾或包含T，说明是UTC时间，需要+8小时
-            if (s.includes('T') || s.includes('Z')) {
+            // 判断是否需要+8小时：
+            // 1. 如果是PanSou的tg来源，需要+8小时
+            // 2. 如果是CloudSaver来源，需要+8小时
+            // 3. 其他来源都不+8小时
+            const needAdd8Hours = (pansouSource && pansouSource.startsWith('tg:')) || 
+                                 (source === 'CloudSaver');
+            
+            if (needAdd8Hours) {
               // 创建Date对象并加上8小时
               const date = new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(se));
               date.setHours(date.getHours() + 8);
@@ -6755,8 +6761,11 @@
           out = out.replace(/Z$/i, '');
           out = out.replace(/([+-]\d{2}:?\d{2})$/i, '');
           
-          // 如果原始时间包含T或Z，说明是UTC时间，需要+8小时
-          if (s.includes('T') || s.includes('Z')) {
+          // 判断是否需要+8小时
+          const needAdd8Hours = (pansouSource && pansouSource.startsWith('tg:')) || 
+                               (source === 'CloudSaver');
+          
+          if (needAdd8Hours) {
             try {
               const date = new Date(out);
               if (!isNaN(date.getTime())) {
