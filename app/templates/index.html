@@ -6628,18 +6628,52 @@
         formatPublishDate(value) {
           if (!value) return '';
           const s = String(value).trim();
+          
           // 已是标准格式则直接返回
           if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/.test(s)) return s;
+          
           // 优先匹配 ISO 主体部分
           const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/.exec(s);
           if (m) {
             const [, y, mo, d, h, mi, se] = m;
+            // 修复时区问题：如果时间以Z结尾或包含T，说明是UTC时间，需要+8小时
+            if (s.includes('T') || s.includes('Z')) {
+              // 创建Date对象并加上8小时
+              const date = new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(se));
+              date.setHours(date.getHours() + 8);
+              return date.getFullYear() + '-' + 
+                     String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+                     String(date.getDate()).padStart(2, '0') + ' ' + 
+                     String(date.getHours()).padStart(2, '0') + ':' + 
+                     String(date.getMinutes()).padStart(2, '0') + ':' + 
+                     String(date.getSeconds()).padStart(2, '0');
+            }
             return `${y}-${mo}-${d} ${h}:${mi}:${se}`;
           }
+          
           // 回退：简单替换T为空格并去除尾部Z/时区偏移
           let out = s.replace('T', ' ');
           out = out.replace(/Z$/i, '');
           out = out.replace(/([+-]\d{2}:?\d{2})$/i, '');
+          
+          // 如果原始时间包含T或Z，说明是UTC时间，需要+8小时
+          if (s.includes('T') || s.includes('Z')) {
+            try {
+              const date = new Date(out);
+              if (!isNaN(date.getTime())) {
+                date.setHours(date.getHours() + 8);
+                return date.getFullYear() + '-' + 
+                       String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+                       String(date.getDate()).padStart(2, '0') + ' ' + 
+                       String(date.getHours()).padStart(2, '0') + ':' + 
+                       String(date.getMinutes()).padStart(2, '0') + ':' + 
+                       String(date.getSeconds()).padStart(2, '0');
+              }
+            } catch (e) {
+              // 如果转换失败，返回原始处理结果
+            }
+          }
+          
           return out;
         },
         changeFolderPage(page) {
