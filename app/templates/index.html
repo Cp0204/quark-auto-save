@@ -337,7 +337,7 @@
                       <div class="input-group">
                         <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @blur="changeShareurl(task)">
                         <div class="input-group-append" v-if="task.shareurl">
-                          <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;fileSelect.previewRegex=false;fileSelect.sortBy='file_name';fileSelect.sortOrder='desc';showShareSelect(index)" title="选择文件夹"><i class="bi bi-folder"></i></button>
+                          <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='file_name';fileSelect.sortOrder='desc';showShareSelect(index)" title="选择文件夹"><i class="bi bi-folder"></i></button>
                           <div class="input-group-text">
                             <a target="_blank" :href="task.shareurl"><i class="bi bi-box-arrow-up-right"></i></a>
                           </div>
@@ -362,7 +362,7 @@
                     <div class="col-sm-10">
                       <div class="input-group">
                         <div class="input-group-prepend">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.previewRegex=true;fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showShareSelect(index)" title="预览正则处理效果">正则处理</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=true;fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showShareSelect(index)" title="预览正则处理效果">正则处理</button>
                         </div>
                         <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex">
                         <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
@@ -383,7 +383,7 @@
                       <div class="input-group">
                         <input type="text" class="form-control" placeholder="可选，只转存修改日期>此文件的文件" name="startfid[]" v-model="task.startfid">
                         <div class="input-group-append" v-if="task.shareurl">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.previewRegex=false;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index)">选择</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index)">选择</button>
                         </div>
                       </div>
                     </div>
@@ -480,6 +480,25 @@
             </button>
           </div>
           <div class="modal-body small">
+            <!-- 分享链接来源 -->
+            <div class="mb-3" v-if="fileSelect.switchShare">
+              <div><b>名称：</b>
+                <span class="badge badge-info">{{ fileSelect.share.taskname }}</span>
+              </div>
+              <div v-if="fileSelect.share.content"><b>简介：</b>
+                <span class="badge badge-info">{{ fileSelect.share.content }}</span>
+              </div>
+              <div><b>链接：</b>
+                <span class="badge badge-info">{{ fileSelect.share.shareurl }}</span>
+              </div>
+              <div><b>来源：</b>
+                <span class="badge badge-info">{{ fileSelect.share.source || "网络公开" }}</span>
+                <span class="badge badge-info" v-if="fileSelect.share.channel">{{ fileSelect.share.channel }}</span>
+              </div>
+              <div v-if="fileSelect.share.datetime"><b>时间：</b>
+                <span class="badge badge-info">{{ fileSelect.share.datetime }}</span>
+              </div>
+            </div>
             <div class="alert alert-warning" v-if="fileSelect.error" v-html="fileSelect.error"></div>
             <div v-else>
               <!-- 正则处理表达式 -->
@@ -542,6 +561,9 @@
             </div>
           </div>
           <div class="modal-footer" v-if="fileSelect.selectDir && !fileSelect.previewRegex">
+            <span v-if="fileSelect.switchShare">分享：</span>
+            <button type="button" class="btn btn-primary btn-sm" @click="switchShare(-1)" v-if="fileSelect.switchShare">上一个</button>
+            <button type="button" class="btn btn-primary btn-sm" @click="switchShare(1)" v-if="fileSelect.switchShare">下一个</button>
             <span v-html="fileSelect.selectShare ? '转存：' : '保存到：'"></span>
             <button type="button" class="btn btn-primary btn-sm" @click="selectCurrentFolder()">当前文件夹</button>
             <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare" @click="selectCurrentFolder(true)">当前文件夹<span class="badge badge-light" v-if="fileSelect.index<this.formData.tasklist.length" v-html="'/'+formData.tasklist[fileSelect.index].taskname"></span></button>
@@ -610,12 +632,14 @@
         configModified: false,
         fileSelect: {
           index: null,
+          share: {},
           shareurl: "",
           stoken: "",
           fileList: [],
           paths: [],
           selectDir: true,
           selectShare: true,
+          switchShare: false,
           previewRegex: false,
           sortBy: "updated_at",
           sortOrder: "desc"
@@ -1006,7 +1030,9 @@
         selectSuggestion(index, suggestion) {
           this.smart_param.showSuggestions = false;
           this.fileSelect.selectDir = true;
+          this.fileSelect.switchShare = true;
           this.fileSelect.previewRegex = false;
+          this.fileSelect.share = suggestion;
           this.showShareSelect(index, suggestion.shareurl);
         },
         addMagicRegex() {
@@ -1067,6 +1093,7 @@
         showSavepathSelect(index) {
           this.fileSelect.selectShare = false;
           this.fileSelect.selectDir = true;
+          this.fileSelect.switchShare = false;
           this.fileSelect.previewRegex = false;
           this.fileSelect.error = undefined;
           this.fileSelect.fileList = [];
@@ -1113,6 +1140,21 @@
           this.fileSelect.index = index;
           $('#fileSelectModal').modal('toggle');
           this.getShareDetail();
+        },
+        switchShare(index) {
+          currentIndex = this.smart_param.taskSuggestions.data.indexOf(this.fileSelect.share);
+          nextIndex = currentIndex + index;
+          if (nextIndex < 0) {
+            alert("没有上一个啦");
+          } else if (nextIndex >= this.smart_param.taskSuggestions.data.length) {
+            alert("没有下一个啦");
+          } else {
+            this.fileSelect.error = "";
+            this.fileSelect.stoken = "";
+            this.fileSelect.share = this.smart_param.taskSuggestions.data[nextIndex];
+            this.fileSelect.shareurl = this.smart_param.taskSuggestions.data[nextIndex].shareurl;
+            this.getShareDetail();
+          }
         },
         navigateTo(fid, name) {
           dir = { fid: fid, name: name }
