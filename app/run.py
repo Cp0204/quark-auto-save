@@ -235,14 +235,17 @@ def get_task_suggestions():
         return jsonify({"success": False, "message": "未登录"})
     query = request.args.get("q", "").lower()
     deep = request.args.get("d", "").lower()
+    net_data = config_data.get("source", {}).get("net", {})
     cs_data = config_data.get("source", {}).get("cloudsaver", {})
     ps_data = config_data.get("source", {}).get("pansou", {})
     
     def net_search():
-        base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
-        url = f"{base_url}/task_suggestions?q={query}&d={deep}"
-        response = requests.get(url)
-        return response.json()
+        if net_data.get("enable").lower() != "false":
+            base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
+            url = f"{base_url}/task_suggestions?q={query}&d={deep}"
+            response = requests.get(url)
+            return response.json()
+        return []
     
     def cs_search():
         if (
