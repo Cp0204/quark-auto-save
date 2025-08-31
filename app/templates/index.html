@@ -4448,7 +4448,7 @@
           const batchSize = 5;
           
           // 解析时间用于排序（降序：最新在前）
-          const getItemTs = (item) => this.parsePublishTs(item && item.publish_date);
+          const getItemTs = (item) => this.parsePublishTs(item && item.publish_date, item && item.source, item && item.pansou_source);
           
           // 处理单个链接的函数
           const processLink = (link) => {
@@ -4593,7 +4593,7 @@
           this.smart_param._hasShownInterimResults = false;
           
           // 结束前做一次排序，确保最终顺序正确
-          const getItemTs = (item) => this.parsePublishTs(item && item.publish_date);
+          const getItemTs = (item) => this.parsePublishTs(item && item.publish_date, item && item.source, item && item.pansou_source);
           validResults.sort((a, b) => getItemTs(b) - getItemTs(a));
           
           // 更新搜索结果
@@ -6704,24 +6704,46 @@
           return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         },
         // 统一解析资源发布日期为时间戳
-        parsePublishTs(raw) {
+        parsePublishTs(raw, source = null, pansouSource = null) {
           if (!raw) return 0;
           const s = String(raw).trim();
+          
+          // 判断是否需要+8小时：
+          // 1. 如果是PanSou的tg来源，需要+8小时
+          // 2. 如果是CloudSaver来源，需要+8小时
+          // 3. 其他来源都不+8小时
+          const needAdd8Hours = (pansouSource && pansouSource.startsWith('tg:')) || 
+                               (source === 'CloudSaver');
+          
           // YYYY-MM-DD HH:mm:ss
           let m = /^\s*(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})\s*$/.exec(s);
           if (m) {
             const [, y, mo, d, h, mi, se] = m;
-            return new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(se)).getTime();
+            const date = new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(se));
+            if (needAdd8Hours) {
+              date.setHours(date.getHours() + 8);
+            }
+            return date.getTime();
           }
           // YYYY-MM-DD
           m = /^\s*(\d{4})-(\d{2})-(\d{2})\s*$/.exec(s);
           if (m) {
             const [, y, mo, d] = m;
-            return new Date(Number(y), Number(mo) - 1, Number(d), 0, 0, 0).getTime();
+            const date = new Date(Number(y), Number(mo) - 1, Number(d), 0, 0, 0);
+            if (needAdd8Hours) {
+              date.setHours(date.getHours() + 8);
+            }
+            return date.getTime();
           }
           // ISO 回退
           const ts = Date.parse(s);
-          return isNaN(ts) ? 0 : ts;
+          if (isNaN(ts)) return 0;
+          if (needAdd8Hours) {
+            const date = new Date(ts);
+            date.setHours(date.getHours() + 8);
+            return date.getTime();
+          }
+          return ts;
         },
         // 规范化资源发布日期展示：将 ISO 格式（含 T/Z/偏移）转为 "YYYY-MM-DD HH:mm:ss"
         formatPublishDate(value, pansouSource = null, source = null) {
