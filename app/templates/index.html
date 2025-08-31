@@ -483,10 +483,7 @@
             <!-- 分享链接来源 -->
             <div class="mb-3" v-if="fileSelect.switchShare">
               <div><b>名称：</b>
-                <span class="badge badge-info">{{ fileSelect.share.taskname }}</span>
-              </div>
-              <div v-if="fileSelect.share.content"><b>简介：</b>
-                <span class="badge badge-info">{{ fileSelect.share.content }}</span>
+                <span class="badge badge-info" :title="fileSelect.share.content">{{ fileSelect.share.taskname }}</span>
               </div>
               <div><b>链接：</b>
                 <span class="badge badge-info">{{ fileSelect.share.shareurl }}</span>
