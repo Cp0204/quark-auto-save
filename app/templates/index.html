@@ -483,17 +483,17 @@
             <!-- 分享链接来源 -->
             <div class="mb-3" v-if="fileSelect.switchShare">
               <div><b>名称：</b>
-                <span class="badge badge-info" :title="fileSelect.share.content">{{ fileSelect.share.taskname }}</span>
+                <span :title="fileSelect.share.content">{{ fileSelect.share.taskname }}</span>
               </div>
               <div><b>链接：</b>
-                <span class="badge badge-info">{{ fileSelect.share.shareurl }}</span>
+                <a :href="fileSelect.share.shareurl" target="_blank" @click.stop>{{ fileSelect.share.shareurl }}</a>
               </div>
               <div><b>来源：</b>
                 <span class="badge badge-info">{{ fileSelect.share.source || "网络公开" }}</span>
                 <span class="badge badge-info" v-if="fileSelect.share.channel">{{ fileSelect.share.channel }}</span>
               </div>
               <div v-if="fileSelect.share.datetime"><b>时间：</b>
-                <span class="badge badge-info">{{ fileSelect.share.datetime }}</span>
+                <span>{{ fileSelect.share.datetime }}</span>
               </div>
             </div>
             <div class="alert alert-warning" v-if="fileSelect.error" v-html="fileSelect.error"></div>
