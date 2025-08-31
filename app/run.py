@@ -2088,10 +2088,13 @@ def get_user_info():
         account = Quark(cookie, idx)
         account_info = account.init()
         if account_info:
+            # 检查是否有移动端参数
+            has_mparam = bool(account.mparam)
             user_info_list.append({
                 "index": idx,
                 "nickname": account_info["nickname"],
-                "is_active": account.is_active
+                "is_active": account.is_active,
+                "has_mparam": has_mparam
             })
         else:
             # 检查是否有移动端参数
