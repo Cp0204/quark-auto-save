@@ -1124,6 +1124,19 @@ class Quark:
             response = requests.request(method, url, headers=headers, **kwargs)
             # print(f"{response.text}")
             # response.raise_for_status()  # 检查请求是否成功，但返回非200也会抛出异常
+            
+            # 检查响应内容中是否包含inner error，将其转换为request error
+            try:
+                response_json = response.json()
+                if isinstance(response_json, dict) and response_json.get("message"):
+                    error_message = response_json.get("message", "")
+                    if "inner error" in error_message.lower():
+                        # 将inner error转换为request error，避免误判为资源失效
+                        response_json["message"] = "request error"
+                        response._content = json.dumps(response_json).encode('utf-8')
+            except:
+                pass  # 如果JSON解析失败，保持原响应不变
+                
             return response
         except Exception as e:
             print(f"_send_request error:\n{e}")
@@ -1206,9 +1219,38 @@ class Quark:
         else:
             return False, response["message"]
 
-    def get_detail(self, pwd_id, stoken, pdir_fid, _fetch_share=0):
+    def is_recoverable_error(self, error_message):
+        """
+        检查错误是否为可恢复的错误（网络错误、服务端临时错误等）
+        
+        Args:
+            error_message: 错误消息
+            
+        Returns:
+            bool: 是否为可恢复错误
+        """
+        if not error_message:
+            return False
+            
+        error_message = error_message.lower()
+        recoverable_errors = [
+            "inner error",
+            "request error", 
+            "网络错误",
+            "服务端错误",
+            "临时错误",
+            "timeout",
+            "connection error",
+            "server error"
+        ]
+        
+        return any(error in error_message for error in recoverable_errors)
+
+    def get_detail(self, pwd_id, stoken, pdir_fid, _fetch_share=0, max_retries=3):
         list_merge = []
         page = 1
+        retry_count = 0
+        
         while True:
             url = f"{self.BASE_URL}/1/clouddrive/share/sharepage/detail"
             querystring = {
@@ -1230,6 +1272,26 @@ class Quark:
                 response = self._send_request("GET", url, params=querystring).json()
             except Exception:
                 return {"error": "request error"}
+
+            # 检查响应中是否包含inner error或其他可恢复错误
+            if isinstance(response, dict) and response.get("message"):
+                error_message = response.get("message", "")
+                if "inner error" in error_message.lower():
+                    # 对于inner error，尝试重试
+                    if retry_count < max_retries:
+                        retry_count += 1
+                        # 静默重试，不输出重试信息，避免日志污染
+                        # 只有在调试模式下才记录详细重试信息
+                        try:
+                            import os
+                            if os.environ.get("DEBUG", "false").lower() == "true":
+                                print(f"[DEBUG] 遇到inner error，进行第{retry_count}次重试...")
+                        except:
+                            pass  # 如果无法获取DEBUG环境变量，静默处理
+                        time.sleep(1)  # 等待1秒后重试
+                        continue
+                    else:
+                        return {"error": "request error"}  # 重试次数用尽，返回request error
 
             # 统一判错：某些情况下返回没有 code 字段
             code = response.get("code")

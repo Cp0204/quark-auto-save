@@ -2834,6 +2834,15 @@
         formatShareUrlBanMessage(message) {
           if (!message) return message;
           
+          // 检查是否为可恢复的网络错误或服务端临时错误
+          if (message.includes("inner error") || 
+              message.includes("request error") ||
+              message.includes("网络错误") ||
+              message.includes("服务端错误") ||
+              message.includes("临时错误")) {
+            return "网络连接异常，请稍后重试"; // 不设置shareurl_ban，允许重试
+          }
+          
           if (message.includes("分享者用户封禁链接查看受限") || 
               message.includes("文件涉及违规内容") ||
               message.includes("分享地址已失效")) {
@@ -3366,10 +3375,15 @@
                 .then(response => {
                   const share_detail = response.data.data;
                   if (!response.data.success) {
-                    // 检查是否是 request error，如果是则忽略
-                    if (share_detail.error && share_detail.error.includes("request error")) {
-                      // 忽略 request error，不设置 shareurl_ban
-                      console.log('检查分享链接时出现网络错误，忽略此错误:', share_detail.error);
+                    // 检查是否是可恢复的网络错误或服务端临时错误
+                    if (share_detail.error && (
+                        share_detail.error.includes("request error") ||
+                        share_detail.error.includes("inner error") ||
+                        share_detail.error.includes("网络错误") ||
+                        share_detail.error.includes("服务端错误") ||
+                        share_detail.error.includes("临时错误"))) {
+                      // 忽略可恢复的错误，不设置 shareurl_ban
+                      console.log('检查分享链接时出现可恢复错误，忽略此错误:', share_detail.error);
                       return;
                     }
                     // 使用格式化函数处理其他错误信息
@@ -4237,10 +4251,15 @@
                   }
                 }
 
-                // 检查是否是 request error，如果是则忽略
-                if (share_detail.error && share_detail.error.includes("request error")) {
-                  // 忽略 request error，不设置 shareurl_ban
-                  console.log('修改分享链接时出现网络错误，忽略此错误:', share_detail.error);
+                // 检查是否是可恢复的网络错误或服务端临时错误
+                if (share_detail.error && (
+                    share_detail.error.includes("request error") ||
+                    share_detail.error.includes("inner error") ||
+                    share_detail.error.includes("网络错误") ||
+                    share_detail.error.includes("服务端错误") ||
+                    share_detail.error.includes("临时错误"))) {
+                  // 忽略可恢复的错误，不设置 shareurl_ban
+                  console.log('修改分享链接时出现可恢复错误，忽略此错误:', share_detail.error);
                   return;
                 }
 
@@ -4487,8 +4506,12 @@
                   const error = response.data.data.error || "";
                   let isInvalid = false;
 
-                  // 如果是 request error，视为有效（网络问题，不是资源问题）
-                  if (error.includes("request error")) {
+                  // 如果是可恢复的网络错误或服务端临时错误，视为有效（网络问题，不是资源问题）
+                  if (error.includes("request error") ||
+                      error.includes("inner error") ||
+                      error.includes("网络错误") ||
+                      error.includes("服务端错误") ||
+                      error.includes("临时错误")) {
                     this.smart_param.validateProgress.valid++;
                     resolve(link);
                     return;
@@ -4876,7 +4899,11 @@
               const rawError = (response && response.data && response.data.data && response.data.data.error) ? response.data.data.error : '';
               const errorText = typeof rawError === 'string' ? rawError : String(rawError || '');
               const isIllegalToken = errorText.includes('非法token') || errorText.includes('Bad Parameter');
-              const isRequestError = errorText.toLowerCase().includes('request error');
+              const isRequestError = errorText.toLowerCase().includes('request error') ||
+                                   errorText.toLowerCase().includes('inner error') ||
+                                   errorText.toLowerCase().includes('网络错误') ||
+                                   errorText.toLowerCase().includes('服务端错误') ||
+                                   errorText.toLowerCase().includes('临时错误');
               if (isIllegalToken || isRequestError) {
                 if (retryCount < maxRetries) {
                   console.log(`分享详情获取失败(${isIllegalToken ? '非法token' : 'request error'})，进行第 ${retryCount + 1} 次重试...`);
