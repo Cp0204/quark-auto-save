@@ -240,7 +240,7 @@ def get_task_suggestions():
     ps_data = config_data.get("source", {}).get("pansou", {})
 
     def net_search():
-        if net_data.get("enable", "true").lower() != "false":
+        if str(net_data.get("enable", "true")).lower() != "false":
             base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
             url = f"{base_url}/task_suggestions?q={query}&d={deep}"
             response = requests.get(url)

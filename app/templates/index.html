@@ -198,55 +198,70 @@
 
             <div class="row title" title="资源搜索服务配置，用于任务名称智能搜索">
               <div class="col-10">
-                <h2 style="display: inline-block;"><i class="bi bi-search"></i> 网络公开</h2>
+                <h2 style="display: inline-block;"><i class="bi bi-search"></i> 资源搜索</h2>
               </div>
             </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">启用</label>
-              <div class="col-sm-10">
-                <input type="text" v-model="formData.source.net.enable" class="form-control" placeholder="是否启用网络公开搜索，默认启用，可选值 True/False">
+            <div class="form-group row mb-0" style="display:flex; align-items:center;">
+              <div data-toggle="collapse" data-target="#collapse_net" aria-expanded="true" aria-controls="collapse_net">
+                <div class="btn btn-block text-left">
+                  <i class="bi bi-caret-right-fill"></i> 网络公开搜索
+                </div>
               </div>
             </div>
-
-            <div class="row title" title="资源搜索服务配置，用于任务名称智能搜索">
-              <div class="col-10">
-                <h2 style="display: inline-block;"><i class="bi bi-search"></i> CloudSaver</h2>
-                <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/Cp0204/quark-auto-save/wiki/CloudSaver搜索源" target="_blank">?</a>
-                </span>
+            <div class="collapse show ml-3" id="collapse_net">
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label">启用</label>
+                <div class="col-sm-10 d-flex align-items-center">
+                  <input type="checkbox" class="form-check-input" v-model="formData.source.net.enable" placeholder="是否启用网络公开搜索，默认启用">
+                </div>
               </div>
             </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">服务器</label>
-              <div class="col-sm-10">
-                <input type="text" v-model="formData.source.cloudsaver.server" class="form-control" placeholder="资源搜索服务器地址，如 http://172.17.0.1:8008">
+            <div class="form-group row mb-0" style="display:flex; align-items:center;">
+              <div data-toggle="collapse" data-target="#collapse_cloudsaver" aria-expanded="true" aria-controls="collapse_cloudsaver">
+                <div class="btn btn-block text-left">
+                  <i class="bi bi-caret-right-fill"></i> CloudSaver
+                  <span class="badge badge-pill badge-light">
+                    <a href="https://github.com/Cp0204/quark-auto-save/wiki/CloudSaver搜索源" target="_blank">?</a>
+                  </span>
+                </div>
               </div>
             </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">用户名</label>
-              <div class="col-sm-10">
-                <input type="text" v-model="formData.source.cloudsaver.username" class="form-control" placeholder="用户名">
+            <div class="collapse show ml-3" id="collapse_cloudsaver">
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label">服务器</label>
+                <div class="col-sm-10">
+                  <input type="text" v-model="formData.source.cloudsaver.server" class="form-control" placeholder="资源搜索服务器地址，如 http://172.17.0.1:8008">
+                </div>
+              </div>
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label">用户名</label>
+                <div class="col-sm-10">
+                  <input type="text" v-model="formData.source.cloudsaver.username" class="form-control" placeholder="用户名">
+                </div>
+              </div>
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label">密码</label>
+                <div class="col-sm-10">
+                  <input type="password" v-model="formData.source.cloudsaver.password" class="form-control" placeholder="密码">
+                </div>
               </div>
             </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">密码</label>
-              <div class="col-sm-10">
-                <input type="password" v-model="formData.source.cloudsaver.password" class="form-control" placeholder="密码">
+            <div class="form-group row mb-0" style="display:flex; align-items:center;">
+              <div data-toggle="collapse" data-target="#collapse_pansou" aria-expanded="true" aria-controls="collapse_pansou">
+                <div class="btn btn-block text-left">
+                  <i class="bi bi-caret-right-fill"></i> PanSou
+                  <span class="badge badge-pill badge-light">
+                    <a href="https://github.com/fish2018/pansou" target="_blank">?</a>
+                  </span>
+                </div>
               </div>
             </div>
-
-            <div class="row title" title="资源搜索服务配置，用于任务名称智能搜索">
-              <div class="col-10">
-                <h2 style="display: inline-block;"><i class="bi bi-search"></i> PanSou</h2>
-                <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/fish2018/pansou" target="_blank">?</a>
-                </span>
-              </div>
-            </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">服务器</label>
-              <div class="col-sm-10">
-                <input type="text" v-model="formData.source.pansou.server" class="form-control" placeholder="资源搜索服务器地址，如 https://so.252035.xyz">
+            <div class="collapse show ml-3" id="collapse_pansou">
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label">服务器</label>
+                <div class="col-sm-10">
+                  <input type="text" v-model="formData.source.pansou.server" class="form-control" placeholder="资源搜索服务器地址，如 https://so.252035.xyz">
+                </div>
               </div>
             </div>
 
