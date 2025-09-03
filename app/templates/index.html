@@ -481,19 +481,31 @@
           </div>
           <div class="modal-body small">
             <!-- 分享链接来源 -->
-            <div class="mb-3" v-if="fileSelect.switchShare">
-              <div><b>名称：</b>
-                <span :title="fileSelect.share.content">{{ fileSelect.share.taskname }}</span>
+            <div class="mb-3 row" v-if="fileSelect.switchShare">
+              <div class="col-sm-8">
+                <div>
+                  <b>名称：</b>
+                  <span :title="fileSelect.share.content">{{ fileSelect.share.taskname }}</span>
+                </div>
+                <div>
+                  <b>链接：</b>
+                  <a :href="fileSelect.share.shareurl" target="_blank" @click.stop>{{ fileSelect.share.shareurl }}</a>
+                </div>
+                <div>
+                  <b>来源：</b>
+                  <span class="badge bg-transparent border border-success text-success">{{ fileSelect.share.source || "网络公开" }}</span>
+                  <span class="badge bg-transparent border border-info text-info" v-if="fileSelect.share.channel">{{ fileSelect.share.channel }}</span>
+                </div>
+                <div v-if="fileSelect.share.datetime">
+                  <b>时间：</b>
+                  <span>{{ fileSelect.share.datetime }}</span>
+                </div>
               </div>
-              <div><b>链接：</b>
-                <a :href="fileSelect.share.shareurl" target="_blank" @click.stop>{{ fileSelect.share.shareurl }}</a>
-              </div>
-              <div><b>来源：</b>
-                <span class="badge badge-info">{{ fileSelect.share.source || "网络公开" }}</span>
-                <span class="badge badge-info" v-if="fileSelect.share.channel">{{ fileSelect.share.channel }}</span>
-              </div>
-              <div v-if="fileSelect.share.datetime"><b>时间：</b>
-                <span>{{ fileSelect.share.datetime }}</span>
+              <div class="col-sm-4 text-right">
+                <div class="btn-group" title="资源搜索结果切换">
+                  <button type="button" class="btn btn-sm btn-outline-primary" @click="switchShare(-1)">上一个</button>
+                  <button type="button" class="btn btn-sm btn-outline-primary" @click="switchShare(1)">下一个</button>
+                </div>
               </div>
             </div>
             <div class="alert alert-warning" v-if="fileSelect.error" v-html="fileSelect.error"></div>
@@ -558,9 +570,6 @@
             </div>
           </div>
           <div class="modal-footer" v-if="fileSelect.selectDir && !fileSelect.previewRegex">
-            <span v-if="fileSelect.switchShare">分享：</span>
-            <button type="button" class="btn btn-primary btn-sm" @click="switchShare(-1)" v-if="fileSelect.switchShare">上一个</button>
-            <button type="button" class="btn btn-primary btn-sm" @click="switchShare(1)" v-if="fileSelect.switchShare">下一个</button>
             <span v-html="fileSelect.selectShare ? '转存：' : '保存到：'"></span>
             <button type="button" class="btn btn-primary btn-sm" @click="selectCurrentFolder()">当前文件夹</button>
             <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare" @click="selectCurrentFolder(true)">当前文件夹<span class="badge badge-light" v-if="fileSelect.index<this.formData.tasklist.length" v-html="'/'+formData.tasklist[fileSelect.index].taskname"></span></button>
