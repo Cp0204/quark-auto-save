@@ -198,43 +198,70 @@
 
             <div class="row title" title="资源搜索服务配置，用于任务名称智能搜索">
               <div class="col-10">
-                <h2 style="display: inline-block;"><i class="bi bi-search"></i> CloudSaver</h2>
-                <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/Cp0204/quark-auto-save/wiki/CloudSaver搜索源" target="_blank">?</a>
-                </span>
+                <h2 style="display: inline-block;"><i class="bi bi-search"></i> 资源搜索</h2>
               </div>
             </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">服务器</label>
-              <div class="col-sm-10">
-                <input type="text" v-model="formData.source.cloudsaver.server" class="form-control" placeholder="资源搜索服务器地址，如 http://172.17.0.1:8008">
+            <div class="form-group row mb-0" style="display:flex; align-items:center;">
+              <div data-toggle="collapse" data-target="#collapse_net" aria-expanded="true" aria-controls="collapse_net">
+                <div class="btn btn-block text-left">
+                  <i class="bi bi-caret-right-fill"></i> 网络公开搜索
+                </div>
               </div>
             </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">用户名</label>
-              <div class="col-sm-10">
-                <input type="text" v-model="formData.source.cloudsaver.username" class="form-control" placeholder="用户名">
+            <div class="collapse show ml-3" id="collapse_net">
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label">启用</label>
+                <div class="col-sm-10 d-flex align-items-center">
+                  <input type="checkbox" class="form-check-input" v-model="formData.source.net.enable" placeholder="是否启用网络公开搜索，默认启用">
+                </div>
               </div>
             </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">密码</label>
-              <div class="col-sm-10">
-                <input type="password" v-model="formData.source.cloudsaver.password" class="form-control" placeholder="密码">
+            <div class="form-group row mb-0" style="display:flex; align-items:center;">
+              <div data-toggle="collapse" data-target="#collapse_cloudsaver" aria-expanded="true" aria-controls="collapse_cloudsaver">
+                <div class="btn btn-block text-left">
+                  <i class="bi bi-caret-right-fill"></i> CloudSaver
+                  <span class="badge badge-pill badge-light">
+                    <a href="https://github.com/Cp0204/quark-auto-save/wiki/CloudSaver搜索源" target="_blank">?</a>
+                  </span>
+                </div>
               </div>
             </div>
-
-            <div class="row title" title="资源搜索服务配置，用于任务名称智能搜索">
-              <div class="col-10">
-                <h2 style="display: inline-block;"><i class="bi bi-search"></i> PanSou</h2>
-                <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/fish2018/pansou" target="_blank">?</a>
-                </span>
+            <div class="collapse show ml-3" id="collapse_cloudsaver">
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label">服务器</label>
+                <div class="col-sm-10">
+                  <input type="text" v-model="formData.source.cloudsaver.server" class="form-control" placeholder="资源搜索服务器地址，如 http://172.17.0.1:8008">
+                </div>
+              </div>
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label">用户名</label>
+                <div class="col-sm-10">
+                  <input type="text" v-model="formData.source.cloudsaver.username" class="form-control" placeholder="用户名">
+                </div>
+              </div>
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label">密码</label>
+                <div class="col-sm-10">
+                  <input type="password" v-model="formData.source.cloudsaver.password" class="form-control" placeholder="密码">
+                </div>
               </div>
             </div>
-            <div class="form-group row">
-              <label class="col-sm-2 col-form-label">服务器</label>
-              <div class="col-sm-10">
-                <input type="text" v-model="formData.source.pansou.server" class="form-control" placeholder="资源搜索服务器地址，如 https://so.252035.xyz">
+            <div class="form-group row mb-0" style="display:flex; align-items:center;">
+              <div data-toggle="collapse" data-target="#collapse_pansou" aria-expanded="true" aria-controls="collapse_pansou">
+                <div class="btn btn-block text-left">
+                  <i class="bi bi-caret-right-fill"></i> PanSou
+                  <span class="badge badge-pill badge-light">
+                    <a href="https://github.com/fish2018/pansou" target="_blank">?</a>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="collapse show ml-3" id="collapse_pansou">
+              <div class="form-group row">
+                <label class="col-sm-2 col-form-label">服务器</label>
+                <div class="col-sm-10">
+                  <input type="text" v-model="formData.source.pansou.server" class="form-control" placeholder="资源搜索服务器地址，如 https://so.252035.xyz">
+                </div>
               </div>
             </div>
 
@@ -325,7 +352,7 @@
                       <div class="input-group">
                         <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @blur="changeShareurl(task)">
                         <div class="input-group-append" v-if="task.shareurl">
-                          <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;fileSelect.previewRegex=false;fileSelect.sortBy='file_name';fileSelect.sortOrder='desc';showShareSelect(index)" title="选择文件夹"><i class="bi bi-folder"></i></button>
+                          <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='file_name';fileSelect.sortOrder='desc';showShareSelect(index)" title="选择文件夹"><i class="bi bi-folder"></i></button>
                           <div class="input-group-text">
                             <a target="_blank" :href="task.shareurl"><i class="bi bi-box-arrow-up-right"></i></a>
                           </div>
@@ -350,7 +377,7 @@
                     <div class="col-sm-10">
                       <div class="input-group">
                         <div class="input-group-prepend">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.previewRegex=true;fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showShareSelect(index)" title="预览正则处理效果">正则处理</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=true;fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showShareSelect(index)" title="预览正则处理效果">正则处理</button>
                         </div>
                         <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex">
                         <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
@@ -371,7 +398,7 @@
                       <div class="input-group">
                         <input type="text" class="form-control" placeholder="可选，只转存修改日期>此文件的文件" name="startfid[]" v-model="task.startfid">
                         <div class="input-group-append" v-if="task.shareurl">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.previewRegex=false;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index)">选择</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index)">选择</button>
                         </div>
                       </div>
                     </div>
@@ -468,6 +495,34 @@
             </button>
           </div>
           <div class="modal-body small">
+            <!-- 分享链接来源 -->
+            <div class="mb-3 row" v-if="fileSelect.switchShare">
+              <div class="col-sm-8">
+                <div>
+                  <b>名称：</b>
+                  <span :title="fileSelect.share.content">{{ fileSelect.share.taskname }}</span>
+                </div>
+                <div>
+                  <b>链接：</b>
+                  <a :href="fileSelect.share.shareurl" target="_blank" @click.stop>{{ fileSelect.share.shareurl }}</a>
+                </div>
+                <div>
+                  <b>来源：</b>
+                  <span class="badge bg-transparent border border-success text-success">{{ fileSelect.share.source || "网络公开" }}</span>
+                  <span class="badge bg-transparent border border-info text-info" v-if="fileSelect.share.channel">{{ fileSelect.share.channel }}</span>
+                </div>
+                <div v-if="fileSelect.share.datetime">
+                  <b>时间：</b>
+                  <span>{{ fileSelect.share.datetime }}</span>
+                </div>
+              </div>
+              <div class="col-sm-4 text-right">
+                <div class="btn-group" title="资源搜索结果切换">
+                  <button type="button" class="btn btn-sm btn-outline-primary" @click="switchShare(-1)">上一个</button>
+                  <button type="button" class="btn btn-sm btn-outline-primary" @click="switchShare(1)">下一个</button>
+                </div>
+              </div>
+            </div>
             <div class="alert alert-warning" v-if="fileSelect.error" v-html="fileSelect.error"></div>
             <div v-else>
               <!-- 正则处理表达式 -->
@@ -555,6 +610,9 @@
           tasklist: [],
           magic_regex: {},
           source: {
+            net: {
+              enable: ""
+            },
             cloudsaver: {
               server: "",
               username: "",
@@ -595,12 +653,14 @@
         configModified: false,
         fileSelect: {
           index: null,
+          share: {},
           shareurl: "",
           stoken: "",
           fileList: [],
           paths: [],
           selectDir: true,
           selectShare: true,
+          switchShare: false,
           previewRegex: false,
           sortBy: "updated_at",
           sortOrder: "desc"
@@ -700,6 +760,11 @@
               if (!config_data.source.pansou) {
                 config_data.source.pansou = {
                   server: ""
+                };
+              }
+              if (!config_data.source.net) {
+                config_data.source.net = {
+                  enable: ""
                 };
               }
               this.formData = config_data;
@@ -986,7 +1051,9 @@
         selectSuggestion(index, suggestion) {
           this.smart_param.showSuggestions = false;
           this.fileSelect.selectDir = true;
+          this.fileSelect.switchShare = true;
           this.fileSelect.previewRegex = false;
+          this.fileSelect.share = suggestion;
           this.showShareSelect(index, suggestion.shareurl);
         },
         addMagicRegex() {
@@ -1047,6 +1114,7 @@
         showSavepathSelect(index) {
           this.fileSelect.selectShare = false;
           this.fileSelect.selectDir = true;
+          this.fileSelect.switchShare = false;
           this.fileSelect.previewRegex = false;
           this.fileSelect.error = undefined;
           this.fileSelect.fileList = [];
@@ -1093,6 +1161,21 @@
           this.fileSelect.index = index;
           $('#fileSelectModal').modal('toggle');
           this.getShareDetail();
+        },
+        switchShare(index) {
+          currentIndex = this.smart_param.taskSuggestions.data.indexOf(this.fileSelect.share);
+          nextIndex = currentIndex + index;
+          if (nextIndex < 0) {
+            alert("没有上一个啦");
+          } else if (nextIndex >= this.smart_param.taskSuggestions.data.length) {
+            alert("没有下一个啦");
+          } else {
+            this.fileSelect.error = "";
+            this.fileSelect.stoken = "";
+            this.fileSelect.share = this.smart_param.taskSuggestions.data[nextIndex];
+            this.fileSelect.shareurl = this.smart_param.taskSuggestions.data[nextIndex].shareurl;
+            this.getShareDetail();
+          }
         },
         navigateTo(fid, name) {
           dir = { fid: fid, name: name }

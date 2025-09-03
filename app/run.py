@@ -235,15 +235,18 @@ def get_task_suggestions():
         return jsonify({"success": False, "message": "未登录"})
     query = request.args.get("q", "").lower()
     deep = request.args.get("d", "").lower()
+    net_data = config_data.get("source", {}).get("net", {})
     cs_data = config_data.get("source", {}).get("cloudsaver", {})
     ps_data = config_data.get("source", {}).get("pansou", {})
-    
+
     def net_search():
-        base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
-        url = f"{base_url}/task_suggestions?q={query}&d={deep}"
-        response = requests.get(url)
-        return response.json()
-    
+        if str(net_data.get("enable", "true")).lower() != "false":
+            base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
+            url = f"{base_url}/task_suggestions?q={query}&d={deep}"
+            response = requests.get(url)
+            return response.json()
+        return []
+
     def cs_search():
         if (
             cs_data.get("server")
@@ -264,13 +267,13 @@ def get_task_suggestions():
                 search_results = cs.clean_search_results(search.get("data"))
                 return search_results
         return []
-    
+
     def ps_search():
-        if (ps_data.get("server")):
+        if ps_data.get("server"):
             ps = PanSou(ps_data.get("server"))
-            return ps.search(query)
+            return ps.search(query, deep == "1")
         return []
-   
+
     try:
         search_results = []
         with ThreadPoolExecutor(max_workers=3) as executor:
@@ -281,17 +284,17 @@ def get_task_suggestions():
             for future in as_completed(features):
                 result = future.result()
                 search_results.extend(result)
-        
+
         # 按时间排序并去重
         results = []
         link_array = []
-        search_results.sort(key=lambda x: x.get("datetime", ""), reverse=True)  
+        search_results.sort(key=lambda x: x.get("datetime", ""), reverse=True)
         for item in search_results:
             url = item.get("shareurl", "")
             if url != "" and url not in link_array:
                 link_array.append(url)
                 results.append(item)
-                
+
         return jsonify({"success": True, "data": results})
     except Exception as e:
         return jsonify({"success": True, "message": f"error: {str(e)}"})

@@ -11,5 +11,6 @@ def iso_to_cst(iso_time_str: str) -> str:
         str: CST(China Standard Time) 时间字符串
     """
     dt = datetime.fromisoformat(iso_time_str)
-    dt_cst = dt.astimezone(timezone(timedelta(hours=8)))
+    tz = timezone(timedelta(hours=8))
+    dt_cst = dt if dt.astimezone(tz) > datetime.now(tz) else dt.astimezone(tz)
     return dt_cst.strftime("%Y-%m-%d %H:%M:%S") if dt_cst.year >= 1970 else ""

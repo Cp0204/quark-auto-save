@@ -14,7 +14,7 @@ class PanSou:
         self.server = server
         self.session = requests.Session()
 
-    def search(self, keyword: str) -> list:
+    def search(self, keyword: str, refresh: bool = False) -> list:
         """搜索资源
 
         Args:
@@ -25,7 +25,7 @@ class PanSou:
         """
         try:
             url = f"{self.server.rstrip('/')}/api/search"
-            params = {"kw": keyword, "cloud_types": ["quark"], "res": "merge", "refresh": True}
+            params = {"kw": keyword, "cloud_types": ["quark"], "res": "merge", "refresh": refresh}
             response = self.session.get(url, params=params)
             result = response.json()
             if result.get("code") == 0:
