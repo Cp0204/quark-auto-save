@@ -1220,9 +1220,9 @@
           } else if (shareurl.includes(dir.fid)) {
             shareurl = shareurl.match(`.*/${dir.fid}[^/]*`)[0]
           } else if (shareurl.includes('#/list/share')) {
-            shareurl = `${shareurl}/${dir.fid}-${dir.name?.replace('-', '*101')}`
+            shareurl = `${shareurl.split('#')[0]}#/list/share/${dir.fid}`
           } else {
-            shareurl = `${shareurl}#/list/share/${dir.fid}-${dir.name?.replace('-', '*101')}`
+            shareurl = `${shareurl.split('#')[0]}#/list/share/${dir.fid}`
           }
           return shareurl;
         },
