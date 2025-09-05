@@ -18,8 +18,26 @@ class Smartstrm:
                 else:
                     print(f"{self.plugin_name} 模块缺少必要参数: {key}")
             if self.webhook and self.strmtask:
-                print(f"SmartStrm 触发任务: {self.strmtask} ")
-                self.is_active = True
+                if self.get_info():
+                    self.is_active = True
+
+    def get_info(self):
+        """获取 SmartStrm 信息"""
+        try:
+            response = requests.request(
+                "GET",
+                self.webhook,
+                timeout=5,
+            )
+            response = response.json()
+            if response.get("success"):
+                print(f"SmartStrm 触发任务: 连接成功 {response.get('version','')}")
+                return response
+            print(f"SmartStrm 触发任务：连接失败 {response.get('message','')}")
+            return None
+        except Exception as e:
+            print(f"SmartStrm 触发任务：连接出错 {str(e)}")
+            return None
 
     def run(self, task, **kwargs):
         """
