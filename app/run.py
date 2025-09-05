@@ -34,8 +34,15 @@ from quark_auto_save import Quark, Config, MagicRename
 
 
 def get_app_ver():
-    BUILD_SHA = os.environ.get("BUILD_SHA", "")
-    BUILD_TAG = os.environ.get("BUILD_TAG", "")
+    """获取应用版本"""
+    try:
+        with open("build.json", "r") as f:
+            build_info = json.loads(f.read())
+            BUILD_SHA = build_info["BUILD_SHA"]
+            BUILD_TAG = build_info["BUILD_TAG"]
+    except Exception as e:
+        BUILD_SHA = os.getenv("BUILD_SHA", "")
+        BUILD_TAG = os.getenv("BUILD_TAG", "")
     if BUILD_TAG[:1] == "v":
         return BUILD_TAG
     elif BUILD_SHA:
