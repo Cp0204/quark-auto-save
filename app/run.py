@@ -323,7 +323,9 @@ def get_share_detail():
             return jsonify(
                 {"success": False, "data": {"error": get_stoken.get("message")}}
             )
-    share_detail = account.get_detail(pwd_id, stoken, pdir_fid, _fetch_share=1)
+    share_detail = account.get_detail(
+        pwd_id, stoken, pdir_fid, _fetch_share=1, fetch_share_full_path=1
+    )
 
     if share_detail.get("code") != 0:
         return jsonify(
@@ -331,7 +333,10 @@ def get_share_detail():
         )
 
     data = share_detail["data"]
-    data["paths"] = paths
+    data["paths"] = [
+        {"fid": i["fid"], "name": i["file_name"]}
+        for i in share_detail["data"].get("full_path", [])
+    ] or paths
     data["stoken"] = stoken
 
     # 正则处理预览

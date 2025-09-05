@@ -1,6 +1,6 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Modify: 2024-11-13
+# Modify: 2025-09-05
 # Repo: https://github.com/Cp0204/quark_auto_save
 # ConfigFile: quark_config.json
 """
@@ -497,7 +497,9 @@ class Quark:
         ).json()
         return response
 
-    def get_detail(self, pwd_id, stoken, pdir_fid, _fetch_share=0):
+    def get_detail(
+        self, pwd_id, stoken, pdir_fid, _fetch_share=0, fetch_share_full_path=0
+    ):
         list_merge = []
         page = 1
         while True:
@@ -515,6 +517,8 @@ class Quark:
                 "_fetch_share": _fetch_share,
                 "_fetch_total": "1",
                 "_sort": "file_type:asc,updated_at:desc",
+                "ver": "2",
+                "fetch_share_full_path": fetch_share_full_path,
             }
             response = self._send_request("GET", url, params=querystring).json()
             if response["code"] != 0:
@@ -709,6 +713,7 @@ class Quark:
         match_pwd = re.search(r"pwd=(\w+)", url)
         passcode = match_pwd.group(1) if match_pwd else ""
         # path: fid-name
+        # Legacy 20250905
         paths = []
         matches = re.findall(r"/(\w{32})-?([^/]+)?", url)
         for match in matches:
