@@ -972,36 +972,45 @@ class Quark:
         fid_list = [item["fid"] for item in need_save_list]
         fid_token_list = [item["share_fid_token"] for item in need_save_list]
         if fid_list:
-            save_file_return = self.save_file(
-                fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken
-            )
             err_msg = None
-            if save_file_return["code"] == 0:
-                task_id = save_file_return["data"]["task_id"]
-                query_task_return = self.query_task(task_id)
-                if query_task_return["code"] == 0:
-                    # 建立目录树
-                    for index, item in enumerate(need_save_list):
-                        icon = self._get_file_icon(item)
-                        tree.create_node(
-                            f"{icon}{item['file_name_re']}",
-                            item["fid"],
-                            parent=pdir_fid,
-                            data={
-                                "file_name": item["file_name"],
-                                "file_name_re": item["file_name_re"],
-                                "fid": f"{query_task_return['data']['save_as']['save_as_top_fids'][index]}",
-                                "path": f"{savepath}/{item['file_name_re']}",
-                                "is_dir": item["dir"],
-                                "obj_category": item.get("obj_category", ""),
-                            },
+            save_as_top_fids = []
+            while fid_list:
+                # 分次转存，100个/次，因query_task返回save_as_top_fids最多100
+                save_file_return = self.save_file(
+                    fid_list[:100], fid_token_list[:100], to_pdir_fid, pwd_id, stoken
+                )
+                fid_list = fid_list[100:]
+                fid_token_list = fid_token_list[100:]
+                if save_file_return["code"] == 0:
+                    # 转存成功，查询转存结果
+                    task_id = save_file_return["data"]["task_id"]
+                    query_task_return = self.query_task(task_id)
+                    if query_task_return["code"] == 0:
+                        save_as_top_fids.extend(
+                            query_task_return["data"]["save_as"]["save_as_top_fids"]
                         )
+                    else:
+                        err_msg = query_task_return["message"]
                 else:
-                    err_msg = query_task_return["message"]
-            else:
-                err_msg = save_file_return["message"]
-            if err_msg:
-                add_notify(f"❌《{task['taskname']}》转存失败：{err_msg}\n")
+                    err_msg = save_file_return["message"]
+                if err_msg:
+                    add_notify(f"❌《{task['taskname']}》转存失败：{err_msg}\n")
+        # 建立目录树
+        for index, item in enumerate(need_save_list):
+            icon = self._get_file_icon(item)
+            tree.create_node(
+                f"{icon}{item['file_name_re']}",
+                item["fid"],
+                parent=pdir_fid,
+                data={
+                    "file_name": item["file_name"],
+                    "file_name_re": item["file_name_re"],
+                    "fid": f"{save_as_top_fids[index]}",
+                    "path": f"{savepath}/{item['file_name_re']}",
+                    "is_dir": item["dir"],
+                    "obj_category": item.get("obj_category", ""),
+                },
+            )
         return tree
 
     def do_rename(self, tree, node_id=None):
