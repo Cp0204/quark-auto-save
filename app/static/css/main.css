@@ -4399,7 +4399,14 @@ table.selectable-records .expand-button:hover {
   .task:hover .task-latest-date,
   .task:hover .task-latest-file,
   .task.task-expanded .task-latest-date,
-  .task.task-expanded .task-latest-file {
+  .task.task-expanded .task-latest-file,
+  /* 新增：移动端展开/悬停时隐藏 集数统计/任务进度/节目状态 */
+  .task:hover .task-season-counts,
+  .task:hover .task-progress,
+  .task:hover .task-show-status,
+  .task.task-expanded .task-season-counts,
+  .task.task-expanded .task-progress,
+  .task.task-expanded .task-show-status {
     display: none;
   }
 
@@ -4434,8 +4441,8 @@ table.selectable-records .expand-button:hover {
     justify-content: center;
   }
 
-  .task-latest-date,
-  .task-latest-file {
+  .task-latest-date:not(.hover-only),
+  .task-latest-file:not(.hover-only) {
     display: inline !important;
   }
 
