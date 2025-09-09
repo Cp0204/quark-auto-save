@@ -919,7 +919,7 @@
 
           <div v-if="activeTab === 'tasklist'">
             <div style="height: 20px;"></div>
-            <div class="row" style="margin-bottom: 20px;">
+            <div class="row" style="margin-bottom: 8px;">
               <div class="col-lg-6 col-md-6 mb-2 mb-md-0">
                 <div class="input-group">
                   <div class="input-group-prepend">
@@ -949,8 +949,25 @@
                 </div>
               </div>
             </div>
+            <!-- 任务列表：类型筛选按钮（复用追剧日历样式） -->
+            <div class="calendar-category-buttons tasklist-type-filter">
+              <button type="button"
+                      class="btn btn-outline-secondary calendar-category-btn"
+                      :class="{ active: tasklist.selectedType === 'all' }"
+                      @click="selectTasklistType('all')">
+                全部
+              </button>
+              <button type="button"
+                      class="btn btn-outline-secondary calendar-category-btn"
+                      v-for="type in tasklist.contentTypes"
+                      :key="'tasklist-'+type"
+                      :class="{ active: tasklist.selectedType === type }"
+                      @click="selectTasklistType(type)">
+                {{ getContentTypeDisplayName(type) }}
+              </button>
+            </div>
             <div v-for="(task, index) in formData.tasklist" :key="index" class="task mb-3">
-              <template v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter)">
+              <template v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task)">
                 <hr>
                 <div class="form-group row" style="align-items:center">
                   <div class="col pl-0" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="true" :aria-controls="'collapse_'+index">
@@ -2947,6 +2964,11 @@
             return `${y}-${m}-${day}`;
           })()
         },
+        // 任务列表：类型筛选状态
+        tasklist: {
+          selectedType: (localStorage.getItem('tasklist_selected_type') || 'all'),
+          contentTypes: []
+        },
         // 日历页面resize监听器
         calendarResizeHandler: null,
         // 日历自动检测更新相关
@@ -3658,6 +3680,22 @@
         // 获取管理视图卡片展示用：总集数（直接来自任务元数据）
         getTaskTotalCount(task) {
           try { return Number((task && task.season_counts && task.season_counts.total_count) || 0); } catch (e) { return 0; }
+        },
+        // —— 任务列表：类型筛选 ——
+        selectTasklistType(type) {
+          this.tasklist.selectedType = type;
+          try { localStorage.setItem('tasklist_selected_type', type); } catch (e) {}
+        },
+        tasklistFilterByType(task) {
+          try {
+            if (!task) return true;
+            if (!this.tasklist || !this.tasklist.selectedType || this.tasklist.selectedType === 'all') return true;
+            const name = task.taskname || task.task_name || '';
+            let contentType = '';
+            const t = (this.calendar.tasks || []).find(x => (x.task_name || x.taskname) === name);
+            contentType = (t && t.content_type) || 'other';
+            return contentType === this.tasklist.selectedType;
+          } catch (e) { return true; }
         },
         // 计算转存进度（已转存/已播出 的百分比，取整），优先使用实时映射
         getTransferProgress(task) {
@@ -6005,14 +6043,36 @@
                         if (key) this.calendar.taskMapByName[key] = t;
                       });
                     } catch (e) {}
+                    // 同步任务列表可用类型集合（复用日历的类型热更新逻辑）
+                    try {
+                      const rawTypes = (res.data.data && res.data.data.content_types) || [];
+                      // 与日历相同的排序：tv、anime、variety、documentary、other（其他最后）
+                      const known = ['tv','anime','variety','documentary'];
+                      const uniq = Array.from(new Set(rawTypes.filter(Boolean)));
+                      const ordered = uniq.sort((a,b) => {
+                        const ia = known.indexOf(a); const ib = known.indexOf(b);
+                        if (ia === -1 && ib === -1) return 0;
+                        if (ia === -1) return 1;
+                        if (ib === -1) return -1;
+                        return ia - ib;
+                      });
+                      this.tasklist.contentTypes = ordered;
+                      // 校验已选项有效性
+                      const validSet = ['all', ...ordered];
+                      if (!validSet.includes(this.tasklist.selectedType)) {
+                        this.tasklist.selectedType = 'all';
+                      }
+                    } catch (e) { this.tasklist.contentTypes = []; }
                   } else {
                     this.calendar.tasks = [];
                     this.calendar.taskMapByName = {};
+                    this.tasklist.contentTypes = [];
                   }
                 })
                 .catch(() => {
                   this.calendar.tasks = [];
                   this.calendar.taskMapByName = {};
+                  this.tasklist.contentTypes = [];
                 });
               // 确保source配置存在
               if (!config_data.source) {

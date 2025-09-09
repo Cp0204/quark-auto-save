@@ -7740,3 +7740,9 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   text-decoration: none;
   color: inherit;
 }
+
+/* 任务列表：类型筛选按钮与上方名称筛选区域的间距 */
+.tasklist-type-filter {
+  margin-top: 8px;
+  margin-bottom: 20px;
+}
