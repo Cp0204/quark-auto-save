@@ -15,6 +15,8 @@ from flask import (
 )
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
+from queue import Queue
 from sdk.cloudsaver import CloudSaver
 try:
     from sdk.pansou import PanSou
@@ -46,6 +48,172 @@ from quark_auto_save import extract_episode_number, sort_file_by_name, chinese_t
 
 # 导入豆瓣服务
 from sdk.douban_service import douban_service
+
+# 导入追剧日历相关模块
+from utils.task_extractor import TaskExtractor
+from sdk.tmdb_service import TMDBService
+from sdk.db import CalendarDB
+def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
+    """为任务列表注入日历相关元数据：节目状态、最新季处理后名称、已转存/已播出/本季总集数。
+    返回新的任务字典列表，增加以下字段：
+    - matched_status: 节目状态（如 播出中 等）
+    - latest_season_name: 最新季名称（处理后）
+    - season_counts: { transferred_count, aired_count, total_count }
+    """
+    try:
+        if not tasks_info:
+            return tasks_info
+        db = CalendarDB()
+        # 预取 shows 与 seasons 数据
+        cur = db.conn.cursor()
+        cur.execute('SELECT tmdb_id, status, latest_season_number FROM shows')
+        rows = cur.fetchall() or []
+        show_meta = {int(r[0]): {'status': r[1], 'latest_season_number': int(r[2])} for r in rows}
+
+        cur.execute('SELECT tmdb_id, season_number, season_name, episode_count FROM seasons')
+        rows = cur.fetchall() or []
+        season_meta = {}
+        for tid, sn, sname, ecount in rows:
+            season_meta[(int(tid), int(sn))] = {'season_name': sname or '', 'episode_count': int(ecount or 0)}
+
+        # 统计“已转存集数”：基于转存记录最新进度构建映射（按任务名）
+        transferred_by_task = {}
+        try:
+            rdb = RecordDB()
+            cursor = rdb.conn.cursor()
+            cursor.execute(
+                """
+                SELECT task_name, MAX(transfer_time) as latest_transfer_time
+                FROM transfer_records
+                WHERE task_name NOT IN ('rename', 'undo_rename')
+                GROUP BY task_name
+                """
+            )
+            latest_times = cursor.fetchall() or []
+            extractor = TaskExtractor()
+            for task_name, latest_time in latest_times:
+                if latest_time:
+                    cursor.execute(
+                        """
+                        SELECT renamed_to, original_name, transfer_time, modify_date
+                        FROM transfer_records
+                        WHERE task_name = ? AND transfer_time >= ? AND transfer_time <= ?
+                        ORDER BY id DESC
+                        """,
+                        (task_name, latest_time - 60000, latest_time + 60000)
+                    )
+                    files = cursor.fetchall() or []
+                    best = files[0][0] if files else ''
+                    if len(files) > 1:
+                        file_list = [{'file_name': f[0], 'original_name': f[1], 'updated_at': f[2]} for f in files]
+                        try:
+                            best = sorted(file_list, key=sort_file_by_name)[-1]['file_name']
+                        except Exception:
+                            best = files[0][0]
+                    if best:
+                        name_wo_ext = os.path.splitext(best)[0]
+                        processed = process_season_episode_info(name_wo_ext, task_name)
+                        parsed = extractor.extract_progress_from_latest_file(processed)
+                        if parsed and parsed.get('episode_number'):
+                            transferred_by_task[task_name] = int(parsed['episode_number'])
+            rdb.close()
+        except Exception:
+            transferred_by_task = {}
+
+        # 统计“已播出集数”：读取本地 episodes 表中有 air_date 且 <= 今天的集数
+        from datetime import datetime as _dt
+        today = _dt.now().strftime('%Y-%m-%d')
+        aired_by_show_season = {}
+        try:
+            cur.execute(
+                """
+                SELECT tmdb_id, season_number, COUNT(1) FROM episodes
+                WHERE air_date IS NOT NULL AND air_date != '' AND air_date <= ?
+                GROUP BY tmdb_id, season_number
+                """,
+                (today,)
+            )
+            for tid, sn, cnt in (cur.fetchall() or []):
+                aired_by_show_season[(int(tid), int(sn))] = int(cnt or 0)
+        except Exception:
+            aired_by_show_season = {}
+
+        # 注入到任务
+        enriched = []
+        for t in tasks_info:
+            tmdb_id = t.get('match_tmdb_id') or ((t.get('calendar_info') or {}).get('match') or {}).get('tmdb_id')
+            task_name = t.get('task_name') or t.get('taskname') or ''
+            status = ''
+            latest_sn = None
+            latest_season_name = ''
+            total_count = None
+            transferred_count = None
+            aired_count = None
+
+            try:
+                if tmdb_id and int(tmdb_id) in show_meta:
+                    meta = show_meta[int(tmdb_id)]
+                    status = meta.get('status') or ''
+                    latest_sn = int(meta.get('latest_season_number') or 0)
+                    sm = season_meta.get((int(tmdb_id), latest_sn)) or {}
+                    latest_season_name = sm.get('season_name') or ''
+                    total_count = sm.get('episode_count')
+                    aired_count = aired_by_show_season.get((int(tmdb_id), latest_sn))
+            except Exception:
+                pass
+
+            if task_name in transferred_by_task:
+                transferred_count = transferred_by_task[task_name]
+
+            # 将状态本地化：returning_series 用本地已播/总集数判断；其余通过 TMDBService 的单表映射
+            try:
+                raw = (status or '').strip()
+                key = raw.lower().replace(' ', '_')
+                if key == 'returning_series':
+                    # 新规则：存在 finale 类型 且 已播出集数 ≥ 本季总集数 => 本季终；否则 播出中
+                    has_finale = False
+                    try:
+                        if tmdb_id and latest_sn:
+                            cur.execute(
+                                """
+                                SELECT 1 FROM episodes
+                                WHERE tmdb_id=? AND season_number=? AND LOWER(COALESCE(type, '')) LIKE '%finale%'
+                                LIMIT 1
+                                """,
+                                (int(tmdb_id), int(latest_sn))
+                            )
+                            has_finale = cur.fetchone() is not None
+                    except Exception:
+                        has_finale = False
+
+                    try:
+                        aired = int(aired_count or 0)
+                        total = int(total_count or 0)
+                    except Exception:
+                        aired, total = 0, 0
+
+                    status = '本季终' if (has_finale and total > 0 and aired >= total) else '播出中'
+                else:
+                    try:
+                        # 仅用到静态映射，不触发网络请求
+                        _svc = TMDBService(config_data.get('tmdb_api_key', ''))
+                        status = _svc.map_show_status_cn(raw)
+                    except Exception:
+                        status = raw
+            except Exception:
+                pass
+
+            t['matched_status'] = status
+            t['latest_season_name'] = latest_season_name
+            t['season_counts'] = {
+                'transferred_count': transferred_count or 0,
+                'aired_count': aired_count or 0,
+                'total_count': total_count or 0,
+            }
+            enriched.append(t)
+        return enriched
+    except Exception:
+        return tasks_info
 
 def advanced_filter_files(file_list, filterwords):
     """
@@ -391,6 +559,78 @@ logging.basicConfig(
 if not DEBUG:
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
+# 统一所有已有处理器（包括 werkzeug、apscheduler）的日志格式
+_root_logger = logging.getLogger()
+_standard_formatter = logging.Formatter(
+    fmt="[%(asctime)s][%(levelname)s] %(message)s",
+    datefmt="%m-%d %H:%M:%S",
+)
+for _handler in list(_root_logger.handlers):
+    try:
+        _handler.setFormatter(_standard_formatter)
+    except Exception:
+        pass
+
+for _name in ("werkzeug", "apscheduler", "gunicorn.error", "gunicorn.access"):
+    _logger = logging.getLogger(_name)
+    for _handler in list(_logger.handlers):
+        try:
+            _handler.setFormatter(_standard_formatter)
+        except Exception:
+            pass
+
+
+# 缓存目录：放在 /app/config/cache 下，用户无需新增映射
+CACHE_DIR = os.path.abspath(os.path.join(app.root_path, '..', 'config', 'cache'))
+CACHE_IMAGES_DIR = os.path.join(CACHE_DIR, 'images')
+os.makedirs(CACHE_IMAGES_DIR, exist_ok=True)
+
+
+# --------- 追剧日历：SSE 事件中心，用于实时通知前端 DB 变化 ---------
+calendar_subscribers = set()
+
+def notify_calendar_changed(reason: str = ""):
+    try:
+        for q in list(calendar_subscribers):
+            try:
+                q.put_nowait({'type': 'calendar_changed', 'reason': reason})
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+@app.route('/api/calendar/stream')
+def calendar_stream():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+
+    def event_stream():
+        q = Queue()
+        calendar_subscribers.add(q)
+        try:
+            # 连接建立后立即发一条心跳，便于前端立刻触发一次检查
+            yield f"event: ping\n" f"data: connected\n\n"
+            import time as _t
+            last_heartbeat = _t.time()
+            while True:
+                try:
+                    item = q.get(timeout=15)
+                    yield f"event: calendar_changed\n" f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
+                except Exception:
+                    # 心跳
+                    now = _t.time()
+                    if now - last_heartbeat >= 15:
+                        last_heartbeat = now
+                        yield f"event: ping\n" f"data: keepalive\n\n"
+        except GeneratorExit:
+            pass
+        finally:
+            try:
+                calendar_subscribers.discard(q)
+            except Exception:
+                pass
+
+    return Response(stream_with_context(event_stream()), content_type='text/event-stream;charset=utf-8')
 
 def gen_md5(string):
     md5 = hashlib.md5()
@@ -410,9 +650,11 @@ def is_login():
         return True
     else:
         return False
+DEFAULT_REFRESH_SECONDS = 21600
 
 
-# 设置icon
+
+# 设置icon 及缓存静态映射
 @app.route("/favicon.ico")
 def favicon():
     return send_from_directory(
@@ -420,6 +662,11 @@ def favicon():
         "favicon.ico",
         mimetype="image/vnd.microsoft.icon",
     )
+
+# 将 /cache/images/* 映射到宿主缓存目录，供前端访问
+@app.route('/cache/images/<path:filename>')
+def serve_cache_images(filename):
+    return send_from_directory(CACHE_IMAGES_DIR, filename)
 
 
 # 登录页面
@@ -469,12 +716,22 @@ def index():
     )
 
 
+# 已移除图片代理逻辑（测试版不再需要跨域代理）
+
+
 # 获取配置数据
 @app.route("/data")
 def get_data():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
     data = Config.read_json(CONFIG_PATH)
+    # 确保有秒级刷新默认值（不做迁移逻辑）
+    perf = data.get('performance') if isinstance(data, dict) else None
+    if not isinstance(perf, dict):
+        data['performance'] = {'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS}
+    else:
+        if 'calendar_refresh_interval_seconds' not in perf:
+            data['performance']['calendar_refresh_interval_seconds'] = DEFAULT_REFRESH_SECONDS
 
     # 处理插件配置中的多账号支持字段，将数组格式转换为逗号分隔的字符串用于显示
     if "plugins" in data:
@@ -518,6 +775,10 @@ def get_data():
     # 初始化推送通知类型配置（如果不存在）
     if "push_notify_type" not in data:
         data["push_notify_type"] = "full"
+
+    # 初始化TMDB配置（如果不存在）
+    if "tmdb_api_key" not in data:
+        data["tmdb_api_key"] = ""
 
     # 初始化搜索来源默认结构
     if "source" not in data or not isinstance(data.get("source"), dict):
@@ -627,6 +888,17 @@ def update():
     global config_data
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
+    # 保存前先记录旧任务名与其 tmdb 绑定，用于自动清理
+    old_tasks = config_data.get("tasklist", [])
+    old_task_map = {}
+    for t in old_tasks:
+        name = t.get("taskname") or t.get("task_name") or ""
+        cal = (t.get("calendar_info") or {})
+        match = (cal.get("match") or {})
+        if name:
+            old_task_map[name] = {
+                "tmdb_id": match.get("tmdb_id") or cal.get("tmdb_id")
+            }
     dont_save_keys = ["task_plugins_config_default", "api_token"]
     for key, value in request.json.items():
         if key not in dont_save_keys:
@@ -647,17 +919,114 @@ def update():
                     )
 
                 config_data.update({key: value})
+            elif key == "tmdb_api_key":
+                # 更新TMDB API密钥
+                config_data[key] = value
             else:
                 config_data.update({key: value})
     
     # 同步更新任务的插件配置
     sync_task_plugins_config()
     
+    # 保存配置的执行步骤，异步执行
+    try:
+        prev_tmdb = (config_data.get('tmdb_api_key') or '').strip()
+        new_tmdb = None
+        for key, value in request.json.items():
+            if key == 'tmdb_api_key':
+                new_tmdb = (value or '').strip()
+                break
+    except Exception:
+        prev_tmdb, new_tmdb = '', None
+
+    import threading
+    def _post_update_tasks(old_task_map_snapshot, prev_tmdb_value, new_tmdb_value):
+        # 在保存配置时自动进行任务信息提取与TMDB匹配（若缺失则补齐）
+        try:
+            changed = ensure_calendar_info_for_tasks()
+        except Exception as e:
+            logging.warning(f"ensure_calendar_info_for_tasks 发生异常: {e}")
+
+        # 在清理逻辑之前，先同步数据库绑定关系到任务配置
+        try:
+            sync_task_config_with_database_bindings()
+        except Exception as e:
+            logging.warning(f"同步任务配置失败: {e}")
+        
+        # 同步内容类型数据
+        try:
+            sync_content_type_between_config_and_database()
+        except Exception as e:
+            logging.warning(f"同步内容类型失败: {e}")
+
+        # 基于任务变更进行自动清理：删除的任务、或 tmdb 绑定变更的旧绑定
+        try:
+            current_tasks = config_data.get('tasklist', [])
+            current_map = {}
+            for t in current_tasks:
+                name = t.get('taskname') or t.get('task_name') or ''
+                cal = (t.get('calendar_info') or {})
+                match = (cal.get('match') or {})
+                if name:
+                    current_map[name] = {
+                        'tmdb_id': match.get('tmdb_id') or cal.get('tmdb_id')
+                    }
+            # 被删除的任务
+            for name, info in (old_task_map_snapshot or {}).items():
+                if name not in current_map:
+                    tid = info.get('tmdb_id')
+                    if tid:
+                        purge_calendar_by_tmdb_id_internal(int(tid))
+            # 绑定变更：旧与新 tmdb_id 不同，清理旧的
+            for name, info in (old_task_map_snapshot or {}).items():
+                if name in current_map:
+                    old_tid = info.get('tmdb_id')
+                    new_tid = current_map[name].get('tmdb_id')
+                    if old_tid and old_tid != new_tid:
+                        purge_calendar_by_tmdb_id_internal(int(old_tid))
+        except Exception as e:
+            logging.warning(f"自动清理本地日历缓存失败: {e}")
+
+
+        # 根据最新性能配置重启自动刷新任务
+        try:
+            restart_calendar_refresh_job()
+        except Exception as e:
+            logging.warning(f"重启追剧日历自动刷新任务失败: {e}")
+
+        # 如果 TMDB API 从无到有，自动执行一次 bootstrap
+        try:
+            if (prev_tmdb_value == '' or prev_tmdb_value is None) and new_tmdb_value and new_tmdb_value != '':
+                success, msg = do_calendar_bootstrap()
+                logging.info(f"首次配置 TMDB API，自动初始化: {success}, {msg}")
+            else:
+                # 若此次更新产生了新的匹配绑定，也执行一次轻量初始化，确保前端能立刻读到本地数据
+                try:
+                    if 'changed' in locals() and changed:
+                        ok, m = do_calendar_bootstrap()
+                        logging.info(f"配置更新触发日历初始化: {ok}, {m}")
+                except Exception as _e:
+                    logging.warning(f"配置更新触发日历初始化失败: {_e}")
+        except Exception as e:
+            logging.warning(f"自动初始化 bootstrap 失败: {e}")
+
+    threading.Thread(target=_post_update_tasks, args=(old_task_map, prev_tmdb, new_tmdb), daemon=True).start()
+    
+    # 确保性能配置包含秒级字段
+    if not isinstance(config_data.get('performance'), dict):
+        config_data['performance'] = {'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS}
+    else:
+        config_data['performance'].setdefault('calendar_refresh_interval_seconds', DEFAULT_REFRESH_SECONDS)
     Config.write_json(CONFIG_PATH, config_data)
     # 更新session token，确保当前会话在用户名密码更改后仍然有效
     session["token"] = get_login_token()
     # 重新加载任务
     if reload_tasks():
+        # 通知前端任务数据已更新，触发内容管理页面热更新
+        try:
+            notify_calendar_changed('task_updated')
+        except Exception:
+            pass
         logging.info(f">>> 配置更新成功")
         return jsonify({"success": True, "message": "配置更新成功"})
     else:
@@ -708,6 +1077,342 @@ def run_script_now():
         stream_with_context(generate_output()),
         content_type="text/event-stream;charset=utf-8",
     )
+
+
+# -------------------- 追剧日历：任务提取与匹配辅助 --------------------
+def purge_calendar_by_tmdb_id_internal(tmdb_id: int, force: bool = False) -> bool:
+    """内部工具：按 tmdb_id 清理 shows/seasons/episodes，并尝试删除本地海报文件
+    :param force: True 时无视是否仍被其他任务引用，强制删除
+    """
+    try:
+        # 若仍有其他任务引用同一 tmdb_id，则（默认）跳过删除以避免误删共享资源；带 force 则继续
+        if not force:
+            try:
+                tasks = config_data.get('tasklist', [])
+                for t in tasks:
+                    cal = (t.get('calendar_info') or {})
+                    match = (cal.get('match') or {})
+                    bound = match.get('tmdb_id') or cal.get('tmdb_id')
+                    if bound and int(bound) == int(tmdb_id):
+                        logging.info(f"跳过清理 tmdb_id={tmdb_id}（仍被其他任务引用）")
+                        return True
+            except Exception:
+                pass
+        db = CalendarDB()
+        # 删除数据库前，尝试删除本地海报文件
+        try:
+            show = db.get_show(int(tmdb_id))
+            poster_rel = (show or {}).get('poster_local_path') or ''
+            if poster_rel and poster_rel.startswith('/cache/images/'):
+                fname = poster_rel.replace('/cache/images/', '')
+                fpath = os.path.join(CACHE_IMAGES_DIR, fname)
+                if os.path.exists(fpath):
+                    os.remove(fpath)
+        except Exception as e:
+            logging.warning(f"删除海报文件失败: {e}")
+        db.delete_show(int(tmdb_id))
+        return True
+    except Exception as e:
+        logging.warning(f"内部清理失败 tmdb_id={tmdb_id}: {e}")
+        return False
+
+
+def purge_orphan_calendar_shows_internal() -> int:
+    """删除未被任何任务引用的 shows（连带 seasons/episodes 与海报），返回清理数量"""
+    try:
+        tasks = config_data.get('tasklist', [])
+        referenced = set()
+        for t in tasks:
+            cal = (t.get('calendar_info') or {})
+            match = (cal.get('match') or {})
+            tid = match.get('tmdb_id') or cal.get('tmdb_id')
+            if tid:
+                try: referenced.add(int(tid))
+                except Exception: pass
+        db = CalendarDB()
+        cur = db.conn.cursor()
+        try:
+            cur.execute('SELECT tmdb_id FROM shows')
+            ids = [int(r[0]) for r in cur.fetchall()]
+        except Exception:
+            ids = []
+        removed = 0
+        for tid in ids:
+            if tid not in referenced:
+                if purge_calendar_by_tmdb_id_internal(int(tid), force=True):
+                    removed += 1
+        return removed
+    except Exception:
+        return 0
+def sync_content_type_between_config_and_database() -> bool:
+    """同步任务配置和数据库之间的内容类型数据。
+    确保两个数据源的 content_type 保持一致。
+    """
+    try:
+        from app.sdk.db import CalendarDB
+        cal_db = CalendarDB()
+        
+        tasks = config_data.get('tasklist', [])
+        changed = False
+        synced_count = 0
+        
+        for task in tasks:
+            task_name = task.get('taskname') or task.get('task_name') or ''
+            if not task_name:
+                continue
+                
+            # 获取任务配置中的内容类型
+            cal = task.get('calendar_info') or {}
+            extracted = cal.get('extracted') or {}
+            config_content_type = extracted.get('content_type', '')
+            
+            # 通过任务名称查找绑定的节目
+            bound_show = cal_db.get_show_by_task_name(task_name)
+            
+            if bound_show:
+                # 任务已绑定到数据库中的节目
+                tmdb_id = bound_show['tmdb_id']
+                db_content_type = bound_show.get('content_type', '')
+                
+                # 如果数据库中没有内容类型，但任务配置中有，则同步到数据库
+                if not db_content_type and config_content_type:
+                    cal_db.update_show_content_type(tmdb_id, config_content_type)
+                    changed = True
+                    synced_count += 1
+                    logging.debug(f"同步内容类型到数据库 - 任务: '{task_name}', 类型: '{config_content_type}', tmdb_id: {tmdb_id}")
+                
+                # 若两边不一致：以任务配置优先，同步到数据库
+                elif db_content_type and config_content_type and db_content_type != config_content_type:
+                    cal_db.update_show_content_type(tmdb_id, config_content_type)
+                    changed = True
+                    synced_count += 1
+                    logging.debug(f"覆盖数据库内容类型为任务配置值 - 任务: '{task_name}', 配置: '{config_content_type}', 原DB: '{db_content_type}', tmdb_id: {tmdb_id}")
+                # 如果数据库有类型但任务配置没有，则回填到配置
+                elif db_content_type and not config_content_type:
+                    if 'calendar_info' not in task:
+                        task['calendar_info'] = {}
+                    if 'extracted' not in task['calendar_info']:
+                        task['calendar_info']['extracted'] = {}
+                    task['calendar_info']['extracted']['content_type'] = db_content_type
+                    changed = True
+                    synced_count += 1
+                    logging.debug(f"同步内容类型到任务配置 - 任务: '{task_name}', 类型: '{db_content_type}', tmdb_id: {tmdb_id}")
+            else:
+                # 任务没有绑定到数据库中的节目，但任务配置中有内容类型
+                # 这种情况需要先通过 TMDB 匹配建立绑定关系，然后同步内容类型
+                if config_content_type:
+                    # 检查任务是否有 TMDB 匹配信息
+                    match = cal.get('match') or {}
+                    tmdb_id = match.get('tmdb_id')
+                    
+                    if tmdb_id:
+                        # 任务有 TMDB 匹配信息，检查数据库中是否有对应的节目
+                        show = cal_db.get_show(tmdb_id)
+                        if show:
+                            # 节目存在，建立绑定关系并设置内容类型
+                            cal_db.bind_task_to_show(tmdb_id, task_name)
+                            cal_db.update_show_content_type(tmdb_id, config_content_type)
+                            changed = True
+                            synced_count += 1
+                            logging.debug(f"建立绑定关系并同步内容类型 - 任务: '{task_name}', 类型: '{config_content_type}', tmdb_id: {tmdb_id}")
+                        else:
+                            logging.debug(f"任务有 TMDB 匹配信息但数据库中无对应节目 - 任务: '{task_name}', tmdb_id: {tmdb_id}")
+                    else:
+                        logging.debug(f"任务无 TMDB 匹配信息，无法建立绑定关系 - 任务: '{task_name}'")
+        
+        if changed:
+            logging.debug(f"内容类型同步完成，共同步了 {synced_count} 个任务")
+            Config.write_json(CONFIG_PATH, config_data)
+            
+        return changed
+        
+    except Exception as e:
+        logging.debug(f"内容类型同步失败: {e}")
+        return False
+
+def sync_task_config_with_database_bindings() -> bool:
+    """双向同步任务配置和数据库之间的 TMDB 匹配信息。
+    确保两个数据源的 TMDB 绑定关系保持一致。
+    """
+    try:
+        from app.sdk.db import CalendarDB
+        cal_db = CalendarDB()
+        
+        tasks = config_data.get('tasklist', [])
+        changed = False
+        synced_count = 0
+        
+        for task in tasks:
+            task_name = task.get('taskname') or task.get('task_name') or ''
+            if not task_name:
+                continue
+                
+            # 获取任务配置中的 TMDB 匹配信息
+            cal = task.get('calendar_info') or {}
+            match = cal.get('match') or {}
+            config_tmdb_id = match.get('tmdb_id')
+            
+            # 通过任务名称查找数据库中的绑定关系
+            bound_show = cal_db.get_show_by_task_name(task_name)
+            db_tmdb_id = bound_show['tmdb_id'] if bound_show else None
+            
+            # 双向同步逻辑
+            if config_tmdb_id and not db_tmdb_id:
+                # 任务配置中有 TMDB ID，但数据库中没有绑定关系 → 同步到数据库
+                # 首先检查该 TMDB ID 对应的节目是否存在
+                show = cal_db.get_show(config_tmdb_id)
+                if show:
+                    # 节目存在，建立绑定关系
+                    cal_db.bind_task_to_show(config_tmdb_id, task_name)
+                    changed = True
+                    synced_count += 1
+                    logging.debug(f"同步绑定关系到数据库 - 任务: '{task_name}', tmdb_id: {config_tmdb_id}, 节目: '{show.get('name', '')}'")
+                else:
+                    logging.debug(f"任务配置中的 TMDB ID 在数据库中不存在 - 任务: '{task_name}', tmdb_id: {config_tmdb_id}")
+                    
+            elif db_tmdb_id and not config_tmdb_id:
+                # 数据库中有绑定关系，但任务配置中没有 TMDB ID → 同步到任务配置
+                show = cal_db.get_show(db_tmdb_id)
+                if show:
+                    # 确保 calendar_info 结构存在
+                    if 'calendar_info' not in task:
+                        task['calendar_info'] = {}
+                    if 'match' not in task['calendar_info']:
+                        task['calendar_info']['match'] = {}
+                    
+                    # 同步数据库信息到任务配置
+                    latest_season_number = show.get('latest_season_number', 1)  # 使用数据库中的实际季数
+                    task['calendar_info']['match'].update({
+                        'tmdb_id': db_tmdb_id,
+                        'matched_show_name': show.get('name', ''),
+                        'matched_year': show.get('year', ''),
+                        'latest_season_fetch_url': f"/tv/{db_tmdb_id}/season/{latest_season_number}",
+                        'latest_season_number': latest_season_number
+                    })
+                    
+                    changed = True
+                    synced_count += 1
+                    logging.debug(f"同步 TMDB 匹配信息到任务配置 - 任务: '{task_name}', tmdb_id: {db_tmdb_id}, 节目: '{show.get('name', '')}'")
+                    
+            elif config_tmdb_id and db_tmdb_id and config_tmdb_id != db_tmdb_id:
+                # 两个数据源都有 TMDB ID，但不一致 → 以数据库为准（因为数据库是权威数据源）
+                show = cal_db.get_show(db_tmdb_id)
+                if show:
+                    # 确保 calendar_info 结构存在
+                    if 'calendar_info' not in task:
+                        task['calendar_info'] = {}
+                    if 'match' not in task['calendar_info']:
+                        task['calendar_info']['match'] = {}
+                    
+                    # 以数据库为准，更新任务配置
+                    latest_season_number = show.get('latest_season_number', 1)  # 使用数据库中的实际季数
+                    task['calendar_info']['match'].update({
+                        'tmdb_id': db_tmdb_id,
+                        'matched_show_name': show.get('name', ''),
+                        'matched_year': show.get('year', ''),
+                        'latest_season_fetch_url': f"/tv/{db_tmdb_id}/season/{latest_season_number}",
+                        'latest_season_number': latest_season_number
+                    })
+                    
+                    changed = True
+                    synced_count += 1
+                    logging.debug(f"统一 TMDB 匹配信息（以数据库为准） - 任务: '{task_name}', 原配置: {config_tmdb_id}, 数据库: {db_tmdb_id}, 节目: '{show.get('name', '')}'")
+        
+        if changed:
+            logging.debug(f"TMDB 匹配信息双向同步完成，共同步了 {synced_count} 个任务")
+            Config.write_json(CONFIG_PATH, config_data)
+            
+        return changed
+        
+    except Exception as e:
+        logging.debug(f"TMDB 匹配信息同步失败: {e}")
+        return False
+
+def ensure_calendar_info_for_tasks() -> bool:
+    """为所有任务确保存在 calendar_info.extracted 与 calendar_info.match 信息。
+    - extracted: 从任务保存路径/名称提取的剧名、年份、类型（只在缺失时提取）
+    - match: 使用 TMDB 进行匹配（只在缺失时匹配）
+    """
+    tasks = config_data.get('tasklist', [])
+    if not tasks:
+        return
+
+    extractor = TaskExtractor()
+    tmdb_api_key = config_data.get('tmdb_api_key', '')
+    tmdb_service = TMDBService(tmdb_api_key) if tmdb_api_key else None
+
+    changed = False
+    # 简单去重缓存，避免同一名称/年份重复请求 TMDB
+    search_cache = {}
+    details_cache = {}
+    for task in tasks:
+        # 跳过标记为无需参与日历匹配的任务
+        if task.get('skip_calendar') is True:
+            continue
+        task_name = task.get('taskname') or task.get('task_name') or ''
+        save_path = task.get('savepath', '')
+
+        cal = task.get('calendar_info') or {}
+        extracted = cal.get('extracted') or {}
+
+        # 提取 extracted（仅在缺失时）
+        need_extract = not extracted or not extracted.get('show_name')
+        if need_extract:
+            info = extractor.extract_show_info_from_path(save_path)
+            extracted = {
+                'show_name': info.get('show_name', ''),
+                'year': info.get('year', ''),
+                'content_type': info.get('type', 'other'),
+            }
+            cal['extracted'] = extracted
+            changed = True
+
+        # 匹配 TMDB（仅在缺失时）
+        match = cal.get('match') or {}
+        if tmdb_service and not match.get('tmdb_id') and extracted.get('show_name'):
+            try:
+                key = (extracted.get('show_name') or '', extracted.get('year') or '')
+                if key in search_cache:
+                    search = search_cache[key]
+                else:
+                    search = tmdb_service.search_tv_show(extracted.get('show_name'), extracted.get('year') or None)
+                    search_cache[key] = search
+                if search and search.get('id'):
+                    tmdb_id = search['id']
+                    if tmdb_id in details_cache:
+                        details = details_cache[tmdb_id]
+                    else:
+                        details = tmdb_service.get_tv_show_details(tmdb_id) or {}
+                        details_cache[tmdb_id] = details
+                    seasons = details.get('seasons', [])
+                    latest_season_number = 0
+                    for s in seasons:
+                        sn = s.get('season_number', 0)
+                        if sn and sn > latest_season_number:
+                            latest_season_number = sn
+                    if latest_season_number == 0 and seasons:
+                        latest_season_number = seasons[-1].get('season_number', 1)
+
+                    # 使用新的方法获取中文标题，支持从别名中获取中国地区的别名
+                    chinese_title = tmdb_service.get_chinese_title_with_fallback(tmdb_id, extracted.get('show_name', ''))
+                    
+                    cal['match'] = {
+                        'matched_show_name': chinese_title,
+                        'matched_year': (details.get('first_air_date') or '')[:4],
+                        'tmdb_id': tmdb_id,
+                        'latest_season_number': latest_season_number,
+                        'latest_season_fetch_url': f"/tv/{tmdb_id}/season/{latest_season_number}",
+                    }
+                    changed = True
+            except Exception as e:
+                logging.warning(f"TMDB 匹配失败: task={task_name}, err={e}")
+
+        if cal and task.get('calendar_info') != cal:
+            task['calendar_info'] = cal
+
+    if changed:
+        config_data['tasklist'] = tasks
+    return changed
 
 
 # 刷新Plex媒体库
@@ -1521,6 +2226,12 @@ def delete_file():
                 # 添加删除记录的信息到响应中
                 response["deleted_records"] = deleted_count
                 # logging.info(f">>> 删除文件 {fid} 同时删除了 {deleted_count} 条相关记录")
+                # 若存在记录删除，通知前端刷新（影响：最近转存、进度、今日更新等）
+                try:
+                    if deleted_count > 0:
+                        notify_calendar_changed('delete_records')
+                except Exception:
+                    pass
                 
             except Exception as e:
                 logging.error(f">>> 删除记录时出错: {str(e)}")
@@ -1894,7 +2605,14 @@ def delete_history_records():
     deleted_count = 0
     for record_id in record_ids:
         deleted_count += db.delete_record(record_id)
-    
+
+    # 广播通知：有记录被删除，触发前端刷新任务/日历
+    try:
+        if deleted_count > 0:
+            notify_calendar_changed('delete_records')
+    except Exception:
+        pass
+
     return jsonify({
         "success": True,
         "message": f"成功删除 {deleted_count} 条记录",
@@ -1990,6 +2708,31 @@ def get_task_latest_info():
                         processed_name = process_season_episode_info(file_name_without_ext, task_name)
                         task_latest_files[task_name] = processed_name
 
+        # 注入"追剧日历"层面的签名信息，便于前端在无新增转存文件时也能检测到新增/删除剧目
+        try:
+            caldb = CalendarDB()
+            cur = caldb.conn.cursor()
+            # shows 数量
+            try:
+                cur.execute('SELECT COUNT(*) FROM shows')
+                shows_count = cur.fetchone()[0] if cur.fetchone is not None else 0
+            except Exception:
+                shows_count = 0
+            # tmdb_id 列表（排序后拼接，变化即触发前端刷新）
+            tmdb_sig = ''
+            try:
+                cur.execute('SELECT tmdb_id FROM shows ORDER BY tmdb_id ASC')
+                ids = [str(r[0]) for r in cur.fetchall()]
+                tmdb_sig = ','.join(ids)
+            except Exception:
+                tmdb_sig = ''
+            # 写入到 latest_files，以复用前端现有签名计算逻辑
+            task_latest_files['__calendar_shows__'] = str(shows_count)
+            if tmdb_sig:
+                task_latest_files['__calendar_tmdb_ids__'] = tmdb_sig
+        except Exception:
+            pass
+
         db.close()
 
         return jsonify({
@@ -2006,6 +2749,79 @@ def get_task_latest_info():
             "message": f"获取任务最新信息失败: {str(e)}"
         })
 
+
+# 获取当日更新的剧集（本地DB，按 transfer_records 当天记录聚合）
+@app.route("/api/calendar/today_updates_local")
+def get_calendar_today_updates_local():
+    try:
+        # 计算今天 00:00:00 与 23:59:59 的时间戳（毫秒）范围
+        now = datetime.now()
+        start_of_day = datetime(now.year, now.month, now.day)
+        end_of_day = datetime(now.year, now.month, now.day, 23, 59, 59)
+        start_ms = int(start_of_day.timestamp() * 1000)
+        end_ms = int(end_of_day.timestamp() * 1000)
+
+        # 读取今日的转存记录
+        rdb = RecordDB()
+        cur = rdb.conn.cursor()
+        cur.execute(
+            """
+            SELECT task_name, renamed_to, original_name, transfer_time
+            FROM transfer_records
+            WHERE task_name NOT IN ('rename', 'undo_rename')
+              AND transfer_time >= ? AND transfer_time <= ?
+            ORDER BY id DESC
+            """,
+            (start_ms, end_ms)
+        )
+        rows = cur.fetchall() or []
+
+        # 建立 task_name -> (tmdb_id, show_name) 的映射，优先使用已绑定的 shows
+        tmdb_map = {}
+        try:
+            cal_db = CalendarDB()
+            # shows 表有 bound_task_names，逐条解析绑定
+            cur2 = cal_db.conn.cursor()
+            cur2.execute('SELECT tmdb_id, name, bound_task_names FROM shows')
+            for tmdb_id, name, bound in (cur2.fetchall() or []):
+                try:
+                    bound_list = []
+                    if bound:
+                        bound_list = [b.strip() for b in str(bound).split(',') if b and b.strip()]
+                    for tname in bound_list:
+                        if tname:
+                            tmdb_map[tname] = { 'tmdb_id': int(tmdb_id), 'show_name': name or '' }
+                except Exception:
+                    continue
+        except Exception:
+            tmdb_map = {}
+
+        # 提取剧集编号/日期
+        extractor = TaskExtractor()
+        items = []
+        for task_name, renamed_to, original_name, transfer_time in rows:
+            # 解析进度信息
+            base_name = os.path.splitext(renamed_to or '')[0]
+            parsed = extractor.extract_progress_from_latest_file(base_name)
+            season = parsed.get('season_number')
+            ep = parsed.get('episode_number')
+            air_date = parsed.get('air_date')
+            if not season and not ep and not air_date:
+                # 无法解析到有效信息则跳过
+                continue
+            bind = tmdb_map.get(task_name, {})
+            items.append({
+                'task_name': task_name or '',
+                'tmdb_id': bind.get('tmdb_id'),
+                'show_name': bind.get('show_name') or '',
+                'season_number': season,
+                'episode_number': ep,
+                'air_date': air_date
+            })
+
+        return jsonify({ 'success': True, 'data': { 'items': items } })
+    except Exception as e:
+        return jsonify({ 'success': False, 'message': f'读取当日更新失败: {str(e)}', 'data': { 'items': [] } })
 
 
 # 删除单条转存记录
@@ -2025,7 +2841,14 @@ def delete_history_record():
     
     # 删除记录
     deleted = db.delete_record(record_id)
-    
+
+    # 广播通知：有记录被删除，触发前端刷新任务/日历
+    try:
+        if deleted:
+            notify_calendar_changed('delete_records')
+    except Exception:
+        pass
+
     if deleted:
         return jsonify({
             "success": True, 
@@ -2699,6 +3522,1386 @@ def has_rename_record():
     return jsonify({"has_rename": has_rename})
 
 
+# 手动同步任务配置与数据库绑定关系
+@app.route("/api/calendar/sync_task_config", methods=["POST"])
+def sync_task_config_api():
+    """手动触发任务配置与数据库绑定关系的同步"""
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+    
+    try:
+        success = sync_task_config_with_database_bindings()
+        if success:
+            return jsonify({"success": True, "message": "同步完成"})
+        else:
+            return jsonify({"success": False, "message": "没有需要同步的数据"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"同步失败: {str(e)}"})
+
+# 手动同步内容类型数据
+@app.route("/api/calendar/sync_content_type", methods=["POST"])
+def sync_content_type_api():
+    """手动触发内容类型数据同步"""
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+    
+    try:
+        success = sync_content_type_between_config_and_database()
+        if success:
+            return jsonify({"success": True, "message": "内容类型同步完成"})
+        else:
+            return jsonify({"success": False, "message": "没有需要同步的内容类型数据"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"内容类型同步失败: {str(e)}"})
+
+# 追剧日历API路由
+@app.route("/api/calendar/tasks")
+def get_calendar_tasks():
+    """获取追剧日历任务信息"""
+    try:
+        logging.debug("进入get_calendar_tasks函数")
+        logging.debug(f"config_data类型: {type(config_data)}")
+        logging.debug(f"config_data内容: {config_data}")
+        
+        # 获取任务列表
+        tasks = config_data.get('tasklist', [])
+        
+        # 获取任务的最近转存文件信息
+        db = RecordDB()
+        cursor = db.conn.cursor()
+        
+        # 获取所有任务的最新转存时间
+        query = """
+        SELECT task_name, MAX(transfer_time) as latest_transfer_time
+        FROM transfer_records
+        WHERE task_name NOT IN ('rename', 'undo_rename')
+        GROUP BY task_name
+        """
+        cursor.execute(query)
+        latest_times = cursor.fetchall()
+        
+        task_latest_files = {}
+        
+        for task_name, latest_time in latest_times:
+            if latest_time:
+                # 获取该任务在最新转存时间附近的所有文件
+                time_window = 60000  # 60秒的时间窗口（毫秒）
+                query = """
+                SELECT renamed_to, original_name, transfer_time, modify_date
+                FROM transfer_records
+                WHERE task_name = ? AND transfer_time >= ? AND transfer_time <= ?
+                ORDER BY id DESC
+                """
+                cursor.execute(query, (task_name, latest_time - time_window, latest_time + time_window))
+                files = cursor.fetchall()
+                
+                if files:
+                    if len(files) == 1:
+                        best_file = files[0][0]  # renamed_to
+                    else:
+                        # 如果有多个文件，使用全局排序函数进行排序
+                        file_list = []
+                        for renamed_to, original_name, transfer_time, modify_date in files:
+                            file_info = {
+                                'file_name': renamed_to,
+                                'original_name': original_name,
+                                'updated_at': transfer_time
+                            }
+                            file_list.append(file_info)
+                        
+                        try:
+                            sorted_files = sorted(file_list, key=sort_file_by_name)
+                            best_file = sorted_files[-1]['file_name']
+                        except Exception:
+                            best_file = files[0][0]
+                    
+                    # 去除扩展名并处理季数集数信息
+                    if best_file:
+                        file_name_without_ext = os.path.splitext(best_file)[0]
+                        processed_name = process_season_episode_info(file_name_without_ext, task_name)
+                        task_latest_files[task_name] = processed_name
+        
+        db.close()
+        
+        # 提取任务信息
+        logging.debug("开始提取任务信息")
+        logging.debug(f"tasks数量: {len(tasks)}")
+        logging.debug(f"task_latest_files数量: {len(task_latest_files)}")
+        
+        try:
+            extractor = TaskExtractor()
+            logging.debug("TaskExtractor创建成功")
+            tasks_info = extractor.extract_all_tasks_info(tasks, task_latest_files)
+            logging.debug("extract_all_tasks_info调用成功")
+        except Exception as e:
+            logging.debug(f"TaskExtractor相关操作失败: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+        
+        logging.debug(f"提取的任务信息数量: {len(tasks_info)}")
+        if tasks_info:
+            logging.debug(f"第一个任务信息: {tasks_info[0]}")
+
+        # 首先同步数据库绑定关系到任务配置
+        sync_task_config_with_database_bindings()
+        
+        # 同步内容类型数据
+        sync_content_type_between_config_and_database()
+        
+        # 基于 tmdb 绑定补充"实际匹配结果"（show 名称/年份/本地海报）
+        try:
+            from app.sdk.db import CalendarDB
+            cal_db = CalendarDB()
+            enriched = []
+            # 先获取所有 shows 数据，用于按名称匹配
+            cursor = cal_db.conn.cursor()
+            cursor.execute('SELECT tmdb_id, name, year, poster_local_path, bound_task_names FROM shows')
+            all_shows = cursor.fetchall()
+            shows_by_name = {s[1]: {'tmdb_id': s[0], 'name': s[1], 'year': s[2], 'poster_local_path': s[3], 'bound_task_names': s[4]} for s in all_shows}
+            
+            for idx, t in enumerate(tasks_info):
+                # 1) 优先通过 calendar_info.match.tmdb_id 查找
+                raw = tasks[idx] if idx < len(tasks) else None
+                cal = (raw or {}).get('calendar_info') or {}
+                match = cal.get('match') or {}
+                tmdb_id = match.get('tmdb_id')
+                
+                task_name = t.get('task_name', '').strip()
+                matched_show = None
+                
+                # 优先通过任务的 TMDB 匹配结果查找节目
+                if tmdb_id:
+                    try:
+                        show = cal_db.get_show(int(tmdb_id)) or {}
+                        if show:
+                            matched_show = show
+                            logging.debug(f"通过任务 TMDB 匹配结果找到节目 - 任务: '{task_name}', tmdb_id: {tmdb_id}, 节目: '{show.get('name', '')}'")
+                    except Exception as e:
+                        logging.debug(f"通过任务 TMDB 匹配结果查找失败 - 任务: '{task_name}', tmdb_id: {tmdb_id}, 错误: {e}")
+                        pass
+                else:
+                    logging.debug(f"任务配置中无 TMDB 匹配结果，尝试通过已绑定关系查找 - 任务: '{task_name}'")
+                
+                # 2) 如果找到匹配的节目，检查是否需要建立绑定关系
+                if matched_show:
+                    # 检查任务是否已经绑定到该节目，避免重复绑定
+                    bound_tasks = cal_db.get_bound_tasks_for_show(matched_show['tmdb_id'])
+                    # 清理空格，确保比较准确
+                    bound_tasks_clean = [task.strip() for task in bound_tasks if task.strip()]
+                    needs_binding = task_name not in bound_tasks_clean
+                    
+                    logging.debug(f"检查绑定状态 - 任务: '{task_name}', 已绑定任务: {bound_tasks_clean}, 需要绑定: {needs_binding}")
+                    
+                    if needs_binding:
+                        # 建立任务与节目的绑定关系，同时设置内容类型
+                        task_content_type = t.get('content_type', '')
+                        cal_db.bind_task_and_content_type(matched_show['tmdb_id'], task_name, task_content_type)
+                        logging.debug(f"成功绑定任务到节目 - 任务: '{task_name}', 节目: '{matched_show['name']}', tmdb_id: {matched_show['tmdb_id']}")
+                    else:
+                        logging.debug(f"任务已绑定到节目，跳过重复绑定 - 任务: '{task_name}', 节目: '{matched_show['name']}', tmdb_id: {matched_show['tmdb_id']}")
+                    
+                    t['match_tmdb_id'] = matched_show['tmdb_id']
+                    t['matched_show_name'] = matched_show['name']
+                    t['matched_year'] = matched_show['year']
+                    t['matched_poster_local_path'] = matched_show['poster_local_path']
+                    # 提供最新季数用于前端展示
+                    try:
+                        t['matched_latest_season_number'] = matched_show.get('latest_season_number')
+                    except Exception:
+                        pass
+                    # 从数据库获取实际的内容类型（如果已设置）
+                    db_content_type = cal_db.get_show_content_type(matched_show['tmdb_id'])
+                    t['matched_content_type'] = db_content_type if db_content_type else t.get('content_type', '')
+                    # 优先保持任务配置中的类型；仅当任务未设置任何类型时，回退为数据库类型
+                    extracted_ct = ((t.get('calendar_info') or {}).get('extracted') or {}).get('content_type')
+                    config_ct = extracted_ct or t.get('content_type')
+                    if not (config_ct and str(config_ct).strip()):
+                        if t.get('matched_content_type'):
+                            t['content_type'] = t['matched_content_type']
+                else:
+                    # 如果任务配置中没有 TMDB 匹配结果，检查是否已通过其他方式绑定到节目
+                    # 通过任务名称在数据库中搜索已绑定的节目
+                    try:
+                        cursor.execute('SELECT tmdb_id, name, year, poster_local_path FROM shows WHERE bound_task_names LIKE ?', (f'%{task_name}%',))
+                        bound_show = cursor.fetchone()
+                        if bound_show:
+                            t['match_tmdb_id'] = bound_show[0]
+                            t['matched_show_name'] = bound_show[1]
+                            t['matched_year'] = bound_show[2]
+                            t['matched_poster_local_path'] = bound_show[3]
+                            # 查询完整信息以提供最新季数
+                            try:
+                                full_show = cal_db.get_show(int(bound_show[0]))
+                                if full_show and 'latest_season_number' in full_show:
+                                    t['matched_latest_season_number'] = full_show['latest_season_number']
+                            except Exception:
+                                pass
+                            # 从数据库获取实际的内容类型（如果已设置）
+                            db_content_type = cal_db.get_show_content_type(bound_show[0])
+                            t['matched_content_type'] = db_content_type if db_content_type else t.get('content_type', '')
+                            # 优先任务配置类型；仅在未配置类型时用数据库类型
+                            extracted_ct = ((t.get('calendar_info') or {}).get('extracted') or {}).get('content_type')
+                            config_ct = extracted_ct or t.get('content_type')
+                            if not (config_ct and str(config_ct).strip()):
+                                if t.get('matched_content_type'):
+                                    t['content_type'] = t['matched_content_type']
+                            
+                            logging.debug(f"通过已绑定关系找到节目 - 任务: '{task_name}', 节目: '{bound_show[1]}', tmdb_id: {bound_show[0]}")
+                        else:
+                            t['match_tmdb_id'] = None
+                            t['matched_show_name'] = ''
+                            t['matched_year'] = ''
+                            t['matched_poster_local_path'] = ''
+                            t['matched_content_type'] = t.get('content_type', '')
+                            
+                            logging.debug(f"任务未绑定到任何节目 - 任务: '{task_name}'")
+                    except Exception as e:
+                        logging.debug(f"搜索已绑定节目失败 - 任务: '{task_name}', 错误: {e}")
+                        t['match_tmdb_id'] = None
+                        t['matched_show_name'] = ''
+                        t['matched_year'] = ''
+                        t['matched_poster_local_path'] = ''
+                        t['matched_content_type'] = t.get('content_type', '')
+                enriched.append(t)
+            tasks_info = enriched
+        except Exception as _e:
+            # 若补充失败，不影响主流程
+            print(f"补充匹配结果失败: {_e}")
+            pass
+
+        return jsonify({
+            'success': True,
+            'data': {
+                # 返回全部任务（包括未匹配/未提取剧名的），用于内容管理页显示
+                'tasks': enrich_tasks_with_calendar_meta(tasks_info),
+                'content_types': extractor.get_content_types_with_content([t for t in tasks_info if t.get('show_name')])
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取追剧日历任务信息失败: {str(e)}',
+            'data': {'tasks': [], 'content_types': []}
+        })
+
+@app.route("/api/calendar/episodes")
+def get_calendar_episodes():
+    """获取指定日期范围的剧集播出信息"""
+    try:
+        
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        content_type = request.args.get('content_type', '')
+        show_name = request.args.get('show_name', '')
+        
+        if not start_date or not end_date:
+            return jsonify({
+                'success': False,
+                'message': '请提供开始和结束日期',
+                'data': {'episodes': []}
+            })
+        
+        # 获取TMDB配置
+        tmdb_api_key = config_data.get('tmdb_api_key', '')
+        if not tmdb_api_key:
+            return jsonify({
+                'success': False,
+                'message': 'TMDB API未配置',
+                'data': {'episodes': []}
+            })
+        
+        # 获取任务信息
+        tasks = config_data.get('tasklist', [])
+        extractor = TaskExtractor()
+        tasks_info = extractor.extract_all_tasks_info(tasks, {})
+        
+        # 过滤任务
+        if content_type:
+            tasks_info = [task for task in tasks_info if task['content_type'] == content_type]
+        if show_name:
+            tasks_info = [task for task in tasks_info if show_name.lower() in task['show_name'].lower()]
+        
+        # 获取剧集信息
+        tmdb_service = TMDBService(tmdb_api_key)
+        all_episodes = []
+        
+        for task_info in tasks_info:
+            if task_info['show_name'] and task_info['year']:
+                show_data = tmdb_service.search_and_get_episodes(
+                    task_info['show_name'], 
+                    task_info['year']
+                )
+                if show_data:
+                    # 获取剧集的海报信息
+                    show_poster_path = show_data['show_info'].get('poster_path', '')
+                    
+                    # 过滤日期范围内的剧集
+                    for episode in show_data['episodes']:
+                        # 确保episode有air_date字段
+                        if episode.get('air_date') and start_date <= episode['air_date'] <= end_date:
+                            episode['task_info'] = {
+                                'task_name': task_info['task_name'],
+                                'content_type': task_info['content_type'],
+                                'progress': task_info
+                            }
+                            # 添加海报路径信息
+                            episode['poster_path'] = show_poster_path
+                            all_episodes.append(episode)
+        
+        # 按播出日期排序
+        all_episodes.sort(key=lambda x: x.get('air_date', ''))
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'episodes': all_episodes,
+                'total': len(all_episodes)
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取剧集播出信息失败: {str(e)}',
+            'data': {'episodes': [], 'total': 0}
+        })
+
+
+# 初始化：为任务写入 shows/seasons，下载海报本地化
+def do_calendar_bootstrap() -> tuple:
+    """内部方法：执行日历初始化。返回 (success: bool, message: str)"""
+    try:
+        ensure_calendar_info_for_tasks()
+
+        tmdb_api_key = config_data.get('tmdb_api_key', '')
+        if not tmdb_api_key:
+            return False, 'TMDB API未配置'
+
+        tmdb_service = TMDBService(tmdb_api_key)
+        cal_db = CalendarDB()
+
+        tasks = config_data.get('tasklist', [])
+        any_written = False
+        for task in tasks:
+            cal = (task or {}).get('calendar_info') or {}
+            match = cal.get('match') or {}
+            extracted = cal.get('extracted') or {}
+            tmdb_id = match.get('tmdb_id')
+            if not tmdb_id:
+                continue
+
+            details = tmdb_service.get_tv_show_details(tmdb_id) or {}
+            # 使用新的方法获取中文标题，支持从别名中获取中国地区的别名
+            name = tmdb_service.get_chinese_title_with_fallback(tmdb_id, extracted.get('show_name', ''))
+            first_air = (details.get('first_air_date') or '')[:4]
+            # 将原始状态转换为本地化中文，且对 returning_series 场景做本季终/播出中判断
+            raw_status = (details.get('status') or '')
+            try:
+                localized_status = tmdb_service.get_localized_show_status(int(tmdb_id), int(match.get('latest_season_number') or 1), raw_status)
+                status = localized_status
+            except Exception:
+                status = raw_status
+            poster_path = details.get('poster_path') or ''
+            latest_season_number = match.get('latest_season_number') or 1
+
+            poster_local_path = ''
+            if poster_path:
+                poster_local_path = download_poster_local(poster_path)
+
+            # 获取现有的绑定关系和内容类型，避免被覆盖
+            existing_show = cal_db.get_show(int(tmdb_id))
+            existing_bound_tasks = existing_show.get('bound_task_names', '') if existing_show else ''
+            existing_content_type = existing_show.get('content_type', '') if existing_show else ''
+            cal_db.upsert_show(int(tmdb_id), name, first_air, status, poster_local_path, int(latest_season_number), 0, existing_bound_tasks, existing_content_type)
+            refresh_url = f"/tv/{tmdb_id}/season/{latest_season_number}"
+            # 处理季名称
+            season_name_raw = ''
+            try:
+                for s in (details.get('seasons') or []):
+                    if int(s.get('season_number') or 0) == int(latest_season_number):
+                        season_name_raw = s.get('name') or ''
+                        break
+            except Exception:
+                season_name_raw = ''
+            try:
+                from sdk.tmdb_service import TMDBService as _T
+                season_name_processed = tmdb_service.process_season_name(season_name_raw) if isinstance(tmdb_service, _T) else season_name_raw
+            except Exception:
+                season_name_processed = season_name_raw
+            cal_db.upsert_season(
+                int(tmdb_id),
+                int(latest_season_number),
+                details_of_season_episode_count(tmdb_service, tmdb_id, latest_season_number),
+                refresh_url,
+                season_name_processed
+            )
+
+            # 立即拉取最新一季的所有集并写入本地，保证前端可立即读取
+            try:
+                season = tmdb_service.get_tv_show_episodes(int(tmdb_id), int(latest_season_number)) or {}
+                episodes = season.get('episodes', []) or []
+                from time import time as _now
+                now_ts = int(_now())
+                for ep in episodes:
+                    cal_db.upsert_episode(
+                        tmdb_id=int(tmdb_id),
+                        season_number=int(latest_season_number),
+                        episode_number=int(ep.get('episode_number') or 0),
+                        name=ep.get('name') or '',
+                        overview=ep.get('overview') or '',
+                        air_date=ep.get('air_date') or '',
+                        runtime=ep.get('runtime'),
+                        ep_type=(ep.get('episode_type') or ep.get('type')),
+                        updated_at=now_ts,
+                    )
+                any_written = True
+            except Exception as _e:
+                logging.warning(f"bootstrap 写入剧集失败 tmdb_id={tmdb_id}: {_e}")
+        try:
+            if any_written:
+                notify_calendar_changed('bootstrap')
+        except Exception:
+            pass
+        return True, 'OK'
+    except Exception as e:
+        return False, f'bootstrap失败: {str(e)}'
+
+
+@app.route("/api/calendar/bootstrap", methods=["POST"])
+def calendar_bootstrap():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+    success, msg = do_calendar_bootstrap()
+    return jsonify({"success": success, "message": msg})
+
+
+def details_of_season_episode_count(tmdb_service: TMDBService, tmdb_id: int, season_number: int) -> int:
+    try:
+        season = tmdb_service.get_tv_show_episodes(tmdb_id, season_number) or {}
+        return len(season.get('episodes', []) or [])
+    except Exception:
+        return 0
+
+
+def download_poster_local(poster_path: str) -> str:
+    """下载 TMDB 海报到本地 static/cache/images 下，等比缩放为宽400px，返回相对路径。"""
+    try:
+        base = "https://image.tmdb.org/t/p/w400"
+        url = f"{base}{poster_path}"
+        r = requests.get(url, timeout=10)
+        if r.status_code != 200:
+            return ''
+        folder = CACHE_IMAGES_DIR
+        # 基于 poster_path 生成文件名
+        safe_name = poster_path.strip('/').replace('/', '_') or 'poster.jpg'
+        file_path = os.path.join(folder, safe_name)
+        with open(file_path, 'wb') as f:
+            f.write(r.content)
+        # 返回用于前端引用的相对路径（通过 /cache/images 暴露）
+        return f"/cache/images/{safe_name}"
+    except Exception:
+        return ''
+
+
+# 刷新：拉取最新一季所有集，按有无 runtime 进行增量更新
+@app.route("/api/calendar/refresh_latest_season")
+def calendar_refresh_latest_season():
+    try:
+        if not is_login():
+            return jsonify({"success": False, "message": "未登录"})
+
+        tmdb_id = request.args.get('tmdb_id', type=int)
+        if not tmdb_id:
+            return jsonify({"success": False, "message": "缺少 tmdb_id"})
+
+        tmdb_api_key = config_data.get('tmdb_api_key', '')
+        if not tmdb_api_key:
+            return jsonify({"success": False, "message": "TMDB API 未配置"})
+
+        tmdb_service = TMDBService(tmdb_api_key)
+        cal_db = CalendarDB()
+        show = cal_db.get_show(int(tmdb_id))
+        if not show:
+            return jsonify({"success": False, "message": "未初始化该剧（请先 bootstrap）"})
+
+        latest_season = int(show['latest_season_number'])
+        season = tmdb_service.get_tv_show_episodes(tmdb_id, latest_season) or {}
+        episodes = season.get('episodes', []) or []
+
+        from time import time as _now
+        now_ts = int(_now())
+
+        any_written = False
+        for ep in episodes:
+            cal_db.upsert_episode(
+                tmdb_id=int(tmdb_id),
+                season_number=latest_season,
+                episode_number=int(ep.get('episode_number') or 0),
+                name=ep.get('name') or '',
+                overview=ep.get('overview') or '',
+                air_date=ep.get('air_date') or '',
+                runtime=ep.get('runtime'),
+                ep_type=(ep.get('episode_type') or ep.get('type')),
+                updated_at=now_ts,
+            )
+            any_written = True
+
+        # 同步更新 seasons 表的季名称与总集数
+        try:
+            season_name_raw = season.get('name') or ''
+            season_name_processed = tmdb_service.process_season_name(season_name_raw)
+        except Exception:
+            season_name_processed = season.get('name') or ''
+        try:
+            cal_db.upsert_season(
+                int(tmdb_id),
+                int(latest_season),
+                len(episodes),
+                f"/tv/{tmdb_id}/season/{latest_season}",
+                season_name_processed
+            )
+        except Exception:
+            pass
+
+        try:
+            if any_written:
+                notify_calendar_changed('refresh_latest_season')
+        except Exception:
+            pass
+        return jsonify({"success": True, "updated": len(episodes)})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"刷新失败: {str(e)}"})
+
+
+# 强制刷新单集或合并集的元数据（海报视图使用）
+@app.route("/api/calendar/refresh_episode")
+def calendar_refresh_episode():
+    try:
+        if not is_login():
+            return jsonify({"success": False, "message": "未登录"})
+
+        tmdb_id = request.args.get('tmdb_id', type=int)
+        season_number = request.args.get('season_number', type=int)
+        episode_number = request.args.get('episode_number', type=int)
+        
+        if not tmdb_id or not season_number or not episode_number:
+            return jsonify({"success": False, "message": "缺少必要参数"})
+
+        tmdb_api_key = config_data.get('tmdb_api_key', '')
+        if not tmdb_api_key:
+            return jsonify({"success": False, "message": "TMDB API 未配置"})
+
+        tmdb_service = TMDBService(tmdb_api_key)
+        cal_db = CalendarDB()
+        
+        # 验证节目是否存在
+        show = cal_db.get_show(int(tmdb_id))
+        if not show:
+            return jsonify({"success": False, "message": "未初始化该剧（请先 bootstrap）"})
+
+        # 获取指定季的所有集数据
+        season = tmdb_service.get_tv_show_episodes(tmdb_id, season_number) or {}
+        episodes = season.get('episodes', []) or []
+        
+        # 查找指定集
+        target_episode = None
+        for ep in episodes:
+            if int(ep.get('episode_number') or 0) == episode_number:
+                target_episode = ep
+                break
+        
+        if not target_episode:
+            return jsonify({"success": False, "message": f"未找到第 {season_number} 季第 {episode_number} 集"})
+
+        # 强制更新该集数据（无论是否有 runtime）
+        from time import time as _now
+        now_ts = int(_now())
+        
+        cal_db.upsert_episode(
+            tmdb_id=int(tmdb_id),
+            season_number=season_number,
+            episode_number=episode_number,
+            name=target_episode.get('name') or '',
+            overview=target_episode.get('overview') or '',
+            air_date=target_episode.get('air_date') or '',
+            runtime=target_episode.get('runtime'),
+            ep_type=(target_episode.get('episode_type') or target_episode.get('type')),
+            updated_at=now_ts,
+        )
+
+        # 通知日历数据变更
+        try:
+            notify_calendar_changed('refresh_episode')
+        except Exception:
+            pass
+            
+        # 获取剧名用于通知
+        show_name = show.get('name', '未知剧集')
+        return jsonify({"success": True, "message": f"《{show_name}》第 {season_number} 季 · 第 {episode_number} 集刷新成功"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"刷新失败: {str(e)}"})
+
+
+# 强制刷新整个季的元数据（内容管理视图使用）
+@app.route("/api/calendar/refresh_season")
+def calendar_refresh_season():
+    try:
+        if not is_login():
+            return jsonify({"success": False, "message": "未登录"})
+
+        tmdb_id = request.args.get('tmdb_id', type=int)
+        season_number = request.args.get('season_number', type=int)
+        
+        if not tmdb_id or not season_number:
+            return jsonify({"success": False, "message": "缺少必要参数"})
+
+        tmdb_api_key = config_data.get('tmdb_api_key', '')
+        if not tmdb_api_key:
+            return jsonify({"success": False, "message": "TMDB API 未配置"})
+
+        tmdb_service = TMDBService(tmdb_api_key)
+        cal_db = CalendarDB()
+        
+        # 验证节目是否存在
+        show = cal_db.get_show(int(tmdb_id))
+        if not show:
+            return jsonify({"success": False, "message": "未初始化该剧（请先 bootstrap）"})
+
+        # 获取指定季的所有集数据
+        season = tmdb_service.get_tv_show_episodes(tmdb_id, season_number) or {}
+        episodes = season.get('episodes', []) or []
+        
+        if not episodes:
+            return jsonify({"success": False, "message": f"第 {season_number} 季没有集数据"})
+
+        # 强制更新该季所有集数据（无论是否有 runtime）
+        from time import time as _now
+        now_ts = int(_now())
+        
+        updated_count = 0
+        for ep in episodes:
+            cal_db.upsert_episode(
+                tmdb_id=int(tmdb_id),
+                season_number=season_number,
+                episode_number=int(ep.get('episode_number') or 0),
+                name=ep.get('name') or '',
+                overview=ep.get('overview') or '',
+                air_date=ep.get('air_date') or '',
+                runtime=ep.get('runtime'),
+                ep_type=(ep.get('episode_type') or ep.get('type')),
+                updated_at=now_ts,
+            )
+            updated_count += 1
+
+        # 同步更新 seasons 表的季名称与总集数
+        try:
+            season_name_raw = season.get('name') or ''
+            season_name_processed = tmdb_service.process_season_name(season_name_raw)
+        except Exception:
+            season_name_processed = season.get('name') or ''
+        try:
+            cal_db.upsert_season(
+                int(tmdb_id),
+                int(season_number),
+                len(episodes),
+                f"/tv/{tmdb_id}/season/{season_number}",
+                season_name_processed
+            )
+        except Exception:
+            pass
+
+        # 通知日历数据变更
+        try:
+            notify_calendar_changed('refresh_season')
+        except Exception:
+            pass
+            
+        # 获取剧名用于通知
+        show_name = show.get('name', '未知剧集')
+        return jsonify({"success": True, "message": f"《{show_name}》第 {season_number} 季刷新成功，共 {updated_count} 集"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"刷新失败: {str(e)}"})
+
+
+# 刷新：拉取剧级别的最新详情并更新 shows 表（用于更新节目状态/中文名/首播年/海报/最新季）
+@app.route("/api/calendar/refresh_show")
+def calendar_refresh_show():
+    try:
+        if not is_login():
+            return jsonify({"success": False, "message": "未登录"})
+
+        tmdb_id = request.args.get('tmdb_id', type=int)
+        if not tmdb_id:
+            return jsonify({"success": False, "message": "缺少 tmdb_id"})
+
+        tmdb_api_key = config_data.get('tmdb_api_key', '')
+        if not tmdb_api_key:
+            return jsonify({"success": False, "message": "TMDB API 未配置"})
+
+        tmdb_service = TMDBService(tmdb_api_key)
+        cal_db = CalendarDB()
+
+        details = tmdb_service.get_tv_show_details(int(tmdb_id)) or {}
+        if not details:
+            return jsonify({"success": False, "message": "未获取到节目详情"})
+
+        try:
+            existing_show = cal_db.get_show(int(tmdb_id))
+        except Exception:
+            existing_show = None
+
+        # 标题、状态与最新季
+        try:
+            name = tmdb_service.get_chinese_title_with_fallback(int(tmdb_id), (existing_show or {}).get('name') or '')
+        except Exception:
+            name = (details.get('name') or details.get('original_name') or (existing_show or {}).get('name') or '')
+
+        first_air = (details.get('first_air_date') or '')[:4]
+        raw_status = (details.get('status') or '')
+        try:
+            latest_sn_for_status = int((existing_show or {}).get('latest_season_number') or 1)
+            localized_status = tmdb_service.get_localized_show_status(int(tmdb_id), latest_sn_for_status, raw_status)
+        except Exception:
+            localized_status = raw_status
+
+        latest_season_number = 0
+        try:
+            for s in (details.get('seasons') or []):
+                sn = int(s.get('season_number') or 0)
+                if sn > latest_season_number:
+                    latest_season_number = sn
+        except Exception:
+            latest_season_number = 0
+        if latest_season_number <= 0:
+            try:
+                latest_season_number = int((existing_show or {}).get('latest_season_number') or 1)
+            except Exception:
+                latest_season_number = 1
+
+        # 海报
+        poster_path = details.get('poster_path') or ''
+        poster_local_path = ''
+        try:
+            if poster_path:
+                poster_local_path = download_poster_local(poster_path)
+            elif existing_show and existing_show.get('poster_local_path'):
+                poster_local_path = existing_show.get('poster_local_path')
+        except Exception:
+            poster_local_path = (existing_show or {}).get('poster_local_path') or ''
+
+        bound_task_names = (existing_show or {}).get('bound_task_names', '')
+        content_type = (existing_show or {}).get('content_type', '')
+
+        cal_db.upsert_show(
+            int(tmdb_id),
+            name,
+            first_air,
+            localized_status,
+            poster_local_path,
+            int(latest_season_number),
+            0,
+            bound_task_names,
+            content_type
+        )
+
+        try:
+            notify_calendar_changed('refresh_show')
+        except Exception:
+            pass
+
+        return jsonify({"success": True, "message": "剧目详情已刷新"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"刷新剧失败: {str(e)}"})
+
+# 编辑追剧日历元数据：修改任务名、任务类型、重绑 TMDB
+@app.route("/api/calendar/edit_metadata", methods=["POST"])
+def calendar_edit_metadata():
+    try:
+        if not is_login():
+            return jsonify({"success": False, "message": "未登录"})
+
+        data = request.get_json(force=True) or {}
+        task_name = (data.get('task_name') or '').strip()
+        new_task_name = (data.get('new_task_name') or '').strip()
+        new_content_type = (data.get('new_content_type') or '').strip()
+        new_tmdb_id = data.get('new_tmdb_id')
+        new_season_number = data.get('new_season_number')
+
+        if not task_name:
+            return jsonify({"success": False, "message": "缺少任务名称"})
+
+        global config_data
+        tasks = config_data.get('tasklist', [])
+        target = None
+        for t in tasks:
+            tn = t.get('taskname') or t.get('task_name') or ''
+            if tn == task_name:
+                target = t
+                break
+        if not target:
+            return jsonify({"success": False, "message": "未找到任务"})
+
+        cal = (target.get('calendar_info') or {})
+        match = (cal.get('match') or {})
+        old_tmdb_id = match.get('tmdb_id') or cal.get('tmdb_id')
+
+        changed = False
+
+        if new_task_name and new_task_name != task_name:
+            target['taskname'] = new_task_name
+            target['task_name'] = new_task_name
+            changed = True
+
+        valid_types = {'tv', 'anime', 'variety', 'documentary', 'other', ''}
+        if new_content_type in valid_types:
+            extracted = (target.setdefault('calendar_info', {}).setdefault('extracted', {}))
+            if extracted.get('content_type') != new_content_type:
+                # 同步到任务配置中的 extracted 与顶层 content_type，保证前端与其他逻辑可见
+                extracted['content_type'] = new_content_type
+                target['content_type'] = new_content_type
+                # 未匹配任务：没有 old_tmdb_id 时，不访问数据库，仅更新配置
+                # 已匹配任务：若已有绑定的 tmdb_id，则立即同步到数据库
+                try:
+                    if old_tmdb_id:
+                        cal_db = CalendarDB()
+                        cal_db.update_show_content_type(int(old_tmdb_id), new_content_type)
+                        # 同步任务名与内容类型绑定关系
+                        task_final_name = target.get('taskname') or target.get('task_name') or task_name
+                        cal_db.bind_task_and_content_type(int(old_tmdb_id), task_final_name, new_content_type)
+                except Exception as e:
+                    logging.warning(f"同步内容类型到数据库失败: {e}")
+                changed = True
+
+        did_rematch = False
+        cal_db = CalendarDB()
+        tmdb_api_key = config_data.get('tmdb_api_key', '')
+        tmdb_service = TMDBService(tmdb_api_key) if tmdb_api_key else None
+        # 场景一：提供 new_tmdb_id（重绑节目，可同时指定季数）
+        if new_tmdb_id:
+            try:
+                new_tid = int(str(new_tmdb_id).strip())
+            except Exception:
+                return jsonify({"success": False, "message": "TMDB ID 非法"})
+            
+            # 特殊处理：tmdb_id 为 0 表示取消匹配
+            if new_tid == 0:
+                if old_tmdb_id:
+                    # 解绑旧节目的任务引用
+                    try:
+                        try:
+                            _task_final_name = target.get('taskname') or target.get('task_name') or new_task_name or task_name
+                        except Exception:
+                            _task_final_name = task_name
+                        cal_db.unbind_task_from_show(int(old_tmdb_id), _task_final_name)
+                    except Exception as e:
+                        logging.warning(f"解绑旧节目任务失败: {e}")
+                    
+                    # 清理旧节目的所有数据与海报（强制清理，因为我们已经解绑了任务）
+                    try:
+                        purge_calendar_by_tmdb_id_internal(int(old_tmdb_id), force=True)
+                    except Exception as e:
+                        logging.warning(f"清理旧节目数据失败: {e}")
+                
+                # 清空任务配置中的匹配信息
+                if 'calendar_info' not in target:
+                    target['calendar_info'] = {}
+                if 'match' in target['calendar_info']:
+                    target['calendar_info']['match'] = {}
+                
+                changed = True
+                msg = '已取消匹配，并清除了原有的节目数据'
+                return jsonify({"success": True, "message": msg})
+            
+            try:
+                season_no = int(new_season_number or 1)
+            except Exception:
+                season_no = 1
+
+            # 若 tmdb 发生变更，先解绑旧节目的任务引用；实际清理延后到配置写盘之后
+            old_to_purge_tmdb_id = None
+            if old_tmdb_id and int(old_tmdb_id) != new_tid:
+                # 解绑旧节目的任务引用
+                try:
+                    try:
+                        _task_final_name = target.get('taskname') or target.get('task_name') or new_task_name or task_name
+                    except Exception:
+                        _task_final_name = task_name
+                    cal_db.unbind_task_from_show(int(old_tmdb_id), _task_final_name)
+                except Exception as e:
+                    logging.warning(f"解绑旧节目任务失败: {e}")
+                # 记录待清理的旧 tmdb，在配置更新并落盘后再执行清理
+                try:
+                    old_to_purge_tmdb_id = int(old_tmdb_id)
+                except Exception:
+                    old_to_purge_tmdb_id = None
+
+            show = cal_db.get_show(new_tid)
+            if not show:
+                if not tmdb_service:
+                    return jsonify({"success": False, "message": "TMDB API 未配置，无法初始化新节目"})
+                # 直接从 TMDB 获取详情并写入本地，而不是调用全量 bootstrap
+                details = tmdb_service.get_tv_show_details(new_tid) or {}
+                if not details:
+                    return jsonify({"success": False, "message": "未找到指定 TMDB 节目"})
+                try:
+                    chinese_title = tmdb_service.get_chinese_title_with_fallback(new_tid, details.get('name') or details.get('original_name') or '')
+                except Exception:
+                    chinese_title = details.get('name') or details.get('original_name') or ''
+                poster_local_path = ''
+                try:
+                    poster_local_path = download_poster_local(details.get('poster_path') or '')
+                except Exception:
+                    poster_local_path = ''
+                first_air = (details.get('first_air_date') or '')[:4]
+                status = details.get('status') or ''
+                # 以 season_no 作为最新季写入 shows
+                cal_db.upsert_show(int(new_tid), chinese_title, first_air, status, poster_local_path, int(season_no), 0, '', (target.get('content_type') or ''))
+                show = cal_db.get_show(new_tid)
+                if not show:
+                    return jsonify({"success": False, "message": "未找到指定 TMDB 节目"})
+
+            task_final_name = target.get('taskname') or target.get('task_name') or new_task_name or task_name
+            ct = (target.get('calendar_info') or {}).get('extracted', {}).get('content_type', '')
+            try:
+                cal_db.bind_task_and_content_type(new_tid, task_final_name, ct)
+            except Exception as e:
+                logging.warning(f"绑定任务失败: {e}")
+
+            if 'calendar_info' not in target:
+                target['calendar_info'] = {}
+            if 'match' not in target['calendar_info']:
+                target['calendar_info']['match'] = {}
+            target['calendar_info']['match'].update({
+                'tmdb_id': new_tid,
+                'matched_show_name': show.get('name', ''),
+                'matched_year': show.get('year', '')
+            })
+            target['calendar_info']['match']['latest_season_number'] = season_no
+
+            try:
+                season = tmdb_service.get_tv_show_episodes(new_tid, season_no) if tmdb_service else None
+                eps = (season or {}).get('episodes', []) or []
+                from time import time as _now
+                now_ts = int(_now())
+                # 清理除当前季外的其他季数据，避免残留
+                try:
+                    cal_db.purge_other_seasons(int(new_tid), int(season_no))
+                except Exception:
+                    pass
+                for ep in eps:
+                    cal_db.upsert_episode(
+                        tmdb_id=int(new_tid),
+                        season_number=int(season_no),
+                        episode_number=int(ep.get('episode_number') or 0),
+                        name=ep.get('name') or '',
+                        overview=ep.get('overview') or '',
+                        air_date=ep.get('air_date') or '',
+                        runtime=ep.get('runtime'),
+                        ep_type=(ep.get('episode_type') or ep.get('type')),
+                        updated_at=now_ts,
+                    )
+                try:
+                    sname_raw = (season or {}).get('name') or ''
+                    sname = tmdb_service.process_season_name(sname_raw) if tmdb_service else sname_raw
+                    cal_db.upsert_season(int(new_tid), int(season_no), len(eps), f"/tv/{new_tid}/season/{season_no}", sname)
+                    cal_db.update_show_latest_season_number(int(new_tid), int(season_no))
+                except Exception:
+                    pass
+            except Exception as e:
+                logging.warning(f"刷新新季失败: {e}")
+
+            did_rematch = True
+            changed = True
+            # 如果需要，延后清理旧节目的数据（此时任务配置已指向新节目，避免被清理函数误判仍被引用）
+            if old_to_purge_tmdb_id is not None:
+                try:
+                    purge_calendar_by_tmdb_id_internal(int(old_to_purge_tmdb_id))
+                except Exception as e:
+                    logging.warning(f"清理旧 tmdb 失败: {e}")
+        # 场景二：未提供 new_tmdb_id，但提供了 new_season_number（仅修改季数）
+        elif (new_season_number is not None) and (str(new_season_number).strip() != '') and old_tmdb_id:
+            try:
+                season_no = int(new_season_number)
+            except Exception:
+                return jsonify({"success": False, "message": "季数必须为数字"})
+
+            # 检查是否与当前匹配的季数相同，如果相同则跳过处理
+            current_match_season = match.get('latest_season_number')
+            if current_match_season and int(current_match_season) == season_no:
+                # 季数未变化，跳过处理
+                pass
+            else:
+                if not tmdb_service:
+                    return jsonify({"success": False, "message": "TMDB API 未配置"})
+
+                # 更新 shows 表中的最新季，清理其他季，并拉取指定季数据
+                try:
+                    cal_db.update_show_latest_season_number(int(old_tmdb_id), int(season_no))
+                except Exception:
+                    pass
+
+                # 拉取该季数据
+                try:
+                    season = tmdb_service.get_tv_show_episodes(int(old_tmdb_id), int(season_no)) or {}
+                    eps = season.get('episodes', []) or []
+                    from time import time as _now
+                    now_ts = int(_now())
+                    # 清理除当前季外其他季，避免残留
+                    try:
+                        cal_db.purge_other_seasons(int(old_tmdb_id), int(season_no))
+                    except Exception:
+                        pass
+                    for ep in eps:
+                        cal_db.upsert_episode(
+                            tmdb_id=int(old_tmdb_id),
+                            season_number=int(season_no),
+                            episode_number=int(ep.get('episode_number') or 0),
+                            name=ep.get('name') or '',
+                            overview=ep.get('overview') or '',
+                            air_date=ep.get('air_date') or '',
+                            runtime=ep.get('runtime'),
+                            ep_type=(ep.get('episode_type') or ep.get('type')),
+                            updated_at=now_ts,
+                        )
+                    try:
+                        sname_raw = (season or {}).get('name') or ''
+                        sname = tmdb_service.process_season_name(sname_raw)
+                        cal_db.upsert_season(int(old_tmdb_id), int(season_no), len(eps), f"/tv/{old_tmdb_id}/season/{season_no}", sname)
+                    except Exception:
+                        pass
+                except Exception as e:
+                    return jsonify({"success": False, "message": f"刷新季数据失败: {e}"})
+
+                # 更新任务配置中的 latest_season_number 以便前端展示
+                try:
+                    if 'calendar_info' not in target:
+                        target['calendar_info'] = {}
+                    if 'match' not in target['calendar_info']:
+                        target['calendar_info']['match'] = {}
+                    target['calendar_info']['match']['latest_season_number'] = int(season_no)
+                except Exception:
+                    pass
+
+                changed = True
+
+        if changed:
+            Config.write_json(CONFIG_PATH, config_data)
+
+        try:
+            sync_task_config_with_database_bindings()
+        except Exception as e:
+            logging.warning(f"同步绑定失败: {e}")
+
+        try:
+            notify_calendar_changed('edit_metadata')
+        except Exception:
+            pass
+
+        msg = '元数据更新成功'
+        if did_rematch:
+            msg = '元数据更新成功，已重新匹配并刷新元数据'
+        return jsonify({"success": True, "message": msg})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"保存失败: {str(e)}"})
+
+# 获取节目信息（用于获取最新季数）
+@app.route("/api/calendar/show_info")
+def get_calendar_show_info():
+    try:
+        if not is_login():
+            return jsonify({"success": False, "message": "未登录"})
+
+        tmdb_id = request.args.get('tmdb_id', type=int)
+        if not tmdb_id:
+            return jsonify({"success": False, "message": "缺少 tmdb_id"})
+
+        cal_db = CalendarDB()
+        show = cal_db.get_show(int(tmdb_id))
+        if not show:
+            return jsonify({"success": False, "message": "未找到该节目"})
+
+        return jsonify({
+            "success": True,
+            "data": {
+                "tmdb_id": show['tmdb_id'],
+                "name": show['name'],
+                "year": show['year'],
+                "status": show['status'],
+                "latest_season_number": show['latest_season_number'],
+                "poster_local_path": show['poster_local_path']
+            }
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": f"获取节目信息失败: {str(e)}"})
+
+
+# --------- 日历刷新调度：按性能设置的周期自动刷新最新季 ---------
+def restart_calendar_refresh_job():
+    try:
+        # 读取用户配置的刷新周期（秒），默认21600秒（6小时）
+        perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
+        interval_seconds = int(perf.get('calendar_refresh_interval_seconds', 21600))
+        if interval_seconds <= 0:
+            # 非法或关闭则移除
+            try:
+                scheduler.remove_job('calendar_refresh_job')
+            except Exception:
+                pass
+            logging.info("已关闭追剧日历元数据自动刷新")
+            return
+
+        # 重置任务
+        try:
+            scheduler.remove_job('calendar_refresh_job')
+        except Exception:
+            pass
+        scheduler.add_job(run_calendar_refresh_all_internal, IntervalTrigger(seconds=interval_seconds), id='calendar_refresh_job', replace_existing=True)
+        if scheduler.state == 0:
+            scheduler.start()
+        logging.info(f"已启动追剧日历自动刷新，周期 {interval_seconds} 秒")
+    except Exception as e:
+        logging.warning(f"配置自动刷新任务失败: {e}")
+
+
+def run_calendar_refresh_all_internal():
+    try:
+        tmdb_api_key = config_data.get('tmdb_api_key', '')
+        if not tmdb_api_key:
+            return
+        tmdb_service = TMDBService(tmdb_api_key)
+        db = CalendarDB()
+        shows = []
+        # 简单读取所有已初始化的剧目
+        try:
+            cur = db.conn.cursor()
+            cur.execute('SELECT tmdb_id FROM shows')
+            shows = [r[0] for r in cur.fetchall()]
+        except Exception:
+            shows = []
+        any_written = False
+        for tmdb_id in shows:
+            try:
+                # 直接重用内部逻辑
+                with app.app_context():
+                    # 调用与 endpoint 相同的刷新流程
+                    season = tmdb_service.get_tv_show_episodes(int(tmdb_id), int(db.get_show(int(tmdb_id))['latest_season_number'])) or {}
+                    episodes = season.get('episodes', []) or []
+                    from time import time as _now
+                    now_ts = int(_now())
+                    for ep in episodes:
+                        db.upsert_episode(
+                            tmdb_id=int(tmdb_id),
+                            season_number=int(db.get_show(int(tmdb_id))['latest_season_number']),
+                            episode_number=int(ep.get('episode_number') or 0),
+                            name=ep.get('name') or '',
+                            overview=ep.get('overview') or '',
+                            air_date=ep.get('air_date') or '',
+                            runtime=ep.get('runtime'),
+                            ep_type=(ep.get('episode_type') or ep.get('type')),
+                            updated_at=now_ts,
+                        )
+                        any_written = True
+            except Exception as e:
+                logging.warning(f"自动刷新失败 tmdb_id={tmdb_id}: {e}")
+        try:
+            if any_written:
+                notify_calendar_changed('auto_refresh')
+        except Exception:
+            pass
+    except Exception as e:
+        logging.warning(f"自动刷新任务异常: {e}")
+# 本地缓存读取：获取最新一季的本地剧集数据
+@app.route("/api/calendar/episodes_local")
+def get_calendar_episodes_local():
+    try:
+        tmdb_id = request.args.get('tmdb_id')
+        db = CalendarDB()
+        # 建立 tmdb_id -> 任务信息 映射，用于前端筛选（任务名/类型）
+        tmdb_to_taskinfo = {}
+        try:
+            tasks = config_data.get('tasklist', [])
+            for t in tasks:
+                cal = (t.get('calendar_info') or {})
+                match = (cal.get('match') or {})
+                extracted = (cal.get('extracted') or {})
+                tid = match.get('tmdb_id')
+                if tid:
+                    tmdb_to_taskinfo[int(tid)] = {
+                        'task_name': t.get('taskname') or t.get('task_name') or '',
+                        'content_type': extracted.get('content_type') or extracted.get('type') or 'other',
+                        'progress': {}
+                    }
+            # 若未能建立完整映射，尝试基于 shows 表名称与任务 extracted.show_name 做一次兜底绑定
+            if not tmdb_to_taskinfo:
+                try:
+                    cur = db.conn.cursor()
+                    cur.execute('SELECT tmdb_id, name FROM shows')
+                    rows = cur.fetchall() or []
+                    for tid, name in rows:
+                        name = name or ''
+                        # 找到名称一致的任务
+                        tgt = next((t for t in tasks if ((t.get('calendar_info') or {}).get('extracted') or {}).get('show_name') == name), None)
+                        if tgt:
+                            extracted = ((tgt.get('calendar_info') or {}).get('extracted') or {})
+                            tmdb_to_taskinfo[int(tid)] = {
+                                'task_name': tgt.get('taskname') or tgt.get('task_name') or '',
+                                'content_type': extracted.get('content_type') or extracted.get('type') or 'other',
+                                'progress': {}
+                            }
+                except Exception:
+                    pass
+        except Exception:
+            tmdb_to_taskinfo = {}
+        # 读取任务最新转存文件，构建 task_name -> 解析进度 映射
+        progress_by_task = {}
+        try:
+            # 直接读取数据库，避免依赖登录校验的接口调用
+            extractor = TaskExtractor()
+            rdb = RecordDB()
+            cursor = rdb.conn.cursor()
+            cursor.execute("""
+                SELECT task_name, MAX(transfer_time) as latest_transfer_time
+                FROM transfer_records
+                WHERE task_name NOT IN ('rename', 'undo_rename')
+                GROUP BY task_name
+            """)
+            latest_times = cursor.fetchall() or []
+            latest_files = {}
+            for task_name, latest_time in latest_times:
+                if latest_time:
+                    time_window = 60000
+                    cursor.execute(
+                        """
+                        SELECT renamed_to, original_name, transfer_time, modify_date
+                        FROM transfer_records
+                        WHERE task_name = ? AND transfer_time >= ? AND transfer_time <= ?
+                        ORDER BY id DESC
+                        """,
+                        (task_name, latest_time - time_window, latest_time + time_window)
+                    )
+                    files = cursor.fetchall() or []
+                    best_file = None
+                    if files:
+                        if len(files) == 1:
+                            best_file = files[0][0]
+                        else:
+                            file_list = []
+                            for renamed_to, original_name, transfer_time, modify_date in files:
+                                file_list.append({'file_name': renamed_to, 'original_name': original_name, 'updated_at': transfer_time})
+                            try:
+                                sorted_files = sorted(file_list, key=sort_file_by_name)
+                                best_file = sorted_files[-1]['file_name']
+                            except Exception:
+                                best_file = files[0][0]
+                    if best_file:
+                        file_name_without_ext = os.path.splitext(best_file)[0]
+                        processed_name = process_season_episode_info(file_name_without_ext, task_name)
+                        latest_files[task_name] = processed_name
+            rdb.close()
+            for tname, latest in (latest_files or {}).items():
+                parsed = extractor.extract_progress_from_latest_file(latest)
+                if parsed and (parsed.get('episode_number') or parsed.get('air_date')):
+                    progress_by_task[tname] = parsed
+        except Exception:
+            progress_by_task = {}
+
+        if tmdb_id:
+            show = db.get_show(int(tmdb_id))
+            if not show:
+                return jsonify({'success': True, 'data': {'episodes': [], 'total': 0}})
+            eps = db.list_latest_season_episodes(int(tmdb_id), int(show['latest_season_number']))
+            # 注入任务信息与标准化进度
+            info = tmdb_to_taskinfo.get(int(tmdb_id))
+            if info:
+                for e in eps:
+                    e['task_info'] = info
+                    # 合并标准化进度
+                    tname = info.get('task_name') or ''
+                    p = progress_by_task.get(tname)
+                    if p:
+                        e['task_info']['progress'] = p
+            return jsonify({'success': True, 'data': {'episodes': eps, 'total': len(eps), 'show': show}})
+        else:
+            # 返回全部最新季汇总（供周视图合并展示）
+            eps = db.list_all_latest_episodes()
+            for e in eps:
+                info = tmdb_to_taskinfo.get(int(e.get('tmdb_id')))
+                if info:
+                    e['task_info'] = info
+                    tname = info.get('task_name') or ''
+                    p = progress_by_task.get(tname)
+                    if p:
+                        e['task_info']['progress'] = p
+            return jsonify({'success': True, 'data': {'episodes': eps, 'total': len(eps)}})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'读取本地剧集失败: {str(e)}', 'data': {'episodes': [], 'total': 0}})
+
+
+# 清理缓存：按 tmdb_id 删除对应剧目的所有本地缓存
+@app.route("/api/calendar/purge_tmdb", methods=["POST"])
+def purge_calendar_tmdb():
+    try:
+        tmdb_id = request.args.get('tmdb_id') or (request.json or {}).get('tmdb_id')
+        if not tmdb_id:
+            return jsonify({'success': False, 'message': '缺少 tmdb_id'})
+        force = False
+        try:
+            fv = request.args.get('force') or (request.json or {}).get('force')
+            force = True if str(fv).lower() in ('1', 'true', 'yes') else False
+        except Exception:
+            force = False
+        ok = purge_calendar_by_tmdb_id_internal(int(tmdb_id), force=force)
+        try:
+            if ok:
+                notify_calendar_changed('purge_tmdb')
+        except Exception:
+            pass
+        return jsonify({'success': ok})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'清理失败: {str(e)}'})
+
+
+# 清理缓存：按任务名查找 config 中的 tmdb_id 并清理
+@app.route("/api/calendar/purge_by_task", methods=["POST"])
+def purge_calendar_by_task():
+    try:
+        task_name = request.args.get('task_name') or (request.json or {}).get('task_name')
+        if not task_name:
+            return jsonify({'success': False, 'message': '缺少 task_name'})
+        force = False
+        try:
+            fv = request.args.get('force') or (request.json or {}).get('force')
+            force = True if str(fv).lower() in ('1', 'true', 'yes') else False
+        except Exception:
+            force = False
+        # 在配置中查找对应任务
+        tasks = config_data.get('tasklist', [])
+        target = next((t for t in tasks if t.get('taskname') == task_name or t.get('task_name') == task_name), None)
+        if not target:
+            # 若任务不存在，但用户希望强制清理：尝试按 tmdb_id 反查无引用 show 并清理（更安全）
+            if force:
+                # 扫描 shows 表，删除未被任何任务引用的记录（孤儿）
+                purged = purge_orphan_calendar_shows_internal()
+                try:
+                    if purged > 0:
+                        notify_calendar_changed('purge_orphans')
+                except Exception:
+                    pass
+                return jsonify({'success': True, 'message': f'任务不存在，已强制清理孤儿记录 {purged} 条'})
+            return jsonify({'success': True, 'message': '任务不存在，视为已清理'})
+        cal = (target or {}).get('calendar_info') or {}
+        tmdb_id = cal.get('match', {}).get('tmdb_id') or cal.get('tmdb_id')
+        if not tmdb_id:
+            return jsonify({'success': True, 'message': '任务未绑定 tmdb_id，无需清理'})
+        ok = purge_calendar_by_tmdb_id_internal(int(tmdb_id), force=force)
+        try:
+            if ok:
+                notify_calendar_changed('purge_by_task')
+        except Exception:
+            pass
+        return jsonify({'success': ok})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'清理失败: {str(e)}'})
 # 豆瓣API路由
 
 # 通用电影接口
@@ -2799,6 +5002,59 @@ def get_tv_list(tv_type, sub_category):
             'data': {'items': []}
         })
 
+@app.route("/api/calendar/update_content_type", methods=["POST"])
+def update_show_content_type():
+    """更新节目的内容类型"""
+    try:
+        data = request.get_json()
+        tmdb_id = data.get('tmdb_id')
+        content_type = data.get('content_type')
+        
+        if not tmdb_id or not content_type:
+            return jsonify({
+                'success': False,
+                'message': '缺少必要参数：tmdb_id 或 content_type'
+            })
+        
+        from app.sdk.db import CalendarDB
+        cal_db = CalendarDB()
+        
+        # 更新内容类型
+        success = cal_db.update_show_content_type(int(tmdb_id), content_type)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '内容类型更新成功'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': '节目不存在或更新失败'
+            })
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'更新内容类型失败: {str(e)}'
+        })
+
+@app.route("/api/calendar/content_types")
+def get_content_types():
+    """获取所有节目内容类型"""
+    try:
+        from app.sdk.db import CalendarDB
+        cal_db = CalendarDB()
+        content_types = cal_db.get_all_content_types()
+        return jsonify({
+            'success': True,
+            'data': content_types
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取节目内容类型失败: {str(e)}'
+        })
 
 if __name__ == "__main__":
     init()

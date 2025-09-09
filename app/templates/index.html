@@ -324,7 +324,7 @@
   <div id="app">
     <!-- 添加通知组件 -->
     <div class="toast-container toast-container-center">
-      <div class="toast toast-custom" ref="toast" data-delay="2000">
+      <div class="toast toast-custom" ref="toast" data-delay="3000">
         <div class="toast-body toast-body-custom">
           {{ toastMessage }}
         </div>
@@ -377,6 +377,11 @@
             <li class="nav-item">
               <a class="nav-link" href="#" :class="{active: activeTab === 'discovery'}" @click="changeTab('discovery')">
                 <i class="bi bi-film"></i> <span class="nav-text">影视发现</span>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" :class="{active: activeTab === 'calendar'}" @click="changeTab('calendar')">
+                <i class="bi bi-calendar3-week"></i> <span class="nav-text">追剧日历</span>
               </a>
             </li>
             <li class="nav-item">
@@ -456,11 +461,10 @@
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">Cookie</h2>
                 <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/使用技巧集锦" target="_blank" title="夸克网盘账号的Cookie，用于转存和签到，查阅Wiki了解详情"><i class="bi bi-question-circle"></i></a>
+                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/使用技巧集锦" target="_blank" title="夸克网盘账号的Cookie，用于转存、签到和文件整理，查阅Wiki了解详情"><i class="bi bi-question-circle"></i></a>
                 </span>
               </div>
             </div>
-            <p style="margin-top: -4px; margin-bottom: 4px;">所有账号都会进行签到（纯签到只需填写移动端参数），只有第一个账号会进行转存，请自行确认账号顺序；所有填写了 Cookie 的账号均支持文件整理，如需签到请在 Cookie 后方添加签到参数。</p>
             <div v-for="(value, index) in formData.cookie" :key="index" class="input-group mb-2">
               <div class="input-group-prepend" v-if="userInfoList[index]">
                 <span class="input-group-text" 
@@ -472,7 +476,7 @@
               <div class="input-group-prepend" v-else>
                 <span class="input-group-text" style="color: var(--dark-text-color);" title="账号信息未验证，请获取Cookie后自动验证">未验证</span>
               </div>
-              <input type="text" v-model="formData.cookie[index]" class="form-control" placeholder="打开 pan.quark.com 按 F12 抓取" @change="fetchUserInfo">
+              <input type="text" v-model="formData.cookie[index]" class="form-control" placeholder="打开 pan.quark.com 按 F12 抓取" @change="fetchUserInfo" title="所有账号都会进行签到（纯签到只需填写移动端参数），只有第一个账号会进行转存，请自行确认账号顺序，所有填写了Cookie的账号均支持文件整理，如需签到请在Cookie后方添加签到参数">
               <div class="input-group-append">
                 <button v-if="index === formData.cookie.length - 1" type="button" class="btn btn-outline-primary" @click="addCookie()"><i class="bi bi-plus-lg"></i></button>
                 <button type="button" class="btn btn-outline-danger" @click="removeCookie(index)"><i class="bi bi-dash-lg"></i></button>
@@ -796,7 +800,7 @@
               </div>
             </div>
 
-            <div class="row title" title="设置任务列表页面的任务按钮的显示方式，刷新Plex媒体库和刷新AList目录按钮仅在配置了对应插件的前提下才支持显示">
+            <div class="row title" title="设置任务列表页面的任务信息和任务按钮的显示方式及顺序，刷新Plex媒体库和刷新AList目录按钮仅在配置了对应插件的前提下才支持显示，支持拖拽模块调整显示顺序">
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">显示设置</h2>
                 <span class="badge badge-pill badge-light">
@@ -804,85 +808,19 @@
                 </span>
               </div>
             </div>
-            <div class="row mb-2 display-setting-row">
-              <div class="col-lg-3 col-md-6 mb-2">
+            
+            <!-- 可拖拽显示设置（统一在一个容器中渲染，保持原样式，仅可拖动排序） -->
+            <div class="row mb-2 display-setting-row" id="display-setting-draggable">
+              <div class="col-lg-3 col-md-6 mb-2 draggable-item" v-for="key in formData.button_display_order" :key="key" draggable="true" @dragstart="onDisplayDragStart($event, key)" @dragend="onDisplayDragEnd($event)" @dragover.prevent="onDisplayDragOver($event)" @drop="onDisplayDrop($event, key)">
                 <div class="input-group">
                   <div class="input-group-prepend">
-                    <span class="input-group-text">运行此任务</span>
+                    <span class="input-group-text">{{ getDisplayLabel(key) }}</span>
                   </div>
-                  <select class="form-control" v-model="formData.button_display.run_task">
+                  <select v-if="key==='run_task' || key==='delete_task'" class="form-control" v-model="formData.button_display[key]">
                     <option value="always">始终显示</option>
                     <option value="hover">悬停显示</option>
                   </select>
-                </div>
-              </div>
-              <div class="col-lg-3 col-md-6 mb-2">
-                <div class="input-group">
-                  <div class="input-group-prepend">
-                    <span class="input-group-text">删除此任务</span>
-                  </div>
-                  <select class="form-control" v-model="formData.button_display.delete_task">
-                    <option value="always">始终显示</option>
-                    <option value="hover">悬停显示</option>
-                  </select>
-                </div>
-              </div>
-              <div class="col-lg-3 col-md-6 mb-2">
-                <div class="input-group">
-                  <div class="input-group-prepend">
-                    <span class="input-group-text">刷新 Plex 媒体库</span>
-                  </div>
-                  <select class="form-control" v-model="formData.button_display.refresh_plex">
-                    <option value="always">始终显示</option>
-                    <option value="hover">悬停显示</option>
-                    <option value="disabled">禁用</option>
-                  </select>
-                </div>
-              </div>
-              <div class="col-lg-3 col-md-6 mb-2">
-                <div class="input-group">
-                  <div class="input-group-prepend">
-                    <span class="input-group-text">刷新 AList 目录</span>
-                  </div>
-                  <select class="form-control" v-model="formData.button_display.refresh_alist">
-                    <option value="always">始终显示</option>
-                    <option value="hover">悬停显示</option>
-                    <option value="disabled">禁用</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div class="row mb-2 display-setting-row">
-              <div class="col-lg-3 col-md-6 mb-2">
-                <div class="input-group">
-                  <div class="input-group-prepend">
-                    <span class="input-group-text">最近转存文件</span>
-                  </div>
-                  <select class="form-control" v-model="formData.button_display.latest_transfer_file">
-                    <option value="always">始终显示</option>
-                    <option value="hover">悬停显示</option>
-                    <option value="disabled">禁用</option>
-                  </select>
-                </div>
-              </div>
-              <div class="col-lg-3 col-md-6 mb-2">
-                <div class="input-group">
-                  <div class="input-group-prepend">
-                    <span class="input-group-text">最近更新日期</span>
-                  </div>
-                  <select class="form-control" v-model="formData.button_display.latest_update_date">
-                    <option value="always">始终显示</option>
-                    <option value="hover">悬停显示</option>
-                    <option value="disabled">禁用</option>
-                  </select>
-                </div>
-              </div>
-              <div class="col-lg-3 col-md-6 mb-2">
-                <div class="input-group">
-                  <div class="input-group-prepend">
-                    <span class="input-group-text">当日更新标识</span>
-                  </div>
-                  <select class="form-control" v-model="formData.button_display.today_update_indicator">
+                  <select v-else class="form-control" v-model="formData.button_display[key]">
                     <option value="always">始终显示</option>
                     <option value="hover">悬停显示</option>
                     <option value="disabled">禁用</option>
@@ -901,7 +839,7 @@
               </div>
             </div>
             <div class="row mb-2 performance-setting-row">
-              <div class="col-lg-4 col-md-6 mb-2">
+              <div class="col-lg-3 col-md-6 mb-2">
                 <div class="input-group" title="每次请求夸克API时获取的文件数量，适当增大该数值可减少请求次数，提升大文件夹的加载效率。建议值：100–500">
                   <div class="input-group-prepend">
                     <span class="input-group-text">单次请求文件数量</span>
@@ -912,7 +850,7 @@
                   </div>
                 </div>
               </div>
-              <div class="col-lg-4 col-md-6 mb-2">
+              <div class="col-lg-3 col-md-6 mb-2">
                 <div class="input-group" title="文件列表在本地缓存的持续时间，过期后将自动清除。设置过短会增加API请求次数，设置过长可能无法及时反映最新变动。建议值：0-300，0表示不缓存">
                   <div class="input-group-prepend">
                     <span class="input-group-text">文件列表缓存时长</span>
@@ -923,7 +861,7 @@
                   </div>
                 </div>
               </div>
-              <div class="col-lg-4 col-md-6 mb-2">
+              <div class="col-lg-3 col-md-6 mb-2">
                 <div class="input-group" title="影视发现页面每个榜单显示的项目数量。建议值：20-100">
                   <div class="input-group-prepend">
                     <span class="input-group-text">影视榜单项目数量</span>
@@ -934,10 +872,21 @@
                   </div>
                 </div>
               </div>
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group" title="追剧日历最新季元数据自动刷新周期，单位秒。设置为0或负数可关闭自动刷新。默认值：21600（6小时）">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">追剧日历刷新周期</span>
+                  </div>
+                  <input type="text" class="form-control no-spinner" v-model="formData.performance.calendar_refresh_interval_seconds" placeholder="21600">
+                  <div class="input-group-append">
+                    <span class="input-group-text square-append">秒</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="row title" title="API接口，用于第三方添加任务等操作，查阅Wiki了解详情">
+            <div class="row title" title="QASX API 支持第三方添加任务、开发插件及自动化操作，查阅Wiki了解详情">
               <div class="col">
-                <h2 style="display: inline-block; font-size: 1.5rem;">API</h2>
+                <h2 style="display: inline-block; font-size: 1.5rem;">QASX API</h2>
                 <span class="badge badge-pill badge-light">
                   <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/API接口" target="_blank"><i class="bi bi-question-circle"></i></a>
                 </span>
@@ -947,8 +896,24 @@
               <div class="input-group-prepend">
                 <span class="input-group-text">Token</span>
               </div>
-              <input type="text" v-model="formData.api_token" class="form-control" style="background-color:white;" disabled>
+              <input type="text" v-model="formData.api_token" class="form-control token-display" disabled>
             </div>
+
+            <div class="row title" title="TMDB API密钥，用于追剧日历功能获取电视节目信息和播出时间表，点击获取TMDB API密钥">
+              <div class="col">
+                <h2 style="display: inline-block; font-size: 1.5rem;">TMDB API</h2>
+                <span class="badge badge-pill badge-light">
+                  <a href="https://www.themoviedb.org/settings/api" target="_blank" title="TMDB API密钥，用于获取电视节目信息和播出时间表，点击获取TMDB API密钥"><i class="bi bi-question-circle"></i></a>
+                </span>
+              </div>
+            </div>
+            <div class="input-group">
+              <div class="input-group-prepend">
+                <span class="input-group-text">API 密钥</span>
+              </div>
+              <input type="text" v-model="formData.tmdb_api_key" class="form-control" placeholder="请输入 TMDB API 密钥，用于追剧日历功能">
+            </div>
+            <p class="tmdb-attribution">部分功能基于 <a href="https://www.themoviedb.org/" target="_blank">TMDB</a> 提供的数据实现，本应用与 TMDB 无关。</p>
 
           </div>
 
@@ -991,16 +956,33 @@
                   <div class="col pl-0" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="true" :aria-controls="'collapse_'+index">
                     <div class="btn btn-block text-left">
                       <i class="bi bi-caret-right-fill"></i> #<span v-html="`${String(index+1).padStart(2, '0')} ${task.taskname}`"></span>
-                      <span v-if="formData.button_display.latest_transfer_file !== 'disabled' && taskLatestFiles[task.taskname]"
-                            class="task-latest-file"
-                            :class="{'hover-only': formData.button_display.latest_transfer_file === 'hover'}">
-                         · {{ taskLatestFiles[task.taskname] }}
-                      </span>
-                      <span v-if="formData.button_display.latest_update_date !== 'disabled' && taskLatestRecords[task.taskname]"
-                            class="task-latest-date"
-                            :class="{'hover-only': formData.button_display.latest_update_date === 'hover'}">
-                         · {{ getTaskLatestRecordDisplay(task.taskname) }}
-                      </span>
+                      <template v-for="key in formData.button_display_order">
+                        <span v-if="key==='latest_transfer_file' && formData.button_display.latest_transfer_file !== 'disabled' && taskLatestFiles[task.taskname]"
+                              class="task-latest-file"
+                              :class="{'hover-only': formData.button_display.latest_transfer_file === 'hover'}">
+                           · {{ taskLatestFiles[task.taskname] }}
+                        </span>
+                        <span v-else-if="key==='season_counts' && formData.button_display.season_counts !== 'disabled' && getTaskSeasonCounts(task.taskname)"
+                              class="task-season-counts"
+                              :class="{'hover-only': formData.button_display.season_counts === 'hover'}"
+                              v-html="' · ' + formatSeasonCounts(getTaskSeasonCounts(task.taskname))">
+                        </span>
+                        <span v-else-if="key==='latest_update_date' && formData.button_display.latest_update_date !== 'disabled' && taskLatestRecords[task.taskname]"
+                              class="task-latest-date"
+                              :class="{'hover-only': formData.button_display.latest_update_date === 'hover'}">
+                           · {{ getTaskLatestRecordDisplay(task.taskname) }}
+                        </span>
+                        <span v-else-if="key==='task_progress' && formData.button_display.task_progress !== 'disabled' && getTaskProgress(task.taskname) !== null"
+                              class="task-progress"
+                              :class="{'hover-only': formData.button_display.task_progress === 'hover'}">
+                           · {{ getTaskProgress(task.taskname) }}%
+                        </span>
+                        <span v-else-if="key==='show_status' && formData.button_display.show_status !== 'disabled' && getTaskShowStatus(task.taskname)"
+                              class="task-show-status"
+                              :class="{'hover-only': formData.button_display.show_status === 'hover'}">
+                           · {{ getTaskShowStatus(task.taskname) }}
+                        </span>
+                      </template>
                       <span v-if="isTaskUpdatedToday(task.taskname) && shouldShowTodayIndicator()"
                             class="task-today-indicator"
                             :class="getTodayIndicatorClass()">
@@ -1009,11 +991,15 @@
                     </div>
                   </div>
                   <div class="col-auto task-buttons">
-                    <button type="button" class="btn btn-outline-plex" v-if="formData.plugins && formData.plugins.plex && formData.plugins.plex.url && formData.plugins.plex.token && formData.plugins.plex.quark_root_path && formData.button_display.refresh_plex !== 'disabled'" :class="{'hover-only': formData.button_display.refresh_plex === 'hover'}" @click="refreshPlexLibrary(index)" title="刷新Plex媒体库"><img src="./static/images/Plex.svg" class="plex-icon"></button>
-                    <button type="button" class="btn btn-outline-alist" v-if="formData.plugins && formData.plugins.alist && formData.plugins.alist.url && formData.plugins.alist.token && formData.plugins.alist.storage_id && formData.button_display.refresh_alist !== 'disabled'" :class="{'hover-only': formData.button_display.refresh_alist === 'hover'}" @click="refreshAlistDirectory(index)" title="刷新AList目录"><img src="https://cdn.jsdelivr.net/gh/alist-org/logo@main/logo.svg" class="alist-icon"></button>
-                    <button class="btn btn-warning" v-if="task.shareurl_ban" :title="formatShareUrlBanMessage(task.shareurl_ban)" disabled><i class="bi bi-exclamation-circle"></i></button>
-                    <button type="button" class="btn btn-outline-primary" @click="runScriptNow(index)" title="运行此任务" v-if="!task.shareurl_ban" :class="{'hover-only': formData.button_display.run_task === 'hover'}"><i class="bi bi-caret-right"></i></button>
-                    <button type="button" class="btn btn-outline-danger" @click="removeTask(index)" title="删除此任务" :class="{'hover-only': formData.button_display.delete_task === 'hover'}"><i class="bi bi-trash3"></i></button>
+                    <template v-for="key in formData.button_display_order">
+                      <button v-if="key==='refresh_plex' && formData.plugins && formData.plugins.plex && formData.plugins.plex.url && formData.plugins.plex.token && formData.plugins.plex.quark_root_path && formData.button_display.refresh_plex !== 'disabled'" type="button" class="btn btn-outline-plex" :class="{'hover-only': formData.button_display.refresh_plex === 'hover'}" @click="refreshPlexLibrary(index)" title="刷新Plex媒体库"><img src="./static/images/Plex.svg" class="plex-icon"></button>
+                      <button v-else-if="key==='refresh_alist' && formData.plugins && formData.plugins.alist && formData.plugins.alist.url && formData.plugins.alist.token && formData.plugins.alist.storage_id && formData.button_display.refresh_alist !== 'disabled'" type="button" class="btn btn-outline-alist" :class="{'hover-only': formData.button_display.refresh_alist === 'hover'}" @click="refreshAlistDirectory(index)" title="刷新AList目录"><img src="https://cdn.jsdelivr.net/gh/alist-org/logo@main/logo.svg" class="alist-icon"></button>
+                      <template v-else-if="key==='run_task'">
+                        <button v-if="!task.shareurl_ban" type="button" class="btn btn-outline-primary" :class="{'hover-only': formData.button_display.run_task === 'hover'}" @click="runScriptNow(index)" title="运行此任务"><i class="bi bi-caret-right"></i></button>
+                        <button v-else type="button" class="btn btn-warning" :title="formatShareUrlBanMessage(task.shareurl_ban)" disabled><i class="bi bi-exclamation-circle"></i></button>
+                      </template>
+                      <button v-else-if="key==='delete_task'" type="button" class="btn btn-outline-danger" :class="{'hover-only': formData.button_display.delete_task === 'hover'}" @click="removeTask(index)" title="删除此任务"><i class="bi bi-trash3"></i></button>
+                    </template>
                   </div>
                 </div>
                 <div class="collapse ml-3" :id="'collapse_'+index">
@@ -1670,7 +1656,7 @@
                       {{ parseFloat(item.rating.value).toFixed(1) }}
                     </div>
                     <div class="discovery-create-task" @click="createTaskFromDiscovery(item)" title="创建任务">
-                      <span class="plus-text">+</span>
+                      <i class="bi bi-plus-lg"></i>
                     </div>
                     <div class="discovery-poster-overlay">
                       <div class="info-line" v-for="(detail, index) in getMovieDetails(item)" :key="index">
@@ -1690,6 +1676,364 @@
               <div v-else-if="discovery.hasLoaded" class="text-center py-5 text-muted">
                 <i class="bi bi-film" style="font-size: 3rem;"></i>
                 <div class="mt-2">暂无数据</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 追剧日历页面 -->
+          <div v-if="activeTab === 'calendar'" ref="calendarRoot">
+            <div style="height: 20px;"></div>
+            
+            <!-- TMDB API未配置提示 -->
+            <div v-if="configHasLoaded && !formData.tmdb_api_key" class="alert alert-warning" role="alert">
+              追剧日历需要配置 TMDB API 密钥后才能使用，请在<a href="#" class="link-focus" @click.prevent="changeTab('config')">系统配置</a>页面的 TMDB API 部分进行配置
+            </div>
+            
+            <!-- 追剧日历内容 -->
+            <div v-else>
+              <!-- 顶部筛选和导航 -->
+              <div class="row calendar-filter-row" style="margin-bottom: 20px;">
+                <div class="col-lg-6 col-md-6 mb-2 mb-md-0">
+                  <div class="input-group">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text">名称筛选</span>
+                    </div>
+                    <input type="text" class="form-control" v-model="calendar.nameFilter" placeholder="任务名称或剧集名称关键词">
+                    <div class="input-group-append">
+                      <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearCalendarFilter('nameFilter')"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-lg-6 col-md-6">
+                  <div class="input-group">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text">任务筛选</span>
+                    </div>
+                    <div class="position-relative" style="flex: 1;">
+                      <select class="form-control task-filter-select" v-model="calendar.taskFilter" style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 24px !important;">
+                        <option value="">全部任务</option>
+                        <option v-for="task in calendar.taskNames" :value="task" v-html="task"></option>
+                      </select>
+                    </div>
+                    <div class="input-group-append">
+                      <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearCalendarFilter('taskFilter')"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 分类按钮和视图切换 -->
+              <div class="row mb-3 calendar-header-row">
+                <div class="col-lg-8 col-md-6">
+                  <!-- 分类按钮 -->
+                  <div class="calendar-category-buttons">
+                    <button type="button" 
+                            class="btn btn-outline-secondary calendar-category-btn"
+                            :class="{ active: calendar.selectedType === 'all' }"
+                            @click="selectCalendarType('all')">
+                      全部
+                    </button>
+                    <button type="button" 
+                            class="btn btn-outline-secondary calendar-category-btn"
+                            v-for="type in filteredContentTypes"
+                            :key="type"
+                            :class="{ active: calendar.selectedType === type }"
+                            @click="selectCalendarType(type)">
+                      {{ getContentTypeDisplayName(type) }}
+                    </button>
+                  </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                  <!-- 日期切换和视图切换 -->
+                  <div class="calendar-controls d-flex justify-content-end">
+                    <!-- 日期切换按钮 -->
+                    <div class="btn-group" v-if="calendar.viewMode === 'poster'">
+                      <button type="button" class="btn btn-outline-secondary btn-sm" @click="changeCalendarDate('prevWeek')" title="前一周">
+                        <i class="bi bi-chevron-double-left"></i>
+                      </button>
+                      <button type="button" class="btn btn-outline-secondary btn-sm" @click="changeCalendarDate('prevDay')" title="前一天">
+                        <i class="bi bi-chevron-left"></i>
+                      </button>
+                      <button type="button" class="btn btn-primary btn-sm" @click="goToToday">今天</button>
+                      <button type="button" class="btn btn-outline-secondary btn-sm" @click="changeCalendarDate('nextDay')" title="后一天">
+                        <i class="bi bi-chevron-right"></i>
+                      </button>
+                      <button type="button" class="btn btn-outline-secondary btn-sm" @click="changeCalendarDate('nextWeek')" title="后一周">
+                        <i class="bi bi-chevron-double-right"></i>
+                      </button>
+                    </div>
+                    <div class="btn-group" v-else>
+                      <button type="button" class="btn btn-outline-secondary btn-sm" @click="changeCalendarDate('prevMonth')" title="前一月">
+                        <i class="bi bi-chevron-double-left"></i>
+                      </button>
+                      <button type="button" class="btn btn-primary btn-sm" @click="goToToday">今天</button>
+                      <button type="button" class="btn btn-outline-secondary btn-sm" @click="changeCalendarDate('nextMonth')" title="后一月">
+                        <i class="bi bi-chevron-double-right"></i>
+                      </button>
+                    </div>
+                    
+                    <!-- 视图切换按钮 -->
+                    <button type="button" 
+                            class="btn btn-outline-secondary btn-sm"
+                            @click="toggleCalendarViewMode"
+                            :title="calendar.viewMode === 'poster' ? '当前：海报视图，点击切换到日历视图' : '当前：日历视图，点击切换到海报视图'">
+                      <i :class="calendar.viewMode === 'poster' ? 'bi bi-calendar3' : 'bi bi-grid-3x3-gap'"></i>
+                    </button>
+                    
+                    <!-- 合并集切换按钮 -->
+                    <button type="button" 
+                            class="btn btn-outline-secondary btn-sm"
+                            @click="toggleCalendarMergeEpisodes"
+                            :title="calendar.mergeEpisodes ? '当前：合并集模式，点击切换到拆分集模式' : '当前：拆分集模式，点击切换到合并集模式'">
+                      <i :class="calendar.mergeEpisodes ? 'bi bi-file-break' : 'bi bi-file'"></i>
+                    </button>
+                    
+                    <!-- 刷新按钮 -->
+                    <button type="button" 
+                            class="btn btn-outline-primary batch-rename-btn"
+                            @click="refreshCalendarData"
+                            title="刷新追剧日历数据">
+                      <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+
+                    <!-- 内容管理按钮 -->
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-sm"
+                            @click="toggleCalendarManageMode"
+                            :title="calendar.manageMode ? '返回追剧日历' : '内容管理'">
+                      <i :class="calendar.manageMode ? 'bi bi-reply' : 'bi bi-tags'"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 内容管理模式 -->
+              <div v-if="calendar.manageMode" style="margin-top: 20px;">
+                <!-- 完全复用影视发现页面的海报网格样式与自适应布局 -->
+                <div class="discovery-grid">
+                  <div class="discovery-item"
+                       v-for="task in managementTasksFiltered"
+                       :key="task.task_name">
+                    <div class="discovery-poster" @mouseenter="handleManagementPosterHover($event, task)">
+                      <img :src="getEpisodePosterUrl(getTaskPosterLikeEpisode(task))"
+                           :alt="task.show_name || task.task_name"
+                           referrerpolicy="no-referrer"
+                           crossorigin="anonymous"
+                           @error="handleImageError($event)">
+                      
+                      <!-- 刷新元数据按钮（左上角，悬停显示） -->
+                      <div class="discovery-refresh-metadata" 
+                           v-if="task.match_tmdb_id"
+                           @click="refreshSeasonMetadata(task)" 
+                           title="刷新元数据">
+                        <i class="bi bi-arrow-clockwise"></i>
+                      </div>
+                      <!-- 编辑元数据按钮（已匹配：靠右；未匹配：靠左） -->
+                      <div class="discovery-edit-metadata"
+                           :style="{ left: task.match_tmdb_id ? '36px' : '8px' }"
+                           @click.stop="openEditMetadataModal(task)"
+                           title="编辑元数据">
+                        <i class="bi bi-pencil"></i>
+                      </div>
+                      
+                      <!-- 转存进度徽标（复用评分样式） -->
+                      <div class="discovery-rating"
+                           v-if="task.matched_show_name && task.season_counts"
+                           :class="getProgressBadgeClass(task)"
+                           :title="'已转存/已播出：' + getTaskTransferredCount(task) + '/' + getTaskAiredCount(task)">
+                        {{ getTransferProgress(task) }}%
+                      </div>
+                      <div class="discovery-poster-overlay">
+                        <div class="info-line">{{ task.task_name }}</div>
+                        <div class="info-line">
+                          <template v-if="task.matched_show_name">
+                            {{ task.matched_show_name }}<span v-if="task.matched_year"> ({{ task.matched_year }})</span>
+                          </template>
+                          <template v-else>
+                            未匹配
+                          </template>
+                        </div>
+                        <div class="info-line" v-if="task.latest_season_name && task.latest_season_name.trim() !== ''">{{ task.latest_season_name }}</div>
+                        <div class="info-line" v-if="task.matched_show_name && task.season_counts"
+                             v-html="`${getTaskTransferredCount(task)} <span class='count-slash'>/</span> ${getTaskAiredCount(task)} <span class='count-slash'>/</span> ${getTaskTotalCount(task)}`">
+                        </div>
+                        <div class="info-line" v-if="task.matched_status && task.matched_status.trim() !== ''">{{ task.matched_status }}</div>
+                      </div>
+                    </div>
+                    <div class="discovery-info">
+                      <div class="discovery-title" :title="task.task_name" @click.stop="openTaskMatchedTmdbPage(task)" style="cursor: pointer;">
+                        {{ task.task_name }}
+                        <span v-if="isCalendarTaskUpdatedToday(task) && shouldShowTodayIndicator()"
+                              class="task-today-indicator"
+                              :class="getTodayIndicatorClass()">
+                          <i class="bi bi-stars"></i>
+                        </span>
+                      </div>
+                      <div class="discovery-genre" :title="getContentTypeCN(task.content_type)">{{ getContentTypeCN(task.content_type) }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 海报模式 -->
+              <div v-else-if="calendar.viewMode === 'poster'" class="calendar-poster-mode">
+                <!-- 日期导航 -->
+                <div class="calendar-date-navigation">
+                  <div class="calendar-date-item" 
+                       v-for="(date, index) in calendar.weekDates" 
+                       :key="index"
+                       :class="{ 'today': date.isToday }">
+                    <div class="calendar-date-weekday">{{ date.weekday }}</div>
+                    <div class="calendar-date-day">{{ date.day }}</div>
+                  </div>
+                </div>
+                
+                <!-- 海报网格 -->
+                <div class="calendar-poster-grid">
+                  <div class="calendar-poster-column" 
+                       v-for="(date, dateIndex) in calendar.weekDates" 
+                       :key="dateIndex">
+                    <div class="calendar-poster-item" 
+                         v-for="episode in getEpisodesByDate(date.date)"
+                         :key="episode.id">
+                      <div class="calendar-poster" 
+                           @mouseenter="handleCalendarPosterHover($event, episode)"
+                           @mouseleave="hideCalendarPosterHover">
+                        <img :src="getEpisodePosterUrl(episode)" 
+                             :alt="episode.show_name"
+                             class="calendar-poster-image"
+                             crossorigin="anonymous"
+                             referrerpolicy="no-referrer"
+                             @error="handleCalendarImageError">
+                        
+                        <!-- 刷新元数据按钮（左上角，悬停显示） -->
+                        <div class="calendar-refresh-metadata" 
+                             @click="refreshEpisodeMetadata(episode)" 
+                             title="刷新元数据">
+                          <i class="bi bi-arrow-clockwise"></i>
+                        </div>
+                        
+                        <!-- 已转存标识（与影视发现评分标识风格一致） -->
+                        <div class="discovery-rating calendar-transferred-badge" v-if="isEpisodeReachedProgress(episode)" title="已转存">
+                          <i class="bi bi-check2"></i>
+                        </div>
+                        
+                        <!-- 海报悬停效果 -->
+                        <div class="calendar-poster-overlay">
+                          <div class="info-line">{{ episode.name || episode.show_name }}</div>
+                          <div class="info-line overview" v-if="episode.overview" :title="episode.overview" :data-fulltext="episode.overview">{{ episode.overview }}</div>
+                        </div>
+                        
+                        
+                      </div>
+                      
+                      <div class="calendar-episode-info">
+                        <div class="calendar-show-name" :title="getEpisodeShowTitleWithStatus(episode)" @click="openShowTmdbPage(episode)">
+                          {{ episode.show_name }}
+                          <span v-if="getEpisodeFinaleStatus(episode)"> · {{ getEpisodeFinaleStatus(episode) }}</span>
+                          <span v-if="isEpisodeUpdatedToday(episode) && shouldShowTodayIndicator()"
+                                class="task-today-indicator"
+                                :class="getTodayIndicatorClass()">
+                            <i class="bi bi-stars"></i>
+                          </span>
+                        </div>
+                        <div class="calendar-episode-number"
+                             :class="{ 'episode-number-reached': isEpisodeReachedProgress(episode) }"
+                             :title="getEpisodeTooltip(episode)"
+                             @click="openEpisodeTmdbPage(episode)">
+                          {{ getEpisodeDisplayNumber(episode) }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 日历模式 -->
+              <div v-else class="calendar-month-mode">
+                <div class="calendar-month-table">
+                  <div class="calendar-month-header">
+                    <div class="calendar-month-header-cell" v-for="weekday in ['周一', '周二', '周三', '周四', '周五', '周六', '周日']">
+                      {{ weekday }}
+                    </div>
+                  </div>
+                  <div class="calendar-month-body">
+                    <div class="calendar-month-row" 
+                         v-for="week in calendar.monthWeeks" 
+                         :key="week.weekIndex">
+                      <div class="calendar-month-cell" 
+                           v-for="day in week.days" 
+                           :key="day.date"
+                           :class="{ 
+                             'other-month': !day.isCurrentMonth,
+                             'today': day.isToday,
+                             'has-episodes': day.episodes && day.episodes.length > 0,
+                             'selected': day.date === calendar.selectedDate
+                           }"
+                           @click="selectCalendarDate(day)">
+                        <div class="calendar-month-date">
+                          <span v-if="day.dayNumber === 1">
+                            {{ day.isCurrentMonth ? (calendar.currentDate.getMonth() + 1) : (calendar.currentDate.getMonth() + 2) }}/1
+                          </span>
+                          <span v-else>
+                            {{ day.dayNumber }}
+                          </span>
+                        </div>
+                        <div class="calendar-month-episodes" v-if="day.episodes && day.episodes.length > 0">
+                          <div class="calendar-month-episode" 
+                               v-for="episode in day.episodes" 
+                               :key="episode.id">
+                            <span class="episode-title" :title="getEpisodeShowTitleWithStatus(episode)" @click.stop="openShowTmdbPage(episode)">
+                              {{ episode.show_name }}
+                              <span v-if="getEpisodeFinaleStatus(episode)"> · {{ getEpisodeFinaleStatus(episode) }}</span>
+                              <span v-if="isEpisodeUpdatedToday(episode) && shouldShowTodayIndicator()"
+                                    class="task-today-indicator"
+                                    :class="getTodayIndicatorClass()">
+                                <i class="bi bi-stars"></i>
+                              </span>
+                            </span>
+                            <span :class="['episode-number', { 'episode-number-reached': isEpisodeReachedProgress(episode) }]"
+                                  :title="getEpisodeTooltip(episode)"
+                                  :data-full="getEpisodeDisplayNumber(episode)"
+                                  :data-episode-only="getEpisodeOnlyNumber(episode)"
+                                  :data-number-only="getNumberOnly(episode)"
+                                  @click.stop="openEpisodeTmdbPage(episode)">
+                              {{ getEpisodeDisplayNumber(episode) }}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- 超小模式：在日历表格下方显示选中日期的集卡片（桌面样式） -->
+                <div class="calendar-selected-episodes">
+                  <template v-if="calendar.selectedDate">
+                    <div class="calendar-month-episodes" v-if="getEpisodesByDate(calendar.selectedDate).length > 0">
+                      <div class="calendar-month-episode" 
+                           v-for="episode in getEpisodesByDate(calendar.selectedDate)" 
+                           :key="episode.id">
+                        <span class="episode-title" :title="getEpisodeShowTitleWithStatus(episode)" @click.stop="openShowTmdbPage(episode)">
+                          {{ episode.show_name }}
+                          <span v-if="getEpisodeFinaleStatus(episode)"> · {{ getEpisodeFinaleStatus(episode) }}</span>
+                          <span v-if="isEpisodeUpdatedToday(episode) && shouldShowTodayIndicator()"
+                                class="task-today-indicator"
+                                :class="getTodayIndicatorClass()">
+                            <i class="bi bi-stars"></i>
+                          </span>
+                        </span>
+                        <span :class="['episode-number', { 'episode-number-reached': isEpisodeReachedProgress(episode) }]"
+                              :title="getEpisodeTooltip(episode)"
+                              :data-full="getEpisodeDisplayNumber(episode)"
+                              :data-episode-only="getEpisodeOnlyNumber(episode)"
+                              :data-number-only="getNumberOnly(episode)"
+                              @click.stop="openEpisodeTmdbPage(episode)">
+                          {{ getEpisodeDisplayNumber(episode) }}
+                        </span>
+                      </div>
+                    </div>
+                  </template>
+                </div>
               </div>
             </div>
           </div>
@@ -2117,8 +2461,98 @@
       </div>
     </div>
 
+    <!-- 模态框 编辑元数据（放在 #app 内，继承相同样式） -->
+    <div class="modal" tabindex="-1" id="editMetadataModal">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">编辑元数据</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+          <div class="modal-body small">
+            <div>
+              <div class="row">
+                <div class="col-md-6 mb-2">
+                  <div class="input-group">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text" style="background-color: var(--button-gray-background-color);">任务名称</span>
+                    </div>
+                    <input type="text" class="form-control" v-model="editMetadata.form.task_name" placeholder="任务名称">
+                  </div>
+                </div>
+                <div class="col-md-6 mb-2">
+                  <div class="input-group">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text" style="background-color: var(--button-gray-background-color);">任务类型</span>
+                    </div>
+                    <select class="form-control" v-model="editMetadata.form.content_type">
+                      <option value="tv">剧集</option>
+                      <option value="anime">动画</option>
+                      <option value="variety">综艺</option>
+                      <option value="documentary">纪录片</option>
+                      <option value="other">其他</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
 
+              <div class="row">
+                <!-- 左：匹配结果 -->
+                <div class="col-md-6 mb-2">
+                  <div class="input-group">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text" style="background-color: var(--button-gray-background-color);">匹配结果</span>
+                    </div>
+                    <div class="form-control matched-result" style="display: flex; align-items: center; gap: 8px;">
+                      <a v-if="editMetadata.display.matched_tmdb_id" href="#" @click.prevent="openTaskMatchedTmdbPage({ match: { tmdb_id: editMetadata.display.matched_tmdb_id } })" class="matched-link">
+                        {{ editMetadata.display.matched_label }}
+                      </a>
+                      <span v-else>{{ editMetadata.display.matched_label }}</span>
+                      <span v-if="editMetadata.display.matched_season_number" class="matched-season-wrap">
+                        <span class="input-group-text square-append">第</span>
+                        <a href="#" @click.prevent="editMetadata.display.matched_tmdb_id && window.open('https://www.themoviedb.org/tv/' + editMetadata.display.matched_tmdb_id + '/season/' + parseInt(editMetadata.display.matched_season_number), '_blank')" class="matched-link matched-season">
+                          {{ editMetadata.display.matched_season_number }}
+                        </a>
+                        <span class="input-group-text square-append">季</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
 
+                <!-- 右：修正匹配 -->
+                <div class="col-md-6 mb-2">
+                  <div class="input-group">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text" style="background-color: var(--button-gray-background-color);">修正匹配</span>
+                    </div>
+                    <input type="text" class="form-control" v-model="editMetadata.form.tmdb_id" placeholder="输入电视节目的 TMDB ID">
+                    <div class="input-group-append">
+                      <span class="input-group-text square-append season-left">第</span>
+                    </div>
+                    <input type="number" min="1" class="form-control no-spinner edit-season-number"
+                           v-model.number="editMetadata.form.season_number"
+                           placeholder="1"
+                           :style="{ width: (editMetadata.display.seasonInputWidth || '32px'), minWidth: '32px', flex: '0 0 auto', padding: '0 8px' }"
+                           @input="autoSizeSeasonInput($event)"
+                    >
+                    <div class="input-group-append">
+                      <span class="input-group-text square-append season-right">季</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <div class="file-selection-info mr-auto" v-html="editMetadata.hint" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;"></div>
+            <button type="button" class="btn btn-primary btn-cancel" data-dismiss="modal"><span class="btn-text">取消</span></button>
+            <button type="button" class="btn btn-primary" @click="saveEditMetadata"><span class="btn-text">保存</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
 
   </div>
 
@@ -2143,6 +2577,7 @@
           emby: 'Emby',
           plex: 'Plex'
         },
+        configHasLoaded: false,
         formData: {
           cookie: [],
           push_config: {},
@@ -2182,14 +2617,34 @@
             delete_task: "always",
             refresh_plex: "always",
             refresh_alist: "always",
+            season_counts: "always",
             latest_update_date: "always",
+            task_progress: "always",
+            show_status: "always",
             latest_transfer_file: "always",
             today_update_indicator: "always"
           },
+          // 显示顺序（可拖拽修改）：按钮 + 信息
+          button_display_order: [
+            "refresh_plex",
+            "refresh_alist",
+            "run_task",
+            "delete_task",
+            "latest_transfer_file",
+            "season_counts",
+            "latest_update_date",
+            "task_progress",
+            "show_status",
+            "today_update_indicator"
+          ],
           file_performance: {
             api_page_size: 200,
             cache_expire_time: 30,
             discovery_items_count: 30
+          },
+          performance: {
+            // 追剧日历刷新周期（秒），默认6小时（21600秒）
+            calendar_refresh_interval_seconds: 21600
           },
           plugin_config_mode: {
             aria2: "independent",
@@ -2209,7 +2664,8 @@
               try_match: true,
               media_id: ""
             }
-          }
+          },
+          tmdb_api_key: ""
         },
         userInfoList: [], // 用户信息列表
         accountsDetail: [], // 账号详细信息列表
@@ -2236,6 +2692,28 @@
         taskLatestRecords: {}, // 存储每个任务的最新转存记录日期
         taskLatestFiles: {}, // 存储每个任务的最近转存文件
         modalLoading: false,
+        // 编辑元数据状态
+        editMetadata: {
+          visible: false,
+          original: {
+            task_name: '',
+            content_type: '',
+            tmdb_id: '',
+            season_number: ''
+          },
+          form: {
+            task_name: '',
+            content_type: '',
+            tmdb_id: '',
+            season_number: 1
+          },
+          display: {
+            matched_label: '未匹配',
+            matched_tmdb_id: '',
+            matched_season_number: ''
+          },
+          hint: ''
+        },
         smart_param: {
           index: null,
           savepath: "",
@@ -2258,6 +2736,8 @@
         },
         activeTab: 'config',
         configModified: false,
+        // 标志：当由后端推送或编辑元数据保存触发的程序性更新时，暂时抑制未保存提示
+        suppressConfigModifiedOnce: false,
         fileSelect: {
           index: null,
           shareurl: "",
@@ -2430,6 +2910,51 @@
             ]
           }
         },
+        // 追剧日历相关数据
+        calendar: {
+          hasLoaded: false,
+          error: null,
+          tasks: [],
+          taskMapByName: {},
+          manageMode: false,
+          layoutTick: 0,
+          contentTypes: [],
+          // 仅用于“已转存”判定的进度映射（来源：/task_latest_info.latest_files）
+          progressByTaskName: {},
+          progressByShowName: {},
+          // 当日更新数据（来源：/api/calendar/today_updates_local）
+          todayUpdatesByTaskName: {}, // { [task_name]: true }
+          todayUpdatesByShow: {},     // { [show_name]: Set(keys) }，key: 'S01E02' 或 'D:YYYY-MM-DD'
+          // 从本地存储读取已选择的类型，默认 all
+          selectedType: (localStorage.getItem('calendar_selected_type') || 'all'),
+          nameFilter: '',
+          taskFilter: '',
+          taskNames: [],
+          viewMode: (localStorage.getItem('calendar_view_mode') === 'month' || localStorage.getItem('calendar_view_mode') === 'poster')
+            ? localStorage.getItem('calendar_view_mode')
+            : 'poster', // poster 或 month（支持持久化）
+          mergeEpisodes: localStorage.getItem('calendar_merge_episodes') === 'true', // 合并集模式（支持持久化）
+          currentDate: new Date(),
+          weekDates: [],
+          monthWeeks: [],
+          episodes: [],
+          // 选中日期（YYYY-MM-DD），默认今天
+          selectedDate: (function(){
+            const d = new Date();
+            const y = d.getFullYear();
+            const m = (d.getMonth()+1).toString().padStart(2,'0');
+            const day = d.getDate().toString().padStart(2,'0');
+            return `${y}-${m}-${day}`;
+          })()
+        },
+        // 日历页面resize监听器
+        calendarResizeHandler: null,
+        // 日历自动检测更新相关
+        calendarAutoWatchTimer: null,
+        calendarLatestFilesSignature: '',
+        calendarAutoWatchTickRef: null,
+        calendarAutoWatchFocusHandler: null,
+        calendarAutoWatchVisibilityHandler: null,
         // 创建任务相关数据
         createTask: {
           loading: false,
@@ -2470,6 +2995,108 @@
             }];
           }
         },
+        // 管理视图：按任务名（拼音）排序并应用顶部筛选
+        managementTasksFiltered() {
+          if (!this.calendar.tasks || this.calendar.tasks.length === 0) return [];
+          let list = this.calendar.tasks.slice();
+          // 顶部筛选：类型
+          if (this.calendar.selectedType && this.calendar.selectedType !== 'all') {
+            list = list.filter(t => (t.content_type || 'other') === this.calendar.selectedType);
+          }
+          // 顶部筛选：名称关键词（任务名或剧名）
+          if (this.calendar.nameFilter && this.calendar.nameFilter.trim() !== '') {
+            const kw = this.calendar.nameFilter.toLowerCase();
+            list = list.filter(t => (t.task_name || '').toLowerCase().includes(kw) || (t.show_name || '').toLowerCase().includes(kw));
+          }
+          // 顶部筛选：任务筛选（精确任务名）
+          if (this.calendar.taskFilter && this.calendar.taskFilter.trim() !== '') {
+            list = list.filter(t => (t.task_name || '') === this.calendar.taskFilter);
+          }
+          // 按匹配状态和任务名称拼音排序：匹配的项目在前，未匹配的项目在后
+          try {
+            list.sort((a, b) => {
+              // 首先按匹配状态排序：匹配的在前，未匹配的在后
+              const aMatched = !!(a.matched_show_name && a.matched_show_name.trim() !== '');
+              const bMatched = !!(b.matched_show_name && b.matched_show_name.trim() !== '');
+              
+              if (aMatched !== bMatched) {
+                return aMatched ? -1 : 1; // 匹配的排在前面
+              }
+              
+              // 匹配状态相同时，按任务名称拼音排序
+              const aKey = pinyinPro.pinyin(a.task_name || '', { toneType: 'none', type: 'string' }).toLowerCase();
+              const bKey = pinyinPro.pinyin(b.task_name || '', { toneType: 'none', type: 'string' }).toLowerCase();
+              if (aKey < bKey) return -1; if (aKey > bKey) return 1; return 0;
+            });
+          } catch (e) {}
+          return list;
+        },
+
+        // 海报和日历视图下过滤掉所有内容都是未匹配的分类
+        filteredContentTypes() {
+          if (!this.calendar.tasks || this.calendar.tasks.length === 0) {
+            return this.calendar.contentTypes;
+          }
+          
+          // 只在海报和日历视图下进行过滤
+          if (this.calendar.manageMode) {
+            return this.calendar.contentTypes;
+          }
+          
+          return this.calendar.contentTypes.filter(type => {
+            // 获取该分类下的所有任务
+            const typeTasks = this.calendar.tasks.filter(task => (task.content_type || 'other') === type);
+            
+            // 如果该分类下没有任务，隐藏该分类按钮
+            if (typeTasks.length === 0) {
+              return false;
+            }
+            
+            // 检查该分类下是否有匹配的任务
+            const hasMatchedTask = typeTasks.some(task => 
+              task.matched_show_name && task.matched_show_name.trim() !== ''
+            );
+            
+            // 如果有匹配的任务，保留该分类按钮
+            return hasMatchedTask;
+          });
+        },
+
+        // 管理视图：将过滤后的任务按当前海报列数进行分栏，复用相同布局
+        managementColumns() {
+          const tasks = this.managementTasksFiltered;
+          if (!tasks || tasks.length === 0) return [];
+          // 依赖布局tick以在窗口变化时强制重新计算
+          void this.calendar.layoutTick;
+          // 与周视图一致的列数推导逻辑
+          const availableWidth = this.getCalendarAvailableWidth ? this.getCalendarAvailableWidth() : 1200;
+          const minColumnWidth = 140;
+          const columnGap = 20;
+          // 列数计算与周视图一致，加入 eps 避免边界像素/滚动条导致的多列
+          const eps = 0.1;
+          // 桌面端也允许最少 2 列，避免在某些宽度下被强制多出一列
+          const columns = Math.max(2, Math.floor((availableWidth + columnGap - eps) / (minColumnWidth + columnGap)));
+          const cols = Array.from({ length: columns }, () => []);
+          // 简单逐列分配，保证与日历海报列宽/间距一致
+          tasks.forEach((t, idx) => {
+            cols[idx % columns].push(t);
+          });
+          return cols;
+        },
+        // 基于已加载的日历剧集构建：show_name -> poster_local_path 映射
+        posterByShowName() {
+          const map = {};
+          try {
+            (this.calendar.episodes || []).forEach(ep => {
+              const key = (ep && ep.show_name) ? String(ep.show_name).trim() : '';
+              const poster = ep && ep.poster_local_path;
+              if (key && poster && !map[key]) map[key] = poster;
+            });
+          } catch (e) {}
+          return map;
+        },
+        
+        
         filteredHistoryRecords() {
           // 直接返回服务器端已筛选的数据
           if (!this.history.records || this.history.records.length === 0) {
@@ -2568,10 +3195,48 @@
       watch: {
         formData: {
           handler(newVal, oldVal) {
-            this.configModified = true;
+            if (this.suppressConfigModifiedOnce) {
+              // 消费一次抑制标志，不触发未保存提示
+              this.suppressConfigModifiedOnce = false;
+            } else {
+              this.configModified = true;
+            }
           },
           deep: true
         },
+        // 名称筛选变化时重建月视图
+        'calendar.nameFilter': function(newVal, oldVal) {
+          if (this.calendar.viewMode === 'month') {
+            this.initializeCalendarDates();
+          }
+        },
+        // 任务筛选变化时重建月视图
+        'calendar.taskFilter': function(newVal, oldVal) {
+          if (this.calendar.viewMode === 'month') {
+            this.initializeCalendarDates();
+          }
+        },
+        // 侧边栏折叠/展开变化时，触发布局重算
+        sidebarCollapsed(val) {
+          if (this.activeTab === 'calendar') {
+            if (this.calendar.manageMode) {
+              this.calendar.layoutTick = Date.now();
+            } else if (this.calendar.viewMode === 'poster') {
+              this.updateWeekDates();
+            }
+          }
+        },
+        // 页面宽度模式变化（窄/中/宽），触发布局重算
+        pageWidthMode(val) {
+          if (this.activeTab === 'calendar') {
+            if (this.calendar.manageMode) {
+              this.calendar.layoutTick = Date.now();
+            } else if (this.calendar.viewMode === 'poster') {
+              this.updateWeekDates();
+            }
+          }
+        },
+
         historyNameFilter: {
           handler(newVal, oldVal) {
             // 延迟加载，避免频繁请求
@@ -2593,6 +3258,32 @@
           // 如果切换到任务列表页面，则刷新任务最新信息
           if (newValue === 'tasklist') {
             this.loadTaskLatestInfo();
+          }
+          // 切换到追剧日历：立刻检查一次并启动后台监听；离开则停止监听
+          if (newValue === 'calendar') {
+            // 立即检查一次（若已初始化过监听，直接调用tick引用）
+            // 先本地读取一次，立刻应用“已转存”状态（不依赖轮询）
+            try { this.loadCalendarEpisodesLocal && this.loadCalendarEpisodesLocal(); } catch (e) {}
+            // 先启动监听以确保 tickRef 已就绪
+            this.startCalendarAutoWatch();
+            // 重置签名，确保本次切换能触发一次增量检查
+            this.calendarLatestFilesSignature = '';
+            // 进入页面即刻用现有的最近文件重建一次进度映射，避免UI滞后
+            try {
+              this.calendar.progressByTaskName = this.buildProgressByTaskNameFromLatestFiles(this.taskLatestFiles || {});
+              this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+            } catch (e) {}
+            // 立刻触发一次增量检查与热更新（无需等待下一轮定时器）
+            if (this.calendarAutoWatchTickRef) {
+              this.calendarAutoWatchTickRef();
+            }
+            // 离开再返回时恢复管理模式记忆
+            try {
+              const savedManage = localStorage.getItem('calendar_manage_mode');
+              if (savedManage === 'true') this.calendar.manageMode = true;
+            } catch (e) {}
+          } else if (oldValue === 'calendar') {
+            this.stopCalendarAutoWatch();
           }
           // 如果切换到文件整理页面，则加载文件列表
           if (newValue === 'filemanager') {
@@ -2671,6 +3362,26 @@
         }
         
         $('[data-toggle="tooltip"]').tooltip();
+        // 窗口尺寸变化时，及时重算追剧日历布局，避免列数滞后
+        this._onCalendarResize = this.debounce(() => {
+          if (this.activeTab === 'calendar') {
+            this.calendar.layoutTick = Date.now();
+            this.initializeCalendarDates();
+          }
+        }, 80);
+        window.addEventListener('resize', this._onCalendarResize);
+        window.addEventListener('orientationchange', this._onCalendarResize);
+        // 使用 ResizeObserver 监听日历根容器尺寸变化，实时刷新列数
+        if (window.ResizeObserver) {
+          this._calendarResizeObserver = new ResizeObserver(() => {
+            if (this.activeTab === 'calendar') {
+              this._onCalendarResize();
+            }
+          });
+          if (this.$refs && this.$refs.calendarRoot) {
+            this._calendarResizeObserver.observe(this.$refs.calendarRoot);
+          }
+        }
         document.addEventListener('keydown', this.handleKeyDown);
         document.addEventListener('click', (e) => {
           // 如果点击的是输入框、搜索按钮或下拉菜单本身，不关闭下拉菜单
@@ -2771,10 +3482,207 @@
       },
       beforeDestroy() {
         window.removeEventListener('beforeunload', this.handleBeforeUnload);
+        if (this._onCalendarResize) {
+          window.removeEventListener('resize', this._onCalendarResize);
+          window.removeEventListener('orientationchange', this._onCalendarResize);
+        }
+        if (this._calendarResizeObserver && this.$refs && this.$refs.calendarRoot) {
+          this._calendarResizeObserver.unobserve(this.$refs.calendarRoot);
+          this._calendarResizeObserver.disconnect();
+          this._calendarResizeObserver = null;
+        }
         // 移除点击事件监听器
         document.removeEventListener('click', this.handleOutsideClick);
+        // 清理日历后台监听
+        this.stopCalendarAutoWatch();
       },
       methods: {
+        // 选择日历日期
+        selectCalendarDate(day) {
+          try {
+            if (!day || !day.date) return;
+            this.calendar.selectedDate = day.date;
+          } catch (e) {}
+        },
+        // 根据日期字符串获取当日剧集数组
+        getEpisodesByDate(dateStr) {
+          if (!dateStr) return [];
+          // 在 monthWeeks 结构里查找对应日期的 episodes
+          for (const week of (this.calendar.monthWeeks || [])) {
+            for (const d of (week.days || [])) {
+              if (d.date === dateStr) {
+                return Array.isArray(d.episodes) ? d.episodes : [];
+              }
+            }
+          }
+          return [];
+        },
+        // --- 显示设置拖拽排序 ---
+        onDisplayDragStart(e, key) {
+          try {
+            e.dataTransfer.setData('text/plain', key);
+            // 为原位置元素添加半透明视觉，表示“已被拖起”
+            const origin = e.target.closest('.draggable-item');
+            if (origin) origin.classList.add('drag-origin');
+          } catch (err) {}
+        },
+        onDisplayDrop(e, targetKey) {
+          try {
+            const sourceKey = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || '';
+            if (!sourceKey || sourceKey === targetKey) return;
+            const order = (this.formData && this.formData.button_display_order) ? this.formData.button_display_order.slice() : [];
+            const from = order.indexOf(sourceKey);
+            const to = order.indexOf(targetKey);
+            if (from === -1 || to === -1) return;
+            order.splice(from, 1);
+            order.splice(to, 0, sourceKey);
+            this.formData.button_display_order = order;
+          } catch (err) {}
+        },
+        onDisplayDragOver(e) {
+          try {
+            // 使用“move”效果，避免浏览器默认的“copy/+”指示
+            e.dataTransfer.dropEffect = 'move';
+          } catch (err) {}
+        },
+        onDisplayDragEnd(e) {
+          try {
+            // 拖拽结束时移除所有占位/高亮样式
+            const items = document.querySelectorAll('#display-setting-draggable .draggable-item');
+            items.forEach(el => el.classList.remove('drag-origin', 'drag-over'));
+          } catch (err) {}
+        },
+        getDisplayLabel(key) {
+          const map = {
+            refresh_plex: '刷新 Plex 媒体库',
+            refresh_alist: '刷新 AList 目录',
+            run_task: '运行此任务',
+            delete_task: '删除此任务',
+            latest_transfer_file: '最近转存文件',
+            season_counts: '集数信息统计',
+            latest_update_date: '最近更新日期',
+            task_progress: '当前任务进度',
+            show_status: '电视节目状态',
+            today_update_indicator: '当日更新标识'
+          };
+          return map[key] || key;
+        },
+        // ----- 任务列表新增显示：集数统计/任务进度/节目状态 -----
+        getTaskSeasonCounts(taskName) {
+          try {
+            if (!taskName || !this.calendar || !Array.isArray(this.calendar.tasks)) return null;
+            const t = this.calendar.tasks.find(x => (x.task_name || x.taskname) === taskName);
+            if (!t || !t.season_counts) return null;
+            const sc = t.season_counts || {};
+            const transferred = Number(sc.transferred_count || 0);
+            const aired = Number(sc.aired_count || 0);
+            const total = Number(sc.total_count || 0);
+            if (transferred === 0 && aired === 0 && total === 0) return null;
+            return { transferred, aired, total };
+          } catch (e) { return null; }
+        },
+        formatSeasonCounts(sc) {
+          try {
+            if (!sc) return '';
+            // 为斜杠包裹span，便于单独微调位置
+            return `${sc.transferred} <span class="count-slash">/</span> ${sc.aired} <span class=\"count-slash\">/</span> ${sc.total}`;
+          } catch (e) { return ''; }
+        },
+        getTaskProgress(taskName) {
+          try {
+            const sc = this.getTaskSeasonCounts(taskName);
+            if (!sc) return null;
+            if (sc.aired <= 0) return 0;
+            const pct = Math.floor((sc.transferred / sc.aired) * 100);
+            return Math.max(0, Math.min(100, pct));
+          } catch (e) { return null; }
+        },
+        getTaskShowStatus(taskName) {
+          try {
+            if (!taskName || !this.calendar || !Array.isArray(this.calendar.tasks)) return '';
+            const t = this.calendar.tasks.find(x => (x.task_name || x.taskname) === taskName);
+            const s = (t && t.matched_status ? String(t.matched_status) : '').trim();
+            if (!s) return '';
+            // 仅在这些状态展示
+            if (['本季终', '已完结', '已取消'].includes(s)) return s;
+            return '';
+          } catch (e) { return ''; }
+        },
+        seasonInputComputedWidth() {
+          try {
+            const val = String(this.editMetadata && this.editMetadata.form ? (this.editMetadata.form.season_number ?? '') : '');
+            const len = val.length || 1;
+            const px = Math.max(31, len * 9 + 12);
+            return px + 'px';
+          } catch (e) {
+            return '31px';
+          }
+        },
+        // 获取管理视图卡片展示用：实时“已转存集数”（优先使用进度映射，其次回退到任务自带的 season_counts）
+        getTaskTransferredCount(task) {
+          try {
+            if (!task) return 0;
+            const name = task.task_name || task.taskname || '';
+            const byTask = this.calendar && this.calendar.progressByTaskName ? this.calendar.progressByTaskName : {};
+            if (name && byTask[name]) {
+              const prog = byTask[name] || {};
+              if (prog.episode_number != null) {
+                return Number(prog.episode_number) || 0;
+              }
+              // 仅有日期：直接在本地DB剧集里找到“该节目在该日期播出的那一集”的集号
+              if (prog.air_date) {
+                const showName = (task.matched_show_name || task.show_name || '').trim();
+                if (showName && Array.isArray(this.calendar.episodes) && this.calendar.episodes.length > 0) {
+                  const date = String(prog.air_date).trim();
+                  // 找到该节目在该日期播出的所有集，取最大集号作为“已转存集数”
+                  const candidates = this.calendar.episodes.filter(e => {
+                    return e && (e.show_name || '').trim() === showName && (e.air_date || '').trim() === date;
+                  });
+                  if (candidates.length > 0) {
+                    const maxEp = candidates.reduce((m, e) => {
+                      const n = parseInt(e.episode_number);
+                      return isNaN(n) ? m : Math.max(m, n);
+                    }, 0);
+                    if (maxEp > 0) return maxEp;
+                  }
+                }
+              }
+            }
+            return Number((task.season_counts && task.season_counts.transferred_count) || 0);
+          } catch (e) { return 0; }
+        },
+        // 获取管理视图卡片展示用：已播出集数（直接来自任务元数据）
+        getTaskAiredCount(task) {
+          try { return Number((task && task.season_counts && task.season_counts.aired_count) || 0); } catch (e) { return 0; }
+        },
+        // 获取管理视图卡片展示用：总集数（直接来自任务元数据）
+        getTaskTotalCount(task) {
+          try { return Number((task && task.season_counts && task.season_counts.total_count) || 0); } catch (e) { return 0; }
+        },
+        // 计算转存进度（已转存/已播出 的百分比，取整），优先使用实时映射
+        getTransferProgress(task) {
+          try {
+            if (!task || !task.season_counts) return 0;
+            const transferred = this.getTaskTransferredCount(task);
+            const aired = this.getTaskAiredCount(task);
+            if (aired <= 0) return 0;
+            const pct = Math.floor((transferred / aired) * 100);
+            return Math.max(0, Math.min(100, pct));
+          } catch (e) { return 0; }
+        },
+        // 根据节目状态返回徽标颜色类（使用状态名便于直接在CSS中调整颜色）
+        getProgressBadgeClass(task) {
+          try {
+            const status = (task && task.matched_status ? String(task.matched_status) : '').trim();
+            if (!status) return '';
+            if (status === '本季终') return 'status-finale';
+            if (status === '已完结') return 'status-ended';
+            // 其他状态：统一用绿色
+            return 'status-other';
+          } catch (e) {
+            return '';
+          }
+        },
         // 仅当有有效信息时返回悬停提示，否则返回null以不显示
         getSuggestionHoverTitle(suggestion) {
           if (!suggestion) return null;
@@ -2854,6 +3762,1552 @@
           }
           
           return message;
+        },
+
+        // 追剧日历相关方法
+        // 加载追剧日历数据
+        async loadCalendarData() {
+          if (this.calendar.hasLoaded) return;
+          
+          try {
+            console.log('开始加载追剧日历数据...');
+            
+            // 直接加载任务信息（本地数据，无需缓存）
+            const tasksResponse = await axios.get('/api/calendar/tasks');
+            console.log('任务信息响应:', tasksResponse.data);
+            
+            if (tasksResponse.data.success) {
+              this.calendar.tasks = tasksResponse.data.data.tasks;
+              // 规范化并排序内容类型：tv、anime、variety、documentary、other（其他始终最后）
+              const rawTypes = tasksResponse.data.data.content_types || [];
+              this.updateContentTypes(rawTypes);
+              this.calendar.taskNames = this.calendar.tasks.map(task => task.task_name);
+
+              // 从任务列表页面接口读取最近转存文件，构建进度映射
+              try {
+                const latestRes = await axios.get('/task_latest_info');
+                if (latestRes.data && latestRes.data.success) {
+                  const latestFiles = latestRes.data.data.latest_files || {};
+                  // 同步到任务面板缓存，避免重复请求
+                  this.taskLatestFiles = latestFiles;
+                  // 构建映射
+                  this.calendar.progressByTaskName = this.buildProgressByTaskNameFromLatestFiles(latestFiles);
+                  this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks, this.calendar.progressByTaskName);
+                } else {
+                  this.calendar.progressByTaskName = {};
+                  this.calendar.progressByShowName = {};
+                }
+              } catch (e) {
+                console.warn('读取任务最近转存文件失败:', e);
+                this.calendar.progressByTaskName = {};
+                this.calendar.progressByShowName = {};
+              }
+
+              // 读取持久化的内容类型选择并校验有效性
+              try {
+                const savedType = localStorage.getItem('calendar_selected_type') || 'all';
+                const validTypes = ['all', ...this.calendar.contentTypes];
+                if (validTypes.includes(savedType)) {
+                  this.calendar.selectedType = savedType;
+                } else {
+                  this.calendar.selectedType = 'all';
+                }
+              } catch (e) {
+                this.calendar.selectedType = 'all';
+              }
+              // 读取管理模式持久化（支持三态记忆：管理/海报/月历）
+              try {
+                const savedManage = localStorage.getItem('calendar_manage_mode');
+                if (savedManage === 'true') {
+                  this.calendar.manageMode = true;
+                } else if (savedManage === 'false') {
+                  this.calendar.manageMode = false;
+                }
+              } catch (e) {}
+              
+              console.log('任务数据:', this.calendar.tasks);
+              console.log('内容类型:', this.calendar.contentTypes);
+              
+              // 首屏优先渲染本地缓存，保证页面快速可见
+              await this.loadCalendarEpisodesLocal();
+              // 同步加载今日更新数据
+              try { await this.loadTodayUpdatesLocal(); } catch (e) {}
+              // 背景增量刷新（带节流），完成后热更新
+              if (this.shouldAutoRefreshCalendar()) {
+                this.refreshCalendarData().catch(() => {});
+              }
+              // 启动后台轻量监听，近实时发现“最近转存文件”变化
+              this.startCalendarAutoWatch();
+              
+              this.calendar.hasLoaded = true;
+              
+              // 初始化日期数据
+              this.initializeCalendarDates();
+            } else {
+              this.calendar.error = tasksResponse.data.message;
+              console.error('加载任务信息失败:', tasksResponse.data.message);
+            }
+          } catch (error) {
+            this.calendar.error = '加载追剧日历数据失败';
+            console.error('加载追剧日历数据失败:', error);
+          }
+        },
+
+        // 切换内容管理模式
+        toggleCalendarManageMode() {
+          this.calendar.manageMode = !this.calendar.manageMode;
+          try {
+            localStorage.setItem('calendar_manage_mode', this.calendar.manageMode ? 'true' : 'false');
+          } catch (e) {}
+          // 进入或退出管理模式时触发布局重算
+          this.calendar.layoutTick = Date.now();
+        },
+
+        // 将任务转为与海报视图一致的episode-like对象：优先使用后端返回的匹配海报
+        getTaskPosterLikeEpisode(task) {
+          const show = (task && task.show_name) ? String(task.show_name).trim() : '';
+          // 1) 后端提供的 matched_poster_local_path（真实匹配结果）
+          let poster = (task && task.matched_poster_local_path) || '';
+          // 2) 若无，则根据 show_name 在已加载episodes中兜底
+          if (!poster && show && this.posterByShowName && this.posterByShowName[show]) {
+            poster = this.posterByShowName[show];
+          }
+          // 3) 仍无则使用任务自身字段或默认逻辑
+          if (!poster) {
+            poster = (task && task.poster_local_path) || '';
+          }
+          return {
+            poster_local_path: poster,
+            task_info: { task_name: task && task.task_name, content_type: task && task.content_type },
+            show_name: task && task.show_name
+          };
+        },
+
+        // 内容类型中文名
+        getContentTypeCN(type) {
+          const map = { tv: '剧集', anime: '动画', variety: '综艺', documentary: '纪录片', other: '其他' };
+          return map[type] || '其他';
+        },
+
+        // 基于最近转存文件构建：task_name -> { episode_number, air_date }
+        buildProgressByTaskNameFromLatestFiles(latestFiles) {
+          const result = {};
+          if (!latestFiles || typeof latestFiles !== 'object') return result;
+          const patterns = [
+            /S(\d{1,2})E(\d{1,3})/i, // S01E01
+            /E(\d{1,3})/i,            // E01
+            /第(\d{1,3})集/,           // 第1集
+            /第(\d{1,3})期/,           // 第1期（综艺）
+            /(\d{1,3})集/,            // 1集
+            /(\d{1,3})期/,            // 1期
+          ];
+          const datePatterns = [
+            /(\d{4})-(\d{1,2})-(\d{1,2})/,   // 2025-01-01
+            /(\d{4})\/(\d{1,2})\/(\d{1,2})/,
+            /(\d{4})\.(\d{1,2})\.(\d{1,2})/,
+          ];
+          const parseOne = (txt) => {
+            if (!txt) return null;
+            for (const re of patterns) {
+              const m = String(txt).match(re);
+              if (m) {
+                if (/S\d+E\d+/i.test(m[0])) {
+                  return { episode_number: parseInt(m[2]), air_date: null };
+                }
+                return { episode_number: parseInt(m[1]), air_date: null };
+              }
+            }
+            for (const re of datePatterns) {
+              const m = String(txt).match(re);
+              if (m) {
+                const y = m[1];
+                const mm = String(m[2]).padStart(2, '0');
+                const dd = String(m[3]).padStart(2, '0');
+                return { episode_number: null, air_date: `${y}-${mm}-${dd}` };
+              }
+            }
+            return null;
+          };
+          Object.keys(latestFiles || {}).forEach(taskName => {
+            if (taskName && taskName !== '__calendar_shows__' && taskName !== '__calendar_tmdb_ids__') {
+              const parsed = parseOne(latestFiles[taskName]);
+              if (parsed && (parsed.episode_number != null || parsed.air_date)) {
+                result[taskName] = parsed;
+              }
+            }
+          });
+          return result;
+        },
+
+        // 基于任务列表信息构建：show_name -> 任务进度（同一剧取更大集号或更晚日期）
+        buildProgressByShowNameFromTasks(tasks, progressByTaskName) {
+          const result = {};
+          if (!Array.isArray(tasks)) return result;
+          const pickNewer = (a, b) => {
+            if (!a) return b; if (!b) return a;
+            if (a.episode_number != null && b.episode_number != null) {
+              return b.episode_number > a.episode_number ? b : a;
+            }
+            if (a.episode_number != null) return a;
+            if (b.episode_number != null) return b;
+            if ((b.air_date || '') > (a.air_date || '')) return b; return a;
+          };
+          tasks.forEach(t => {
+            const tname = t.task_name;
+            const sname = t.show_name;
+            const prog = progressByTaskName[tname];
+            if (sname && prog) {
+              result[sname] = pickNewer(result[sname], prog);
+            }
+          });
+          return result;
+        },
+        
+        // 加载本地剧集数据；如无则自动 bootstrap + refresh 再读
+        async loadCalendarEpisodesLocal() {
+          const tryReadLocal = async () => {
+            const res = await axios.get('/api/calendar/episodes_local');
+            if (res.data && res.data.success) {
+              this.calendar.episodes = res.data.data.episodes || [];
+              return this.calendar.episodes.length;
+            }
+            return 0;
+          };
+
+          let count = await tryReadLocal();
+          if (count > 0) return;
+
+          try {
+            await axios.post('/api/calendar/bootstrap');
+          } catch (e) {
+            console.warn('bootstrap 失败:', e);
+          }
+
+          const tasklist = (this.formData && this.formData.tasklist) ? this.formData.tasklist : [];
+          const tmdbIds = [];
+          tasklist.forEach(t => {
+            const cal = (t && t.calendar_info) ? t.calendar_info : {};
+            const match = cal.match || {};
+            if (match.tmdb_id) tmdbIds.push(match.tmdb_id);
+          });
+
+          for (const id of tmdbIds) {
+            try {
+              await axios.get('/api/calendar/refresh_latest_season', { params: { tmdb_id: id } });
+            } catch (e) {
+              console.warn('refresh 失败:', id, e);
+            }
+          }
+
+          await tryReadLocal();
+        },
+        
+        // 初始化日历日期数据
+        initializeCalendarDates() {
+          this.updateWeekDates();
+          this.updateMonthWeeks();
+        },
+        
+        // 更新周视图日期
+        updateWeekDates() {
+          const today = new Date();
+          const currentDay = new Date(this.calendar.currentDate);
+          
+          // 动态计算显示的列数，根据主内容区域宽度自动调整
+          const availableWidth = this.getCalendarAvailableWidth();
+          const minColumnWidth = 140; // 最小列宽
+          const columnGap = 20; // 列间距
+          // 计算列数：n = floor((W + gap - eps) / (minWidth + gap))，避免边界像素/滚动条导致的多列
+          const eps = 0.1;
+          const maxColumns = Math.max(2, Math.floor((availableWidth + columnGap - eps) / (minColumnWidth + columnGap)));
+          
+
+          
+          // 从当前日期开始，向后扩展日期范围（今天始终在第一列）
+          const startDate = new Date(currentDay);
+          
+          this.calendar.weekDates = [];
+          for (let i = 0; i < maxColumns; i++) {
+            const date = new Date(startDate);
+            date.setDate(startDate.getDate() + i);
+            
+            const isToday = date.toDateString() === today.toDateString();
+            const dayOfWeek = date.getDay();
+            const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+            const weekday = weekdayNames[dayOfWeek];
+            const day = date.getDate().toString().padStart(2, '0');
+            
+            this.calendar.weekDates.push({
+              date: this.formatDateToYYYYMMDD(date),
+              weekday: isToday ? '今天' : weekday,
+              day: `${(date.getMonth() + 1).toString().padStart(2, '0')}/${day}`,
+              isToday: isToday
+            });
+          }
+        },
+        
+        // 更新月视图周数据
+        updateMonthWeeks() {
+          const currentDay = new Date(this.calendar.currentDate);
+          const year = currentDay.getFullYear();
+          const month = currentDay.getMonth();
+          
+          const firstDay = new Date(year, month, 1);
+          const lastDay = new Date(year, month + 1, 0);
+          const firstDayOfWeek = firstDay.getDay() || 7; // 转换为周一到周日（1-7）
+          
+          const weeks = [];
+          let currentWeek = [];
+          
+          // 添加上个月的日期
+          for (let i = firstDayOfWeek - 1; i > 0; i--) {
+            const date = new Date(year, month, 1 - i);
+            currentWeek.push({
+              date: this.formatDateToYYYYMMDD(date),
+              dayNumber: date.getDate(),
+              isCurrentMonth: false,
+              isToday: false,
+              episodes: []
+            });
+          }
+          
+          // 添加当前月的日期
+          for (let day = 1; day <= lastDay.getDate(); day++) {
+            const date = new Date(year, month, day);
+            const isToday = date.toDateString() === new Date().toDateString();
+            
+            currentWeek.push({
+              date: this.formatDateToYYYYMMDD(date),
+              dayNumber: day,
+              isCurrentMonth: true,
+              isToday: isToday,
+              episodes: this.getEpisodesByDate(this.formatDateToYYYYMMDD(date))
+            });
+            
+            if (currentWeek.length === 7) {
+              weeks.push({
+                weekIndex: weeks.length,
+                days: currentWeek
+              });
+              currentWeek = [];
+            }
+          }
+          
+          // 添加下个月的日期
+          if (currentWeek.length > 0) {
+            for (let day = 1; currentWeek.length < 7; day++) {
+              const date = new Date(year, month + 1, day);
+                          currentWeek.push({
+              date: this.formatDateToYYYYMMDD(date),
+              dayNumber: date.getDate(),
+              isCurrentMonth: false,
+              isToday: false,
+              episodes: []
+            });
+            }
+            weeks.push({
+              weekIndex: weeks.length,
+              days: currentWeek
+            });
+          }
+          
+          this.calendar.monthWeeks = weeks;
+        },
+        
+        // 根据日期获取剧集
+        getEpisodesByDate(date) {
+          // 从已加载的剧集中筛选指定日期的剧集
+          if (!this.calendar.episodes || this.calendar.episodes.length === 0) {
+            return [];
+          }
+          
+          // 先进行基础筛选
+          let filteredEpisodes = this.calendar.episodes.filter(episode => {
+            // 根据筛选条件过滤
+            if (this.calendar.selectedType !== 'all') {
+              // 通过剧集名称匹配任务，获取内容类型
+              const matchedTask = this.findTaskByShowName(episode.show_name);
+              const episodeContentType = matchedTask ? matchedTask.content_type : 'other';
+              if (episodeContentType !== this.calendar.selectedType) {
+                return false;
+              }
+            }
+            
+            // 名称筛选：检查剧集名称
+            if (this.calendar.nameFilter && this.calendar.nameFilter.trim() !== '') {
+              const nameFilter = this.calendar.nameFilter.toLowerCase();
+              const showName = (episode.show_name || '').toLowerCase();
+              if (!showName.includes(nameFilter)) {
+                return false;
+              }
+            }
+            
+            // 任务筛选：检查任务名称
+            if (this.calendar.taskFilter && this.calendar.taskFilter.trim() !== '') {
+              const matchedTask = this.findTaskByShowName(episode.show_name);
+              const taskName = matchedTask ? matchedTask.task_name : '';
+              if (taskName !== this.calendar.taskFilter) {
+                return false;
+              }
+            }
+            
+            return episode.air_date === date;
+          });
+          
+          // 如果启用了合并集功能，则进行合并处理
+          if (this.calendar.mergeEpisodes) {
+            return this.mergeEpisodesByShow(filteredEpisodes);
+          }
+          
+          return filteredEpisodes;
+        },
+        
+        // 根据剧集名称查找对应的任务
+        findTaskByShowName(showName) {
+          if (!this.calendar.tasks || !showName) return null;
+          
+          // 首先尝试精确匹配
+          let matchedTask = this.calendar.tasks.find(task => 
+            task.show_name === showName || 
+            task.matched_show_name === showName
+          );
+          
+          if (matchedTask) return matchedTask;
+          
+          // 如果精确匹配失败，尝试模糊匹配
+          matchedTask = this.calendar.tasks.find(task => 
+            (task.show_name && task.show_name.includes(showName)) ||
+            (task.matched_show_name && task.matched_show_name.includes(showName))
+          );
+          
+          return matchedTask || null;
+        },
+        // 判断剧集是否为 finale 集（支持合并集）
+        isFinaleEpisode(episode) {
+          try {
+            if (!episode) return false;
+            // 合并集：检查任一原始集是否 finale
+            if (episode.is_merged && Array.isArray(episode.original_episodes) && episode.original_episodes.length > 0) {
+              return episode.original_episodes.some(ep => {
+                const t = String((ep && (ep.type || ep.ep_type || ep.episode_type)) || '').toLowerCase();
+                return t.includes('finale');
+              });
+            }
+            // 单集：直接检查类型字段
+            const tp = String((episode.type || episode.ep_type || episode.episode_type || '')).toLowerCase();
+            return tp.includes('finale');
+          } catch (e) {
+            return false;
+          }
+        },
+        // 获取需要在 finale 集显示的节目状态文案
+        getEpisodeFinaleStatus(episode) {
+          try {
+            if (!this.isFinaleEpisode(episode)) return '';
+            const task = this.findTaskByShowName(episode && episode.show_name);
+            const status = task && task.matched_status ? String(task.matched_status).trim() : '';
+            // 规范：若节目为“已完结/已取消”，则在 finale 集显示对应状态；否则显示“本季终”
+            if (status === '已完结' || status === '已取消') return status;
+            return '本季终';
+          } catch (e) {
+            return '';
+          }
+        },
+        // 返回用于悬停提示的 文本：剧名 或 剧名 · 状态
+        getEpisodeShowTitleWithStatus(episode) {
+          try {
+            const name = (episode && episode.show_name) ? String(episode.show_name).trim() : '';
+            const status = this.getEpisodeFinaleStatus(episode);
+            return status ? `${name} · ${status}` : name;
+          } catch (e) {
+            return (episode && episode.show_name) || '';
+          }
+        },
+        
+        // 合并同一天同一节目的多集
+        mergeEpisodesByShow(episodes) {
+          if (!episodes || episodes.length === 0) {
+            return [];
+          }
+          
+          // 按节目名称和任务信息分组
+          const groupedEpisodes = {};
+          
+          episodes.forEach(episode => {
+            // 验证episode对象的基本结构
+            if (!episode || typeof episode !== 'object') {
+              return;
+            }
+            
+            // 创建唯一键：节目名称 + 任务名称 + 季数
+            const showName = episode.show_name || 'unknown';
+            const taskName = (episode.task_info && episode.task_info.task_name) ? episode.task_info.task_name : 'unknown';
+            const seasonNumber = episode.season_number || 1;
+            
+            // 清理键值，防止特殊字符导致问题
+            const cleanShowName = String(showName).replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
+            const cleanTaskName = String(taskName).replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
+            const showKey = `${cleanShowName}_${cleanTaskName}_${seasonNumber}`;
+            
+            if (!groupedEpisodes[showKey]) {
+              groupedEpisodes[showKey] = [];
+            }
+            groupedEpisodes[showKey].push(episode);
+          });
+          
+          // 对每个分组进行合并处理
+          const mergedEpisodes = [];
+          
+          Object.values(groupedEpisodes).forEach(episodeGroup => {
+            if (episodeGroup.length === 1) {
+              // 只有一集，直接添加
+              mergedEpisodes.push(episodeGroup[0]);
+            } else {
+              // 多集，进行合并
+              const mergedEpisode = this.createMergedEpisode(episodeGroup);
+              mergedEpisodes.push(mergedEpisode);
+            }
+          });
+          
+          return mergedEpisodes;
+        },
+        
+        // 创建合并后的剧集对象
+        createMergedEpisode(episodeGroup) {
+          // 按集数排序
+          episodeGroup.sort((a, b) => {
+            const episodeA = parseInt(a.episode_number) || 0;
+            const episodeB = parseInt(b.episode_number) || 0;
+            return episodeA - episodeB;
+          });
+          
+          // 使用最后一集的数据作为基础
+          const baseEpisode = episodeGroup[episodeGroup.length - 1];
+          const firstEpisode = episodeGroup[0];
+          const lastEpisode = episodeGroup[episodeGroup.length - 1];
+          
+          // 创建合并后的剧集对象
+          const mergedEpisode = {
+            ...baseEpisode,
+            // 合并集数显示
+            episode_number: this.formatMergedEpisodeNumbers(episodeGroup),
+            // 合并集数范围（用于显示）
+            episode_range: {
+              start: parseInt(firstEpisode.episode_number) || 0,
+              end: parseInt(lastEpisode.episode_number) || 0,
+              count: episodeGroup.length
+            },
+            // 标记为合并集
+            is_merged: true,
+            // 原始剧集列表（用于调试或其他用途）
+            original_episodes: episodeGroup
+          };
+          
+          return mergedEpisode;
+        },
+        
+        // 格式化合并集数显示
+        formatMergedEpisodeNumbers(episodeGroup) {
+          if (!episodeGroup || episodeGroup.length === 0) {
+            return '';
+          }
+          
+          if (episodeGroup.length === 1) {
+            return episodeGroup[0].episode_number || '';
+          }
+          
+          const firstEpisode = parseInt(episodeGroup[0].episode_number) || 0;
+          const lastEpisode = parseInt(episodeGroup[episodeGroup.length - 1].episode_number) || 0;
+          const seasonNumber = parseInt(episodeGroup[0].season_number) || 1;
+          
+          // 确保集数和季数都是有效的数字
+          if (isNaN(firstEpisode) || isNaN(lastEpisode) || isNaN(seasonNumber)) {
+            return episodeGroup[0].episode_number || '';
+          }
+          
+          if (firstEpisode === lastEpisode) {
+            return `S${String(seasonNumber).padStart(2, '0')}E${String(firstEpisode).padStart(2, '0')}`;
+          } else {
+            return `S${String(seasonNumber).padStart(2, '0')}E${String(firstEpisode).padStart(2, '0')}-E${String(lastEpisode).padStart(2, '0')}`;
+          }
+        },
+        
+        // 获取内容类型显示名称
+        getContentTypeDisplayName(type) {
+          const typeNames = {
+            'all': '全部',
+            'tv': '剧集',
+            'anime': '动画',
+            'variety': '综艺',
+            'documentary': '纪录片',
+            'other': '其他'
+          };
+          return typeNames[type] || type;
+        },
+        
+        // 缓存管理方法
+        setCachedData(key, data) {
+          try {
+            localStorage.setItem(`quark_calendar_${key}`, JSON.stringify(data));
+          } catch (error) {
+            console.warn('缓存数据失败:', error);
+          }
+        },
+        
+        getCachedData(key) {
+          try {
+            const data = localStorage.getItem(`quark_calendar_${key}`);
+            return data ? JSON.parse(data) : null;
+          } catch (error) {
+            console.warn('读取缓存数据失败:', error);
+            return null;
+          }
+        },
+        
+        
+        
+        // 增量刷新追剧日历数据：仅对最新季执行增量拉取，然后本地读取
+        async refreshCalendarData() {
+          try {
+            const tasklist = (this.formData && this.formData.tasklist) ? this.formData.tasklist : [];
+            const tmdbIds = [];
+            tasklist.forEach(t => {
+              const cal = (t && t.calendar_info) ? t.calendar_info : {};
+              const match = cal.match || {};
+              if (match.tmdb_id) tmdbIds.push(match.tmdb_id);
+            });
+            for (const id of tmdbIds) {
+              try {
+                await axios.get('/api/calendar/refresh_latest_season', { params: { tmdb_id: id } });
+              } catch (e) {
+                console.warn('refresh 失败:', id, e);
+              }
+            }
+            
+            // 重新加载任务数据，确保内容管理页面能热更新
+            try {
+              const tasksResponse = await axios.get('/api/calendar/tasks');
+              if (tasksResponse.data.success) {
+                this.calendar.tasks = tasksResponse.data.data.tasks;
+                this.calendar.taskNames = this.calendar.tasks.map(task => task.task_name);
+                // 重新构建进度映射
+                this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+                
+                // 重新计算内容类型，确保类型按钮能热更新
+                const rawTypes = tasksResponse.data.data.content_types || [];
+                this.updateContentTypes(rawTypes);
+              }
+            } catch (e) {}
+            
+            // 刷新内存数据，不清空缓存键，直接本地读取覆盖
+            await this.loadCalendarEpisodesLocal();
+            // 热更新当前视图（不打断用户操作）
+            this.initializeCalendarDates();
+            // 并行刷新今日更新数据，确保当日更新标识正常显示
+            try { await this.loadTodayUpdatesLocal(); } catch (e) {}
+            // 记录自动刷新时间戳，用于节流
+            try { localStorage.setItem('calendar_last_auto_refresh', String(Date.now())); } catch (e) {}
+          } catch (error) {
+            console.warn('增量刷新失败:', error);
+          }
+        },
+        
+        // 刷新单集或合并集的元数据（海报视图使用）
+        async refreshEpisodeMetadata(episode) {
+          try {
+            if (!episode || !episode.tmdb_id || !episode.season_number) {
+              console.warn('刷新单集元数据失败：缺少必要参数', episode);
+              return;
+            }
+            
+            // 检查是否为合并集
+            if (episode.is_merged && episode.original_episodes && episode.original_episodes.length > 0) {
+              // 合并集：刷新所有原始集
+              console.log('检测到合并集，将刷新所有原始集:', episode.original_episodes.length, '集');
+              
+              let successCount = 0;
+              let failCount = 0;
+              const successEpisodes = [];
+              const failEpisodes = [];
+              const errors = [];
+              
+              // 并行刷新所有原始集
+              const refreshPromises = episode.original_episodes.map(async (originalEpisode) => {
+                try {
+                  const response = await axios.get('/api/calendar/refresh_episode', {
+                    params: {
+                      tmdb_id: episode.tmdb_id,
+                      season_number: episode.season_number,
+                      episode_number: originalEpisode.episode_number
+                    }
+                  });
+                  
+                  if (response.data.success) {
+                    successCount++;
+                    successEpisodes.push(originalEpisode.episode_number);
+                    return { success: true, episode: originalEpisode.episode_number };
+                  } else {
+                    failCount++;
+                    failEpisodes.push(originalEpisode.episode_number);
+                    errors.push(`第${originalEpisode.episode_number}集: ${response.data.message}`);
+                    return { success: false, episode: originalEpisode.episode_number, error: response.data.message };
+                  }
+                } catch (error) {
+                  failCount++;
+                  failEpisodes.push(originalEpisode.episode_number);
+                  const errorMsg = error.response?.data?.message || error.message;
+                  errors.push(`第${originalEpisode.episode_number}集: ${errorMsg}`);
+                  return { success: false, episode: originalEpisode.episode_number, error: errorMsg };
+                }
+              });
+              
+              // 等待所有刷新完成
+              await Promise.all(refreshPromises);
+              
+              // 显示结果提示
+              const showName = episode.show_name || '未知剧集';
+              const seasonNumber = episode.season_number;
+              
+              if (successCount > 0 && failCount === 0) {
+                // 全部成功
+                const episodeRange = this.formatEpisodeRange(successEpisodes);
+                this.showToast(`《${showName}》第 ${seasonNumber} 季 · ${episodeRange}刷新成功`);
+              } else if (successCount > 0 && failCount > 0) {
+                // 部分成功：使用顿号明确区分成功和失败的集数
+                const successRange = this.formatEpisodeRange(successEpisodes, true);
+                const failRange = this.formatEpisodeRange(failEpisodes, true);
+                this.showToast(`《${showName}》第 ${seasonNumber} 季 · ${successRange}刷新成功，${failRange}刷新失败`);
+                console.warn('部分刷新失败:', errors);
+              } else {
+                // 全部失败
+                const episodeRange = this.formatEpisodeRange(failEpisodes);
+                this.showToast(`《${showName}》第 ${seasonNumber} 季 · ${episodeRange}刷新失败`);
+                console.error('集刷新失败:', errors);
+              }
+              
+            } else {
+              // 单集：直接刷新
+              if (!episode.episode_number) {
+                console.warn('单集缺少集号参数', episode);
+                this.showToast('缺少集号信息');
+                return;
+              }
+              
+              const response = await axios.get('/api/calendar/refresh_episode', {
+                params: {
+                  tmdb_id: episode.tmdb_id,
+                  season_number: episode.season_number,
+                  episode_number: episode.episode_number
+                }
+              });
+              
+              if (response.data.success) {
+                this.showToast(response.data.message || '单集刷新成功');
+              } else {
+                this.showToast(response.data.message || '单集刷新失败');
+              }
+            }
+            
+            // 热更新数据
+            await this.refreshCalendarData();
+            
+          } catch (error) {
+            console.error('刷新单集元数据失败:', error);
+            this.showToast('刷新失败：' + (error.response?.data?.message || error.message));
+          }
+        },
+        
+        // 刷新整个季的元数据（内容管理视图使用）
+        async refreshSeasonMetadata(task) {
+          try {
+            if (!task || !task.match_tmdb_id) {
+              console.warn('刷新季元数据失败：缺少必要参数', task);
+              return;
+            }
+            
+            // 获取最新季数，优先使用任务中的 season_number，否则从数据库获取
+            let season_number = task.season_number;
+            if (!season_number) {
+              // 从数据库获取最新季数
+              try {
+                const showResponse = await axios.get('/api/calendar/show_info', {
+                  params: { tmdb_id: task.match_tmdb_id }
+                });
+                if (showResponse.data.success && showResponse.data.data) {
+                  season_number = showResponse.data.data.latest_season_number;
+                }
+              } catch (e) {
+                console.warn('获取最新季数失败:', e);
+              }
+            }
+            
+            if (!season_number) {
+              this.showToast('无法获取季数信息');
+              return;
+            }
+            
+            // 先刷新剧级别详情（更新节目状态/最新季/海报等）
+            try {
+              await axios.get('/api/calendar/refresh_show', {
+                params: { tmdb_id: task.match_tmdb_id }
+              });
+            } catch (e) {
+              // 忽略失败，继续刷新季
+              console.warn('刷新剧详情失败（忽略继续）:', e);
+            }
+
+            const response = await axios.get('/api/calendar/refresh_season', {
+              params: {
+                tmdb_id: task.match_tmdb_id,
+                season_number: season_number
+              }
+            });
+            
+            if (response.data.success) {
+              // 显示成功提示
+              this.showToast(response.data.message || '季元数据刷新成功');
+              
+              // 刷新任务数据，确保节目状态（如 本季终/已完结/已取消）及时更新
+              try {
+                const tasksResponse = await axios.get('/api/calendar/tasks');
+                if (tasksResponse.data && tasksResponse.data.success) {
+                  this.calendar.tasks = tasksResponse.data.data.tasks;
+                  this.calendar.taskNames = this.calendar.tasks.map(task => task.task_name);
+                }
+              } catch (e) {}
+
+              // 热更新日历与本地剧集数据
+              await this.refreshCalendarData();
+            } else {
+              this.showToast(response.data.message || '季元数据刷新失败');
+            }
+          } catch (error) {
+            console.error('刷新季元数据失败:', error);
+            this.showToast('季元数据刷新失败：' + (error.response?.data?.message || error.message));
+          }
+        },
+
+        // 打开编辑元数据模态框
+        openEditMetadataModal(task) {
+          try {
+            if (!task) return;
+            // 预填充表单数据
+            const currentName = task.task_name || '';
+            const currentType = this.getContentTypeCN(task.content_type) || '';
+            const currentTmdbId = (task.match && task.match.tmdb_id) || task.match_tmdb_id || (task.calendar_info && task.calendar_info.match && task.calendar_info.match.tmdb_id) || '';
+            const currentSeason = task.season_number || task.matched_latest_season_number || (task.calendar_info && task.calendar_info.match && task.calendar_info.match.latest_season_number) || '';
+            const matchedName = task.matched_show_name || '';
+            const matchedYear = task.matched_year || '';
+
+            this.editMetadata = {
+              visible: true,
+              original: {
+                task_name: currentName,
+                content_type: task.content_type || '',
+                tmdb_id: currentTmdbId || '',
+                season_number: currentSeason || ''
+              },
+              form: {
+                task_name: currentName,
+                content_type: task.content_type || '',
+                tmdb_id: '',
+                season_number: currentSeason || 1
+              },
+              display: {
+                matched_label: matchedName ? `${matchedName}${matchedYear ? ' (' + matchedYear + ')' : ''}` : '未匹配',
+                matched_tmdb_id: currentTmdbId || '',
+                matched_season_number: currentSeason || '',
+                seasonInputWidth: '32px'
+              },
+              hint: `若匹配结果不正确，请前往 <a href="https://www.themoviedb.org/" target="_blank" class="tmdb-link">TMDB</a> 搜索对应的正确条目，并使用该条目网址末尾的数字（即 TMDB ID）来修正匹配`
+            };
+
+            $('#editMetadataModal').modal('show');
+            // 初始化季数输入宽度
+            this.$nextTick(() => {
+              try {
+                const initVal = String(this.editMetadata.form.season_number || '1');
+                const px = this.measureSeasonInputWidth(initVal);
+                this.$set(this.editMetadata.display, 'seasonInputWidth', px + 'px');
+              } catch (e) {}
+            });
+            // 若已匹配但没有季数信息，则从后端获取最新季数用于展示
+            try {
+              const tid = this.editMetadata.display.matched_tmdb_id;
+              const hasSeason = !!this.editMetadata.display.matched_season_number;
+              if (tid && !hasSeason) {
+                axios.get('/api/calendar/show_info', { params: { tmdb_id: tid } })
+                  .then(res => {
+                    if (res.data && res.data.success && res.data.data) {
+                      const sn = res.data.data.latest_season_number;
+                      if (sn) {
+                        this.$set(this.editMetadata.display, 'matched_season_number', sn);
+                      }
+                    }
+                  })
+                  .catch(() => {});
+              }
+            } catch (e) {}
+          } catch (e) {
+            this.showToast('打开编辑失败');
+          }
+        },
+
+        // 保存编辑元数据
+        async saveEditMetadata() {
+          try {
+            if (!this.editMetadata || !this.editMetadata.form) return;
+            const payload = {
+              task_name: this.editMetadata.original.task_name,
+              new_task_name: this.editMetadata.form.task_name,
+              new_content_type: this.editMetadata.form.content_type,
+              new_tmdb_id: this.editMetadata.form.tmdb_id,
+              new_season_number: this.editMetadata.form.season_number
+            };
+
+            // 如果没有任何变化则直接关闭
+            const noNameChange = (payload.new_task_name || '') === (this.editMetadata.original.task_name || '');
+            const noTypeChange = (payload.new_content_type || '') === (this.editMetadata.original.content_type || '');
+            const noRematch = !(payload.new_tmdb_id && String(payload.new_tmdb_id).trim()) && !(payload.new_season_number && String(payload.new_season_number).trim());
+            if (noNameChange && noTypeChange && noRematch) {
+              $('#editMetadataModal').modal('hide');
+              return;
+            }
+
+            const res = await axios.post('/api/calendar/edit_metadata', payload);
+            if (res.data && res.data.success) {
+              this.showToast(res.data.message || '保存成功');
+              $('#editMetadataModal').modal('hide');
+              // 热更新任务与日历
+              // 避免触发“未保存修改”提示：本次更新由后端变更引发
+              this.suppressConfigModifiedOnce = true;
+              await this.refreshCalendarData();
+            } else {
+              this.showToast(res.data.message || '保存失败');
+            }
+          } catch (e) {
+            this.showToast('保存失败：' + (e.response?.data?.message || e.message));
+          }
+        },
+        // 根据输入内容自适应季数输入框宽度，最小32px
+        autoSizeSeasonInput(e) {
+          try {
+            const el = e && e.target;
+            if (!el) return;
+            const val = String(el.value || '');
+            // 使用隐藏量尺精确测量当前文本宽度
+            let ruler = document.getElementById('season-width-ruler');
+            if (!ruler) {
+              ruler = document.createElement('span');
+              ruler.id = 'season-width-ruler';
+              ruler.style.position = 'absolute';
+              ruler.style.visibility = 'hidden';
+              ruler.style.whiteSpace = 'pre';
+              ruler.style.font = window.getComputedStyle(el).font;
+              document.body.appendChild(ruler);
+            }
+            ruler.style.font = window.getComputedStyle(el).font;
+            ruler.textContent = val || '1';
+            const textWidth = ruler.getBoundingClientRect().width;
+            // 左右 padding(16) + 边框(2)
+            const px = Math.max(32, Math.ceil(textWidth + 16 + 2));
+            if (this.editMetadata && this.editMetadata.display) {
+              this.$set(this.editMetadata.display, 'seasonInputWidth', px + 'px');
+            } else {
+              el.style.width = px + 'px';
+            }
+          } catch (err) {}
+        },
+        // 供初始化时测量使用
+        measureSeasonInputWidth(val) {
+          try {
+            const el = document.querySelector('#editMetadataModal .edit-season-number');
+            if (!el) return 32;
+            let ruler = document.getElementById('season-width-ruler');
+            if (!ruler) {
+              ruler = document.createElement('span');
+              ruler.id = 'season-width-ruler';
+              ruler.style.position = 'absolute';
+              ruler.style.visibility = 'hidden';
+              ruler.style.whiteSpace = 'pre';
+              document.body.appendChild(ruler);
+            }
+            const style = window.getComputedStyle(el);
+            ruler.style.font = style.font;
+            ruler.textContent = String(val || '1');
+            const textWidth = ruler.getBoundingClientRect().width;
+            return Math.max(32, Math.ceil(textWidth + 16 + 2));
+          } catch (e) { return 32; }
+        },
+        
+        // 格式化集数范围显示
+        formatEpisodeRange(episodeNumbers, useComma = false) {
+          if (!episodeNumbers || episodeNumbers.length === 0) {
+            return '';
+          }
+          
+          // 排序集数
+          const sortedEpisodes = [...episodeNumbers].sort((a, b) => a - b);
+          
+          if (sortedEpisodes.length === 1) {
+            return `第 ${sortedEpisodes[0]} 集`;
+          }
+          
+          // 如果强制使用顿号（用于部分成功的情况）
+          if (useComma) {
+            return `第 ${sortedEpisodes.join('、')} 集`;
+          }
+          
+          // 检查是否为连续集数
+          const isConsecutive = sortedEpisodes.every((ep, index) => {
+            if (index === 0) return true;
+            return ep === sortedEpisodes[index - 1] + 1;
+          });
+          
+          if (isConsecutive) {
+            // 连续集数：第 33 至 35 集
+            return `第 ${sortedEpisodes[0]} 至 ${sortedEpisodes[sortedEpisodes.length - 1]} 集`;
+          } else {
+            // 非连续集数：第 33、35、37 集
+            return `第 ${sortedEpisodes.join('、')} 集`;
+          }
+        },
+        
+        // 是否需要自动刷新：默认30分钟节流（可根据需要调整）
+        shouldAutoRefreshCalendar() {
+          const key = 'calendar_last_auto_refresh';
+          const throttleMs = 30 * 60 * 1000; // 30分钟
+          try {
+            const last = parseInt(localStorage.getItem(key) || '0');
+            if (!last || (Date.now() - last) > throttleMs) return true;
+          } catch (e) {
+            return true;
+          }
+          return false;
+        },
+
+        // 计算“最近转存文件”的签名，便于快速判断是否有变化
+        calcLatestFilesSignature(mapObj) {
+          try {
+            if (!mapObj) return '';
+            const entries = Object.keys(mapObj).sort().map(k => `${k}:${mapObj[k]}`);
+            return entries.join('|');
+          } catch (e) { return ''; }
+        },
+
+        // 启动后台监听：每60秒轻量检查一次 task_latest_info，变更则触发热更新
+        startCalendarAutoWatch() {
+          try {
+            if (this.calendarAutoWatchTimer) return;
+            // 初始化当前签名（若任务面板已加载过最新信息可直接使用；否则置空）
+            this.calendarLatestFilesSignature = this.calcLatestFilesSignature(this.taskLatestFiles);
+            const tick = async () => {
+              try {
+                const res = await axios.get('/task_latest_info');
+                if (res.data && res.data.success) {
+                  const latestFiles = res.data.data.latest_files || {};
+                  const sig = this.calcLatestFilesSignature(latestFiles);
+                  if (sig && sig !== this.calendarLatestFilesSignature) {
+                    // 更新签名，触发热更新
+                    this.calendarLatestFilesSignature = sig;
+                    // 先更新任务面板数据（若有显示）
+                    this.taskLatestFiles = latestFiles;
+                    this.taskLatestRecords = res.data.data.latest_records || {};
+                    // 同步重建“已转存”判定所需的进度映射，确保UI立即反映
+                    try {
+                      this.calendar.progressByTaskName = this.buildProgressByTaskNameFromLatestFiles(latestFiles);
+                      this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+                    } catch (e) {}
+                    // 拉取并热更新日历
+                    await this.refreshCalendarData();
+                    // 同步“今日更新”
+                    try { await this.loadTodayUpdatesLocal(); } catch (e) {}
+                  }
+                }
+              } catch (e) {
+                // 忽略错误，下一轮继续
+              }
+            };
+            this.calendarAutoWatchTickRef = tick;
+            // 立即执行一次检查（不阻塞UI），随后每60秒执行
+            setTimeout(tick, 0);
+            const baseIntervalMs = this.calendar && this.calendar.manageMode ? 5 * 1000 : 60 * 1000;
+            if (!document.hidden) {
+              this.calendarAutoWatchTimer = setInterval(tick, baseIntervalMs);
+            }
+            // 页面可见性变化：隐藏时暂停，显示时恢复并立刻检查（SSE 在时不重复启轮询）
+            const onFocusOrVisible = () => tick();
+            const onVisibilityChange = () => {
+              if (document.hidden) {
+                if (this.calendarAutoWatchTimer) {
+                  clearInterval(this.calendarAutoWatchTimer);
+                  this.calendarAutoWatchTimer = null;
+                }
+              } else {
+                if (!this.calendarSSE && !this.calendarAutoWatchTimer && this.calendarAutoWatchTickRef) {
+                  const baseIntervalMs = this.calendar && this.calendar.manageMode ? 5 * 1000 : 60 * 1000;
+                  this.calendarAutoWatchTimer = setInterval(this.calendarAutoWatchTickRef, baseIntervalMs);
+                  this.calendarAutoWatchTickRef();
+                }
+              }
+            };
+            this.calendarAutoWatchFocusHandler = onFocusOrVisible;
+            this.calendarAutoWatchVisibilityHandler = onVisibilityChange;
+            window.addEventListener('focus', this.calendarAutoWatchFocusHandler);
+            document.addEventListener('visibilitychange', this.calendarAutoWatchVisibilityHandler);
+
+            // 建立 SSE 连接，实时感知日历数据库变化（成功建立后停用轮询，失败时回退轮询）
+            try {
+              if (!this.calendarSSE) {
+                this.calendarSSE = new EventSource('/api/calendar/stream');
+                // SSE 打开后，停止轮询
+                this.calendarSSE.onopen = () => {
+                  try {
+                    if (this.calendarAutoWatchTimer) {
+                      clearInterval(this.calendarAutoWatchTimer);
+                      this.calendarAutoWatchTimer = null;
+                    }
+                  } catch (e) {}
+                };
+                const onChanged = async (ev) => {
+                  try {
+                    // 解析变更原因（后端通过 SSE data 传递）
+                    let changeReason = '';
+                    try { changeReason = JSON.parse(ev && ev.data || '{}').reason || ''; } catch (e) {}
+
+                    // 先拉取最新转存信息并重建映射（用于管理视图与进度判定）
+                    try {
+                      const latestRes = await axios.get('/task_latest_info');
+                      if (latestRes.data && latestRes.data.success) {
+                        const latestFiles = latestRes.data.data.latest_files || {};
+                        this.taskLatestFiles = latestFiles;
+                        this.taskLatestRecords = latestRes.data.data.latest_records || {};
+                        this.calendar.progressByTaskName = this.buildProgressByTaskNameFromLatestFiles(latestFiles);
+                        this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+                      }
+                    } catch (e) {}
+                    
+                    // 重新加载任务数据，确保内容管理页面能热更新
+                    try {
+                      const tasksResponse = await axios.get('/api/calendar/tasks');
+                      if (tasksResponse.data.success) {
+                        this.calendar.tasks = tasksResponse.data.data.tasks;
+                        this.calendar.taskNames = this.calendar.tasks.map(task => task.task_name);
+                        // 重新构建进度映射
+                        this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+                        
+                        // 重新计算内容类型，确保类型按钮能热更新
+                        const rawTypes = tasksResponse.data.data.content_types || [];
+                        this.updateContentTypes(rawTypes);
+                      }
+                    } catch (e) {}
+                    
+                    // 若为任务编辑/保存操作，刷新任务列表 formData.tasklist，实现任务列表页面热更新
+                    try {
+                      if (changeReason === 'edit_metadata' || changeReason === 'task_updated') {
+                        const dataRes = await axios.get('/data');
+                        if (dataRes.data && dataRes.data.success) {
+                          const cfg = dataRes.data.data || {};
+                          const oldTaskCount = (this.formData.tasklist || []).length;
+                          // 后端推送导致的任务列表更新，不应触发“未保存修改”提示
+                          this.suppressConfigModifiedOnce = true;
+                          this.formData.tasklist = cfg.tasklist || [];
+                          // 同步任务名集合用于筛选
+                          this.calendar.taskNames = (this.formData.tasklist || []).map(t => t.taskname).filter(Boolean);
+                          // 如任务数量变化，重建与任务相关的最新文件映射的键集合
+                          if ((this.formData.tasklist || []).length !== oldTaskCount) {
+                            try {
+                              this.calendar.progressByTaskName = this.buildProgressByTaskNameFromLatestFiles(this.taskLatestFiles || {});
+                            } catch (e) {}
+                          }
+                        }
+                      }
+                    } catch (e) {}
+
+                    // 再仅本地读取并热更新日历/海报视图
+                    await this.loadCalendarEpisodesLocal();
+                    this.initializeCalendarDates();
+                    // 并行刷新今日更新数据
+                    try { await this.loadTodayUpdatesLocal(); } catch (e) {}
+                  } catch (e) {}
+                };
+                this.calendarSSE.addEventListener('calendar_changed', onChanged);
+                // 初次连接会收到一次 ping，不做处理即可
+                this.calendarSSE.addEventListener('ping', () => {});
+                this.calendarSSE.onerror = () => {
+                  try { this.calendarSSE.close(); } catch (e) {}
+                  this.calendarSSE = null;
+                  // 回退：若没有轮询定时器，则恢复轮询
+                  try {
+                    if (!this.calendarAutoWatchTimer && this.calendarAutoWatchTickRef) {
+                      const baseIntervalMs = this.calendar && this.calendar.manageMode ? 5 * 1000 : 60 * 1000;
+                      this.calendarAutoWatchTimer = setInterval(this.calendarAutoWatchTickRef, baseIntervalMs);
+                      this.calendarAutoWatchTickRef();
+                    }
+                  } catch (e) {}
+                };
+              }
+            } catch (e) {
+              // 忽略 SSE 失败，继续使用轮询
+            }
+          } catch (e) {
+            // ignore
+          }
+        },
+
+        // 停止后台监听并移除事件
+        stopCalendarAutoWatch() {
+          try {
+            if (this.calendarAutoWatchTimer) {
+              clearInterval(this.calendarAutoWatchTimer);
+              this.calendarAutoWatchTimer = null;
+            }
+            if (this.calendarAutoWatchFocusHandler) {
+              window.removeEventListener('focus', this.calendarAutoWatchFocusHandler);
+              this.calendarAutoWatchFocusHandler = null;
+            }
+            if (this.calendarAutoWatchVisibilityHandler) {
+              document.removeEventListener('visibilitychange', this.calendarAutoWatchVisibilityHandler);
+              this.calendarAutoWatchVisibilityHandler = null;
+            }
+            if (this.calendarSSE) {
+              try { this.calendarSSE.close(); } catch (e) {}
+              this.calendarSSE = null;
+            }
+          } catch (e) {
+            // ignore
+          }
+        },
+        
+        // 选择内容类型
+        selectCalendarType(type) {
+          this.calendar.selectedType = type;
+          try {
+            localStorage.setItem('calendar_selected_type', type);
+          } catch (e) {
+            // ignore
+          }
+          // 重新构建月视图数据以应用筛选（天内episodes依赖selectedType）
+          this.initializeCalendarDates();
+        },
+        
+        // 清除筛选器
+        clearCalendarFilter(filterType) {
+          if (filterType === 'nameFilter') {
+            this.calendar.nameFilter = '';
+          } else if (filterType === 'taskFilter') {
+            this.calendar.taskFilter = '';
+          }
+        },
+        
+        // 更新内容类型列表（用于热更新）
+        updateContentTypes(rawTypes) {
+          const knownOrderWithoutOther = ['tv', 'anime', 'variety', 'documentary'];
+          const hasOther = rawTypes.includes('other');
+          const typeSet = new Set(rawTypes);
+          const orderedKnown = knownOrderWithoutOther.filter(t => typeSet.has(t));
+          const unknownTypes = rawTypes.filter(t => !knownOrderWithoutOther.concat(['other']).includes(t));
+          this.calendar.contentTypes = [
+            ...orderedKnown,
+            ...unknownTypes,
+            ...(hasOther ? ['other'] : [])
+          ];
+        },
+        
+        // 切换视图模式
+        toggleCalendarViewMode() {
+          this.calendar.viewMode = this.calendar.viewMode === 'poster' ? 'month' : 'poster';
+          try {
+            localStorage.setItem('calendar_view_mode', this.calendar.viewMode);
+          } catch (e) {
+            console.warn('无法持久化保存日历视图模式:', e);
+          }
+          this.initializeCalendarDates();
+        },
+        
+        // 切换合并集模式
+        toggleCalendarMergeEpisodes() {
+          this.calendar.mergeEpisodes = !this.calendar.mergeEpisodes;
+          try {
+            localStorage.setItem('calendar_merge_episodes', this.calendar.mergeEpisodes.toString());
+          } catch (e) {
+            console.warn('无法持久化保存合并集设置:', e);
+          }
+          // 重新初始化日历数据以应用新的合并集设置
+          this.initializeCalendarDates();
+        },
+        
+        // 更改日期
+        changeCalendarDate(action) {
+          const currentDate = new Date(this.calendar.currentDate);
+          
+          switch (action) {
+            case 'prevDay':
+              currentDate.setDate(currentDate.getDate() - 1);
+              break;
+            case 'nextDay':
+              currentDate.setDate(currentDate.getDate() + 1);
+              break;
+            case 'prevWeek':
+              currentDate.setDate(currentDate.getDate() - 7);
+              break;
+            case 'nextWeek':
+              currentDate.setDate(currentDate.getDate() + 7);
+              break;
+            case 'prevMonth':
+              currentDate.setMonth(currentDate.getMonth() - 1);
+              break;
+            case 'nextMonth':
+              currentDate.setMonth(currentDate.getMonth() + 1);
+              break;
+          }
+          
+          this.calendar.currentDate = currentDate;
+          this.initializeCalendarDates();
+        },
+        
+        // 回到今天
+        goToToday() {
+          this.calendar.currentDate = new Date();
+          this.initializeCalendarDates();
+        },
+        
+        // 处理海报悬停
+        handleCalendarPosterHover(event, episode) {
+          // 从图片提取颜色并为覆盖层生成渐变背景（与影视发现页一致）
+          const posterElement = event.currentTarget;
+          const imgElement = posterElement.querySelector('img');
+          const overlayElement = posterElement.querySelector('.calendar-poster-overlay');
+          const overviewElement = overlayElement ? overlayElement.querySelector('.info-line.overview') : null;
+
+          if (imgElement && overlayElement) {
+            if (imgElement.complete) {
+              const gradient = this.createGradientFromImage(imgElement);
+              overlayElement.style.background = gradient;
+            } else {
+              overlayElement.style.background = 'var(--dark-text-color)';
+            }
+          }
+
+          // 按行数截断：根据宽度估算每行字符数与行高，保证最后一行完整并追加省略号
+          if (overviewElement) {
+            try {
+              const maxHeightRatio = 0.7; // 简介最高占比70%
+              const posterHeight = posterElement.clientHeight || 0;
+              const overlayStyles = window.getComputedStyle(overviewElement);
+              const lineHeight = parseFloat(overlayStyles.lineHeight) || 18; // 兜底18px
+              const fontSize = parseFloat(overlayStyles.fontSize) || 14; // 兜底14px
+              const containerWidth = posterElement.clientWidth || 0;
+              if (!posterHeight || !containerWidth || !lineHeight) return;
+
+              const maxHeight = Math.floor(posterHeight * maxHeightRatio);
+              const maxLines = Math.max(1, Math.floor(maxHeight / lineHeight));
+
+              // 基于经验的单行字符估算（中文字符大约 ~0.55 * 宽度/字体大小）
+              const charsPerLine = Math.max(6, Math.floor(containerWidth / (fontSize * 0.55)));
+
+              const fullText = overviewElement.getAttribute('data-fulltext') || overviewElement.textContent || '';
+              // 如果天然高度未超过限制则不处理
+              overviewElement.textContent = fullText;
+              overviewElement.style.maxHeight = '';
+              const naturalHeight = overviewElement.scrollHeight;
+              if (naturalHeight <= maxHeight) {
+                return; // 文本本来就不超出，无需截断
+              }
+
+              // 目标字符上限（留出省略号空间）
+              const targetChars = Math.max(1, (maxLines * charsPerLine) - 1);
+
+              // 二分查找截断位置，确保不超过最大高度
+              let left = 0, right = fullText.length, best = 0;
+              while (left <= right) {
+                const mid = Math.floor((left + right) / 2);
+                const trial = fullText.slice(0, Math.min(mid, targetChars)) + '…';
+                overviewElement.textContent = trial;
+                if (overviewElement.scrollHeight <= maxHeight) {
+                  best = mid;
+                  left = mid + 1;
+                } else {
+                  right = mid - 1;
+                }
+              }
+
+              const finalText = fullText.length > best ? (fullText.slice(0, Math.min(best, targetChars)) + '…') : fullText;
+              overviewElement.textContent = finalText;
+            } catch (e) {
+              // ignore
+            }
+          }
+        },
+        
+        // 隐藏海报悬停
+        hideCalendarPosterHover() {
+          // 仅由CSS控制透明度，不重置背景以保留取色渐变
+        },
+        
+        // 获取剧集海报URL
+        getEpisodePosterUrl(episode) {
+          // 优先使用本地缓存海报
+          if (episode.poster_local_path) {
+            return episode.poster_local_path;
+          }
+          
+          // 如果没有海报，返回默认图片
+          return '/static/images/no-poster.svg';
+        },
+        
+        // 处理图片加载错误
+        handleCalendarImageError(event) {
+          event.target.src = '/static/images/no-poster.svg';
+        },
+        
+        // ===== 精简版“已转存”判定：仅依据任务列表最近转存文件构建的映射 =====
+        // 提取进度（优先按任务名命中，其次按剧名命中）
+        getSimpleProgress(episode) {
+          if (!episode) return null;
+          // 1) 任务名映射
+          const tname = episode.task_info && episode.task_info.task_name ? episode.task_info.task_name : null;
+          if (tname && this.calendar.progressByTaskName && this.calendar.progressByTaskName[tname]) {
+            const p = this.calendar.progressByTaskName[tname] || {};
+            const epNum = p.episode_number != null ? parseInt(p.episode_number) : null;
+            const air = p.air_date || null;
+            return { episode_number: isNaN(epNum) ? null : epNum, air_date: air };
+          }
+          // 2) 剧名映射
+          const sname = episode.show_name || null;
+          if (sname && this.calendar.progressByShowName && this.calendar.progressByShowName[sname]) {
+            const p = this.calendar.progressByShowName[sname] || {};
+            const epNum = p.episode_number != null ? parseInt(p.episode_number) : null;
+            const air = p.air_date || null;
+            return { episode_number: isNaN(epNum) ? null : epNum, air_date: air };
+          }
+          return null;
+        },
+
+        // 用于比较的集号（合并集取末尾一集；否则取自身集号）
+        getEpisodeCompareNumber(episode) {
+          if (!episode) return null;
+          if (episode.is_merged && episode.episode_range && episode.episode_range.end != null) {
+            const n = parseInt(episode.episode_range.end);
+            return isNaN(n) ? null : n;
+          }
+          if (episode.episode_number != null) {
+            const n = parseInt(episode.episode_number);
+            return isNaN(n) ? null : n;
+          }
+          return null;
+        },
+
+        // 统一判断“是否已转存/已完成”
+        isEpisodeReachedProgress(episode) {
+          const prog = this.getSimpleProgress(episode);
+          if (!prog) return false;
+          const lastNum = this.getEpisodeCompareNumber(episode);
+          if (prog.episode_number != null && lastNum != null) {
+            return lastNum <= prog.episode_number;
+          }
+          if (prog.air_date && episode && episode.air_date) {
+            return episode.air_date <= prog.air_date;
+          }
+          return false;
+        },
+
+        
+        
+        // 获取剧集显示集数
+        getEpisodeDisplayNumber(episode) {
+          if (episode.is_merged) {
+            // 合并集直接使用格式化后的集数
+            return episode.episode_number;
+          } else {
+            // 普通集数按原格式显示
+            return `S${episode.season_number.toString().padStart(2, '0')}E${episode.episode_number.toString().padStart(2, '0')}`;
+          }
+        },
+        
+        // 获取仅集数格式（省略季）
+        getEpisodeOnlyNumber(episode) {
+          if (episode.is_merged) {
+            // 合并集：S01E34-E38 -> E34-E38
+            return episode.episode_number.replace(/^S\d+/, '');
+          } else {
+            // 普通集数：S01E06 -> E06
+            return `E${episode.episode_number.toString().padStart(2, '0')}`;
+          }
+        },
+        
+        // 获取纯数字格式
+        getNumberOnly(episode) {
+          if (episode.is_merged) {
+            // 合并集：S01E34-E38 -> 34-38
+            return episode.episode_number.replace(/^S\d+E/, '').replace(/E/g, '');
+          } else {
+            // 普通集数：S01E06 -> 06
+            return episode.episode_number.toString().padStart(2, '0');
+          }
+        },
+        
+        // 获取剧集提示信息
+        getEpisodeTooltip(episode) {
+          // 规范：集数悬停显示对应集在TMDB上的单集标题
+          // 普通：SxxExx 标题
+          // 合并：逐行列出每一集：SxxExx 标题
+          const pad2 = n => String(n).padStart(2, '0');
+          if (episode.is_merged && Array.isArray(episode.original_episodes) && episode.original_episodes.length) {
+            const lines = episode.original_episodes.map(ep => {
+              const s = ep.season_number ? pad2(ep.season_number) : pad2(episode.season_number || 1);
+              const e = ep.episode_number ? pad2(ep.episode_number) : '';
+              const title = ep.name || '';
+              return `S${s}E${e} ${title}`.trim();
+            });
+            return lines.join('\n');
+          }
+          const s = episode.season_number ? pad2(episode.season_number) : '01';
+          const e = episode.episode_number ? pad2(episode.episode_number) : '01';
+          const title = episode.name || '';
+          return `S${s}E${e} ${title}`.trim();
+        },
+
+        // 打开剧的TMDB页面
+        openShowTmdbPage(episode) {
+          try {
+            const tmdbId = episode.tmdb_id || (episode.task_info && episode.task_info.match && episode.task_info.match.tmdb_id) || (episode.task_info && episode.task_info.tmdb_id);
+            if (tmdbId) {
+              const url = `https://www.themoviedb.org/tv/${tmdbId}`;
+              window.open(url, '_blank');
+            }
+          } catch (e) {
+            console.warn('打开剧TMDB页面失败', e);
+          }
+        },
+
+        // 打开“内容管理”任务匹配到的节目的 TMDB 页面
+        openTaskMatchedTmdbPage(task) {
+          try {
+            if (!task) return;
+            const tmdbId = (task.match && task.match.tmdb_id) || task.match_tmdb_id || (task.calendar_info && task.calendar_info.match && task.calendar_info.match.tmdb_id) || task.tmdb_id;
+            if (tmdbId) {
+              const url = `https://www.themoviedb.org/tv/${tmdbId}`;
+              window.open(url, '_blank');
+            }
+          } catch (e) {
+            console.warn('打开任务匹配TMDB页面失败', e);
+          }
+        },
+
+        // 打开集的TMDB页面（合并集打开最后一集）
+        openEpisodeTmdbPage(episode) {
+          try {
+            const tmdbId = episode.tmdb_id || (episode.task_info && episode.task_info.match && episode.task_info.match.tmdb_id) || (episode.task_info && episode.task_info.tmdb_id);
+            if (!tmdbId) return;
+            const season = episode.season_number || (episode.original_episodes && episode.original_episodes.length ? episode.original_episodes[0].season_number : 1);
+            const episodeNum = episode.is_merged && episode.episode_range ? episode.episode_range.end : episode.episode_number;
+            if (!season || !episodeNum) return;
+            const url = `https://www.themoviedb.org/tv/${tmdbId}/season/${parseInt(season)}/episode/${parseInt(episodeNum)}`;
+            window.open(url, '_blank');
+          } catch (e) {
+            console.warn('打开集TMDB页面失败', e);
+          }
         },
 
         // 获取插件配置的占位符文本
@@ -3404,6 +5858,14 @@
           this.sidebarCollapsed = !this.sidebarCollapsed;
           // 保存侧边栏状态到本地存储
           localStorage.setItem('quarkAutoSave_sidebarCollapsed', this.sidebarCollapsed);
+          
+          // 如果当前在追剧日历页面且为海报模式，重新计算列数
+          if (this.activeTab === 'calendar' && this.calendar.viewMode === 'poster') {
+            // 延迟一点时间，等待DOM更新完成
+            this.$nextTick(() => {
+              this.updateWeekDates();
+            });
+          }
         },
         cleanTaskNameForSearch(taskName) {
           if (!taskName) return '';
@@ -3473,6 +5935,13 @@
             this.fetchAccountsDetail();
             this.loadFileListWithoutLoading(this.fileManager.currentFolder);
           }
+          
+          // 当切换到追剧日历标签时加载日历数据
+          if (tab === 'calendar') {
+            this.loadCalendarData();
+            // 添加窗口大小变化监听器，自动调整列数
+            this.addCalendarResizeListener();
+          }
         },
         checkNewVersion() {
           // 移除本地版本中的v前缀
@@ -3524,6 +5993,27 @@
               // 初始化新任务的插件配置，应用全局配置
               this.newTask.addition = { ...config_data.task_plugins_config_default };
               this.applyGlobalPluginConfig(this.newTask);
+              // --- 新增：预加载追剧日历任务元数据，支持任务列表直接显示 season_counts / matched_status ---
+              axios.get('/api/calendar/tasks')
+                .then(res => {
+                  if (res.data && res.data.success) {
+                    this.calendar.tasks = res.data.data.tasks || [];
+                    try {
+                      this.calendar.taskMapByName = {};
+                      (this.calendar.tasks || []).forEach(t => {
+                        const key = (t.task_name || t.taskname || '').trim();
+                        if (key) this.calendar.taskMapByName[key] = t;
+                      });
+                    } catch (e) {}
+                  } else {
+                    this.calendar.tasks = [];
+                    this.calendar.taskMapByName = {};
+                  }
+                })
+                .catch(() => {
+                  this.calendar.tasks = [];
+                  this.calendar.taskMapByName = {};
+                });
               // 确保source配置存在
               if (!config_data.source) {
                 config_data.source = {};
@@ -3577,10 +6067,22 @@
                   delete_task: "always",
                   refresh_plex: "always",
                   refresh_alist: "always",
+                  season_counts: "always",
                   latest_update_date: "always",
+                  task_progress: "always",
+                  show_status: "always",
                   latest_transfer_file: "always",
                   today_update_indicator: "always"
                 };
+              }
+              if (!config_data.button_display.season_counts) {
+                config_data.button_display.season_counts = "always";
+              }
+              if (!config_data.button_display.task_progress) {
+                config_data.button_display.task_progress = "always";
+              }
+              if (!config_data.button_display.show_status) {
+                config_data.button_display.show_status = "always";
               }
               // 确保最近更新日期配置存在（向后兼容）
               if (!config_data.button_display.latest_update_date) {
@@ -3593,6 +6095,21 @@
               // 确保当日更新图标配置存在（向后兼容）
               if (!config_data.button_display.today_update_indicator) {
                 config_data.button_display.today_update_indicator = "always";
+              }
+              // 确保显示顺序配置存在
+              if (!config_data.button_display_order || !Array.isArray(config_data.button_display_order)) {
+                config_data.button_display_order = [
+                  "refresh_plex",
+                  "refresh_alist",
+                  "run_task",
+                  "delete_task",
+                  "latest_transfer_file",
+                  "season_counts",
+                  "latest_update_date",
+                  "task_progress",
+                  "show_status",
+                  "today_update_indicator"
+                ];
               }
               // 确保文件整理性能配置存在
               if (!config_data.file_performance) {
@@ -3616,10 +6133,19 @@
                 delete config_data.file_performance.large_page_size;
                 delete config_data.file_performance.cache_cleanup_interval;
               }
+              // 确保性能设置存在并补默认值（单位：秒）
+              if (!config_data.performance) {
+                config_data.performance = { calendar_refresh_interval_seconds: 21600 };
+              } else {
+                if (config_data.performance.calendar_refresh_interval_seconds === undefined || config_data.performance.calendar_refresh_interval_seconds === null) {
+                  config_data.performance.calendar_refresh_interval_seconds = 21600;
+                }
+              }
               this.formData = config_data;
               setTimeout(() => {
                 this.configModified = false;
               }, 100);
+              this.configHasLoaded = true;
 
               // 加载任务最新信息（包括记录和文件）
               this.loadTaskLatestInfo();
@@ -4220,8 +6746,25 @@
 
         },
         removeTask(index) {
-          if (confirm("确定要删除任务 [#" + (index + 1) + ": " + this.formData.tasklist[index].taskname + "] 吗？"))
+          if (!confirm("确定要删除任务 [#" + (index + 1) + ": " + this.formData.tasklist[index].taskname + "] 吗？")) return;
+          const task = this.formData.tasklist[index];
+          const taskName = task.taskname || task.task_name;
+          // 一次性任务（skip_calendar）不做日历清理，直接删除并保存
+          if (task.skip_calendar === true) {
             this.formData.tasklist.splice(index, 1);
+            this.saveConfig();
+            return;
+          }
+          // 非一次性任务：先请求后端清理（含数据库与海报文件），再删除任务并保存配置
+          axios.post('/api/calendar/purge_by_task', { task_name: taskName })
+            .then(() => {
+              this.formData.tasklist.splice(index, 1);
+              this.saveConfig();
+            })
+            .catch(() => {
+              this.formData.tasklist.splice(index, 1);
+              this.saveConfig();
+            });
         },
         changeShareurl(task) {
           if (!task.shareurl)
@@ -4703,6 +7246,36 @@
                 // 如果同时删除了记录，无论当前在哪个页面，都刷新历史记录
                 if (deleteRecords) {
                   this.loadHistoryRecords();
+                }
+                // 仅当删除了记录时，才触发任务/日历刷新（统计依赖记录）
+                if (deleteRecords && (response.data.deleted_records || 0) > 0) {
+                  (async () => {
+                    try {
+                      const latestRes = await axios.get('/task_latest_info');
+                      if (latestRes.data && latestRes.data.success) {
+                        const latestFiles = latestRes.data.data.latest_files || {};
+                        this.taskLatestFiles = latestFiles;
+                        this.taskLatestRecords = latestRes.data.data.latest_records || {};
+                        this.calendar.progressByTaskName = this.buildProgressByTaskNameFromLatestFiles(latestFiles);
+                        this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+                      }
+                    } catch (e) {}
+                    try {
+                      const tasksResponse = await axios.get('/api/calendar/tasks');
+                      if (tasksResponse.data && tasksResponse.data.success) {
+                        this.calendar.tasks = tasksResponse.data.data.tasks || [];
+                        this.calendar.taskNames = this.calendar.tasks.map(task => task.task_name);
+                        const rawTypes = tasksResponse.data.data.content_types || [];
+                        this.updateContentTypes(rawTypes);
+                        this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+                      }
+                    } catch (e) {}
+                    try {
+                      await this.loadCalendarEpisodesLocal();
+                      this.initializeCalendarDates();
+                      await this.loadTodayUpdatesLocal();
+                    } catch (e) {}
+                  })();
                 }
               } else {
                 alert('删除失败: ' + response.data.message);
@@ -6196,6 +8769,34 @@
                 // 清空选择
                 this.selectedRecords = [];
                 this.lastSelectedRecordIndex = -1;
+                // 删除历史记录成功后，主动触发任务/日历刷新，确保任务列表的进度与统计热更新
+                (async () => {
+                  try {
+                    const latestRes = await axios.get('/task_latest_info');
+                    if (latestRes.data && latestRes.data.success) {
+                      const latestFiles = latestRes.data.data.latest_files || {};
+                      this.taskLatestFiles = latestFiles;
+                      this.taskLatestRecords = latestRes.data.data.latest_records || {};
+                      this.calendar.progressByTaskName = this.buildProgressByTaskNameFromLatestFiles(latestFiles);
+                      this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+                    }
+                  } catch (e) {}
+                  try {
+                    const tasksResponse = await axios.get('/api/calendar/tasks');
+                    if (tasksResponse.data && tasksResponse.data.success) {
+                      this.calendar.tasks = tasksResponse.data.data.tasks || [];
+                      this.calendar.taskNames = this.calendar.tasks.map(task => task.task_name);
+                      const rawTypes = tasksResponse.data.data.content_types || [];
+                      this.updateContentTypes(rawTypes);
+                      this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+                    }
+                  } catch (e) {}
+                  try {
+                    await this.loadCalendarEpisodesLocal();
+                    this.initializeCalendarDates();
+                    await this.loadTodayUpdatesLocal();
+                  } catch (e) {}
+                })();
               } else {
                 alert(response.data.message || '删除失败');
               }
@@ -6222,6 +8823,34 @@
                   // 清空选择
                   this.selectedRecords = [];
                   this.lastSelectedRecordIndex = -1;
+                  // 批量删除历史记录成功后，触发任务/日历刷新
+                  (async () => {
+                    try {
+                      const latestRes = await axios.get('/task_latest_info');
+                      if (latestRes.data && latestRes.data.success) {
+                        const latestFiles = latestRes.data.data.latest_files || {};
+                        this.taskLatestFiles = latestFiles;
+                        this.taskLatestRecords = latestRes.data.data.latest_records || {};
+                        this.calendar.progressByTaskName = this.buildProgressByTaskNameFromLatestFiles(latestFiles);
+                        this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+                      }
+                    } catch (e) {}
+                    try {
+                      const tasksResponse = await axios.get('/api/calendar/tasks');
+                      if (tasksResponse.data && tasksResponse.data.success) {
+                        this.calendar.tasks = tasksResponse.data.data.tasks || [];
+                        this.calendar.taskNames = this.calendar.tasks.map(task => task.task_name);
+                        const rawTypes = tasksResponse.data.data.content_types || [];
+                        this.updateContentTypes(rawTypes);
+                        this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+                      }
+                    } catch (e) {}
+                    try {
+                      await this.loadCalendarEpisodesLocal();
+                      this.initializeCalendarDates();
+                      await this.loadTodayUpdatesLocal();
+                    } catch (e) {}
+                  })();
                 } else {
                   alert(response.data.message || '删除失败');
                 }
@@ -6245,6 +8874,34 @@
                   // 清空选择
                   this.selectedRecords = [];
                   this.lastSelectedRecordIndex = -1;
+                  // 单条删除历史记录成功后，触发任务/日历刷新
+                  (async () => {
+                    try {
+                      const latestRes = await axios.get('/task_latest_info');
+                      if (latestRes.data && latestRes.data.success) {
+                        const latestFiles = latestRes.data.data.latest_files || {};
+                        this.taskLatestFiles = latestFiles;
+                        this.taskLatestRecords = latestRes.data.data.latest_records || {};
+                        this.calendar.progressByTaskName = this.buildProgressByTaskNameFromLatestFiles(latestFiles);
+                        this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+                      }
+                    } catch (e) {}
+                    try {
+                      const tasksResponse = await axios.get('/api/calendar/tasks');
+                      if (tasksResponse.data && tasksResponse.data.success) {
+                        this.calendar.tasks = tasksResponse.data.data.tasks || [];
+                        this.calendar.taskNames = this.calendar.tasks.map(task => task.task_name);
+                        const rawTypes = tasksResponse.data.data.content_types || [];
+                        this.updateContentTypes(rawTypes);
+                        this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+                      }
+                    } catch (e) {}
+                    try {
+                      await this.loadCalendarEpisodesLocal();
+                      this.initializeCalendarDates();
+                      await this.loadTodayUpdatesLocal();
+                    } catch (e) {}
+                  })();
                 } else {
                   alert(response.data.message || '删除失败');
                 }
@@ -6450,6 +9107,36 @@
                 // 如果同时删除了记录，无论当前在哪个页面，都刷新历史记录
                 if (deleteRecords) {
                   this.loadHistoryRecords();
+                }
+                // 批量删除：仅当删除了记录时再刷新任务/日历
+                if (deleteRecords && totalDeletedRecords > 0) {
+                  (async () => {
+                    try {
+                      const latestRes = await axios.get('/task_latest_info');
+                      if (latestRes.data && latestRes.data.success) {
+                        const latestFiles = latestRes.data.data.latest_files || {};
+                        this.taskLatestFiles = latestFiles;
+                        this.taskLatestRecords = latestRes.data.data.latest_records || {};
+                        this.calendar.progressByTaskName = this.buildProgressByTaskNameFromLatestFiles(latestFiles);
+                        this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+                      }
+                    } catch (e) {}
+                    try {
+                      const tasksResponse = await axios.get('/api/calendar/tasks');
+                      if (tasksResponse.data && tasksResponse.data.success) {
+                        this.calendar.tasks = tasksResponse.data.data.tasks || [];
+                        this.calendar.taskNames = this.calendar.tasks.map(task => task.task_name);
+                        const rawTypes = tasksResponse.data.data.content_types || [];
+                        this.updateContentTypes(rawTypes);
+                        this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+                      }
+                    } catch (e) {}
+                    try {
+                      await this.loadCalendarEpisodesLocal();
+                      this.initializeCalendarDates();
+                      await this.loadTodayUpdatesLocal();
+                    } catch (e) {}
+                  })();
                 }
               });
           }
@@ -7953,8 +10640,8 @@
 
           } catch (error) {
             console.warn('无法从图片提取颜色:', error);
-            // 降级到默认渐变
-            return 'radial-gradient(circle, rgba(0,0,0,0.8) 0%, rgba(50,50,50,0.9) 50%, rgba(0,0,0,0.8) 100%)';
+            // 降级为统一的深色背景（使用主题变量 --dark-text-color）
+            return 'var(--dark-text-color)';
           }
         },
         handlePosterHover(event, item) {
@@ -7963,9 +10650,39 @@
           const imgElement = posterElement.querySelector('img');
           const overlayElement = posterElement.querySelector('.discovery-poster-overlay');
 
-          if (imgElement && overlayElement && imgElement.complete) {
-            const gradient = this.createGradientFromImage(imgElement);
-            overlayElement.style.background = gradient;
+          if (imgElement && overlayElement) {
+            if (imgElement.complete) {
+              const gradient = this.createGradientFromImage(imgElement);
+              overlayElement.style.background = gradient;
+            } else {
+              // 图片未完成加载时，直接使用降级颜色
+              overlayElement.style.background = 'var(--dark-text-color)';
+            }
+          }
+        },
+
+        // 内容管理页面的海报悬停处理
+        handleManagementPosterHover(event, task) {
+          const posterElement = event.currentTarget;
+          const overlayElement = posterElement.querySelector('.discovery-poster-overlay');
+
+          if (overlayElement) {
+            // 检查任务是否匹配
+            const isMatched = task.matched_show_name && task.matched_show_name.trim() !== '';
+            
+            if (isMatched) {
+              // 匹配的任务：从图片提取颜色
+              const imgElement = posterElement.querySelector('img');
+              if (imgElement && imgElement.complete) {
+                const gradient = this.createGradientFromImage(imgElement);
+                overlayElement.style.background = gradient;
+              } else {
+                overlayElement.style.background = 'var(--dark-text-color)';
+              }
+            } else {
+              // 未匹配的任务：使用固定颜色
+              overlayElement.style.background = 'var(--dark-text-color)';
+            }
           }
         },
         handleImageError(event) {
@@ -7973,7 +10690,7 @@
           event.target.src = '/static/images/no-poster.svg';
         },
         getProxiedImageUrl(originalUrl) {
-          // 直接返回原始URL，因为豆瓣移动端API返回的图片URL应该是可以直接访问的
+          // 保持直连，发现页加载更快，且不需要取色跨域处理
           if (!originalUrl) return '/static/images/no-poster.svg';
           return originalUrl;
         },
@@ -8307,6 +11024,94 @@
             season: '01',
             isFirstSeason: true
           };
+        },
+
+        // 加载“今日更新”的本地数据，用于指示当日转存的剧集/任务
+        async loadTodayUpdatesLocal() {
+          try {
+            const res = await axios.get('/api/calendar/today_updates_local');
+            if (res.data && res.data.success) {
+              const items = res.data.data && res.data.data.items ? res.data.data.items : [];
+              const byTask = {};
+              const byShow = {};
+              const makeKey = (it) => {
+                if (it && it.episode_number != null && it.season_number != null) {
+                  const s = String(it.season_number).padStart(2, '0');
+                  const e = String(it.episode_number).padStart(2, '0');
+                  return `S${s}E${e}`;
+                }
+                if (it && it.air_date) {
+                  return `D:${it.air_date}`;
+                }
+                return null;
+              };
+              items.forEach(it => {
+                if (it && it.task_name) byTask[it.task_name] = true;
+                const key = makeKey(it);
+                const sname = (it && it.show_name) ? String(it.show_name).trim() : '';
+                if (sname && key) {
+                  if (!byShow[sname]) byShow[sname] = new Set();
+                  byShow[sname].add(key);
+                }
+              });
+              // 将 Set 序列化为对象数组以便 Vue 响应式
+              const byShowObj = {};
+              Object.keys(byShow).forEach(k => { byShowObj[k] = Array.from(byShow[k]); });
+              this.calendar.todayUpdatesByTaskName = byTask;
+              this.calendar.todayUpdatesByShow = byShowObj;
+            }
+          } catch (e) {
+            // 忽略错误，维持上次数据
+          }
+        },
+
+        // 判断剧集是否属于“今日更新”的已转存集（按剧名 + SxxExx / 日期 匹配）
+        isEpisodeUpdatedToday(episode) {
+          try {
+            if (!episode) return false;
+            const sname = (episode.show_name || '').trim();
+            if (!sname) return false;
+            const list = this.calendar.todayUpdatesByShow && this.calendar.todayUpdatesByShow[sname];
+            if (!list || list.length === 0) return false;
+            // 拆分模式：逐集匹配
+            const makeKey = (ep) => {
+              if (ep && ep.episode_number != null && ep.season_number != null) {
+                const s = String(ep.season_number).padStart(2, '0');
+                const e = String(ep.episode_number).padStart(2, '0');
+                return `S${s}E${e}`;
+              }
+              if (ep && ep.air_date) return `D:${ep.air_date}`;
+              return null;
+            };
+            if (!episode.is_merged) {
+              const key = makeKey(episode);
+              if (!key) return false;
+              return list.includes(key);
+            }
+            // 合并模式：任一原始集命中即可
+            if (Array.isArray(episode.original_episodes) && episode.original_episodes.length > 0) {
+              return episode.original_episodes.some(ep => {
+                const key = makeKey({
+                  season_number: ep.season_number || episode.season_number,
+                  episode_number: ep.episode_number,
+                  air_date: ep.air_date || episode.air_date
+                });
+                return key && list.includes(key);
+              });
+            }
+            // 兜底：用合并后的显示信息尝试一次
+            const key = makeKey(episode);
+            return key ? list.includes(key) : false;
+          } catch (e) { return false; }
+        },
+
+        // 判断管理视图中的任务是否有当日更新
+        isCalendarTaskUpdatedToday(task) {
+          try {
+            const name = task && (task.task_name || task.taskname);
+            if (!name) return false;
+            return !!(this.calendar.todayUpdatesByTaskName && this.calendar.todayUpdatesByTaskName[name]);
+          } catch (e) { return false; }
         },
         generateMovieSavePath(template, title, year) {
           // 生成电影保存路径
@@ -8661,6 +11466,8 @@
 
           // 创建新任务
           const newTask = { ...this.createTask.taskData };
+          // 一次性任务：跳过日历匹配
+          newTask.skip_calendar = true;
 
           // 应用全局插件配置
           this.applyGlobalPluginConfig(newTask);
@@ -8794,9 +11601,24 @@
         removeTaskSilently(index) {
           // 静默删除任务，不显示确认对话框
           if (index >= 0 && index < this.formData.tasklist.length) {
-            this.formData.tasklist.splice(index, 1);
-            // 保存配置
-            this.saveConfig();
+            const task = this.formData.tasklist[index];
+            const taskName = task.taskname || task.task_name;
+            // 一次性任务（skip_calendar）不做日历清理，直接删除并保存
+            if (task.skip_calendar === true) {
+              this.formData.tasklist.splice(index, 1);
+              this.saveConfig();
+              return;
+            }
+            // 非一次性任务：删除前执行清理
+            axios.post('/api/calendar/purge_by_task', { task_name: taskName })
+              .then(() => {
+                this.formData.tasklist.splice(index, 1);
+                this.saveConfig();
+              })
+              .catch(() => {
+                this.formData.tasklist.splice(index, 1);
+                this.saveConfig();
+              });
           }
         },
         openCreateTaskDatePicker() {
@@ -8804,6 +11626,77 @@
           if (this.$refs.createTaskEnddate) {
             this.$refs.createTaskEnddate.showPicker();
           }
+        },
+        
+        // 添加日历页面窗口大小变化监听器
+        addCalendarResizeListener() {
+          // 移除之前的监听器（如果存在）
+          if (this.calendarResizeHandler) {
+            window.removeEventListener('resize', this.calendarResizeHandler);
+          }
+          
+          // 创建新的监听器
+          this.calendarResizeHandler = this.debounce(() => {
+            if (this.activeTab === 'calendar') {
+              if (this.calendar.viewMode === 'poster' && !this.calendar.manageMode) {
+                this.updateWeekDates();
+              }
+              // 管理模式下仅触发布局tick，使用相同的列计算逻辑
+              if (this.calendar.manageMode) {
+                this.calendar.layoutTick = Date.now();
+              }
+            }
+          }, 300); // 300ms防抖
+          
+          // 添加监听器
+          window.addEventListener('resize', this.calendarResizeHandler);
+        },
+        
+        // 防抖函数
+        debounce(func, wait) {
+          let timeout;
+          return function executedFunction(...args) {
+            const later = () => {
+              clearTimeout(timeout);
+              func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+          };
+        },
+        
+        // 获取追剧日历页面的可用宽度（排除侧边栏）
+        getCalendarAvailableWidth() {
+          const windowWidth = window.innerWidth || document.documentElement.clientWidth;
+          
+          // 移动设备（小屏幕）
+          if (windowWidth < 768) {
+            // 移动设备下侧边栏会折叠，主内容区域占满宽度
+            return windowWidth - 20; // 减去左右边距
+          }
+          
+          // 桌面设备（大屏幕）
+          let sidebarWidth = 184; // 默认展开状态宽度
+          
+          // 如果侧边栏已折叠
+          if (this.sidebarCollapsed) {
+            sidebarWidth = 54; // 折叠状态宽度
+          }
+          
+          // 计算主内容区域可用宽度
+          const availableWidth = windowWidth - sidebarWidth - 20; // 减去侧边栏宽度和左右边距
+          
+
+          
+          return Math.max(availableWidth, 300); // 确保最小可用宽度为300px
+        },
+        
+        // 格式化日期为YYYY-MM-DD格式（使用本地时间）
+        formatDateToYYYYMMDD(date) {
+          const year = date.getFullYear();
+          const month = (date.getMonth() + 1).toString().padStart(2, '0');
+          const day = date.getDate().toString().padStart(2, '0');
+          return `${year}-${month}-${day}`;
         }
       },
       mounted() {
@@ -8954,6 +11847,11 @@
           if (this.activeTab === 'discovery') {
             this.loadDiscoveryData();
           }
+          
+          // 如果当前是追剧日历页面，加载日历数据
+          if (this.activeTab === 'calendar') {
+            this.loadCalendarData();
+          }
         }, 500);
       },
       beforeDestroy() {
@@ -8961,6 +11859,11 @@
         // 移除点击事件监听器
         document.removeEventListener('click', this.handleOutsideClick);
         document.removeEventListener('click', this.handleRenameOutsideClick);
+        
+        // 移除日历页面resize监听器
+        if (this.calendarResizeHandler) {
+          window.removeEventListener('resize', this.calendarResizeHandler);
+        }
       }
     });
   </script>

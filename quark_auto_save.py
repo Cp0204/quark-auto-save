@@ -4873,7 +4873,8 @@ def do_save(account, tasklist=[]):
                 else:
                     # 添加基本通知
                     add_notify(f"✅《{task['taskname']}》新增文件:")
-                    add_notify(f"{re.sub(r'/{2,}', '/', f'/{task['savepath']}')}")
+                    savepath = task['savepath']
+                    add_notify(f"{re.sub(r'/{2,}', '/', f'/{savepath}')}")
                     
                     # 修正首次运行时对子目录的处理 - 只有在首次运行且有新增的子目录时才显示子目录内容
                     if has_update_in_root and has_update_in_subdir and is_first_run and len(new_added_dirs) == 0:
@@ -5204,7 +5205,8 @@ def do_save(account, tasklist=[]):
                 # 添加成功通知 - 修复问题：确保在有文件时添加通知
                 if display_files:
                     add_notify(f"✅《{task['taskname']}》新增文件:")
-                    add_notify(f"{re.sub(r'/{2,}', '/', f'/{task['savepath']}')}")
+                    savepath = task['savepath']
+                    add_notify(f"{re.sub(r'/{2,}', '/', f'/{savepath}')}")
                 
                 
                 # 创建episode_pattern函数用于排序
@@ -5294,7 +5296,8 @@ def do_save(account, tasklist=[]):
                 
                 # 添加成功通知
                 add_notify(f"✅《{task['taskname']}》新增文件:")
-                add_notify(f"{re.sub(r'/{2,}', '/', f'/{task['savepath']}')}")
+                savepath = task['savepath']
+                add_notify(f"{re.sub(r'/{2,}', '/', f'/{savepath}')}")
                 
                 # 打印文件列表
                 for idx, file_name in enumerate(display_files):
