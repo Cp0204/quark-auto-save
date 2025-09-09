@@ -949,30 +949,52 @@
                 </div>
               </div>
             </div>
-            <!-- 任务列表：类型筛选按钮（复用追剧日历样式） -->
-            <div class="calendar-category-buttons tasklist-type-filter">
-              <button type="button"
-                      class="btn btn-outline-secondary calendar-category-btn"
-                      :class="{ active: tasklist.selectedType === 'all' }"
-                      @click="selectTasklistType('all')">
-                全部
-              </button>
-              <button type="button"
-                      class="btn btn-outline-secondary calendar-category-btn"
-                      v-for="type in tasklist.contentTypes"
-                      :key="'tasklist-'+type"
-                      :class="{ active: tasklist.selectedType === type }"
-                      @click="selectTasklistType(type)">
-                {{ getContentTypeDisplayName(type) }}
-              </button>
+            <!-- 任务列表：类型筛选按钮和排序组件（复用追剧日历移动端样式） -->
+            <div class="row mb-3 tasklist-header-row">
+              <div class="col-lg-8 col-md-6">
+                <!-- 类型筛选按钮 -->
+                <div class="calendar-category-buttons tasklist-type-filter">
+                  <button type="button"
+                          class="btn btn-outline-secondary calendar-category-btn"
+                          :class="{ active: tasklist.selectedType === 'all' }"
+                          @click="selectTasklistType('all')">
+                    全部
+                  </button>
+                  <button type="button"
+                          class="btn btn-outline-secondary calendar-category-btn"
+                          v-for="type in tasklist.contentTypes"
+                          :key="'tasklist-'+type"
+                          :class="{ active: tasklist.selectedType === type }"
+                          @click="selectTasklistType(type)">
+                    {{ getContentTypeDisplayName(type) }}
+                  </button>
+                </div>
+              </div>
+              <div class="col-lg-4 col-md-6">
+                <!-- 排序组件 -->
+                <div class="tasklist-sort-controls d-flex justify-content-end">
+                  <div class="tasklist-sort-wrapper">
+                    <span class="tasklist-sort-pill tasklist-sort-pill-icon" title="切换排序">按</span>
+                    <select class="tasklist-sort-pill tasklist-sort-select task-filter-select" :value="tasklistSort.by" @change="changeTasklistSortBy($event.target.value)" title="选择排序方式">
+                      <option value="index">任务编号</option>
+                      <option value="name">任务名称</option>
+                      <option v-if="formData.tmdb_api_key" value="progress">任务进度</option>
+                      <option value="update_time">更新时间</option>
+                    </select>
+                    <span class="tasklist-sort-pill tasklist-sort-order" @click="toggleTasklistSortOrder" title="切换升降序">
+                      {{ tasklistSort.order === 'asc' ? '升序排列' : '降序排列' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div v-for="(task, index) in formData.tasklist" :key="index" class="task mb-3">
+            <div v-for="(task, index) in sortedTasklist" :key="index" class="task mb-3" v-show="shouldShowTasklist">
               <template v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task)">
                 <hr>
                 <div class="form-group row" style="align-items:center">
                   <div class="col pl-0" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="true" :aria-controls="'collapse_'+index">
                     <div class="btn btn-block text-left">
-                      <i class="bi bi-caret-right-fill"></i> #<span v-html="`${String(index+1).padStart(2, '0')} ${task.taskname}`"></span>
+                      <i class="bi bi-caret-right-fill"></i> #<span v-html="`${String((task.__originalIndex !== undefined ? task.__originalIndex : index) + 1).padStart(2, '0')} ${task.taskname}`"></span>
                       <template v-for="key in formData.button_display_order">
                         <span v-if="key==='latest_transfer_file' && formData.button_display.latest_transfer_file !== 'disabled' && taskLatestFiles[task.taskname]"
                               class="task-latest-file"
@@ -2969,6 +2991,18 @@
           selectedType: (localStorage.getItem('tasklist_selected_type') || 'all'),
           contentTypes: []
         },
+        // 任务列表排序设置（记忆到localStorage）
+        tasklistSort: (() => {
+          try {
+            const saved = JSON.parse(localStorage.getItem('tasklist_sort_options') || '{}');
+            let by = ['index','name','progress','update_time'].includes(saved.by) ? saved.by : 'index';
+            const order = (saved.order === 'asc' || saved.order === 'desc') ? saved.order : 'asc';
+            // 注意：这里无法检查 TMDB API 配置，会在 mounted 中处理
+            return { by, order };
+          } catch (e) {
+            return { by: 'index', order: 'asc' };
+          }
+        })(),
         // 日历页面resize监听器
         calendarResizeHandler: null,
         // 日历自动检测更新相关
@@ -3052,6 +3086,35 @@
             });
           } catch (e) {}
           return list;
+        },
+
+        // 任务列表：带排序的视图数据（使用计算属性，不修改原始数据）
+        sortedTasklist() {
+          return this.getSortedTasklist();
+        },
+
+        // 判断是否应该显示任务列表（避免排序闪烁）
+        shouldShowTasklist() {
+          const { by } = this.tasklistSort || { by: 'index' };
+          
+          // 任务编号和任务名称排序不需要额外数据，可以直接显示
+          if (by === 'index' || by === 'name') {
+            return true;
+          }
+          
+          // 任务进度排序需要 taskLatestFiles 和 calendar.tasks 数据
+          if (by === 'progress') {
+            return this.taskLatestFiles && Object.keys(this.taskLatestFiles).length > 0 &&
+                   this.calendar.tasks && Array.isArray(this.calendar.tasks) && this.calendar.tasks.length > 0;
+          }
+          
+          // 更新时间排序需要 taskLatestRecords 数据
+          if (by === 'update_time') {
+            return this.taskLatestRecords && Object.keys(this.taskLatestRecords).length > 0;
+          }
+          
+          // 默认显示
+          return true;
         },
 
         // 海报和日历视图下过滤掉所有内容都是未匹配的分类
@@ -3519,6 +3582,79 @@
         this.stopCalendarAutoWatch();
       },
       methods: {
+        // 任务列表排序：获取显示名称
+        getTasklistSortDisplayName(key) {
+          if (key === 'name') return '任务名称';
+          if (key === 'progress') return '任务进度';
+          if (key === 'update_time') return '更新时间';
+          return '任务编号';
+        },
+        // 任务列表排序：保存到localStorage
+        saveTasklistSort() {
+          try {
+            localStorage.setItem('tasklist_sort_options', JSON.stringify({ by: this.tasklistSort.by, order: this.tasklistSort.order }));
+          } catch (e) {}
+        },
+        // 任务列表排序：切换排序字段
+        // 仅切换排序字段，不改变当前升降序
+        changeTasklistSortBy(by) {
+          if (!['index','name','progress','update_time'].includes(by)) return;
+          if (this.tasklistSort.by !== by) {
+            this.tasklistSort.by = by;
+            // 不重置、不切换 order，保持现状
+            this.saveTasklistSort();
+            // 不再调用 applyTasklistSort，因为现在使用计算属性
+          }
+        },
+        // 任务列表排序：切换升降序
+        toggleTasklistSortOrder() {
+          this.tasklistSort.order = this.tasklistSort.order === 'asc' ? 'desc' : 'asc';
+          this.saveTasklistSort();
+          // 不再调用 applyTasklistSort，因为现在使用计算属性
+        },
+        // 获取排序后的任务列表（不修改原始数据，避免触发 configModified）
+        getSortedTasklist() {
+          try {
+            const { by, order } = this.tasklistSort || { by: 'index', order: 'asc' };
+            const factor = order === 'desc' ? -1 : 1;
+            // 建立稳定排序：附带原始索引，避免相等时抖动
+            const withIndex = (this.formData.tasklist || []).map((t, idx) => ({ t, idx }));
+            withIndex.sort((a, b) => {
+              let cmp = 0;
+              if (by === 'name') {
+                const an = (a.t.taskname || '').toString();
+                const bn = (b.t.taskname || '').toString();
+                try {
+                  const ak = pinyinPro.pinyin(an, { toneType: 'none', type: 'string' }).toLowerCase();
+                  const bk = pinyinPro.pinyin(bn, { toneType: 'none', type: 'string' }).toLowerCase();
+                  if (ak < bk) cmp = -1; else if (ak > bk) cmp = 1; else cmp = 0;
+                } catch (e) { cmp = an.localeCompare(bn); }
+              } else if (by === 'progress') {
+                const ap = (this.getTaskProgress && this.getTaskProgress(a.t.taskname) != null) ? Number(this.getTaskProgress(a.t.taskname)) : -1;
+                const bp = (this.getTaskProgress && this.getTaskProgress(b.t.taskname) != null) ? Number(this.getTaskProgress(b.t.taskname)) : -1;
+                cmp = ap - bp;
+              } else if (by === 'update_time') {
+                // 按任务最近转存时间排序
+                const aRecord = this.taskLatestRecords[a.t.taskname];
+                const bRecord = this.taskLatestRecords[b.t.taskname];
+                const aTime = aRecord && aRecord.full ? new Date(aRecord.full).getTime() : 0;
+                const bTime = bRecord && bRecord.full ? new Date(bRecord.full).getTime() : 0;
+                cmp = aTime - bTime;
+              } else {
+                // 按任务名称中的编号排序（解析 #XX 格式）
+                const aNum = parseInt((a.t.taskname || '').match(/^#?(\d+)/)?.[1] || '0');
+                const bNum = parseInt((b.t.taskname || '').match(/^#?(\d+)/)?.[1] || '0');
+                cmp = aNum - bNum;
+              }
+              if (cmp === 0) cmp = a.idx - b.idx; // 稳定
+              return cmp * factor;
+            });
+            // 返回带原始索引的任务对象
+            return withIndex.map(x => ({ ...x.t, __originalIndex: x.idx }));
+          } catch (e) {
+            return (this.formData.tasklist || []).map((t, idx) => ({ ...t, __originalIndex: idx }));
+          }
+        },
         // 选择日历日期
         selectCalendarDate(day) {
           try {
@@ -6022,8 +6158,11 @@
                 return task;
               });
               
+              // 直接赋值，排序通过计算属性处理
+              this.formData.tasklist = config_data.tasklist || [];
+
               // 获取所有任务父目录
-              config_data.tasklist.forEach(item => {
+              this.formData.tasklist.forEach(item => {
                 parentDir = this.getParentDirectory(item.savepath)
                 if (!this.taskDirs.includes(parentDir))
                   this.taskDirs.push(parentDir);
@@ -6202,6 +6341,7 @@
                 }
               }
               this.formData = config_data;
+              
               setTimeout(() => {
                 this.configModified = false;
               }, 100);

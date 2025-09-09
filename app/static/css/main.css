@@ -7743,6 +7743,167 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
 
 /* 任务列表：类型筛选按钮与上方名称筛选区域的间距 */
 .tasklist-type-filter {
-  margin-top: 8px;
-  margin-bottom: 20px;
+  margin-top: 0px; /* 上移8px（从8px调整为0px） */
+  margin-bottom: 4px;
+}
+
+/* 排序模块内部的行容器，承载三段控件 */
+.tasklist-sort-wrapper {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+/* spacer：撑开空间以将控件推至右侧 */
+.tasklist-sort-spacer {
+  flex: 1 0 auto;
+}
+
+/* 三段胶囊通用样式（灰底、统一高度/字号） */
+.tasklist-sort-pill {
+  background-color: var(--button-gray-background-color) !important;
+  color: var(--dark-text-color);
+  border: none !important;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  line-height: 32px;
+  margin: 0 !important;
+  font-size: 0.95rem; /* 与左侧类型按钮一致 */
+}
+
+/* 左侧“按”按钮：保留边框，去右边框，与中间边框重叠 */
+.tasklist-sort-pill-icon {
+  width: 31px;
+  min-width: 31px;
+  justify-content: center;
+  border: 1px solid var(--border-color) !important;
+  border-right: none !important;
+  border-radius: 6px 0 0 6px;
+  background-color: var(--button-gray-background-color);
+}
+
+/* 中间下拉：白底，负责显示唯一可见边框（上下左右均有） */
+.tasklist-sort-select {
+  padding: 0 8px;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background: #fff !important;
+  cursor: pointer;
+  background-image: none;
+  height: 32px;
+  line-height: 30px;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  box-sizing: border-box !important;
+  vertical-align: middle;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.95rem; /* 与左侧类型按钮一致 */
+}
+
+/* 隐藏 IE 默认下拉箭头 */
+.tasklist-sort-select::-ms-expand {
+  display: none;
+}
+
+/* 聚焦高亮，保持与任务筛选一致 */
+.tasklist-sort-select:focus {
+  outline: none;
+  box-shadow: none;
+  border-color: var(--focus-border-color) !important; /* 聚焦时四边统一为主题色 */
+  background: #fff;
+}
+
+/* 下拉聚焦时，右侧按钮与其接缝的左边框采用同色，视觉连贯 */
+.tasklist-sort-select:focus + .tasklist-sort-order {
+  border-left-color: var(--focus-border-color) !important; /* 接缝同色，视觉连贯 */
+}
+
+/* 右侧"升/降序排列"按钮：保留边框，去左边框，与中间重叠 */
+.tasklist-sort-order {
+  padding: 0 8px;
+  cursor: pointer;
+  border: 1px solid var(--border-color) !important;
+  border-left: none !important;
+  border-radius: 0 6px 6px 0;
+  background: var(--button-gray-background-color) !important;
+  font-size: 0.95rem; /* 与左侧类型按钮一致 */
+}
+
+/* 兼容旧结构：若存在下拉菜单 DOM，最小宽度不小于 160px */
+.tasklist-sort-dropdown .dropdown-menu {
+  min-width: 160px;
+}
+
+/* 任务列表：移动端样式优化（复用追剧日历样式） */
+@media (max-width: 768px) {
+  /* 任务列表：顶部一行（类型筛选 + 排序）不换行 */
+  .tasklist-header-row {
+    flex-wrap: nowrap !important;
+    align-items: center;
+    overflow-x: auto !important; /* 整行作为滚动容器 */
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    column-gap: 8px; /* 左右两组之间 8px 间距 */
+    margin-top: 0px !important;
+    /* 去除内边距，使用遮罩实现两侧 20px 的"硬遮挡"效果（无渐变） */
+    padding-left: 0;
+    padding-right: 0;
+    -webkit-mask-image: linear-gradient(to right,
+      transparent 0,
+      transparent 15px,
+      black 15px,
+      black calc(100% - 15px),
+      transparent calc(100% - 15px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(to right,
+      transparent 0,
+      transparent 15px,
+      black 15px,
+      black calc(100% - 15px),
+      transparent calc(100% - 15px),
+      transparent 100%
+    );
+  }
+  .tasklist-header-row::-webkit-scrollbar { display: none; }
+  
+  /* 两列都按内容宽度，不允许被压缩到0，通过外层行滚动 */
+  .tasklist-header-row > .col-lg-8.col-md-6,
+  .tasklist-header-row > .col-lg-4.col-md-6 {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+  
+  /* 去除列内侧补白，避免视觉间距异常 */
+  .tasklist-header-row > .col-lg-8.col-md-6 { padding-right: 0 !important; }
+  .tasklist-header-row > .col-lg-4.col-md-6 { padding-left: 0 !important; }
+
+  /* 左侧类型筛选按钮容器：保持单行（滚动交给外层行）*/
+  .tasklist-header-row .calendar-category-buttons {
+    flex-wrap: nowrap !important;
+    margin-top: 0 !important; /* 覆盖全局 -12px，避免被遮挡 */
+  }
+
+  /* 右侧排序组件容器：强制单行，超出部分横向滚动，隐藏滚动条 */
+  .tasklist-sort-controls {
+    width: auto !important;
+    max-width: 100% !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin-top: -4px !important;
+  }
+  .tasklist-sort-controls::-webkit-scrollbar { display: none; }
+  
+  /* 排序组件内部容器：保持紧凑布局 */
+  .tasklist-sort-controls .tasklist-sort-wrapper {
+    flex-shrink: 0;
+  }
 }
