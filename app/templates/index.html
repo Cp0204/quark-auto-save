@@ -800,7 +800,7 @@
               </div>
             </div>
 
-            <div class="row title" title="设置任务列表页面的任务信息和任务按钮的显示方式及顺序，刷新Plex媒体库和刷新AList目录按钮仅在配置了对应插件的前提下才支持显示，支持拖拽模块调整显示顺序">
+            <div class="row title" title="设置任务列表页面的任务信息和任务按钮的显示及排序方式，支持拖拽模块调整显示顺序，个别项目的禁用状态将被应用到所有页面">
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">显示设置</h2>
                 <span class="badge badge-pill badge-light">
@@ -814,13 +814,13 @@
               <div class="col-lg-3 col-md-6 mb-2 draggable-item" v-for="key in formData.button_display_order" :key="key" draggable="true" @dragstart="onDisplayDragStart($event, key)" @dragend="onDisplayDragEnd($event)" @dragover.prevent="onDisplayDragOver($event)" @drop="onDisplayDrop($event, key)">
                 <div class="input-group">
                   <div class="input-group-prepend">
-                    <span class="input-group-text">{{ getDisplayLabel(key) }}</span>
+                    <span class="input-group-text" :title="getDisplayHelp(key)">{{ getDisplayLabel(key) }}</span>
                   </div>
-                  <select v-if="key==='run_task' || key==='delete_task'" class="form-control" v-model="formData.button_display[key]">
+                  <select v-if="key==='run_task' || key==='delete_task'" class="form-control" v-model="formData.button_display[key]" :title="getDisplayHelp(key)">
                     <option value="always">始终显示</option>
                     <option value="hover">悬停显示</option>
                   </select>
-                  <select v-else class="form-control" v-model="formData.button_display[key]">
+                  <select v-else class="form-control" v-model="formData.button_display[key]" :title="getDisplayHelp(key)">
                     <option value="always">始终显示</option>
                     <option value="hover">悬停显示</option>
                     <option value="disabled">禁用</option>
@@ -3724,6 +3724,25 @@
             today_update_indicator: '当日更新标识'
           };
           return map[key] || key;
+        },
+        // 显示设置悬停说明
+        getDisplayHelp(key) {
+          const help = {
+            // 按钮类
+            refresh_plex: '手动刷新Plex媒体库按钮，仅在正确配置Plex插件时显示并生效',
+            refresh_alist: '手动刷新AList目录按钮，仅在正确配置AList插件时显示并生效',
+            run_task: '手动运行任务按钮，仅在任务资源有效时显示并生效',
+            delete_task: '删除任务按钮，操作不可撤回，请谨慎使用',
+
+            // 信息类
+            latest_transfer_file: '任务最近一次成功转存的文件名（剧集编号），需该任务有过成功转存记录才会显示',
+            season_counts: '已转存集数/已播出集数/节目总集数，依赖TMDB匹配的元数据，仅在配置了TMDB API且任务成功匹配到条目时显示',
+            latest_update_date: '任务最近一次成功转存的日期，需该任务有过成功转存记录才会显示',
+            task_progress: '已转存集数占已播出集数的百分比，依赖TMDB匹配的元数据，仅在配置了TMDB API且任务成功匹配到条目时显示',
+            show_status: '电视节目的完播状态（如：本季终/已完结/已取消），依赖TMDB匹配的元数据，仅在配置了TMDB API、任务成功匹配到条目且节目已完播时显示',
+            today_update_indicator: '任务在当日产生转存记录后，将显示当日更新标识'
+          };
+          return help[key] || '设置该项目在任务列表中的显示行为：始终显示/悬停显示/禁用，个别项目受插件或TMDB匹配状态影响是否生效或展示';
         },
         // ----- 任务列表新增显示：集数统计/任务进度/节目状态 -----
         getTaskSeasonCounts(taskName) {
