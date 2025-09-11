@@ -1883,15 +1883,15 @@
                         {{ getTransferProgress(task) }}%
                       </div>
                       <div class="discovery-poster-overlay">
-                        <div class="info-line">{{ task.task_name }}</div>
                         <div class="info-line">
                           <template v-if="task.matched_show_name">
-                            {{ task.matched_show_name }}<span v-if="task.matched_year"> ({{ task.matched_year }})</span>
+                            {{ task.matched_show_name }}
                           </template>
                           <template v-else>
                             未匹配
                           </template>
                         </div>
+                        <div class="info-line" v-if="task.matched_year && String(task.matched_year).trim() !== ''">{{ task.matched_year }}</div>
                         <div class="info-line" v-if="task.latest_season_name && task.latest_season_name.trim() !== ''">{{ task.latest_season_name }}</div>
                         <div class="info-line" v-if="task.matched_show_name && task.season_counts"
                              v-html="`${getTaskTransferredCount(task)} <span class='count-slash'>/</span> ${getTaskAiredCount(task)} <span class='count-slash'>/</span> ${getTaskTotalCount(task)}`">
@@ -5285,7 +5285,7 @@
           // 按行数截断：根据宽度估算每行字符数与行高，保证最后一行完整并追加省略号
           if (overviewElement) {
             try {
-              const maxHeightRatio = 0.7; // 简介最高占比70%
+              const maxHeightRatio = 0.6; // 简介最高占比60%
               const posterHeight = posterElement.clientHeight || 0;
               const overlayStyles = window.getComputedStyle(overviewElement);
               const lineHeight = parseFloat(overlayStyles.lineHeight) || 18; // 兜底18px
