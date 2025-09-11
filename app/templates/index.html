@@ -985,10 +985,21 @@
                       {{ tasklistSort.order === 'asc' ? '升序排列' : '降序排列' }}
                     </span>
                   </div>
+                  <!-- 视图切换按钮：列表视图 与 海报视图 -->
+                  <div class="ml-2">
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-sm tasklist-view-toggle-btn"
+                            @click="toggleTasklistViewMode"
+                            :title="tasklist.viewMode === 'list' ? '当前：列表视图，点击切换到海报视图' : '当前：海报视图，点击切换到列表视图'">
+                      <i :class="tasklist.viewMode === 'list' ? 'bi bi-grid-3x3-gap' : 'bi bi-list-ol'"></i>
+                    </button>
                 </div>
               </div>
             </div>
-            <div v-for="(task, index) in sortedTasklist" :key="index" class="task mb-3" v-show="shouldShowTasklist">
+            </div>
+            <!-- 任务列表：列表视图 -->
+            <template v-if="tasklist.viewMode === 'list'">
+            <div v-for="(task, index) in sortedTasklist" :key="'list-'+index" class="task mb-3" v-show="shouldShowTasklist">
               <template v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task)">
                 <hr>
                 <div class="form-group row" style="align-items:center">
@@ -1031,13 +1042,13 @@
                   </div>
                   <div class="col-auto task-buttons">
                     <template v-for="key in formData.button_display_order">
-                      <button v-if="key==='refresh_plex' && formData.plugins && formData.plugins.plex && formData.plugins.plex.url && formData.plugins.plex.token && formData.plugins.plex.quark_root_path && formData.button_display.refresh_plex !== 'disabled'" type="button" class="btn btn-outline-plex" :class="{'hover-only': formData.button_display.refresh_plex === 'hover'}" @click="refreshPlexLibrary(index)" title="刷新Plex媒体库"><img src="./static/images/Plex.svg" class="plex-icon"></button>
-                      <button v-else-if="key==='refresh_alist' && formData.plugins && formData.plugins.alist && formData.plugins.alist.url && formData.plugins.alist.token && formData.plugins.alist.storage_id && formData.button_display.refresh_alist !== 'disabled'" type="button" class="btn btn-outline-alist" :class="{'hover-only': formData.button_display.refresh_alist === 'hover'}" @click="refreshAlistDirectory(index)" title="刷新AList目录"><img src="https://cdn.jsdelivr.net/gh/alist-org/logo@main/logo.svg" class="alist-icon"></button>
+                      <button v-if="key==='refresh_plex' && formData.plugins && formData.plugins.plex && formData.plugins.plex.url && formData.plugins.plex.token && formData.plugins.plex.quark_root_path && formData.button_display.refresh_plex !== 'disabled'" type="button" class="btn btn-outline-plex" :class="{'hover-only': formData.button_display.refresh_plex === 'hover'}" @click="refreshPlexLibrary(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="刷新Plex媒体库"><img src="./static/images/Plex.svg" class="plex-icon"></button>
+                      <button v-else-if="key==='refresh_alist' && formData.plugins && formData.plugins.alist && formData.plugins.alist.url && formData.plugins.alist.token && formData.plugins.alist.storage_id && formData.button_display.refresh_alist !== 'disabled'" type="button" class="btn btn-outline-alist" :class="{'hover-only': formData.button_display.refresh_alist === 'hover'}" @click="refreshAlistDirectory(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="刷新AList目录"><img src="https://cdn.jsdelivr.net/gh/alist-org/logo@main/logo.svg" class="alist-icon"></button>
                       <template v-else-if="key==='run_task'">
-                        <button v-if="!task.shareurl_ban" type="button" class="btn btn-outline-primary" :class="{'hover-only': formData.button_display.run_task === 'hover'}" @click="runScriptNow(index)" title="运行此任务"><i class="bi bi-caret-right"></i></button>
+                        <button v-if="!task.shareurl_ban" type="button" class="btn btn-outline-primary" :class="{'hover-only': formData.button_display.run_task === 'hover'}" @click="runScriptNow(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="运行此任务"><i class="bi bi-caret-right"></i></button>
                         <button v-else type="button" class="btn btn-warning" :title="formatShareUrlBanMessage(task.shareurl_ban)" disabled><i class="bi bi-exclamation-circle"></i></button>
                       </template>
-                      <button v-else-if="key==='delete_task'" type="button" class="btn btn-outline-danger" :class="{'hover-only': formData.button_display.delete_task === 'hover'}" @click="removeTask(index)" title="删除此任务"><i class="bi bi-trash3"></i></button>
+                      <button v-else-if="key==='delete_task'" type="button" class="btn btn-outline-danger" :class="{'hover-only': formData.button_display.delete_task === 'hover'}" @click="removeTask(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="删除此任务"><i class="bi bi-trash3"></i></button>
                     </template>
                   </div>
                 </div>
@@ -1196,8 +1207,97 @@
                 </div>
               </template>
             </div>
-            <hr v-if="formData.tasklist.length > 0" class="task-divider">
-            <div class="row">
+            </template>
+            <!-- 任务列表：海报视图 -->
+            <div v-else class="tasklist-poster-mode">
+              <!-- 复用管理视图的海报网格样式与自适应布局 -->
+              <div class="discovery-grid">
+                <div class="discovery-item"
+                     v-for="(task, index) in sortedTasklist"
+                     :key="'poster-'+index"
+                     v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task)">
+                  <div class="discovery-poster" @mouseenter="handleManagementPosterHover($event, getCalendarTaskByName(task.taskname) || {})">
+                    <img :src="getEpisodePosterUrl(getTasklistPosterLikeEpisode(task))"
+                         :alt="(getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name) ? getCalendarTaskByName(task.taskname).matched_show_name : task.taskname"
+                         referrerpolicy="no-referrer"
+                         crossorigin="anonymous"
+                         @error="handleImageError($event)">
+
+                    <!-- 按钮行容器：自动补位布局 -->
+                    <div class="discovery-actions-row" style="top: 8px;">
+                      <div class="discovery-refresh-metadata tasklist-run-btn" @click.stop="runScriptNow(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="运行此任务">
+                        <i class="bi bi-caret-right"></i>
+                      </div>
+                      <div class="discovery-edit-metadata tasklist-delete-btn" @click.stop="removeTask(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="删除此任务">
+                        <i class="bi bi-trash3"></i>
+                      </div>
+                    </div>
+                    <div class="discovery-actions-row" style="top: 36px;">
+                      <div class="discovery-refresh-metadata" v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).match_tmdb_id" @click="refreshSeasonMetadata(getCalendarTaskByName(task.taskname))" title="刷新元数据">
+                        <i class="bi bi-arrow-clockwise"></i>
+                      </div>
+                      <div class="discovery-edit-metadata tasklist-edit-metadata-btn" @click.stop="openEditMetadataModal(getCalendarTaskByName(task.taskname) || { task_name: task.taskname })" title="编辑元数据">
+                        <i class="bi bi-tag"></i>
+                      </div>
+                    </div>
+
+                    <!-- 转存进度徽标（复用评分样式） -->
+                    <div class="discovery-rating"
+                         v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name && getCalendarTaskByName(task.taskname).season_counts"
+                         :class="getProgressBadgeClass(getCalendarTaskByName(task.taskname))"
+                         :title="'已转存/已播出：' + getTaskTransferredCount(getCalendarTaskByName(task.taskname)) + '/' + getTaskAiredCount(getCalendarTaskByName(task.taskname))">
+                      {{ getTransferProgress(getCalendarTaskByName(task.taskname)) }}%
+                    </div>
+                    <!-- 左上角任务编号徽标：按需求移除 -->
+
+                    <!-- 海报悬停信息 -->
+                    <div class="discovery-poster-overlay">
+                      <!-- 任务编号 -->
+                      <div class="info-line">#{{ String((task.__originalIndex !== undefined ? task.__originalIndex : index) + 1).padStart(2, '0') }}</div>
+                      <!-- 匹配的剧名 -->
+                      <div class="info-line">
+                        <template v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name">
+                          {{ getCalendarTaskByName(task.taskname).matched_show_name }}
+                        </template>
+                        <template v-else>
+                          未匹配
+                        </template>
+                      </div>
+                      <!-- 最近转存文件 -->
+                      <div class="info-line" v-if="taskLatestFiles[task.taskname]">{{ taskLatestFiles[task.taskname] }}</div>
+                      <!-- 最近更新日期 -->
+                      <div class="info-line" v-if="taskLatestRecords[task.taskname]">{{ getTaskLatestRecordDisplay(task.taskname) }}</div>
+                    </div>
+                  </div>
+                  <div class="discovery-info">
+                    <div class="discovery-title" :title="getTasklistPosterTitle(task, index)" style="cursor: default;">
+                      {{ task.taskname }}
+                      <span v-if="getTaskShowStatus(task.taskname)"> · {{ getTaskShowStatus(task.taskname) }}</span>
+                      <span v-if="isTaskUpdatedToday(task.taskname) && shouldShowTodayIndicator()"
+                            class="task-today-indicator"
+                            :class="getTodayIndicatorClass()">
+                        <i class="bi bi-stars"></i>
+                      </span>
+                    </div>
+                    <div class="discovery-genre"
+                         :title="(getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name && getCalendarTaskByName(task.taskname).season_counts)
+                           ? ('已转存集数 / 已播出集数 / 节目总集数：' + getTaskTransferredCount(getCalendarTaskByName(task.taskname)) + ' / ' + getTaskAiredCount(getCalendarTaskByName(task.taskname)) + ' / ' + getTaskTotalCount(getCalendarTaskByName(task.taskname)))
+                           : ''">
+                      <template v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name && getCalendarTaskByName(task.taskname).season_counts">
+                        <span v-html="`${getTaskTransferredCount(getCalendarTaskByName(task.taskname))} <span class='count-slash'>/</span> ${getTaskAiredCount(getCalendarTaskByName(task.taskname))} <span class='count-slash'>/</span> ${getTaskTotalCount(getCalendarTaskByName(task.taskname))}`"></span>
+                      </template>
+                      <template v-else>
+                        暂无数据
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <hr v-if="tasklist.viewMode === 'list' && formData.tasklist.length > 0" class="task-divider">
+            <!-- 海报视图下隐藏底部添加任务按钮（仅列表视图显示） -->
+            <div class="row" v-if="tasklist.viewMode === 'list'">
               <div class="col-sm-12 d-flex justify-content-end">
                 <button type="button" class="btn btn-outline-primary" @click="addTask()" title="添加任务"><i class="bi bi-plus-lg"></i></button>
               </div>
@@ -2989,7 +3089,9 @@
         // 任务列表：类型筛选状态
         tasklist: {
           selectedType: (localStorage.getItem('tasklist_selected_type') || 'all'),
-          contentTypes: []
+          contentTypes: [],
+          // 任务列表视图模式：list 或 poster（默认列表视图，支持持久化）
+          viewMode: (localStorage.getItem('tasklist_view_mode') === 'poster') ? 'poster' : 'list'
         },
         // 任务列表排序设置（记忆到localStorage）
         tasklistSort: (() => {
@@ -3582,6 +3684,40 @@
         this.stopCalendarAutoWatch();
       },
       methods: {
+        // 任务列表海报标题（悬停：#编号 任务名称 · 状态）
+        getTasklistPosterTitle(task, index) {
+          try {
+            const num = String(((task && task.__originalIndex !== undefined) ? task.__originalIndex : index) + 1).padStart(2, '0');
+            const name = task && task.taskname ? String(task.taskname).trim() : '';
+            const status = this.getTaskShowStatus(name);
+            return `#${num} ${name}${status ? ' · ' + status : ''}`;
+          } catch (e) { return ''; }
+        },
+        // 切换任务列表视图模式并持久化
+        toggleTasklistViewMode() {
+          try {
+            this.tasklist.viewMode = this.tasklist.viewMode === 'list' ? 'poster' : 'list';
+            try { localStorage.setItem('tasklist_view_mode', this.tasklist.viewMode); } catch (e) {}
+          } catch (e) {}
+        },
+        // 根据任务名获取对应的日历任务对象（若已加载）
+        getCalendarTaskByName(taskName) {
+          try {
+            const key = (taskName || '').trim();
+            if (!key || !this.calendar || !this.calendar.taskMapByName) return null;
+            return this.calendar.taskMapByName[key] || null;
+          } catch (e) { return null; }
+        },
+        // 将任务列表项适配为获取海报所需的 episode-like 对象
+        getTasklistPosterLikeEpisode(task) {
+          try {
+            const calTask = this.getCalendarTaskByName(task && task.taskname);
+            // 复用管理视图的取海报逻辑（优先匹配海报）
+            if (calTask) return this.getTaskPosterLikeEpisode(calTask);
+            // 兜底：仅返回空对象，getEpisodePosterUrl 内部会处理默认图
+            return { poster_local_path: '' };
+          } catch (e) { return { poster_local_path: '' }; }
+        },
         // 任务列表排序：获取显示名称
         getTasklistSortDisplayName(key) {
           if (key === 'name') return '任务名称';
@@ -4874,7 +5010,45 @@
               // 热更新任务与日历
               // 避免触发“未保存修改”提示：本次更新由后端变更引发
               this.suppressConfigModifiedOnce = true;
-              await this.refreshCalendarData();
+              // 并行刷新：优先尽快更新任务列表的类型按钮与映射
+              try {
+                const tasksPromise = axios.get('/api/calendar/tasks');
+                // 同时后台刷新日历数据（不阻塞UI）
+                const refreshPromise = this.refreshCalendarData().catch(() => {});
+                const tasksResponse = await tasksPromise;
+                if (tasksResponse.data && tasksResponse.data.success) {
+                  this.calendar.tasks = tasksResponse.data.data.tasks || [];
+                  try {
+                    this.calendar.taskMapByName = {};
+                    (this.calendar.tasks || []).forEach(t => {
+                      const key = (t.task_name || t.taskname || '').trim();
+                      if (key) this.calendar.taskMapByName[key] = t;
+                    });
+                  } catch (e) { this.calendar.taskMapByName = {}; }
+                  // 同步更新任务列表类型集合（热更新左上角类型按钮）
+                  try {
+                    let rawTypes = (tasksResponse.data && tasksResponse.data.data && tasksResponse.data.data.content_types) || [];
+                    if (!rawTypes || rawTypes.length === 0) {
+                      rawTypes = Array.from(new Set((this.calendar.tasks || []).map(t => (t && t.content_type) || '').filter(Boolean)));
+                    }
+                    const known = ['tv','anime','variety','documentary'];
+                    const uniq = Array.from(new Set(rawTypes.filter(Boolean)));
+                    const ordered = uniq.sort((a,b) => {
+                      const ia = known.indexOf(a); const ib = known.indexOf(b);
+                      if (ia === -1 && ib === -1) return 0;
+                      if (ia === -1) return 1;
+                      if (ib === -1) return -1;
+                      return ia - ib;
+                    });
+                    this.tasklist.contentTypes = ordered;
+                    const validSet = ['all', ...ordered];
+                    if (!validSet.includes(this.tasklist.selectedType)) {
+                      this.tasklist.selectedType = 'all';
+                    }
+                  } catch (e) { /* 忽略类型热更新异常 */ }
+                }
+                await refreshPromise;
+              } catch (e) { /* 忽略后台刷新异常，前端不报错 */ }
             } else {
               this.showToast(res.data.message || '保存失败');
             }

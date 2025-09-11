@@ -6618,6 +6618,24 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   color: white;
 }
 
+/* 新增：按钮行容器，使用相对定位+inline-flex保证自动补位 */
+.discovery-actions-row {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 22px;
+  display: inline-flex;
+  gap: 6px;
+}
+
+/* 行内部的按钮相对定位，使其不受按钮自身left样式影响（已覆盖） */
+.discovery-actions-row > .discovery-refresh-metadata,
+.discovery-actions-row > .discovery-edit-metadata {
+  position: relative;
+  top: 0;
+  left: 0;
+}
+
 .discovery-info {
   padding: 0 0px;
   text-align: left;
@@ -7913,4 +7931,51 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   .tasklist-sort-controls .tasklist-sort-wrapper {
     flex-shrink: 0;
   }
+}
+
+/* 海报卡片：悬停时隐藏带有 hide-on-hover 类的徽标（如任务编号/进度） */
+.discovery-poster:hover .hide-on-hover { opacity: 0; transition: opacity 0.15s ease-in-out; }
+.discovery-poster .hide-on-hover { opacity: 1; transition: opacity 0.15s ease-in-out; }
+
+/* 任务列表海报视图：操作按钮图标大小可定制 */
+.tasklist-run-btn i {
+  font-size: 0.94rem;
+}
+
+.tasklist-delete-btn i {
+  font-size: 0.73rem;
+  position: relative;
+  top: 0.5px;
+}
+
+.tasklist-edit-metadata-btn i {
+  font-size: 0.83rem;
+  position: relative;
+  top: 1px;
+  left: 0.5px;
+}
+
+/* 任务列表视图切换按钮的图标大小，统一为与追剧日历相同 */
+.tasklist-view-toggle-btn i.bi-grid-3x3-gap { /* 切换至海报视图图标 */
+  color: var(--dark-text-color);
+  font-size: 0.98rem; /* 与 .bi-grid-3x3-gap 统一 */
+}
+.tasklist-view-toggle-btn i.bi-list-ol { /* 切换至列表视图图标 */
+  color: var(--dark-text-color);
+  font-size: 1.1rem; /* 与网格图标保持一致的视觉尺寸 */
+  position: relative;
+  top: 0.5px;
+}
+.tasklist-view-toggle-btn.btn.btn-outline-secondary:hover i.bi-grid-3x3-gap,
+.tasklist-view-toggle-btn.btn.btn-outline-secondary:hover i.bi-list-ol {
+  color: #fff; /* 与日历按钮 hover 一致 */
+}
+
+/* 任务列表海报视图：统一集数“/”分隔符的上移微调，与列表视图一致 */
+.tasklist-poster-mode .discovery-genre .count-slash {
+  position: relative;
+  top: -2px;
+  display: inline-block;
+  font-size: 0.8em; /* 与任务列表相同的斜杠缩小比例 */
+  font-weight: 600;  /* 适度加粗，与列表视觉一致 */
 }
