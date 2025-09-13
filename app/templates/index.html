@@ -993,7 +993,16 @@
                             :title="tasklist.viewMode === 'list' ? '当前：列表视图，点击切换到海报视图' : '当前：海报视图，点击切换到列表视图'">
                       <i :class="tasklist.viewMode === 'list' ? 'bi bi-grid-3x3-gap' : 'bi bi-list-ol'"></i>
                     </button>
-                </div>
+                  </div>
+                  <!-- 创建任务按钮 -->
+                  <div class="ml-2">
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-sm tasklist-create-task-btn"
+                            @click="openCreateTaskModal"
+                            title="创建任务">
+                      <i class="bi bi-plus-lg"></i>
+                    </button>
+                  </div>
               </div>
             </div>
             </div>
@@ -1262,6 +1271,10 @@
                         <template v-else>
                           未匹配
                         </template>
+                      </div>
+                      <!-- 季名称 -->
+                      <div class="info-line" v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).latest_season_name && getCalendarTaskByName(task.taskname).latest_season_name.trim() !== ''">
+                        {{ getCalendarTaskByName(task.taskname).latest_season_name }}
                       </div>
                       <!-- 最近转存文件 -->
                       <div class="info-line" v-if="taskLatestFiles[task.taskname]">{{ taskLatestFiles[task.taskname] }}</div>
@@ -2000,8 +2013,9 @@
                       </div>
                     </div>
                     <div class="discovery-info">
-                      <div class="discovery-title" :title="task.task_name" @click.stop="openTaskMatchedTmdbPage(task)" style="cursor: pointer;">
+                      <div class="discovery-title" :title="getTaskShowStatusTooltip(task)" @click.stop="openTaskMatchedTmdbPage(task)" style="cursor: pointer;">
                         {{ task.task_name }}
+                        <span v-if="getTaskShowStatus(task)"> · {{ getTaskShowStatus(task) }}</span>
                         <span v-if="isCalendarTaskUpdatedToday(task) && shouldShowTodayIndicator()"
                               class="task-today-indicator"
                               :class="getTodayIndicatorClass()">
@@ -2145,8 +2159,8 @@
                     </div>
                   </div>
                 </div>
-                <!-- 超小模式：在日历表格下方显示选中日期的集卡片（桌面样式） -->
-                <div class="calendar-selected-episodes">
+                <!-- 超小模式：在日历表格下方显示选中日期的集卡片（仅小屏手机显示） -->
+                <div class="calendar-selected-episodes d-sm-none">
                   <template v-if="calendar.selectedDate">
                     <div class="calendar-month-episodes" v-if="getEpisodesByDate(calendar.selectedDate).length > 0">
                       <div class="calendar-month-episode" 
@@ -2582,8 +2596,8 @@
             </div>
           </div>
           <div class="modal-footer">
-            <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
-              {{ createTask.movieData ? createTask.movieData.title + (createTask.movieData.year ? ' (' + createTask.movieData.year + ')' : '') : '准备创建任务' }}
+            <div class="file-selection-info mr-auto" v-if="createTask.movieData" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+              {{ createTask.movieData.title + (createTask.movieData.year ? ' (' + createTask.movieData.year + ')' : '') }}
             </div>
             <button type="button" class="btn btn-primary btn-cancel" @click="cancelCreateTask">取消</button>
             <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmCreateTask">
@@ -3113,6 +3127,11 @@
         calendarAutoWatchTickRef: null,
         calendarAutoWatchFocusHandler: null,
         calendarAutoWatchVisibilityHandler: null,
+        // 任务列表自动检测更新相关
+        tasklistAutoWatchTimer: null,
+        tasklistLatestFilesSignature: '',
+        tasklistSSE: null,
+        calendarSSE: null,
         // 创建任务相关数据
         createTask: {
           loading: false,
@@ -3442,9 +3461,15 @@
           }
         },
         activeTab(newValue, oldValue) {
-          // 如果切换到任务列表页面，则刷新任务最新信息
+          // 如果切换到任务列表页面，则刷新任务最新信息和元数据
           if (newValue === 'tasklist') {
             this.loadTaskLatestInfo();
+            this.loadTasklistMetadata();
+            // 启动任务列表的后台监听
+            this.startTasklistAutoWatch();
+          } else if (oldValue === 'tasklist') {
+            // 离开任务列表页面时停止后台监听
+            this.stopTasklistAutoWatch();
           }
           // 切换到追剧日历：立刻检查一次并启动后台监听；离开则停止监听
           if (newValue === 'calendar') {
@@ -3785,10 +3810,17 @@
               if (cmp === 0) cmp = a.idx - b.idx; // 稳定
               return cmp * factor;
             });
-            // 返回带原始索引的任务对象
-            return withIndex.map(x => ({ ...x.t, __originalIndex: x.idx }));
+            // 返回带原始索引的任务对象，确保直接引用原始数据
+            return withIndex.map(x => {
+              const task = x.t;
+              task.__originalIndex = x.idx;
+              return task;
+            });
           } catch (e) {
-            return (this.formData.tasklist || []).map((t, idx) => ({ ...t, __originalIndex: idx }));
+            return (this.formData.tasklist || []).map((t, idx) => {
+              t.__originalIndex = idx;
+              return t;
+            });
           }
         },
         // 选择日历日期
@@ -3910,16 +3942,40 @@
             return Math.max(0, Math.min(100, pct));
           } catch (e) { return null; }
         },
-        getTaskShowStatus(taskName) {
+        getTaskShowStatus(taskNameOrTask) {
           try {
-            if (!taskName || !this.calendar || !Array.isArray(this.calendar.tasks)) return '';
-            const t = this.calendar.tasks.find(x => (x.task_name || x.taskname) === taskName);
+            // 如果传入的是任务对象，直接使用其状态
+            if (taskNameOrTask && typeof taskNameOrTask === 'object') {
+              const s = (taskNameOrTask.matched_status ? String(taskNameOrTask.matched_status) : '').trim();
+              if (!s) return '';
+              // 仅在这些状态展示
+              if (['本季终', '已完结', '已取消'].includes(s)) return s;
+              return '';
+            }
+            
+            // 如果传入的是任务名字符串，从任务列表中查找
+            if (!taskNameOrTask || !this.calendar || !Array.isArray(this.calendar.tasks)) return '';
+            const t = this.calendar.tasks.find(x => (x.task_name || x.taskname) === taskNameOrTask);
             const s = (t && t.matched_status ? String(t.matched_status) : '').trim();
             if (!s) return '';
             // 仅在这些状态展示
             if (['本季终', '已完结', '已取消'].includes(s)) return s;
             return '';
           } catch (e) { return ''; }
+        },
+        // 获取任务节目状态的悬停提示
+        getTaskShowStatusTooltip(task) {
+          try {
+            if (!task) return '';
+            const taskName = task.task_name || task.taskname || '';
+            const status = this.getTaskShowStatus(task);
+            if (status) {
+              return `${taskName} · ${status}`;
+            }
+            return taskName;
+          } catch (e) { 
+            return task.task_name || task.taskname || '';
+          }
         },
         seasonInputComputedWidth() {
           try {
@@ -5270,13 +5326,14 @@
                     } catch (e) {}
                     
                     // 若为任务编辑/保存操作，刷新任务列表 formData.tasklist，实现任务列表页面热更新
+                    // 注意：task_updated 事件不重新加载任务列表，因为用户刚刚保存的数据就是最新的
                     try {
-                      if (changeReason === 'edit_metadata' || changeReason === 'task_updated') {
+                      if (changeReason === 'edit_metadata') {
                         const dataRes = await axios.get('/data');
                         if (dataRes.data && dataRes.data.success) {
                           const cfg = dataRes.data.data || {};
                           const oldTaskCount = (this.formData.tasklist || []).length;
-                          // 后端推送导致的任务列表更新，不应触发“未保存修改”提示
+                          // 后端推送导致的任务列表更新，不应触发"未保存修改"提示
                           this.suppressConfigModifiedOnce = true;
                           this.formData.tasklist = cfg.tasklist || [];
                           // 同步任务名集合用于筛选
@@ -5516,7 +5573,11 @@
         getEpisodePosterUrl(episode) {
           // 优先使用本地缓存海报
           if (episode.poster_local_path) {
-            return episode.poster_local_path;
+            // 确保路径以 / 开头，避免相对路径问题
+            const path = episode.poster_local_path.startsWith('/') 
+              ? episode.poster_local_path 
+              : '/' + episode.poster_local_path;
+            return path;
           }
           
           // 如果没有海报，返回默认图片
@@ -5525,6 +5586,7 @@
         
         // 处理图片加载错误
         handleCalendarImageError(event) {
+          console.warn('海报加载失败:', event.target.src);
           event.target.src = '/static/images/no-poster.svg';
         },
         
@@ -6279,9 +6341,16 @@
             $('#sidebarMenu').collapse('toggle')
           }
 
-          // 当切换到任务列表标签时刷新任务最新信息
+          // 当切换到任务列表标签时刷新任务最新信息和元数据
           if (tab === 'tasklist') {
             this.loadTaskLatestInfo();
+            // 加载任务元数据信息，确保海报和元数据能热更新
+            this.loadTasklistMetadata();
+            // 启动任务列表的后台监听
+            this.startTasklistAutoWatch();
+          } else if (this.activeTab === 'tasklist') {
+            // 离开任务列表页面时停止后台监听
+            this.stopTasklistAutoWatch();
           }
 
           // 当切换到历史记录标签时加载数据
@@ -6600,6 +6669,9 @@
                 this.showToast(response.data.message);
                 // 保存成功后更新用户信息
                 this.fetchUserInfo();
+                
+                // 保存成功后触发热更新
+                this.triggerTasklistHotUpdate();
               } else {
                 // 错误信息仍然使用alert，确保用户看到
                 alert(response.data.message);
@@ -8601,6 +8673,167 @@
             .catch(error => {
               console.error('获取任务最新信息失败:', error);
             });
+        },
+        // 加载任务列表的元数据信息（用于热更新海报和元数据）
+        async loadTasklistMetadata() {
+          try {
+            // 加载任务信息，获取元数据和海报信息
+            const tasksResponse = await axios.get('/api/calendar/tasks');
+            if (tasksResponse.data.success) {
+              // 更新任务映射，确保海报视图能正确显示元数据，使用Vue.set确保响应式更新
+              this.calendar.tasks = tasksResponse.data.data.tasks || [];
+              this.$delete(this.calendar, 'taskMapByName');
+              this.$set(this.calendar, 'taskMapByName', {});
+              this.calendar.tasks.forEach(task => {
+                const key = task.task_name;
+                if (key) this.$set(this.calendar.taskMapByName, key, task);
+              });
+              
+              // 更新内容类型，确保类型筛选按钮能热更新
+              const rawTypes = tasksResponse.data.data.content_types || [];
+              this.updateContentTypes(rawTypes);
+              
+              // 更新任务列表的内容类型
+              this.tasklist.contentTypes = this.calendar.contentTypes;
+            }
+          } catch (error) {
+            console.warn('加载任务列表元数据失败:', error);
+          }
+        },
+        // 触发热更新（保存配置后调用）
+        async triggerTasklistHotUpdate() {
+          try {
+            // 如果当前是任务列表页面，只刷新元数据，不重新加载任务列表
+            if (this.activeTab === 'tasklist') {
+              await this.loadTasklistMetadata();
+            }
+            
+            // 如果当前是追剧日历页面，也刷新日历数据
+            if (this.activeTab === 'calendar') {
+              await this.refreshCalendarData();
+            }
+          } catch (error) {
+            console.warn('触发热更新失败:', error);
+          }
+        },
+        // 启动任务列表后台监听：优先使用SSE，失败时回退轮询
+        startTasklistAutoWatch() {
+          try {
+            // 先停止现有的轮询
+            this.stopTasklistAutoWatch();
+            
+            // 建立 SSE 连接，实时感知任务列表变化（成功建立后停用轮询，失败时回退轮询）
+            try {
+              if (!this.tasklistSSE) {
+                this.tasklistSSE = new EventSource('/api/calendar/stream');
+                // SSE 打开后，停止轮询
+                this.tasklistSSE.onopen = () => {
+                  try {
+                    if (this.tasklistAutoWatchTimer) {
+                      clearInterval(this.tasklistAutoWatchTimer);
+                      this.tasklistAutoWatchTimer = null;
+                    }
+                  } catch (e) {}
+                };
+                const onTasklistChanged = async (ev) => {
+                  try {
+                    // 解析变更原因（后端通过 SSE data 传递）
+                    let changeReason = '';
+                    try { changeReason = JSON.parse(ev && ev.data || '{}').reason || ''; } catch (e) {}
+
+                    // 先拉取最新转存信息并重建映射
+                    try {
+                      const latestRes = await axios.get('/task_latest_info');
+                      if (latestRes.data && latestRes.data.success) {
+                        const latestFiles = latestRes.data.data.latest_files || {};
+                        this.taskLatestFiles = latestFiles;
+                        this.taskLatestRecords = latestRes.data.data.latest_records || {};
+                      }
+                    } catch (e) {}
+                    
+                    // 重新加载任务元数据，确保海报和元数据能热更新
+                    try {
+                      await this.loadTasklistMetadata();
+                    } catch (e) {}
+                    
+                    // 如果是任务相关的变更，也更新任务列表数据
+                    if (changeReason === 'edit_metadata' || changeReason === 'task_updated') {
+                      try {
+                        const dataRes = await axios.get('/data');
+                        if (dataRes.data && dataRes.data.success) {
+                          const cfg = dataRes.data.data || {};
+                          const oldTaskCount = (this.formData.tasklist || []).length;
+                          // 后端推送导致的任务列表更新，不应触发"未保存修改"提示
+                          this.suppressConfigModifiedOnce = true;
+                          this.formData.tasklist = cfg.tasklist || [];
+                          // 同步任务名集合用于筛选
+                          this.calendar.taskNames = (this.formData.tasklist || []).map(t => t.taskname).filter(Boolean);
+                          // 如任务数量变化，重建与任务相关的最新文件映射的键集合
+                          if ((this.formData.tasklist || []).length !== oldTaskCount) {
+                            try {
+                              this.calendar.progressByTaskName = this.buildProgressByTaskNameFromLatestFiles(this.taskLatestFiles || {});
+                            } catch (e) {}
+                          }
+                        }
+                      } catch (e) {}
+                    }
+                  } catch (e) {}
+                };
+                this.tasklistSSE.addEventListener('calendar_changed', onTasklistChanged);
+                // 初次连接会收到一次 ping，不做处理即可
+                this.tasklistSSE.addEventListener('ping', () => {});
+                this.tasklistSSE.onerror = () => {
+                  try { this.tasklistSSE.close(); } catch (e) {}
+                  this.tasklistSSE = null;
+                  // 回退：若没有轮询定时器，则恢复轮询
+                  try {
+                    if (!this.tasklistAutoWatchTimer) {
+                      this.tasklistAutoWatchTimer = setInterval(async () => {
+                        try {
+                          const res = await axios.get('/task_latest_info');
+                          if (res.data && res.data.success) {
+                            const latestFiles = res.data.data.latest_files || {};
+                            const sig = this.calcLatestFilesSignature(latestFiles);
+                            if (sig && sig !== this.tasklistLatestFilesSignature) {
+                              // 更新签名，触发热更新
+                              this.tasklistLatestFilesSignature = sig;
+                              this.taskLatestFiles = latestFiles;
+                              
+                              // 重新加载任务元数据，确保海报和元数据能热更新
+                              await this.loadTasklistMetadata();
+                            }
+                          }
+                        } catch (e) {
+                          console.warn('任务列表后台监听检查失败:', e);
+                        }
+                      }, 60000);
+                    }
+                  } catch (e) {}
+                };
+              }
+            } catch (e) {
+              // 忽略 SSE 失败，继续使用轮询
+            }
+          } catch (e) {
+            console.warn('启动任务列表后台监听失败:', e);
+          }
+        },
+        // 停止任务列表后台监听
+        stopTasklistAutoWatch() {
+          try {
+            // 关闭SSE连接
+            if (this.tasklistSSE) {
+              this.tasklistSSE.close();
+              this.tasklistSSE = null;
+            }
+            // 停止轮询
+            if (this.tasklistAutoWatchTimer) {
+              clearInterval(this.tasklistAutoWatchTimer);
+              this.tasklistAutoWatchTimer = null;
+            }
+          } catch (e) {
+            console.warn('停止任务列表后台监听失败:', e);
+          }
         },
         getTaskLatestRecordDisplay(taskName) {
           // 获取任务最新记录的显示文本
@@ -11080,6 +11313,7 @@
         },
         handleImageError(event) {
           // 图片加载失败时显示默认图片
+          console.warn('海报加载失败:', event.target.src);
           event.target.src = '/static/images/no-poster.svg';
         },
         getProxiedImageUrl(originalUrl) {
@@ -11117,6 +11351,86 @@
             });
           } catch (error) {
             console.error('创建任务时出错:', error);
+          }
+        },
+        openCreateTaskModal() {
+          // 从任务列表页面创建任务（不传递影视数据）
+          try {
+            // 清空影视数据
+            this.createTask.movieData = null;
+            
+            // 重置任务数据为默认值，使用 newTask 的完整结构
+            this.createTask.taskData = { ...this.newTask };
+            
+            // 如果有上一个任务，继承保存路径和命名规则
+            if (this.formData.tasklist && this.formData.tasklist.length > 0) {
+              const lastTask = this.formData.tasklist[this.formData.tasklist.length - 1];
+              this.createTask.taskData.savepath = lastTask.savepath || "";
+              this.createTask.taskData.pattern = lastTask.pattern || "";
+              this.createTask.taskData.replace = lastTask.replace || "";
+              
+              // 继承命名规则选择模式
+              this.createTask.taskData.use_sequence_naming = lastTask.use_sequence_naming || false;
+              this.createTask.taskData.use_episode_naming = lastTask.use_episode_naming || false;
+              this.createTask.taskData.sequence_naming = lastTask.sequence_naming || "";
+              this.createTask.taskData.episode_naming = lastTask.episode_naming || "";
+            }
+            
+            // 应用全局插件配置
+            this.applyGlobalPluginConfig(this.createTask.taskData);
+            
+            // 打开创建任务模态框
+            $('#createTaskModal').modal('show');
+          } catch (error) {
+            console.error('打开创建任务模态框时出错:', error);
+          }
+        },
+        // 更新任务列表的元数据（用于热更新TMDB匹配信息）
+        async updateTasklistMetadata(delay = 0) {
+          const updateMetadata = async () => {
+            try {
+              // 获取最新的任务元数据，包括TMDB匹配信息
+              const tasksResponse = await axios.get('/api/calendar/tasks');
+              if (tasksResponse.data && tasksResponse.data.success) {
+                this.calendar.tasks = tasksResponse.data.data.tasks || [];
+                this.calendar.taskNames = this.calendar.tasks.map(task => task.task_name);
+                
+                // 重新构建任务映射，使用Vue.set确保响应式更新
+                try {
+                  // 先清空现有映射
+                  this.$delete(this.calendar, 'taskMapByName');
+                  this.$set(this.calendar, 'taskMapByName', {});
+                  
+                  (this.calendar.tasks || []).forEach(t => {
+                    const key = (t.task_name || t.taskname || '').trim();
+                    if (key) {
+                      this.$set(this.calendar.taskMapByName, key, t);
+                    }
+                  });
+                } catch (e) {
+                  console.warn('构建任务映射失败:', e);
+                }
+                
+                // 更新任务列表的内容类型，确保类型筛选按钮能热更新
+                try {
+                  const rawTypes = tasksResponse.data.data.content_types || [];
+                  this.updateContentTypes(rawTypes);
+                } catch (e) {
+                  console.warn('更新内容类型失败:', e);
+                }
+                
+                console.log('任务列表元数据已更新，包含TMDB匹配信息');
+              }
+            } catch (error) {
+              console.error('更新任务列表元数据失败:', error);
+            }
+          };
+          
+          if (delay > 0) {
+            // 延迟更新，给TMDB匹配一些时间
+            setTimeout(updateMetadata, delay);
+          } else {
+            updateMetadata();
           }
         },
         hasAnyValidSearchSource() {
@@ -11680,26 +11994,8 @@
           $('#createTaskModal').modal('hide');
           this.createTask.movieData = null;
           this.createTask.error = null;
-          // 重置任务数据
-          this.createTask.taskData = {
-            taskname: "",
-            shareurl: "",
-            savepath: "",
-            pattern: "",
-            replace: "",
-            enddate: "",
-            addition: {},
-            ignore_extension: false,
-            filterwords: "",
-            runweek: [1, 2, 3, 4, 5, 6, 7],
-            sequence_naming: "",
-            use_sequence_naming: false,
-            episode_naming: "",
-            use_episode_naming: false,
-            update_subdir: "",
-            startfid: "",
-            shareurl_ban: null
-          };
+          // 重置任务数据，使用 newTask 的完整结构
+          this.createTask.taskData = { ...this.newTask };
         },
         confirmCreateTask() {
           // 确认创建任务
@@ -11750,6 +12046,8 @@
                 this.showToast('任务创建成功', 'success');
                 // 保存成功后更新用户信息
                 this.fetchUserInfo();
+                // 更新任务列表元数据，确保海报视图能显示TMDB匹配信息
+                this.updateTasklistMetadata();
                 this.createTask.loading = false;
                 this.cancelCreateTask();
               } else {
@@ -11811,6 +12109,10 @@
                 this.configModified = false;
                 // 保存成功后更新用户信息
                 this.fetchUserInfo();
+                // 更新任务列表元数据，确保海报视图能显示TMDB匹配信息
+                this.updateTasklistMetadata();
+                // 延迟再次更新，给TMDB匹配更多时间
+                this.updateTasklistMetadata(3000);
 
                 // 显示任务创建成功消息
                 this.showToast('任务创建成功并开始运行', 'success');
@@ -12241,10 +12543,15 @@
             this.loadDiscoveryData();
           }
           
-          // 如果当前是追剧日历页面，加载日历数据
-          if (this.activeTab === 'calendar') {
-            this.loadCalendarData();
-          }
+        // 如果当前是追剧日历页面，加载日历数据
+        if (this.activeTab === 'calendar') {
+          this.loadCalendarData();
+        }
+        
+        // 如果当前是任务列表页面，启动后台监听
+        if (this.activeTab === 'tasklist') {
+          this.startTasklistAutoWatch();
+        }
         }, 500);
       },
       beforeDestroy() {
@@ -12257,6 +12564,9 @@
         if (this.calendarResizeHandler) {
           window.removeEventListener('resize', this.calendarResizeHandler);
         }
+        
+        // 停止任务列表后台监听
+        this.stopTasklistAutoWatch();
       }
     });
   </script>

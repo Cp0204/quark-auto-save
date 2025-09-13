@@ -7511,7 +7511,10 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
     background-color: var(--focus-border-color) !important; /* 已转存背景色 */
   }
 
-  /* 超小模式：下方“选中日期”列表使用桌面端样式 */
+}
+
+/* 小屏手机：集卡片样式（仅小屏手机显示） */
+@media (max-width: 576px) {
   .calendar-selected-episodes .calendar-month-episodes {
     gap: 2px;
     margin-top: 4px;
@@ -7528,7 +7531,7 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
     background-color: #e6f1ff; /* 桌面端已转存背景 */
   }
 
-  /* 超小模式：下方列表的集号样式与桌面端一致（显示完整 SxxExx） */
+  /* 移动端：下方列表的集号样式与桌面端一致（显示完整 SxxExx） */
   .calendar-selected-episodes .calendar-month-episode .episode-number {
     display: inline;
     font-size: 0; /* 由伪元素承载显示文本 */
@@ -7540,7 +7543,7 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
     font-size: 0.85rem;
   }
 
-  /* 超小模式：日历与下方选中日期卡片的间距 */
+  /* 移动端：日历与下方选中日期卡片的间距 */
   .calendar-selected-episodes {
     margin-top: 20px;
   }
@@ -7948,10 +7951,11 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   top: 0.5px;
 }
 
+/* 任务列表编辑元数据按钮图标大小 */
 .tasklist-edit-metadata-btn i {
-  font-size: 0.83rem;
+  font-size: 0.82rem;
   position: relative;
-  top: 1px;
+  top: 0.5px;
   left: 0.5px;
 }
 
@@ -7969,6 +7973,17 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
 .tasklist-view-toggle-btn.btn.btn-outline-secondary:hover i.bi-grid-3x3-gap,
 .tasklist-view-toggle-btn.btn.btn-outline-secondary:hover i.bi-list-ol {
   color: #fff; /* 与日历按钮 hover 一致 */
+}
+
+/* 任务列表创建任务按钮样式，与视图切换按钮保持一致 */
+.tasklist-create-task-btn i.bi-plus-lg {
+  color: var(--dark-text-color);
+  font-size: 1.15rem; /* 与添加任务按钮图标大小一致 */
+  position: relative;
+  top: -0.2px; /* 与添加任务按钮图标位置一致 */
+}
+.tasklist-create-task-btn.btn.btn-outline-secondary:hover i.bi-plus-lg {
+  color: #fff; /* 与视图切换按钮 hover 一致 */
 }
 
 /* 任务列表海报视图：统一集数“/”分隔符的上移微调，与列表视图一致 */

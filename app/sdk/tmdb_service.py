@@ -163,7 +163,7 @@ class TMDBService:
                 
                 # 检查TMDB返回的标题是否包含中文字符
                 if tmdb_name and self._is_chinese_text(tmdb_name):
-                    logger.info(f"直接获取到中文标题: {tmdb_name} (TMDB ID: {tv_id})")
+                    logger.debug(f"直接获取到中文标题: {tmdb_name} (TMDB ID: {tv_id})")
                     return tmdb_name
                 
                 # 如果TMDB返回的标题不是中文，尝试从别名中获取中国地区的别名
@@ -174,11 +174,11 @@ class TMDBService:
                         if alt_title.get('iso_3166_1') == 'CN':
                             chinese_alt_title = alt_title.get('title', '').strip()
                             if chinese_alt_title and self._is_chinese_text(chinese_alt_title):
-                                logger.info(f"从别名中获取到中文标题: {chinese_alt_title} (TMDB ID: {tv_id})")
+                                logger.debug(f"从别名中获取到中文标题: {chinese_alt_title} (TMDB ID: {tv_id})")
                                 return chinese_alt_title
                 
                 # 如果都没有找到中文标题，返回原始标题
-                logger.info(f"未找到中文标题，使用原始标题: {original_title} (TMDB ID: {tv_id})")
+                logger.debug(f"未找到中文标题，使用原始标题: {original_title} (TMDB ID: {tv_id})")
                 return original_title
             else:
                 # 如果无法获取详情，返回原始标题

@@ -1003,8 +1003,8 @@ def update():
                 # 若此次更新产生了新的匹配绑定，也执行一次轻量初始化，确保前端能立刻读到本地数据
                 try:
                     if 'changed' in locals() and changed:
-                        ok, m = do_calendar_bootstrap()
-                        logging.info(f"配置更新触发日历初始化: {ok}, {m}")
+                        # 只处理新增的任务，不处理所有任务
+                        process_new_tasks_async()
                 except Exception as _e:
                     logging.warning(f"配置更新触发日历初始化失败: {_e}")
         except Exception as e:
@@ -1027,6 +1027,10 @@ def update():
             notify_calendar_changed('task_updated')
         except Exception:
             pass
+        
+        # 立即启动新任务的异步处理，不等待
+        threading.Thread(target=process_new_tasks_async, daemon=True).start()
+        
         logging.info(f">>> 配置更新成功")
         return jsonify({"success": True, "message": "配置更新成功"})
     else:
@@ -1385,13 +1389,37 @@ def ensure_calendar_info_for_tasks() -> bool:
                         details = tmdb_service.get_tv_show_details(tmdb_id) or {}
                         details_cache[tmdb_id] = details
                     seasons = details.get('seasons', [])
+                    logging.debug(f"TMDB季数数据: {seasons}")
+                    
+                    # 选择已播出的季中最新的一季
+                    current_date = datetime.now().date()
                     latest_season_number = 0
+                    latest_air_date = None
+                    
                     for s in seasons:
                         sn = s.get('season_number', 0)
-                        if sn and sn > latest_season_number:
-                            latest_season_number = sn
-                    if latest_season_number == 0 and seasons:
-                        latest_season_number = seasons[-1].get('season_number', 1)
+                        air_date = s.get('air_date')
+                        logging.debug(f"季数: {sn}, 播出日期: {air_date}, 类型: {type(sn)}")
+                        
+                        # 只考虑已播出的季（有air_date且早于或等于当前日期）
+                        if sn and sn > 0 and air_date:  # 排除第0季（特殊季）
+                            try:
+                                season_air_date = datetime.strptime(air_date, '%Y-%m-%d').date()
+                                if season_air_date <= current_date:
+                                    # 选择播出日期最新的季
+                                    if latest_air_date is None or season_air_date > latest_air_date:
+                                        latest_season_number = sn
+                                        latest_air_date = season_air_date
+                            except (ValueError, TypeError):
+                                # 日期格式错误，跳过
+                                continue
+                    
+                    logging.debug(f"计算出的最新已播季数: {latest_season_number}")
+                    
+                    # 如果没有找到已播出的季，回退到第1季
+                    if latest_season_number == 0:
+                        latest_season_number = 1
+                        logging.debug(f"没有找到已播出的季，回退到第1季: {latest_season_number}")
 
                     # 使用新的方法获取中文标题，支持从别名中获取中国地区的别名
                     chinese_title = tmdb_service.get_chinese_title_with_fallback(tmdb_id, extracted.get('show_name', ''))
@@ -3868,6 +3896,232 @@ def get_calendar_episodes():
 
 
 # 初始化：为任务写入 shows/seasons，下载海报本地化
+def process_new_tasks_async():
+    """异步处理新任务的元数据匹配和海报下载，不阻塞前端响应"""
+    try:
+        tmdb_api_key = config_data.get('tmdb_api_key', '')
+        if not tmdb_api_key:
+            return
+
+        tmdb_service = TMDBService(tmdb_api_key)
+        cal_db = CalendarDB()
+
+        tasks = config_data.get('tasklist', [])
+        # 收集需要处理的任务
+        tasks_to_process = []
+        for task in tasks:
+            # 只处理没有完整元数据的任务
+            cal = (task or {}).get('calendar_info') or {}
+            match = cal.get('match') or {}
+            extracted = cal.get('extracted') or {}
+            tmdb_id = match.get('tmdb_id')
+            
+            # 如果已经有完整的元数据，跳过
+            if tmdb_id and match.get('matched_show_name'):
+                continue
+                
+            tasks_to_process.append(task)
+
+        # 如果没有需要处理的任务，直接返回
+        if not tasks_to_process:
+            return
+
+        # 并行处理任务
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            futures = []
+            for task in tasks_to_process:
+                future = executor.submit(process_single_task_async, task, tmdb_service, cal_db)
+                futures.append(future)
+            
+            # 等待所有任务完成
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    logging.warning(f"处理任务失败: {e}")
+
+    except Exception as e:
+        logging.warning(f"异步处理新任务失败: {e}")
+
+
+def process_single_task_async(task, tmdb_service, cal_db):
+    """处理单个任务的元数据匹配和海报下载"""
+    try:
+        cal = (task or {}).get('calendar_info') or {}
+        match = cal.get('match') or {}
+        extracted = cal.get('extracted') or {}
+        tmdb_id = match.get('tmdb_id')
+        
+        # 如果还没有提取信息，先提取
+        if not extracted.get('show_name'):
+            extractor = TaskExtractor()
+            task_name = task.get('taskname') or task.get('task_name') or ''
+            save_path = task.get('savepath', '')
+            info = extractor.extract_show_info_from_path(save_path)
+            extracted = {
+                'show_name': info.get('show_name', ''),
+                'year': info.get('year', ''),
+                'content_type': info.get('type', 'other'),
+            }
+            cal['extracted'] = extracted
+            task['calendar_info'] = cal
+
+        # 如果还没有 TMDB 匹配，进行匹配
+        if not tmdb_id and extracted.get('show_name'):
+            try:
+                search = tmdb_service.search_tv_show(extracted.get('show_name'), extracted.get('year') or None)
+                if search and search.get('id'):
+                    tmdb_id = search['id']
+                    details = tmdb_service.get_tv_show_details(tmdb_id) or {}
+                    seasons = details.get('seasons', [])
+                    logging.debug(f"process_single_task_async - TMDB季数数据: {seasons}")
+                    
+                    # 选择已播出的季中最新的一季
+                    current_date = datetime.now().date()
+                    latest_season_number = 0
+                    latest_air_date = None
+                    
+                    for s in seasons:
+                        sn = s.get('season_number', 0)
+                        air_date = s.get('air_date')
+                        logging.debug(f"process_single_task_async - 季数: {sn}, 播出日期: {air_date}, 类型: {type(sn)}")
+                        
+                        # 只考虑已播出的季（有air_date且早于或等于当前日期）
+                        if sn and sn > 0 and air_date:  # 排除第0季（特殊季）
+                            try:
+                                season_air_date = datetime.strptime(air_date, '%Y-%m-%d').date()
+                                if season_air_date <= current_date:
+                                    # 选择播出日期最新的季
+                                    if latest_air_date is None or season_air_date > latest_air_date:
+                                        latest_season_number = sn
+                                        latest_air_date = season_air_date
+                            except (ValueError, TypeError):
+                                # 日期格式错误，跳过
+                                continue
+                    
+                    logging.debug(f"process_single_task_async - 计算出的最新已播季数: {latest_season_number}")
+                    
+                    # 如果没有找到已播出的季，回退到第1季
+                    if latest_season_number == 0:
+                        latest_season_number = 1
+                        logging.debug(f"process_single_task_async - 没有找到已播出的季，回退到第1季: {latest_season_number}")
+
+                    chinese_title = tmdb_service.get_chinese_title_with_fallback(tmdb_id, extracted.get('show_name', ''))
+                    
+                    cal['match'] = {
+                        'matched_show_name': chinese_title,
+                        'matched_year': (details.get('first_air_date') or '')[:4],
+                        'tmdb_id': tmdb_id,
+                        'latest_season_number': latest_season_number,
+                        'latest_season_fetch_url': f"/tv/{tmdb_id}/season/{latest_season_number}",
+                    }
+                    task['calendar_info'] = cal
+                    
+                    # 立即通知前端元数据匹配完成
+                    try:
+                        notify_calendar_changed('edit_metadata')
+                    except Exception:
+                        pass
+                        
+            except Exception as e:
+                logging.warning(f"TMDB 匹配失败: task={task.get('taskname', '')}, err={e}")
+
+        # 如果现在有 TMDB ID，下载海报并更新数据库
+        if tmdb_id:
+            try:
+                # 重新获取更新后的match信息
+                updated_match = cal.get('match') or {}
+                logging.debug(f"process_single_task_async - 更新后的match信息: {updated_match}")
+                details = tmdb_service.get_tv_show_details(tmdb_id) or {}
+                name = tmdb_service.get_chinese_title_with_fallback(tmdb_id, extracted.get('show_name', ''))
+                first_air = (details.get('first_air_date') or '')[:4]
+                raw_status = (details.get('status') or '')
+                try:
+                    localized_status = tmdb_service.get_localized_show_status(int(tmdb_id), int(updated_match.get('latest_season_number') or 1), raw_status)
+                    status = localized_status
+                except Exception:
+                    status = raw_status
+                poster_path = details.get('poster_path') or ''
+                latest_season_number = updated_match.get('latest_season_number') or 1
+                logging.debug(f"process_single_task_async - 最终使用的季数: {latest_season_number}")
+
+                poster_local_path = ''
+                if poster_path:
+                    poster_local_path = download_poster_local(poster_path)
+
+                # 获取现有的绑定关系和内容类型，避免被覆盖
+                existing_show = cal_db.get_show(int(tmdb_id))
+                existing_bound_tasks = existing_show.get('bound_task_names', '') if existing_show else ''
+                existing_content_type = existing_show.get('content_type', '') if existing_show else ''
+                cal_db.upsert_show(int(tmdb_id), name, first_air, status, poster_local_path, int(latest_season_number), 0, existing_bound_tasks, existing_content_type)
+                
+                # 更新 seasons 表
+                refresh_url = f"/tv/{tmdb_id}/season/{latest_season_number}"
+                # 处理季名称
+                season_name_raw = ''
+                try:
+                    for s in (details.get('seasons') or []):
+                        if int(s.get('season_number') or 0) == int(latest_season_number):
+                            season_name_raw = s.get('name') or ''
+                            break
+                except Exception:
+                    season_name_raw = ''
+                try:
+                    from sdk.tmdb_service import TMDBService as _T
+                    season_name_processed = tmdb_service.process_season_name(season_name_raw) if isinstance(tmdb_service, _T) else season_name_raw
+                except Exception:
+                    season_name_processed = season_name_raw
+                cal_db.upsert_season(
+                    int(tmdb_id),
+                    int(latest_season_number),
+                    details_of_season_episode_count(tmdb_service, tmdb_id, latest_season_number),
+                    refresh_url,
+                    season_name_processed
+                )
+
+                # 立即拉取最新一季的所有集并写入本地，保证前端可立即读取
+                try:
+                    season = tmdb_service.get_tv_show_episodes(int(tmdb_id), int(latest_season_number)) or {}
+                    episodes = season.get('episodes', []) or []
+                    from time import time as _now
+                    now_ts = int(_now())
+                    for ep in episodes:
+                        cal_db.upsert_episode(
+                            tmdb_id=int(tmdb_id),
+                            season_number=int(latest_season_number),
+                            episode_number=int(ep.get('episode_number') or 0),
+                            name=ep.get('name') or '',
+                            overview=ep.get('overview') or '',
+                            air_date=ep.get('air_date') or '',
+                            runtime=ep.get('runtime'),
+                            ep_type=(ep.get('episode_type') or ep.get('type')),
+                            updated_at=now_ts,
+                        )
+                except Exception as _e:
+                    logging.warning(f"写入剧集失败 tmdb_id={tmdb_id}: {_e}")
+                
+                # 绑定任务到节目
+                task_final_name = task.get('taskname') or task.get('task_name') or ''
+                ct = extracted.get('content_type', '')
+                try:
+                    cal_db.bind_task_and_content_type(tmdb_id, task_final_name, ct)
+                except Exception as e:
+                    logging.warning(f"绑定任务失败: {e}")
+                
+                # 立即通知前端海报下载完成
+                try:
+                    notify_calendar_changed('edit_metadata')
+                except Exception:
+                    pass
+                    
+            except Exception as e:
+                logging.warning(f"处理任务海报失败: task={task.get('taskname', '')}, err={e}")
+
+    except Exception as e:
+        logging.warning(f"处理单个任务失败: task={task.get('taskname', '')}, err={e}")
+
+
 def do_calendar_bootstrap() -> tuple:
     """内部方法：执行日历初始化。返回 (success: bool, message: str)"""
     try:
@@ -3986,15 +4240,28 @@ def details_of_season_episode_count(tmdb_service: TMDBService, tmdb_id: int, sea
 def download_poster_local(poster_path: str) -> str:
     """下载 TMDB 海报到本地 static/cache/images 下，等比缩放为宽400px，返回相对路径。"""
     try:
+        if not poster_path:
+            return ''
+            
+        folder = CACHE_IMAGES_DIR
+        # 基于 poster_path 生成文件名
+        safe_name = poster_path.strip('/').replace('/', '_') or 'poster.jpg'
+        file_path = os.path.join(folder, safe_name)
+        
+        # 检查文件是否已存在，如果存在则直接返回路径
+        if os.path.exists(file_path):
+            return f"/cache/images/{safe_name}"
+        
+        # 文件不存在，需要下载
         base = "https://image.tmdb.org/t/p/w400"
         url = f"{base}{poster_path}"
         r = requests.get(url, timeout=10)
         if r.status_code != 200:
             return ''
-        folder = CACHE_IMAGES_DIR
-        # 基于 poster_path 生成文件名
-        safe_name = poster_path.strip('/').replace('/', '_') or 'poster.jpg'
-        file_path = os.path.join(folder, safe_name)
+            
+        # 确保目录存在
+        os.makedirs(folder, exist_ok=True)
+        
         with open(file_path, 'wb') as f:
             f.write(r.content)
         # 返回用于前端引用的相对路径（通过 /cache/images 暴露）
