@@ -1247,11 +1247,19 @@
 
                     <!-- 按钮行容器：自动补位布局 -->
                     <div class="discovery-actions-row" style="top: 8px;">
-                      <div class="discovery-refresh-metadata tasklist-run-btn" @click.stop="runScriptNow(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="运行此任务">
+                      <!-- 运行此任务按钮（正常状态） -->
+                      <div v-if="!task.shareurl_ban" class="discovery-refresh-metadata tasklist-run-btn" @click.stop="runScriptNow(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="运行此任务">
                         <i class="bi bi-caret-right"></i>
+                      </div>
+                      <!-- 资源失效警告按钮（失效状态） -->
+                      <div v-else class="discovery-warning-btn tasklist-warning-btn" :title="formatShareUrlBanMessage(task.shareurl_ban)">
+                        <i class="bi bi-exclamation-circle"></i>
                       </div>
                       <div class="discovery-edit-metadata tasklist-delete-btn" @click.stop="removeTask(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="删除此任务">
                         <i class="bi bi-trash3"></i>
+                      </div>
+                      <div class="discovery-edit-metadata tasklist-edit-task-btn" @click.stop="openEditTaskModal(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="编辑此任务">
+                        <i class="bi bi-pencil"></i>
                       </div>
                     </div>
                     <div class="discovery-actions-row" style="top: 36px;">
@@ -1261,6 +1269,14 @@
                       <div class="discovery-edit-metadata tasklist-edit-metadata-btn" @click.stop="openEditMetadataModal(getCalendarTaskByName(task.taskname) || { task_name: task.taskname })" title="编辑元数据">
                         <i class="bi bi-tag"></i>
                       </div>
+                      <template v-for="key in formData.button_display_order">
+                        <div v-if="key==='refresh_plex' && formData.plugins && formData.plugins.plex && formData.plugins.plex.url && formData.plugins.plex.token && formData.plugins.plex.quark_root_path && formData.button_display.refresh_plex !== 'disabled'" class="discovery-edit-metadata tasklist-plex-btn" @click.stop="refreshPlexLibrary(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="刷新Plex媒体库">
+                          <img src="./static/images/Plex.svg" class="plex-icon" style="filter: brightness(0) invert(1);">
+                        </div>
+                        <div v-else-if="key==='refresh_alist' && formData.plugins && formData.plugins.alist && formData.plugins.alist.url && formData.plugins.alist.token && formData.plugins.alist.storage_id && formData.button_display.refresh_alist !== 'disabled'" class="discovery-edit-metadata tasklist-alist-btn" @click.stop="refreshAlistDirectory(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="刷新AList目录">
+                          <img src="https://cdn.jsdelivr.net/gh/alist-org/logo@main/logo.svg" class="alist-icon" style="filter: brightness(0) invert(1);">
+                        </div>
+                      </template>
                     </div>
 
                     <!-- 转存进度徽标（复用评分样式） -->
@@ -1994,11 +2010,11 @@
                         <i class="bi bi-arrow-clockwise"></i>
                       </div>
                       <!-- 编辑元数据按钮（已匹配：靠右；未匹配：靠左） -->
-                      <div class="discovery-edit-metadata"
+                      <div class="discovery-edit-metadata tasklist-edit-metadata-btn"
                            :style="{ left: task.match_tmdb_id ? '36px' : '8px' }"
                            @click.stop="openEditMetadataModal(task)"
                            title="编辑元数据">
-                        <i class="bi bi-pencil"></i>
+                        <i class="bi bi-tag"></i>
                       </div>
                       
                       <!-- 转存进度徽标（复用评分样式） -->
@@ -2444,7 +2460,7 @@
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">
-              <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">创建任务</span>
+              <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">{{ createTask.isEditMode ? '编辑任务' : '创建任务' }}</span>
               <div v-if="createTask.loading" class="spinner-border spinner-border-sm m-1" role="status"></div>
             </h5>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -2613,15 +2629,22 @@
               {{ createTask.movieData.title + (createTask.movieData.year ? ' (' + createTask.movieData.year + ')' : '') }}
             </div>
             <button type="button" class="btn btn-primary btn-cancel" @click="cancelCreateTask">取消</button>
-            <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmCreateTask">
-              创建任务
-            </button>
-            <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmCreateAndRunTask">
-              创建并运行任务
-            </button>
-            <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmCreateRunAndDeleteTask">
-              创建、运行并删除任务
-            </button>
+            <template v-if="createTask.isEditMode">
+              <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmEditTask">
+                保存
+              </button>
+            </template>
+            <template v-else>
+              <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmCreateTask">
+                创建任务
+              </button>
+              <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmCreateAndRunTask">
+                创建并运行任务
+              </button>
+              <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmCreateRunAndDeleteTask">
+                创建、运行并删除任务
+              </button>
+            </template>
           </div>
         </div>
       </div>
@@ -3151,6 +3174,8 @@
           loading: false,
           error: null,
           movieData: null, // 存储当前要创建任务的影视作品数据
+          isEditMode: false, // 是否为编辑模式
+          editTaskIndex: null, // 编辑的任务索引
           taskData: {
             taskname: "",
             shareurl: "",
@@ -11372,6 +11397,9 @@
           try {
             // 清空影视数据
             this.createTask.movieData = null;
+            // 重置编辑模式状态
+            this.createTask.isEditMode = false;
+            this.createTask.editTaskIndex = null;
             
             // 重置任务数据为默认值，使用 newTask 的完整结构
             this.createTask.taskData = { ...this.newTask };
@@ -11397,6 +11425,39 @@
             $('#createTaskModal').modal('show');
           } catch (error) {
             console.error('打开创建任务模态框时出错:', error);
+          }
+        },
+        // 打开编辑任务模态框
+        openEditTaskModal(taskIndex) {
+          try {
+            if (taskIndex === null || taskIndex === undefined || !this.formData.tasklist || !this.formData.tasklist[taskIndex]) {
+              this.showToast('任务不存在');
+              return;
+            }
+            
+            const task = this.formData.tasklist[taskIndex];
+            
+            // 设置编辑模式
+            this.createTask.isEditMode = true;
+            this.createTask.editTaskIndex = taskIndex;
+            this.createTask.movieData = null;
+            this.createTask.error = null;
+            
+            // 复制任务数据到编辑表单
+            this.createTask.taskData = { ...task };
+            
+            // 确保所有必要字段都有默认值
+            this.createTask.taskData.runweek = task.runweek || [1, 2, 3, 4, 5, 6, 7];
+            this.createTask.taskData.addition = task.addition || {};
+            this.createTask.taskData.ignore_extension = task.ignore_extension || false;
+            this.createTask.taskData.use_sequence_naming = task.use_sequence_naming || false;
+            this.createTask.taskData.use_episode_naming = task.use_episode_naming || false;
+            
+            // 打开模态框
+            $('#createTaskModal').modal('show');
+          } catch (error) {
+            console.error('打开编辑任务模态框时出错:', error);
+            this.showToast('打开编辑任务失败');
           }
         },
         // 更新任务列表的元数据（用于热更新TMDB匹配信息）
@@ -12008,6 +12069,9 @@
           $('#createTaskModal').modal('hide');
           this.createTask.movieData = null;
           this.createTask.error = null;
+          // 重置编辑模式状态
+          this.createTask.isEditMode = false;
+          this.createTask.editTaskIndex = null;
           // 重置任务数据，使用 newTask 的完整结构
           this.createTask.taskData = { ...this.newTask };
         },
@@ -12058,6 +12122,70 @@
                 this.configModified = false;
                 // 显示任务创建成功消息
                 this.showToast('任务创建成功', 'success');
+                // 保存成功后更新用户信息
+                this.fetchUserInfo();
+                // 更新任务列表元数据，确保海报视图能显示TMDB匹配信息
+                this.updateTasklistMetadata();
+                this.createTask.loading = false;
+                this.cancelCreateTask();
+              } else {
+                // 错误信息使用alert，确保用户看到
+                alert(response.data.message);
+                this.createTask.loading = false;
+              }
+            })
+            .catch(error => {
+              // 错误处理
+              alert("保存失败: " + (error.response?.data?.message || error.message || "未知错误"));
+              this.createTask.loading = false;
+            });
+        },
+        confirmEditTask() {
+          // 确认编辑任务
+          if (this.createTask.loading) return;
+
+          // 验证必填字段
+          if (!this.createTask.taskData.taskname.trim()) {
+            this.createTask.error = '任务名称不能为空';
+            return;
+          }
+          if (!this.createTask.taskData.shareurl.trim()) {
+            this.createTask.error = '分享链接不能为空';
+            return;
+          }
+          if (!this.createTask.taskData.savepath.trim()) {
+            this.createTask.error = '保存路径不能为空';
+            return;
+          }
+
+          this.createTask.loading = true;
+          this.createTask.error = null;
+
+          // 更新任务数据
+          const updatedTask = { ...this.createTask.taskData };
+
+          // 应用全局插件配置
+          this.applyGlobalPluginConfig(updatedTask);
+
+          // 处理命名模式
+          if (updatedTask.use_sequence_naming) {
+            updatedTask.pattern = updatedTask.sequence_naming;
+          } else if (updatedTask.use_episode_naming) {
+            updatedTask.pattern = updatedTask.episode_naming;
+          }
+
+          // 更新任务列表中的任务
+          if (this.createTask.editTaskIndex !== null && this.formData.tasklist && this.formData.tasklist[this.createTask.editTaskIndex]) {
+            this.$set(this.formData.tasklist, this.createTask.editTaskIndex, updatedTask);
+          }
+
+          // 保存配置（不显示配置更新消息）
+          axios.post('/update', this.formData)
+            .then(response => {
+              if (response.data.success) {
+                this.configModified = false;
+                // 显示任务编辑成功消息
+                this.showToast('任务编辑成功', 'success');
                 // 保存成功后更新用户信息
                 this.fetchUserInfo();
                 // 更新任务列表元数据，确保海报视图能显示TMDB匹配信息

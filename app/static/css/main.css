@@ -1402,13 +1402,13 @@ button.close:focus,
   align-items: center;
   justify-content: center;
   border-radius: 6px !important;
-  border: 1px solid #ffc107 !important;
+  border: 1px solid #efb30a !important;
 }
 
 /* 任务列表中的警告按钮图标样式 */
 .task .btn-warning .bi-exclamation-circle {
   font-size: 1.04rem;
-  color: #ffc107 !important;
+  color: #efb30a !important;
   margin-right: 0;
 }
 
@@ -6538,7 +6538,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   color: white;
 }
 
-/* 内容管理视图刷新按钮样式 */
+/* 内容管理视图刷新元数据按钮样式 */
 .discovery-refresh-metadata {
   position: absolute;
   top: 8px;
@@ -6556,7 +6556,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   transition: all 0.3s ease;
   z-index: 10;
   color: white;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   /* 使用多向阴影模拟加粗（图标为字体，font-weight不生效） */
   text-shadow:
     0 0 0 currentColor,
@@ -7945,6 +7945,7 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   font-size: 0.94rem;
 }
 
+/* 任务列表删除此任务按钮图标大小 */
 .tasklist-delete-btn i {
   font-size: 0.73rem;
   position: relative;
@@ -7953,10 +7954,17 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
 
 /* 任务列表编辑元数据按钮图标大小 */
 .tasklist-edit-metadata-btn i {
-  font-size: 0.82rem;
+  font-size: 0.81rem;
   position: relative;
   top: 0.5px;
   left: 0.5px;
+}
+
+/* 任务列表编辑此任务按钮图标大小 */
+.tasklist-edit-task-btn i {
+  font-size: 0.69rem;
+  position: relative;
+  top: 0.5px;
 }
 
 /* 任务列表视图切换按钮的图标大小，统一为与追剧日历相同 */
@@ -7993,4 +8001,121 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   display: inline-block;
   font-size: 0.8em; /* 与任务列表相同的斜杠缩小比例 */
   font-weight: 600;  /* 适度加粗，与列表视觉一致 */
+}
+
+/* 任务列表删除按钮悬停颜色 */
+.tasklist-delete-btn:hover {
+  background-color: #dc3545 !important;
+  border-color: #dc3545 !important;
+  color: white !important;
+}
+
+/* 编辑任务模态框警告信息底部边距 */
+#createTaskModal .alert-warning {
+  margin-bottom: 8px;
+}
+
+/* 海报视图资源失效警告按钮样式 */
+.discovery-warning-btn {
+  position: relative;
+  top: 0;
+  left: 0;
+  width: 22px;
+  height: 22px;
+  background-color: rgba(0, 0, 0, 0.8);
+  border: none;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #efb30a;
+  cursor: default;
+  opacity: 1;
+  z-index: 10;
+  /* 使用多向阴影模拟加粗（图标为字体，font-weight不生效） */
+  text-shadow:
+    0 0 0 currentColor,
+    0 0.2px 0 currentColor,
+    0 -0.2px 0 currentColor,
+    0.2px 0 0 currentColor,
+    -0.2px 0 0 currentColor;
+}
+
+/* 资源失效警告按钮图标样式 */
+.discovery-warning-btn i {
+  font-size: 0.68rem;
+  position: relative;
+  top: 0.5px;
+}
+
+/* 任务列表Plex按钮图标样式 */
+.tasklist-plex-btn .plex-icon {
+  position: relative;
+  top: 0px;
+  opacity: 1 !important;
+  visibility: visible !important;
+  /* 使用与其他Plex按钮相同的尺寸设置 */
+  width: 7.2px;
+  height: auto;
+  object-fit: contain;
+  /* 移除可能导致加粗效果的阴影 */
+  text-shadow: none;
+  box-shadow: none;
+  /* 恢复简单的滤镜 */
+  filter: brightness(0) invert(1);
+  -webkit-filter: brightness(0) invert(1);
+}
+
+/* 任务列表AList按钮图标样式 */
+.tasklist-alist-btn .alist-icon {
+  position: relative;
+  top: -0.5px;
+  opacity: 1 !important;
+  visibility: visible !important;
+  /* 使用与其他AList按钮相同的尺寸设置 */
+  width: 12.6px;
+  height: auto;
+  object-fit: contain;
+  /* 移除可能导致加粗效果的阴影 */
+  text-shadow: none;
+  box-shadow: none;
+  /* 恢复简单的滤镜 */
+  filter: brightness(0) invert(1);
+  -webkit-filter: brightness(0) invert(1);
+}
+
+/* 海报视图Plex按钮悬停样式 */
+.tasklist-plex-btn:hover {
+  background-color: #EBAF00 !important;
+  border-color: #EBAF00 !important;
+  color: #fff !important;
+}
+
+.tasklist-plex-btn:hover .plex-icon {
+  filter: brightness(0) invert(1) !important;
+  -webkit-filter: brightness(0) invert(1) !important;
+}
+
+/* 海报视图AList按钮悬停样式 */
+.tasklist-alist-btn:hover {
+  background-color: #70C6BE !important;
+  border-color: #70C6BE !important;
+  color: #fff !important;
+}
+
+.tasklist-alist-btn:hover .alist-icon {
+  filter: brightness(0) invert(1) !important;
+  -webkit-filter: brightness(0) invert(1) !important;
+}
+
+/* 强制确保SVG图标在所有状态下都保持白色和可见 */
+.discovery-poster:hover .tasklist-plex-btn .plex-icon,
+.discovery-poster:hover .tasklist-alist-btn .alist-icon,
+.discovery-poster .tasklist-plex-btn .plex-icon,
+.discovery-poster .tasklist-alist-btn .alist-icon {
+  filter: brightness(0) invert(1) !important;
+  -webkit-filter: brightness(0) invert(1) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
 }
