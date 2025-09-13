@@ -578,3 +578,17 @@ class CalendarDB:
         cursor = self.conn.cursor()
         cursor.execute('UPDATE shows SET latest_season_number=? WHERE tmdb_id=?', (latest_season_number, tmdb_id))
         self.conn.commit()
+
+    def update_show_poster(self, tmdb_id: int, poster_local_path: str):
+        """更新节目的海报路径"""
+        cursor = self.conn.cursor()
+        cursor.execute('UPDATE shows SET poster_local_path=? WHERE tmdb_id=?', (poster_local_path, tmdb_id))
+        self.conn.commit()
+
+    def get_all_shows(self):
+        """获取所有节目"""
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT * FROM shows')
+        columns = [description[0] for description in cursor.description]
+        rows = cursor.fetchall()
+        return [dict(zip(columns, row)) for row in rows]

@@ -16,13 +16,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 class TMDBService:
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: str = None, poster_language: str = "zh-CN"):
         self.api_key = api_key
         # 首选改为 api.tmdb.org，备选为 api.themoviedb.org
         self.primary_url = "https://api.tmdb.org/3"
         self.backup_url = "https://api.themoviedb.org/3"
         self.current_url = self.primary_url
         self.language = "zh-CN"  # 返回中文数据
+        self.poster_language = poster_language  # 海报语言设置
         # 复用会话，开启重试
         self.session = requests.Session()
         retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504], allowed_methods=["GET"])  # 简单退避
@@ -421,3 +422,66 @@ class TMDBService:
         except Exception as e:
             logger.error(f"时间转换失败: {e}")
             return utc_time_str
+
+    def get_poster_path_with_language(self, tv_id: int) -> str:
+        """根据海报语言设置获取海报路径"""
+        try:
+            if not self.is_configured():
+                return ''
+            
+            # 获取节目详情
+            details = self.get_tv_show_details(tv_id)
+            if not details:
+                return ''
+            
+            # 如果设置为原始语言，需要获取原始语言代码
+            if self.poster_language == "original":
+                original_language = details.get('original_language', 'en')
+                # 如果原始语言是zh，使用zh-CN
+                if original_language == 'zh':
+                    original_language = 'zh-CN'
+                
+                # 使用原始语言请求海报
+                params = {
+                    'api_key': self.api_key,
+                    'language': original_language,
+                    'include_adult': False
+                }
+                
+                # 尝试获取原始语言海报
+                try:
+                    url = f"{self.current_url}/tv/{tv_id}"
+                    response = self.session.get(url, params=params, timeout=10)
+                    response.raise_for_status()
+                    data = response.json()
+                    poster_path = data.get('poster_path', '')
+                    if poster_path:
+                        return poster_path
+                except Exception as e:
+                    logger.warning(f"获取原始语言海报失败: {e}")
+            
+            # 如果设置为中文或原始语言获取失败，尝试中文海报
+            if self.poster_language == "zh-CN" or self.poster_language == "original":
+                params = {
+                    'api_key': self.api_key,
+                    'language': 'zh-CN',
+                    'include_adult': False
+                }
+                
+                try:
+                    url = f"{self.current_url}/tv/{tv_id}"
+                    response = self.session.get(url, params=params, timeout=10)
+                    response.raise_for_status()
+                    data = response.json()
+                    poster_path = data.get('poster_path', '')
+                    if poster_path:
+                        return poster_path
+                except Exception as e:
+                    logger.warning(f"获取中文海报失败: {e}")
+            
+            # 如果都失败了，返回默认海报路径
+            return details.get('poster_path', '')
+            
+        except Exception as e:
+            logger.error(f"获取海报路径失败: {e}")
+            return ''

@@ -827,6 +827,19 @@
                   </select>
                 </div>
               </div>
+              
+              <!-- 海报语言设置（不支持拖拽，但样式与其他设置一致） -->
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text" title="任务列表与追剧日历的海报语言优先级，选择中文将优先使用zh-CN海报，选择原始语言将优先使用原始语言海报">海报语言</span>
+                  </div>
+                  <select class="form-control" v-model="formData.poster_language" title="任务列表与追剧日历的海报语言优先级，选择中文将优先使用zh-CN海报，选择原始语言将优先使用原始语言海报">
+                    <option value="zh-CN">中文</option>
+                    <option value="original">原始语言</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             <!-- 性能设置 -->
@@ -2777,6 +2790,7 @@
             latest_transfer_file: "always",
             today_update_indicator: "always"
           },
+          poster_language: "zh-CN",
           // 显示顺序（可拖拽修改）：按钮 + 信息
           button_display_order: [
             "refresh_plex",

@@ -196,7 +196,7 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                 else:
                     try:
                         # 仅用到静态映射，不触发网络请求
-                        _svc = TMDBService(config_data.get('tmdb_api_key', ''))
+                        _svc = TMDBService(config_data.get('tmdb_api_key', ''), get_poster_language_setting())
                         status = _svc.map_show_status_cn(raw)
                     except Exception:
                         status = raw
@@ -732,6 +732,10 @@ def get_data():
     else:
         if 'calendar_refresh_interval_seconds' not in perf:
             data['performance']['calendar_refresh_interval_seconds'] = DEFAULT_REFRESH_SECONDS
+    
+    # 确保海报语言有默认值
+    if 'poster_language' not in data:
+        data['poster_language'] = 'zh-CN'
 
     # 处理插件配置中的多账号支持字段，将数组格式转换为逗号分隔的字符串用于显示
     if "plugins" in data:
@@ -899,6 +903,9 @@ def update():
             old_task_map[name] = {
                 "tmdb_id": match.get("tmdb_id") or cal.get("tmdb_id")
             }
+    
+    # 记录旧的海报语言设置
+    old_poster_language = config_data.get('poster_language', 'zh-CN')
     dont_save_keys = ["task_plugins_config_default", "api_token"]
     for key, value in request.json.items():
         if key not in dont_save_keys:
@@ -940,7 +947,18 @@ def update():
         prev_tmdb, new_tmdb = '', None
 
     import threading
-    def _post_update_tasks(old_task_map_snapshot, prev_tmdb_value, new_tmdb_value):
+    def _post_update_tasks(old_task_map_snapshot, prev_tmdb_value, new_tmdb_value, old_poster_lang):
+        # 检查海报语言设置是否改变
+        new_poster_language = config_data.get('poster_language', 'zh-CN')
+        if old_poster_lang != new_poster_language:
+            try:
+                # 清空现有海报
+                clear_all_posters()
+                # 重新下载所有海报
+                redownload_all_posters()
+            except Exception as e:
+                logging.error(f"重新下载海报失败: {e}")
+        
         # 在保存配置时自动进行任务信息提取与TMDB匹配（若缺失则补齐）
         try:
             changed = ensure_calendar_info_for_tasks()
@@ -1010,7 +1028,7 @@ def update():
         except Exception as e:
             logging.warning(f"自动初始化 bootstrap 失败: {e}")
 
-    threading.Thread(target=_post_update_tasks, args=(old_task_map, prev_tmdb, new_tmdb), daemon=True).start()
+    threading.Thread(target=_post_update_tasks, args=(old_task_map, prev_tmdb, new_tmdb, old_poster_language), daemon=True).start()
     
     # 确保性能配置包含秒级字段
     if not isinstance(config_data.get('performance'), dict):
@@ -1343,7 +1361,8 @@ def ensure_calendar_info_for_tasks() -> bool:
 
     extractor = TaskExtractor()
     tmdb_api_key = config_data.get('tmdb_api_key', '')
-    tmdb_service = TMDBService(tmdb_api_key) if tmdb_api_key else None
+    poster_language = get_poster_language_setting()
+    tmdb_service = TMDBService(tmdb_api_key, poster_language) if tmdb_api_key else None
 
     changed = False
     # 简单去重缓存，避免同一名称/年份重复请求 TMDB
@@ -3851,7 +3870,8 @@ def get_calendar_episodes():
             tasks_info = [task for task in tasks_info if show_name.lower() in task['show_name'].lower()]
         
         # 获取剧集信息
-        tmdb_service = TMDBService(tmdb_api_key)
+        poster_language = get_poster_language_setting()
+        tmdb_service = TMDBService(tmdb_api_key, poster_language)
         all_episodes = []
         
         for task_info in tasks_info:
@@ -3903,7 +3923,8 @@ def process_new_tasks_async():
         if not tmdb_api_key:
             return
 
-        tmdb_service = TMDBService(tmdb_api_key)
+        poster_language = get_poster_language_setting()
+        tmdb_service = TMDBService(tmdb_api_key, poster_language)
         cal_db = CalendarDB()
 
         tasks = config_data.get('tasklist', [])
@@ -4042,7 +4063,8 @@ def process_single_task_async(task, tmdb_service, cal_db):
                     status = localized_status
                 except Exception:
                     status = raw_status
-                poster_path = details.get('poster_path') or ''
+                # 使用海报语言设置获取海报路径
+                poster_path = tmdb_service.get_poster_path_with_language(int(tmdb_id)) if tmdb_service else (details.get('poster_path') or '')
                 latest_season_number = updated_match.get('latest_season_number') or 1
                 logging.debug(f"process_single_task_async - 最终使用的季数: {latest_season_number}")
 
@@ -4131,7 +4153,8 @@ def do_calendar_bootstrap() -> tuple:
         if not tmdb_api_key:
             return False, 'TMDB API未配置'
 
-        tmdb_service = TMDBService(tmdb_api_key)
+        poster_language = get_poster_language_setting()
+        tmdb_service = TMDBService(tmdb_api_key, poster_language)
         cal_db = CalendarDB()
 
         tasks = config_data.get('tasklist', [])
@@ -4155,7 +4178,8 @@ def do_calendar_bootstrap() -> tuple:
                 status = localized_status
             except Exception:
                 status = raw_status
-            poster_path = details.get('poster_path') or ''
+            # 使用海报语言设置获取海报路径
+            poster_path = tmdb_service.get_poster_path_with_language(int(tmdb_id)) if tmdb_service else (details.get('poster_path') or '')
             latest_season_number = match.get('latest_season_number') or 1
 
             poster_local_path = ''
@@ -4237,6 +4261,70 @@ def details_of_season_episode_count(tmdb_service: TMDBService, tmdb_id: int, sea
         return 0
 
 
+def get_poster_language_setting():
+    """获取海报语言设置"""
+    return config_data.get('poster_language', 'zh-CN')
+
+def clear_all_posters():
+    """清空所有海报文件"""
+    try:
+        import shutil
+        if os.path.exists(CACHE_IMAGES_DIR):
+            shutil.rmtree(CACHE_IMAGES_DIR)
+            os.makedirs(CACHE_IMAGES_DIR, exist_ok=True)
+        return True
+    except Exception as e:
+        logging.error(f"清空海报文件失败: {e}")
+        return False
+
+def redownload_all_posters():
+    """重新下载所有海报"""
+    try:
+        from app.sdk.db import CalendarDB
+        cal_db = CalendarDB()
+        
+        # 获取所有节目
+        shows = cal_db.get_all_shows()
+        if not shows:
+            return True
+            
+        tmdb_api_key = config_data.get('tmdb_api_key', '')
+        if not tmdb_api_key:
+            logging.warning("TMDB API未配置，无法重新下载海报")
+            return False
+            
+        poster_language = get_poster_language_setting()
+        tmdb_service = TMDBService(tmdb_api_key, poster_language)
+        
+        success_count = 0
+        total_count = len(shows)
+        
+        for show in shows:
+            try:
+                tmdb_id = show.get('tmdb_id')
+                if not tmdb_id:
+                    continue
+                    
+                # 获取新的海报路径
+                new_poster_path = tmdb_service.get_poster_path_with_language(int(tmdb_id))
+                if new_poster_path:
+                    # 下载新海报
+                    poster_local_path = download_poster_local(new_poster_path)
+                    if poster_local_path:
+                        # 更新数据库中的海报路径
+                        cal_db.update_show_poster(int(tmdb_id), poster_local_path)
+                        success_count += 1
+                        
+            except Exception as e:
+                logging.error(f"重新下载海报失败 (TMDB ID: {show.get('tmdb_id')}): {e}")
+                continue
+                
+        return success_count > 0
+        
+    except Exception as e:
+        logging.error(f"重新下载所有海报失败: {e}")
+        return False
+
 def download_poster_local(poster_path: str) -> str:
     """下载 TMDB 海报到本地 static/cache/images 下，等比缩放为宽400px，返回相对路径。"""
     try:
@@ -4285,7 +4373,8 @@ def calendar_refresh_latest_season():
         if not tmdb_api_key:
             return jsonify({"success": False, "message": "TMDB API 未配置"})
 
-        tmdb_service = TMDBService(tmdb_api_key)
+        poster_language = get_poster_language_setting()
+        tmdb_service = TMDBService(tmdb_api_key, poster_language)
         cal_db = CalendarDB()
         show = cal_db.get_show(int(tmdb_id))
         if not show:
@@ -4358,7 +4447,8 @@ def calendar_refresh_episode():
         if not tmdb_api_key:
             return jsonify({"success": False, "message": "TMDB API 未配置"})
 
-        tmdb_service = TMDBService(tmdb_api_key)
+        poster_language = get_poster_language_setting()
+        tmdb_service = TMDBService(tmdb_api_key, poster_language)
         cal_db = CalendarDB()
         
         # 验证节目是否存在
@@ -4426,7 +4516,8 @@ def calendar_refresh_season():
         if not tmdb_api_key:
             return jsonify({"success": False, "message": "TMDB API 未配置"})
 
-        tmdb_service = TMDBService(tmdb_api_key)
+        poster_language = get_poster_language_setting()
+        tmdb_service = TMDBService(tmdb_api_key, poster_language)
         cal_db = CalendarDB()
         
         # 验证节目是否存在
@@ -4505,7 +4596,8 @@ def calendar_refresh_show():
         if not tmdb_api_key:
             return jsonify({"success": False, "message": "TMDB API 未配置"})
 
-        tmdb_service = TMDBService(tmdb_api_key)
+        poster_language = get_poster_language_setting()
+        tmdb_service = TMDBService(tmdb_api_key, poster_language)
         cal_db = CalendarDB()
 
         details = tmdb_service.get_tv_show_details(int(tmdb_id)) or {}
@@ -4545,8 +4637,8 @@ def calendar_refresh_show():
             except Exception:
                 latest_season_number = 1
 
-        # 海报
-        poster_path = details.get('poster_path') or ''
+        # 海报 - 使用海报语言设置获取海报路径
+        poster_path = tmdb_service.get_poster_path_with_language(int(tmdb_id)) if tmdb_service else (details.get('poster_path') or '')
         poster_local_path = ''
         try:
             if poster_path:
@@ -4642,7 +4734,8 @@ def calendar_edit_metadata():
         did_rematch = False
         cal_db = CalendarDB()
         tmdb_api_key = config_data.get('tmdb_api_key', '')
-        tmdb_service = TMDBService(tmdb_api_key) if tmdb_api_key else None
+        poster_language = get_poster_language_setting()
+        tmdb_service = TMDBService(tmdb_api_key, poster_language) if tmdb_api_key else None
         # 场景一：提供 new_tmdb_id（重绑节目，可同时指定季数）
         if new_tmdb_id:
             try:
@@ -4935,7 +5028,8 @@ def run_calendar_refresh_all_internal():
         tmdb_api_key = config_data.get('tmdb_api_key', '')
         if not tmdb_api_key:
             return
-        tmdb_service = TMDBService(tmdb_api_key)
+        poster_language = get_poster_language_setting()
+        tmdb_service = TMDBService(tmdb_api_key, poster_language)
         db = CalendarDB()
         shows = []
         # 简单读取所有已初始化的剧目
