@@ -2430,7 +2430,25 @@
           </div>
           <div class="modal-footer" v-if="fileSelect.selectDir && !fileSelect.previewRegex">
             <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+              <span v-if="fileSelect.selectShare && smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length > 1 && isCurrentResourceInSearchResults()">
+                第 {{ smart_param.currentResourceIndex + 1 }} 个资源，
+              </span>
               共 {{ fileSelect.fileList.length }} 个项目<span v-if="fileSelect.selectedFiles.length > 0">，已选中 {{ fileSelect.selectedFiles.length }} 个项目</span>
+            </div>
+            <!-- 连续浏览按钮组（仅在资源搜索模式下且当前资源在搜索结果中时显示） -->
+            <div v-if="fileSelect.selectShare && smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length > 1 && isCurrentResourceInSearchResults()" class="resource-navigation-buttons">
+              <button type="button" class="btn btn-primary btn-sm" 
+                      :disabled="smart_param.currentResourceIndex <= 0" 
+                      @click="navigateToPreviousResource()"
+                      title="上一个资源">
+                上一个
+              </button>
+              <button type="button" class="btn btn-primary btn-sm" 
+                      :disabled="smart_param.currentResourceIndex >= smart_param.taskSuggestions.data.length - 1" 
+                      @click="navigateToNextResource()"
+                      title="下一个资源">
+                下一个
+              </button>
             </div>
             <button type="button" class="btn btn-primary btn-cancel" @click="$('#fileSelectModal').modal('hide')" v-if="fileSelect.moveMode">取消</button>
             <button type="button" class="btn btn-primary btn-sm" @click="selectCurrentFolder()">
@@ -2922,7 +2940,9 @@
           },
           searchTimer: null,
           // 新增：搜索会话号用于取消上一次验证/渲染，避免卡死和重复
-          searchSessionId: 0
+          searchSessionId: 0,
+          // 新增：当前浏览的资源索引，用于连续浏览功能
+          currentResourceIndex: -1
         },
         activeTab: 'config',
         configModified: false,
@@ -3663,6 +3683,8 @@
           this.fileSelect.moveFileIds = [];
           // 重置z-index
           document.getElementById('fileSelectModal').style.zIndex = '';
+          // 重置资源浏览索引
+          this.smart_param.currentResourceIndex = -1;
         });
         
         window.addEventListener('beforeunload', this.handleBeforeUnload);
@@ -7684,10 +7706,77 @@
           // 不直接设置分享链接到输入框，只是打开文件选择模态框让用户浏览
           // 用户在模态框中导航后，最终的 this.fileSelect.shareurl 才是需要的地址
 
+          // 记录当前选择的资源索引，用于连续浏览功能
+          const resourceIndex = this.smart_param.taskSuggestions.data.findIndex(item => 
+            item.shareurl === suggestion.shareurl && 
+            item.taskname === suggestion.taskname
+          );
+          this.smart_param.currentResourceIndex = resourceIndex;
+
           // 确保显示的是选择需转存的文件夹界面，而不是命名预览界面
           this.fileSelect.previewRegex = false;
           this.fileSelect.selectDir = true;
           this.showShareSelect(index, suggestion.shareurl);
+        },
+        // 导航到上一个资源
+        navigateToPreviousResource() {
+          if (this.smart_param.currentResourceIndex > 0) {
+            this.smart_param.currentResourceIndex--;
+            const previousResource = this.smart_param.taskSuggestions.data[this.smart_param.currentResourceIndex];
+            if (previousResource) {
+              // 更新当前分享链接并重新加载内容
+              this.fileSelect.shareurl = previousResource.shareurl;
+              this.getShareDetail(0, 1);
+            }
+          }
+        },
+        // 导航到下一个资源
+        navigateToNextResource() {
+          if (this.smart_param.currentResourceIndex < this.smart_param.taskSuggestions.data.length - 1) {
+            this.smart_param.currentResourceIndex++;
+            const nextResource = this.smart_param.taskSuggestions.data[this.smart_param.currentResourceIndex];
+            if (nextResource) {
+              // 更新当前分享链接并重新加载内容
+              this.fileSelect.shareurl = nextResource.shareurl;
+              this.getShareDetail(0, 1);
+            }
+          }
+        },
+        // 判断当前资源是否在搜索结果中
+        isCurrentResourceInSearchResults() {
+          if (!this.fileSelect.selectShare || !this.smart_param.taskSuggestions.data || this.smart_param.taskSuggestions.data.length === 0) {
+            return false;
+          }
+          
+          // 如果currentResourceIndex有效，说明用户是从搜索结果进入的（包括下级目录）
+          if (this.smart_param.currentResourceIndex >= 0 && this.smart_param.currentResourceIndex < this.smart_param.taskSuggestions.data.length) {
+            return true;
+          }
+          
+          // 通过资源ID来判断当前资源是否在搜索结果中
+          const currentResourceId = this.getResourceIdFromUrl(this.fileSelect.shareurl);
+          if (!currentResourceId) {
+            return false;
+          }
+          
+          const isInResults = this.smart_param.taskSuggestions.data.some(resource => {
+            const resourceId = this.getResourceIdFromUrl(resource.shareurl);
+            return resourceId && resourceId === currentResourceId;
+          });
+          
+          return isInResults;
+        },
+        // 从分享链接中提取资源ID
+        getResourceIdFromUrl(shareurl) {
+          if (!shareurl) return null;
+          
+          try {
+            // 夸克网盘分享链接格式：https://pan.quark.cn/s/资源ID
+            const match = shareurl.match(/pan\.quark\.cn\/s\/([a-zA-Z0-9]+)/);
+            return match ? match[1] : null;
+          } catch (e) {
+            return null;
+          }
         },
         addMagicRegex() {
           const newKey = `$MAGIC_${Object.keys(this.formData.magic_regex).length + 1}`;
@@ -8051,6 +8140,25 @@
           }
           this.fileSelect.shareurl = shareurl || currentShareurl;
           this.fileSelect.index = index;
+          
+          // 检查当前分享链接是否在搜索结果中，如果在则设置正确的索引
+          const finalShareurl = shareurl || currentShareurl;
+          if (this.smart_param.taskSuggestions.data && this.smart_param.taskSuggestions.data.length > 0) {
+            const currentResourceId = this.getResourceIdFromUrl(finalShareurl);
+            let resourceIndex = -1;
+            
+            if (currentResourceId) {
+              resourceIndex = this.smart_param.taskSuggestions.data.findIndex(item => {
+                const itemResourceId = this.getResourceIdFromUrl(item.shareurl);
+                return itemResourceId && itemResourceId === currentResourceId;
+              });
+            }
+            
+            this.smart_param.currentResourceIndex = resourceIndex;
+          } else {
+            // 如果没有搜索结果，重置currentResourceIndex
+            this.smart_param.currentResourceIndex = -1;
+          }
           
           // 根据不同条件设置模态框类型
           if (this.fileSelect.previewRegex) {

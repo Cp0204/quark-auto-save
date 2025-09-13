@@ -7734,6 +7734,40 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   color: var(--dark-text-color);
 }
 
+/* 资源连续浏览按钮样式 */
+.resource-navigation-buttons {
+  display: flex;
+  gap: 8px;
+  margin-right: 4px;
+}
+
+.resource-navigation-buttons .btn {
+  min-width: 60px;
+  font-size: 0.85rem;
+}
+
+/* 资源导航按钮样式（与模态框中的btn-primary保持一致） */
+.resource-navigation-buttons .btn:not(:disabled) {
+  background-color: var(--focus-border-color);
+  border-color: var(--focus-border-color);
+  font-size: 0.85rem;
+}
+
+/* 资源导航按钮禁用状态样式（与文件整理页面保持一致） */
+.resource-navigation-buttons .btn:disabled {
+  color: #fff !important;
+  background-color: var(--focus-border-color) !important;
+  border-color: var(--focus-border-color) !important;
+  opacity: 0.65;
+  cursor: pointer;
+}
+
+/* 资源导航按钮正常状态悬停样式 */
+.resource-navigation-buttons .btn:not(:disabled):hover {
+  background-color: #0A42CC !important;
+  border-color: #0A42CC !important;
+}
+
 /* 显示设置：拖拽时显示“移动”而非“添加”视觉提示 */
 .draggable-item {
   cursor: move; /* 显示移动光标 */
