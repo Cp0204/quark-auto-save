@@ -4426,6 +4426,26 @@
           ];
           const parseOne = (txt) => {
             if (!txt) return null;
+            
+            // 特殊处理：检测"日期 连接符 第x期"格式，优先使用日期
+            // 支持各种连接符号：空格、-、_、.、/等
+            const dateEpisodePatterns = [
+              /(\d{4})-(\d{1,2})-(\d{1,2})\s*[-\s_\.\/]\s*第(\d{1,3})期/,  // 2025-09-08 - 第128期, 2025-09-08 第128期, 2025-09-08_第128期, 2025-09-08.第128期
+              /(\d{4})\/(\d{1,2})\/(\d{1,2})\s*[-\s_\.\/]\s*第(\d{1,3})期/,   // 2025/09/08 - 第128期, 2025/09/08 第128期, 2025/09/08_第128期, 2025/09/08.第128期
+              /(\d{4})\.(\d{1,2})\.(\d{1,2})\s*[-\s_\.\/]\s*第(\d{1,3})期/,  // 2025.09.08 - 第128期, 2025.09.08 第128期, 2025.09.08_第128期, 2025.09.08.第128期
+            ];
+            
+            for (const pattern of dateEpisodePatterns) {
+              const match = String(txt).match(pattern);
+              if (match) {
+                const y = match[1];
+                const mm = String(match[2]).padStart(2, '0');
+                const dd = String(match[3]).padStart(2, '0');
+                return { episode_number: null, air_date: `${y}-${mm}-${dd}` };
+              }
+            }
+            
+            // 原有的逻辑：先尝试提取集数信息
             for (const re of patterns) {
               const m = String(txt).match(re);
               if (m) {
@@ -4435,6 +4455,8 @@
                 return { episode_number: parseInt(m[1]), air_date: null };
               }
             }
+            
+            // 最后尝试提取日期信息
             for (const re of datePatterns) {
               const m = String(txt).match(re);
               if (m) {

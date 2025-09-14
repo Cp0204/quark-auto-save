@@ -160,6 +160,26 @@ class TaskExtractor:
         if not latest_file:
             return {'episode_number': None, 'air_date': None, 'progress_type': 'unknown'}
         
+        # 特殊处理：检测"日期 连接符 第x期"格式，优先使用日期
+        # 支持各种连接符号：空格、-、_、.、/等
+        date_episode_patterns = [
+            r'(\d{4})-(\d{1,2})-(\d{1,2})\s*[-\s_\.\/]\s*第(\d{1,3})期',  # 2025-09-08 - 第128期, 2025-09-08 第128期, 2025-09-08_第128期, 2025-09-08.第128期
+            r'(\d{4})/(\d{1,2})/(\d{1,2})\s*[-\s_\.\/]\s*第(\d{1,3})期',   # 2025/09/08 - 第128期, 2025/09/08 第128期, 2025/09/08_第128期, 2025/09/08.第128期
+            r'(\d{4})\.(\d{1,2})\.(\d{1,2})\s*[-\s_\.\/]\s*第(\d{1,3})期',  # 2025.09.08 - 第128期, 2025.09.08 第128期, 2025.09.08_第128期, 2025.09.08.第128期
+        ]
+        
+        for pattern in date_episode_patterns:
+            match = re.search(pattern, latest_file)
+            if match:
+                year, month, day = match.groups()[:3]  # 只取前3个组（年月日）
+                date_str = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+                return {
+                    'episode_number': None,
+                    'season_number': None,
+                    'air_date': date_str,
+                    'progress_type': 'date'
+                }
+        
         # 尝试提取集数信息
         for pattern in self.episode_patterns:
             match = re.search(pattern, latest_file)
