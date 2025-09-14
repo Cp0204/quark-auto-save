@@ -1068,14 +1068,14 @@
                       <button v-else-if="key==='refresh_alist' && formData.plugins && formData.plugins.alist && formData.plugins.alist.url && formData.plugins.alist.token && formData.plugins.alist.storage_id && formData.button_display.refresh_alist !== 'disabled'" type="button" class="btn btn-outline-alist" :class="{'hover-only': formData.button_display.refresh_alist === 'hover'}" @click="refreshAlistDirectory(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="刷新AList目录"><img src="https://cdn.jsdelivr.net/gh/alist-org/logo@main/logo.svg" class="alist-icon"></button>
                       <template v-else-if="key==='run_task'">
                         <button v-if="!task.shareurl_ban" type="button" class="btn btn-outline-primary" :class="{'hover-only': formData.button_display.run_task === 'hover'}" @click="runScriptNow(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="运行此任务"><i class="bi bi-caret-right"></i></button>
-                        <button v-else type="button" class="btn btn-warning" :title="formatShareUrlBanMessage(task.shareurl_ban)" disabled><i class="bi bi-exclamation-circle"></i></button>
+                        <button v-else type="button" class="btn btn-warning" :title="formatShareUrlBanMessage(task.shareurl_ban) || task.shareurl_ban" disabled><i class="bi bi-exclamation-circle"></i></button>
                       </template>
                       <button v-else-if="key==='delete_task'" type="button" class="btn btn-outline-danger" :class="{'hover-only': formData.button_display.delete_task === 'hover'}" @click="removeTask(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="删除此任务"><i class="bi bi-trash3"></i></button>
                     </template>
                   </div>
                 </div>
                 <div class="collapse ml-3" :id="'collapse_'+index">
-                  <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="formatShareUrlBanMessage(task.shareurl_ban)"></div>
+                  <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="formatShareUrlBanMessage(task.shareurl_ban) || task.shareurl_ban"></div>
                   <div class="form-group row">
                     <label class="col-sm-2 col-form-label">任务名称</label>
                     <div class="col-sm-10">
@@ -1252,7 +1252,7 @@
                         <i class="bi bi-caret-right"></i>
                       </div>
                       <!-- 资源失效警告按钮（失效状态） -->
-                      <div v-else class="discovery-warning-btn tasklist-warning-btn" :title="formatShareUrlBanMessage(task.shareurl_ban)">
+                      <div v-else class="discovery-warning-btn tasklist-warning-btn" :title="formatShareUrlBanMessage(task.shareurl_ban) || task.shareurl_ban">
                         <i class="bi bi-exclamation-circle"></i>
                       </div>
                       <div class="discovery-edit-metadata tasklist-delete-btn" @click.stop="removeTask(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="删除此任务">
@@ -2492,7 +2492,7 @@
             <div class="alert alert-warning" v-if="createTask.error" v-html="createTask.error"></div>
             <div v-else>
               <!-- 直接复制任务配置的完整代码 -->
-              <div class="alert alert-warning" role="alert" v-if="createTask.taskData.shareurl_ban" v-html="formatShareUrlBanMessage(createTask.taskData.shareurl_ban)"></div>
+              <div class="alert alert-warning" role="alert" v-if="createTask.taskData.shareurl_ban" v-html="formatShareUrlBanMessage(createTask.taskData.shareurl_ban) || createTask.taskData.shareurl_ban"></div>
               <div class="form-group row">
                 <label class="col-sm-2 col-form-label">任务名称</label>
                 <div class="col-sm-10">
@@ -4265,7 +4265,8 @@
               message.includes("网络错误") ||
               message.includes("服务端错误") ||
               message.includes("临时错误")) {
-            return "网络连接异常，请稍后重试"; // 不设置shareurl_ban，允许重试
+            // 对于可恢复错误，返回null表示不应该设置shareurl_ban
+            return null;
           }
           
           if (message.includes("分享者用户封禁链接查看受限") || 
@@ -6460,7 +6461,10 @@
                       return;
                     }
                     // 使用格式化函数处理其他错误信息
-                    this.$set(task, "shareurl_ban", this.formatShareUrlBanMessage(share_detail.error));
+                    const formattedError = this.formatShareUrlBanMessage(share_detail.error);
+                    if (formattedError) {
+                      this.$set(task, "shareurl_ban", formattedError);
+                    }
                   } else if (share_detail.list !== undefined && share_detail.list.length === 0) {
                     // 检查文件列表是否为空，确保列表存在且为空
                     this.$set(task, "shareurl_ban", "该分享已被删除，无法访问");
@@ -6604,7 +6608,10 @@
                 
                 // 格式化已有的警告信息
                 if (task.shareurl_ban) {
-                  task.shareurl_ban = this.formatShareUrlBanMessage(task.shareurl_ban);
+                  const formattedError = this.formatShareUrlBanMessage(task.shareurl_ban);
+                  if (formattedError) {
+                    task.shareurl_ban = formattedError;
+                  }
                 }
                 
                 return task;
@@ -7488,7 +7495,10 @@
                 }
 
                 // 使用格式化函数处理其他错误信息
-                this.$set(task, "shareurl_ban", this.formatShareUrlBanMessage(share_detail.error));
+                const formattedError = this.formatShareUrlBanMessage(share_detail.error);
+                if (formattedError) {
+                  this.$set(task, "shareurl_ban", formattedError);
+                }
               } else {
                 // 检查文件列表是否为空
                 if (share_detail.list !== undefined && share_detail.list.length === 0) {
