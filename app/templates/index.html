@@ -8925,20 +8925,30 @@
             }
           });
         },
-        loadTaskLatestInfo() {
+        async loadTaskLatestInfo() {
           // 获取所有任务的最新转存信息（包括日期和文件）
-          axios.get('/task_latest_info')
-            .then(response => {
-              if (response.data.success) {
-                this.taskLatestRecords = response.data.data.latest_records;
-                this.taskLatestFiles = response.data.data.latest_files;
-              } else {
-                console.error('获取任务最新信息失败:', response.data.message);
+          try {
+            const response = await axios.get('/task_latest_info');
+            if (response.data.success) {
+              this.taskLatestRecords = response.data.data.latest_records;
+              this.taskLatestFiles = response.data.data.latest_files;
+              
+              // 构建进度映射，确保基于日期的集数统计能正常工作
+              this.calendar.progressByTaskName = this.buildProgressByTaskNameFromLatestFiles(this.taskLatestFiles || {});
+              this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+              
+              // 同时加载 episodes 数据，确保基于日期的集数统计能正常工作
+              try {
+                await this.loadCalendarEpisodesLocal();
+              } catch (e) {
+                console.warn('加载 episodes 数据失败:', e);
               }
-            })
-            .catch(error => {
-              console.error('获取任务最新信息失败:', error);
-            });
+            } else {
+              console.error('获取任务最新信息失败:', response.data.message);
+            }
+          } catch (error) {
+            console.error('获取任务最新信息失败:', error);
+          }
         },
         // 加载任务列表的元数据信息（用于热更新海报和元数据）
         async loadTasklistMetadata() {

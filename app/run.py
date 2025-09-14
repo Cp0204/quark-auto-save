@@ -76,7 +76,7 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
         for tid, sn, sname, ecount in rows:
             season_meta[(int(tid), int(sn))] = {'season_name': sname or '', 'episode_count': int(ecount or 0)}
 
-        # 统计“已转存集数”：基于转存记录最新进度构建映射（按任务名）
+        # 统计"已转存集数"：基于转存记录最新进度构建映射（按任务名）
         transferred_by_task = {}
         try:
             rdb = RecordDB()
@@ -115,7 +115,31 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                         processed = process_season_episode_info(name_wo_ext, task_name)
                         parsed = extractor.extract_progress_from_latest_file(processed)
                         if parsed and parsed.get('episode_number'):
+                            # 包含集数的情况
                             transferred_by_task[task_name] = int(parsed['episode_number'])
+                        elif parsed and parsed.get('air_date'):
+                            # 只有日期的情况：通过查询数据库获取对应日期的最大集数
+                            air_date = parsed['air_date']
+                            try:
+                                # 查找该任务对应的节目名称
+                                task_info = next((t for t in tasks_info if (t.get('task_name') or t.get('taskname')) == task_name), None)
+                                if task_info:
+                                    show_name = (task_info.get('matched_show_name') or task_info.get('show_name') or '').strip()
+                                    if show_name:
+                                        # 查询该节目在该日期播出的最大集数
+                                        cur.execute(
+                                            """
+                                            SELECT MAX(CAST(episode_number AS INTEGER))
+                                            FROM episodes
+                                            WHERE show_name = ? AND air_date = ?
+                                            """,
+                                            (show_name, air_date)
+                                        )
+                                        result = cur.fetchone()
+                                        if result and result[0] is not None:
+                                            transferred_by_task[task_name] = int(result[0])
+                            except Exception:
+                                pass
             rdb.close()
         except Exception:
             transferred_by_task = {}
