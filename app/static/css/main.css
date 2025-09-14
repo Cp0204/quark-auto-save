@@ -1635,7 +1635,14 @@ button.close:focus,
   border-bottom: 1px solid var(--border-color);
   display: flex; /* 使用flexbox布局 */
   align-items: center; /* 垂直居中 */
-  flex-wrap: wrap; /* 允许换行 */
+  flex-wrap: nowrap; /* 禁止换行，改为水平滚动 */
+  overflow-x: auto; /* 水平滚动 */
+  overflow-y: hidden; /* 隐藏垂直滚动 */
+  -webkit-overflow-scrolling: touch; /* iOS设备平滑滚动 */
+  -ms-overflow-style: none; /* IE 和 Edge 隐藏滚动条 */
+  scrollbar-width: none; /* Firefox 隐藏滚动条 */
+  width: 100%; /* 限制宽度为100% */
+  max-width: 100%; /* 限制最大宽度 */
 }
 /* 编辑元数据模态框：输入前标题灰底，统一输入高度与字体，与创建任务保持一致 */
 #editMetadataModal .input-group-prepend .input-group-text {
@@ -1728,6 +1735,8 @@ button.close:focus,
   align-items: center;
   margin-right: 10px; /* 为每个项目添加右边距 */
   position: relative; /* 为伪元素定位提供参考 */
+  flex-shrink: 0; /* 防止项目被压缩 */
+  white-space: nowrap; /* 防止文本换行 */
 }
 
 /* 移除最后一个项目的右边距 */
@@ -8159,4 +8168,15 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   opacity: 1 !important;
   visibility: visible !important;
   display: block !important;
+}
+
+/* 面包屑导航滚动条隐藏样式 */
+/* 文件整理页面面包屑导航滚动条隐藏 */
+.file-manager-breadcrumb::-webkit-scrollbar {
+  display: none; /* 隐藏滚动条 */
+}
+
+/* 模态框面包屑导航滚动条隐藏 */
+#fileSelectModal .breadcrumb::-webkit-scrollbar {
+  display: none; /* 隐藏滚动条 */
 }
