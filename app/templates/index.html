@@ -1080,8 +1080,8 @@
                     <label class="col-sm-2 col-form-label">任务名称</label>
                     <div class="col-sm-10">
                       <div class="input-group">
-                        <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(index, task)" @input="changeTaskname(index, task)">
-                        <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.index === index && (smart_param.taskSuggestions.success || smart_param.isSearching)">
+                        <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(task.__originalIndex !== undefined ? task.__originalIndex : index, task)" @input="changeTaskname(task.__originalIndex !== undefined ? task.__originalIndex : index, task)">
+                        <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.index === (task.__originalIndex !== undefined ? task.__originalIndex : index) && (smart_param.taskSuggestions.success || smart_param.isSearching)">
                           <div class="dropdown-item text-muted" v-if="smart_param.isSearching" style="font-size:14px; padding: 0 8px; text-align: left;">
                             <span v-if="smart_param.validating">
                               <i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i> 
@@ -1092,7 +1092,7 @@
                           <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
                             {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
                           </div>
-                          <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(index, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
+                          <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(task.__originalIndex !== undefined ? task.__originalIndex : index, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
                             <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                             <small class="text-muted">
                               <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.quark\.cn\/s\//, '') }}</a>
@@ -1101,8 +1101,8 @@
                           </div>
                         </div>
                         <div class="input-group-append" title="资源搜索">
-                          <button class="btn btn-primary" type="button" @click="searchSuggestions(index, task.taskname)">
-                            <i v-if="smart_param.isSearching && smart_param.index === index" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
+                          <button class="btn btn-primary" type="button" @click="searchSuggestions(task.__originalIndex !== undefined ? task.__originalIndex : index, task.taskname)">
+                            <i v-if="smart_param.isSearching && smart_param.index === (task.__originalIndex !== undefined ? task.__originalIndex : index)" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
                             <i v-else class="bi bi-search"></i>
                           </button>
                           <div class="input-group-text" title="谷歌搜索">
@@ -1124,7 +1124,7 @@
                       <div class="input-group">
                         <input type="text" name="shareurl[]" class="form-control" v-model="task.shareurl" placeholder="必填" @blur="changeShareurl(task)">
                         <div class="input-group-append" v-if="task.shareurl">
-                          <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;fileSelect.previewRegex=false;showShareSelect(index)" title="选择需转存的文件夹"><i class="bi bi-folder"></i></button>
+                          <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;fileSelect.previewRegex=false;showShareSelect(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="选择需转存的文件夹"><i class="bi bi-folder"></i></button>
                           <div class="input-group-text">
                             <a target="_blank" :href="task.shareurl"><i class="bi bi-link-45deg"></i></a>
                           </div>
@@ -1136,11 +1136,11 @@
                     <label class="col-sm-2 col-form-label">保存路径</label>
                     <div class="col-sm-10">
                       <div class="input-group">
-                        <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填" @focus="focusTaskname(index, task)" @input="onSavepathChange(index, task)">
+                        <input type="text" name="savepath[]" class="form-control" v-model="task.savepath" placeholder="必填" @focus="focusTaskname(task.__originalIndex !== undefined ? task.__originalIndex : index, task)" @input="onSavepathChange(task.__originalIndex !== undefined ? task.__originalIndex : index, task)">
                         <div class="input-group-append">
-                          <button class="btn btn-outline-secondary" type="button" v-if="smart_param.savepath && smart_param.index == index && task.savepath != smart_param.origin_savepath" @click="task.savepath = smart_param.origin_savepath" title="恢复保存路径"><i class="bi bi-reply"></i></button>
-                          <button class="btn btn-outline-secondary" type="button" @click="showSavepathSelect(index)" title="选择保存到的文件夹"><i class="bi bi-folder"></i></button>
-                          <button type="button" class="btn btn-outline-secondary" @click="resetFolderContent(index)" title="重置文件夹：此操作将删除当前保存路径中的所有文件及相关转存记录，且不可恢复，请谨慎操作"><i class="bi bi-folder-x"></i></button>
+                          <button class="btn btn-outline-secondary" type="button" v-if="smart_param.savepath && smart_param.index == (task.__originalIndex !== undefined ? task.__originalIndex : index) && task.savepath != smart_param.origin_savepath" @click="task.savepath = smart_param.origin_savepath" title="恢复保存路径"><i class="bi bi-reply"></i></button>
+                          <button class="btn btn-outline-secondary" type="button" @click="showSavepathSelect(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="选择保存到的文件夹"><i class="bi bi-folder"></i></button>
+                          <button type="button" class="btn btn-outline-secondary" @click="resetFolderContent(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="重置文件夹：此操作将删除当前保存路径中的所有文件及相关转存记录，且不可恢复，请谨慎操作"><i class="bi bi-folder-x"></i></button>
                         </div>
                       </div>
                     </div>
@@ -1150,11 +1150,11 @@
                     <div class="col-sm-10">
                       <div class="input-group">
                         <div class="input-group-prepend">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.previewRegex=true;fileSelect.sortBy='file_name_re';fileSelect.sortOrder='desc';showShareSelect(index)" :title="task.use_sequence_naming ? '预览顺序命名效果' : (task.use_episode_naming ? '预览剧集命名效果' : '预览正则命名效果')">
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.previewRegex=true;fileSelect.sortBy='file_name_re';fileSelect.sortOrder='desc';showShareSelect(task.__originalIndex !== undefined ? task.__originalIndex : index)" :title="task.use_sequence_naming ? '预览顺序命名效果' : (task.use_episode_naming ? '预览剧集命名效果' : '预览正则命名效果')">
                             {{ task.use_sequence_naming ? '顺序命名' : (task.use_episode_naming ? '剧集命名' : '正则命名') }}
                           </button>
                         </div>
-                        <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" :placeholder="task.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}' : (task.use_episode_naming ? '输入带[]占位符的重命名格式，如：剧名 - S01E[]' : '匹配表达式')"  list="magicRegex" @input="detectNamingMode(task); onPatternChange(index, task)">
+                        <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" :placeholder="task.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}' : (task.use_episode_naming ? '输入带[]占位符的重命名格式，如：剧名 - S01E[]' : '匹配表达式')"  list="magicRegex" @input="detectNamingMode(task); onPatternChange(task.__originalIndex !== undefined ? task.__originalIndex : index, task)">
                         <input v-if="!task.use_sequence_naming && !task.use_episode_naming" type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
                         <div class="input-group-append" title="保存时只比较文件名的部分，01.mp4和01.mkv视同为同一文件，不重复转存">
                           <div class="input-group-text">
@@ -1183,7 +1183,7 @@
                       <div class="input-group">
                         <input type="text" class="form-control" placeholder="可选，只转存比此文件更新的文件，请在符合筛选条件的文件中进行选择" name="startfid[]" v-model="task.startfid">
                         <div class="input-group-append" v-if="task.shareurl">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.previewRegex=false;showShareSelect(index)" title="选择起始文件"><i class="bi bi-folder"></i></button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.previewRegex=false;showShareSelect(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="选择起始文件"><i class="bi bi-folder"></i></button>
                         </div>
                       </div>
                     </div>
@@ -1200,7 +1200,7 @@
                       <div class="input-group">
                         <input type="date" name="enddate[]" class="form-control date-input-no-icon" v-model="task.enddate" placeholder="可选" :ref="'enddate_' + index">
                         <div class="input-group-append">
-                          <button type="button" class="btn btn-outline-secondary" @click="openDatePicker(index)" title="选择截止日期">
+                          <button type="button" class="btn btn-outline-secondary" @click="openDatePicker(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="选择截止日期">
                             <i class="bi bi-calendar3"></i>
                           </button>
                         </div>
