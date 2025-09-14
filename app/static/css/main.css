@@ -4679,12 +4679,19 @@ select.task-filter-select,
 /* 文件整理页面面包屑导航样式 */
 .file-manager-breadcrumb {
   margin-top: 20px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch; /* iOS设备平滑滚动 */
+  -ms-overflow-style: none; /* IE 和 Edge 隐藏滚动条 */
+  scrollbar-width: none; /* Firefox 隐藏滚动条 */
 }
 
 .file-manager-breadcrumb .breadcrumb-item {
   color: var(--dark-text-color);
   padding: 0;
   position: relative; /* 添加相对定位 */
+  flex-shrink: 0; /* 防止项目被压缩 */
+  white-space: nowrap; /* 防止文本换行 */
 }
 
 .file-manager-breadcrumb .breadcrumb-item a {
@@ -5017,7 +5024,9 @@ tr.selected-file .file-size-cell .delete-record-btn {
   border-top: 1px solid var(--border-color) !important;
   border-bottom: 1px solid var(--border-color) !important;
   display: flex;
+  flex-wrap: nowrap; /* 禁止换行 */
   align-items: center;
+  min-width: max-content; /* 确保内容不被压缩 */
   height: 42px !important; /* 确保面包屑导航内容区域高度为42px（包含上下边框） */
   line-height: 23px !important; /* 设置行高以确保文字垂直居中 */
   box-sizing: border-box !important; /* 确保边框包含在总高度内 */
@@ -5027,6 +5036,8 @@ tr.selected-file .file-size-cell .delete-record-btn {
   color: var(--dark-text-color);
   padding: 0;
   position: relative; /* 添加相对定位 */
+  flex-shrink: 0; /* 防止项目被压缩 */
+  white-space: nowrap; /* 防止文本换行 */
 }
 
 .file-manager-breadcrumb .breadcrumb-item a {
@@ -5053,10 +5064,6 @@ tr.selected-file .file-size-cell .delete-record-btn {
   flex: 1;
 }
 
-/* 文件整理页面面包屑导航样式 */
-.file-manager-breadcrumb {
-  margin-top: 20px;
-}
 
 /* 文件整理规则栏样式 */
 .file-manager-rule-bar {
