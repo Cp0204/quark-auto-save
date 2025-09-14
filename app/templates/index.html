@@ -1312,7 +1312,10 @@
                     </div>
                   </div>
                   <div class="discovery-info">
-                    <div class="discovery-title" :title="getTasklistPosterTitle(task, index)" style="cursor: default;">
+                    <div class="discovery-title" 
+                         :title="getTasklistPosterTitle(task, index)" 
+                         :style="{ cursor: getTaskTmdbId(task) ? 'pointer' : 'default' }"
+                         @click="openTaskTmdbPage(task)">
                       {{ task.taskname }}
                       <span v-if="getTaskShowStatus(task.taskname)"> · {{ getTaskShowStatus(task.taskname) }}</span>
                       <span v-if="isTaskUpdatedToday(task.taskname) && shouldShowTodayIndicator()"
@@ -5812,7 +5815,7 @@
           }
         },
 
-        // 打开“内容管理”任务匹配到的节目的 TMDB 页面
+        // 打开"内容管理"任务匹配到的节目的 TMDB 页面
         openTaskMatchedTmdbPage(task) {
           try {
             if (!task) return;
@@ -5823,6 +5826,64 @@
             }
           } catch (e) {
             console.warn('打开任务匹配TMDB页面失败', e);
+          }
+        },
+        // 获取任务的 TMDB ID（用于任务列表海报视图）
+        getTaskTmdbId(task) {
+          try {
+            if (!task) return null;
+            // 优先从 calendar.tasks 中获取匹配的任务信息
+            const calendarTask = this.getCalendarTaskByName(task.taskname);
+            if (calendarTask) {
+              return (calendarTask.match && calendarTask.match.tmdb_id) || calendarTask.match_tmdb_id || calendarTask.tmdb_id;
+            }
+            // 如果 calendar.tasks 中没有，则从任务配置中获取
+            const cal = (task.calendar_info) || {};
+            const match = cal.match || {};
+            return match.tmdb_id || task.tmdb_id;
+          } catch (e) {
+            return null;
+          }
+        },
+        // 获取任务的季数（用于任务列表海报视图）
+        getTaskSeasonNumber(task) {
+          try {
+            if (!task) return null;
+            // 优先从 calendar.tasks 中获取匹配的任务信息
+            const calendarTask = this.getCalendarTaskByName(task.taskname);
+            if (calendarTask) {
+              return (calendarTask.match && calendarTask.match.latest_season_number) || 
+                     calendarTask.matched_latest_season_number || 
+                     calendarTask.season_number;
+            }
+            // 如果 calendar.tasks 中没有，则从任务配置中获取
+            const cal = (task.calendar_info) || {};
+            const match = cal.match || {};
+            return match.latest_season_number || task.season_number;
+          } catch (e) {
+            return null;
+          }
+        },
+        // 打开任务列表海报视图中任务的 TMDB 页面
+        openTaskTmdbPage(task) {
+          try {
+            if (!task) return;
+            const tmdbId = this.getTaskTmdbId(task);
+            if (tmdbId) {
+              // 获取匹配的季数
+              const seasonNumber = this.getTaskSeasonNumber(task);
+              if (seasonNumber) {
+                // 打开特定季的页面
+                const url = `https://www.themoviedb.org/tv/${tmdbId}/season/${seasonNumber}`;
+                window.open(url, '_blank');
+              } else {
+                // 如果没有季数信息，则打开整个节目的页面
+                const url = `https://www.themoviedb.org/tv/${tmdbId}`;
+                window.open(url, '_blank');
+              }
+            }
+          } catch (e) {
+            console.warn('打开任务TMDB页面失败', e);
           }
         },
 

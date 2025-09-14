@@ -8180,3 +8180,13 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
 #fileSelectModal .breadcrumb::-webkit-scrollbar {
   display: none; /* 隐藏滚动条 */
 }
+
+/* 任务列表海报视图 - 可点击的任务名称样式 */
+.discovery-title[style*="cursor: pointer"] {
+  color: var(--dark-text-color);
+  transition: color 0.2s ease;
+}
+
+.discovery-title[style*="cursor: pointer"]:hover {
+  color: var(--focus-border-color);
+}
