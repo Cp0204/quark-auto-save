@@ -4100,10 +4100,51 @@
             if (!this.tasklist || !this.tasklist.selectedType || this.tasklist.selectedType === 'all') return true;
             const name = task.taskname || task.task_name || '';
             let contentType = '';
-            const t = (this.calendar.tasks || []).find(x => (x.task_name || x.taskname) === name);
-            contentType = (t && t.content_type) || 'other';
+            
+            // 优先从任务配置中读取内容类型
+            if (task.content_type) {
+              contentType = task.content_type;
+            } else if (task.calendar_info && task.calendar_info.extracted && task.calendar_info.extracted.content_type) {
+              contentType = task.calendar_info.extracted.content_type;
+            } else {
+              // 如果任务配置中没有，则从 calendar.tasks 中查找
+              const t = (this.calendar.tasks || []).find(x => (x.task_name || x.taskname) === name);
+              contentType = (t && t.content_type) || 'other';
+            }
+            
             return contentType === this.tasklist.selectedType;
           } catch (e) { return true; }
+        },
+        // 获取根据当前视图筛选条件过滤后的任务中编号最大的任务
+        getLastTaskByCurrentFilter() {
+          try {
+            if (!this.formData.tasklist || this.formData.tasklist.length === 0) {
+              return null;
+            }
+            
+            // 如果当前视图是"全部"，返回所有任务中编号最大的任务
+            if (!this.tasklist || !this.tasklist.selectedType || this.tasklist.selectedType === 'all') {
+              return this.formData.tasklist[this.formData.tasklist.length - 1];
+            }
+            
+            // 根据当前筛选条件过滤任务
+            const filteredTasks = this.formData.tasklist.filter(task => {
+              return this.tasklistFilterByType(task);
+            });
+            
+            // 如果没有匹配的任务，返回所有任务中编号最大的任务
+            if (filteredTasks.length === 0) {
+              return this.formData.tasklist[this.formData.tasklist.length - 1];
+            }
+            
+            // 返回过滤后任务中编号最大的任务（最后一个）
+            return filteredTasks[filteredTasks.length - 1];
+          } catch (e) {
+            // 出错时返回所有任务中编号最大的任务
+            return this.formData.tasklist && this.formData.tasklist.length > 0 
+              ? this.formData.tasklist[this.formData.tasklist.length - 1] 
+              : null;
+          }
         },
         // 计算转存进度（已转存/已播出 的百分比，取整），优先使用实时映射
         getTransferProgress(task) {
@@ -6781,16 +6822,33 @@
 
           // 如果有上一个任务，继承保存路径和命名规则
           if (this.formData.tasklist.length > 0) {
-            const lastTask = this.formData.tasklist[this.formData.tasklist.length - 1];
-            newTask.savepath = lastTask.savepath || "";
-            newTask.pattern = lastTask.pattern || "";
-            
-            // 继承命名规则选择模式
-            newTask.use_sequence_naming = lastTask.use_sequence_naming || false;
-            newTask.use_episode_naming = lastTask.use_episode_naming || false;
-            newTask.sequence_naming = lastTask.sequence_naming || "";
-            newTask.episode_naming = lastTask.episode_naming || "";
-            newTask.replace = lastTask.replace || "";
+            // 使用新的筛选逻辑：根据当前视图筛选条件获取对应类型中编号最大的任务
+            const lastTask = this.getLastTaskByCurrentFilter();
+            if (lastTask) {
+              newTask.savepath = lastTask.savepath || "";
+              newTask.pattern = lastTask.pattern || "";
+              
+              // 继承命名规则选择模式
+              newTask.use_sequence_naming = lastTask.use_sequence_naming || false;
+              newTask.use_episode_naming = lastTask.use_episode_naming || false;
+              newTask.sequence_naming = lastTask.sequence_naming || "";
+              newTask.episode_naming = lastTask.episode_naming || "";
+              newTask.replace = lastTask.replace || "";
+            }
+          }
+
+          // 根据当前视图筛选条件设置新任务的内容类型
+          if (this.tasklist && this.tasklist.selectedType && this.tasklist.selectedType !== 'all') {
+            // 确保 calendar_info 结构存在
+            if (!newTask.calendar_info) {
+              newTask.calendar_info = {};
+            }
+            if (!newTask.calendar_info.extracted) {
+              newTask.calendar_info.extracted = {};
+            }
+            // 设置内容类型
+            newTask.calendar_info.extracted.content_type = this.tasklist.selectedType;
+            newTask.content_type = this.tasklist.selectedType;
           }
 
           // 应用全局插件配置到新任务
@@ -11514,16 +11572,19 @@
             
             // 如果有上一个任务，继承保存路径和命名规则
             if (this.formData.tasklist && this.formData.tasklist.length > 0) {
-              const lastTask = this.formData.tasklist[this.formData.tasklist.length - 1];
-              this.createTask.taskData.savepath = lastTask.savepath || "";
-              this.createTask.taskData.pattern = lastTask.pattern || "";
-              this.createTask.taskData.replace = lastTask.replace || "";
-              
-              // 继承命名规则选择模式
-              this.createTask.taskData.use_sequence_naming = lastTask.use_sequence_naming || false;
-              this.createTask.taskData.use_episode_naming = lastTask.use_episode_naming || false;
-              this.createTask.taskData.sequence_naming = lastTask.sequence_naming || "";
-              this.createTask.taskData.episode_naming = lastTask.episode_naming || "";
+              // 使用新的筛选逻辑：根据当前视图筛选条件获取对应类型中编号最大的任务
+              const lastTask = this.getLastTaskByCurrentFilter();
+              if (lastTask) {
+                this.createTask.taskData.savepath = lastTask.savepath || "";
+                this.createTask.taskData.pattern = lastTask.pattern || "";
+                this.createTask.taskData.replace = lastTask.replace || "";
+                
+                // 继承命名规则选择模式
+                this.createTask.taskData.use_sequence_naming = lastTask.use_sequence_naming || false;
+                this.createTask.taskData.use_episode_naming = lastTask.use_episode_naming || false;
+                this.createTask.taskData.sequence_naming = lastTask.sequence_naming || "";
+                this.createTask.taskData.episode_naming = lastTask.episode_naming || "";
+              }
             }
             
             // 应用全局插件配置
