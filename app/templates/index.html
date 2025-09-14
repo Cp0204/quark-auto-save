@@ -6915,8 +6915,10 @@
           // 应用全局插件配置到新任务
           this.applyGlobalPluginConfig(newTask);
 
+          // 给新任务添加临时标识，用于后续定位
+          newTask.__isNewlyAdded = true;
           this.formData.tasklist.push(newTask)
-          const index = this.formData.tasklist.length - 1;
+          const originalIndex = this.formData.tasklist.length - 1;
           
           // 清除之前任务的搜索记录，避免影响新任务
           this.smart_param.taskSuggestions = {
@@ -6926,9 +6928,16 @@
           
           // 等Vue更新DOM后，自动展开新添加的任务
           this.$nextTick(() => {
-            $(`#collapse_${index}`).collapse('show');
-            // 滚动到底部
-            this.scrollToX();
+            // 找到新任务在排序后列表中的位置
+            const sortedIndex = this.sortedTasklist.findIndex(task => task.__isNewlyAdded);
+            if (sortedIndex !== -1) {
+              // 展开新任务的编辑模块
+              $(`#collapse_${sortedIndex}`).collapse('show');
+              // 滚动到新任务位置
+              this.scrollToX();
+              // 移除临时标识
+              delete newTask.__isNewlyAdded;
+            }
           });
         },
         focusTaskname(index, task) {
