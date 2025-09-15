@@ -38,7 +38,7 @@
   - [x] 支持分享链接的子目录
   - [x] 记录失效分享并跳过任务
   - [x] 支持需提取码的分享链接 <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/使用技巧集锦#支持需提取码的分享链接)</sup>
-  - [x] 智能搜索资源并自动填充（**支持自动过滤失效链接**） <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/CloudSaver搜索源)</sup>
+  - [x] 智能搜索资源并自动填充（**支持自动过滤失效链接**） <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/资源搜索)</sup>
 
 - 文件管理
   - [x] 目标目录不存在时自动新建
@@ -63,9 +63,9 @@
 
 - 其它
   - [x] 每日签到领空间 <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/使用技巧集锦#每日签到领空间)</sup>
-  - [x] 支持多个通知推送渠道 <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/通知推送服务配置)</sup>
+  - [x] 支持多个通知推送渠道 <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/通知设置)</sup>
   - [x] 支持多账号（多账号签到、**文件管理**，仅首账号转存）
-  - [x] 支持网盘文件下载、strm 文件生成等功能 <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/插件配置)</sup>
+  - [x] 支持网盘文件下载、strm 文件生成等功能 <sup>[?](https://github.com/x1ao4/quark-auto-save-x/wiki/插件设置)</sup>
   - [x] **支持通过追剧日历功能了解订阅内容的播出情况**
 
 ## 部署
@@ -86,7 +86,6 @@ docker run -d \
 Docker Compose（推荐）
 
 ```yaml
-version: "3.3"
 services:
   quark-auto-save-x:
     image: x1ao4/quark-auto-save-x:latest
@@ -130,10 +129,10 @@ services:
 | `乘风2025 - S06E{}`                     |                        | 按照文件顺序命名，`{}` 会被代入序号，新增项目序号在已存在的最大序号的基础上递增  |
 | `黑镜 - S07E[]`                         |                        | 自动识别文件名中的集编号，`[]` 会被代入从文件名中自动提取的集编号               |
 
-更多正则使用说明：[正则处理教程](https://github.com/x1ao4/quark-auto-save-x/wiki/正则处理教程)
+更多正则使用说明：[命名规则](https://github.com/x1ao4/quark-auto-save-x/wiki/命名规则)
 
 ### 刷新媒体库
-在有新转存时，可触发完成相应功能，如自动刷新媒体库、生成 .strm 文件等。配置指南：[插件配置](https://github.com/x1ao4/quark-auto-save-x/wiki/插件配置)
+在有新转存时，可触发完成相应功能，如自动刷新媒体库、生成 .strm 文件等。配置指南：[插件设置](https://github.com/x1ao4/quark-auto-save-x/wiki/插件设置)
 
 媒体库模块以插件的方式的集成，如果你有兴趣请参考[插件开发指南](https://github.com/x1ao4/quark-auto-save-x/tree/x/plugins)。
 
