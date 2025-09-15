@@ -162,6 +162,36 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 
 请参考 Wiki ：[使用技巧集锦](https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦)
 
+## 生态项目
+
+以下展示 QAS 生态项目，包括官方项目和第三方项目。
+
+### 官方项目
+
+* [QAS一键推送助手](https://greasyfork.org/zh-CN/scripts/533201-qas一键推送助手)
+
+  油猴脚本，在夸克网盘分享页面添加推送到 QAS 的按钮
+
+* [SmartStrm](https://github.com/Cp0204/SmartStrm)
+
+  STRM 文件生成工具，用于转存后处理，媒体免下载入库播放。
+
+### 第三方开源项目
+
+> [!TIP]
+>
+> 以下第三方开源项目均由社区开发并保持开源，与 QAS 作者无直接关联。在部署到生产环境前，请自行评估相关风险。
+>
+> 如果您有新的项目没有在此列出，可以通过 Issues 提交。
+
+* [nonebot-plugin-quark-autosave](https://github.com/fllesser/nonebot-plugin-quark-autosave)
+
+  QAS Telegram 机器人，快速管理自动转存任务
+
+* [Astrbot_plugin_quarksave](https://github.com/lm379/astrbot_plugin_quarksave)
+
+  AstrBot 插件，调用 quark_auto_save 实现自动转存资源到夸克网盘
+
 ## 打赏
 
 如果这个项目让你受益，你可以无偿赠与我1块钱，让我知道开源有价值。谢谢！
