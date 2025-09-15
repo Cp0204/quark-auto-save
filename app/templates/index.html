@@ -1243,10 +1243,6 @@
                          :alt="(getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name) ? getCalendarTaskByName(task.taskname).matched_show_name : task.taskname"
                          referrerpolicy="no-referrer"
                          crossorigin="anonymous"
-                         loading="lazy"
-                         decoding="async"
-                         fetchpriority="low"
-                         width="400" height="600"
                          @error="handleImageError($event)">
 
                     <!-- 按钮行容器：自动补位布局 -->
@@ -2007,10 +2003,6 @@
                            :alt="task.show_name || task.task_name"
                            referrerpolicy="no-referrer"
                            crossorigin="anonymous"
-                           loading="lazy"
-                           decoding="async"
-                           fetchpriority="low"
-                           width="400" height="600"
                            @error="handleImageError($event)">
                       
                       <!-- 刷新元数据按钮（左上角，悬停显示） -->
@@ -2097,10 +2089,6 @@
                              class="calendar-poster-image"
                              crossorigin="anonymous"
                              referrerpolicy="no-referrer"
-                             loading="lazy"
-                             decoding="async"
-                             fetchpriority="low"
-                             width="400" height="600"
                              @error="handleCalendarImageError">
                         
                         <!-- 刷新元数据按钮（左上角，悬停显示） -->
