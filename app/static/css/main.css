@@ -3,6 +3,19 @@
  * 整合了所有 WebUI 的样式，包括 index.html、login.html 和 dashboard.css 中的样式
  */
 
+/* --------------- CSS变量定义 --------------- */
+:root {
+  --focus-border-color-rgb: 0, 123, 255;
+  --success-color: #28a745;
+  --secondary-text-color: #979799; /* 影视发现类型文本中灰色 */
+  --dark-text-color: #404040;
+  --light-text-color: #b1b1b3;
+  --border-color: #e3e3e5; /* 统一边框颜色变量 */
+  --focus-border-color: #0D53FF; /* 输入框聚焦时的边框颜色 */
+  --shadow-spread: 0; /* 统一阴影扩散距离设为0 */
+  --button-gray-background-color: #ededf0; /* 按钮灰色背景颜色 */
+}
+
 /* --------------- 基础样式 --------------- */
 body {
   font-size: 1rem;
@@ -157,6 +170,11 @@ main .row.title {
   margin-bottom: 6.5px;
   padding-left: 0px; /* 不使用padding，因为不能有负值 */
   margin-left: -15px; /* 添加负边距向左移动2px */
+}
+
+/* 精准调整：QASX API 模块与上方模块的垂直间距减小 8px */
+main .row.title[title^="QASX API"] {
+  margin-top: 12px;
 }
 
 /* 系统配置页面标题文字样式 */
@@ -487,6 +505,10 @@ main div[v-if="activeTab === 'config'"] .row.title:first-child {
 
 /* 侧边栏折叠相关功能只在大尺寸屏幕上启用 */
 @media (max-width: 767.98px) {
+  /* 追剧日历：筛选框与下方按钮组的竖向间距调整为 8px */
+  .calendar-filter-row {
+    margin-bottom: 8px !important;
+  }
   .sidebar-collapsed {
     width: auto !important;
     min-width: auto !important;
@@ -897,6 +919,25 @@ select.form-control {
   font-size: 0.9rem;
 }
 
+/* 合并集切换按钮图标样式 */
+.bi-file-break {
+  color: var(--dark-text-color);
+  font-size: 0.95rem;
+}
+
+.bi-file {
+  color: var(--dark-text-color);
+  font-size: 0.95rem;
+}
+
+/* 追剧日历视图切换按钮图标样式 */
+.bi-grid-3x3-gap {
+  color: var(--dark-text-color);
+  font-size: 0.98rem;
+  position: relative;
+  top: 0.5px;
+}
+
 /* TMDB图标和豆瓣图标样式 */
 .tmdb-icon {
   width: 1.07rem;
@@ -922,6 +963,9 @@ select.form-control {
 .btn-outline-secondary:hover .bi-link-45deg,
 .btn-outline-secondary:hover .bi-google,
 .btn-outline-secondary:hover .bi-calendar3,
+.btn-outline-secondary:hover .bi-file-break,
+.btn-outline-secondary:hover .bi-file,
+.btn-outline-secondary:hover .bi-grid-3x3-gap,
 .btn-outline-secondary:hover .bi-eye,
 .btn-outline-secondary:hover .bi-eye-slash,
 .btn-outline-secondary:hover .bi-reply,
@@ -1197,7 +1241,7 @@ table.table thead th {
 
 /* 表头悬停样式 */
 .table thead th.cursor-pointer:hover {
-  background-color: #f7f7fa; /* 表头悬停背景色 */
+  background-color: #f7f7f9; /* 表头悬停背景色 */
 }
 
 /* 表格单元格样式 */
@@ -1218,6 +1262,51 @@ table.table thead th {
 /* 表格行悬停样式 */
 .table tbody tr:hover {
   background-color: var(--button-gray-background-color); /* 行悬停背景色 */
+}
+
+/* 任务列表：悬停不改变新增信息颜色（集数统计/任务进度/节目状态） */
+/* 任务列表新增信息样式，跟随最近转存文件/最近更新日期的风格与交互 */
+.task-season-counts,
+.task-progress,
+.task-show-status {
+  color: var(--dark-text-color);
+  font-size: 0.95rem;
+}
+
+/* 仅调节两个位置的集数统计中的斜杠上移：
+   1) 任务列表里的 .task-season-counts */
+.task-season-counts .count-slash,
+.discovery-poster-overlay .count-slash {
+  position: relative;
+  top: -2px;
+  display: inline-block;
+  font-size: 0.8em; /* 单独缩小斜杠字号，仅影响这两处 */
+  font-weight: 600; /* 提高字重，抵消缩小字号带来的变细感 */
+}
+
+/* 仅调节两个位置的集数统计中的斜杠上移：
+   2) 内容管理海报悬停层里的 .calendar-poster-overlay（复用同一类名） */
+   .calendar-poster-overlay .count-slash,
+   .discovery-poster-overlay .count-slash {
+     position: relative;
+     top: -1.5px;
+     display: inline-block;
+     font-size: 0.8em; /* 单独缩小斜杠字号，仅影响这两处 */
+     font-weight: 600; /* 提高字重，抵消缩小字号带来的变细感 */
+   }
+
+/* 悬停显示模式 - 与 task-latest-* 保持一致：默认隐藏，仅在悬停时显示，且不变色 */
+.task-season-counts.hover-only,
+.task-progress.hover-only,
+.task-show-status.hover-only {
+  display: none;
+  transition: all 0.2s ease;
+}
+
+.task .btn:hover .task-season-counts.hover-only,
+.task .btn:hover .task-progress.hover-only,
+.task .btn:hover .task-show-status.hover-only {
+  display: inline;
 }
 
 /* 长文本列的特殊处理 */
@@ -1313,13 +1402,13 @@ button.close:focus,
   align-items: center;
   justify-content: center;
   border-radius: 6px !important;
-  border: 1px solid #ffc107 !important;
+  border: 1px solid #efb30a !important;
 }
 
 /* 任务列表中的警告按钮图标样式 */
 .task .btn-warning .bi-exclamation-circle {
   font-size: 1.04rem;
-  color: #ffc107 !important;
+  color: #efb30a !important;
   margin-right: 0;
 }
 
@@ -1431,14 +1520,16 @@ button.close:focus,
 /* --------------- 文件选择弹窗样式 --------------- */
 /* 文件选择弹窗整体样式 */
 #fileSelectModal .modal-dialog,
-#createTaskModal .modal-dialog {
+#createTaskModal .modal-dialog,
+#editMetadataModal .modal-dialog {
   max-width: 1080px;
   margin: 4rem auto;
   width: calc(100% - 1.25rem); /* 左右各保留1.5rem的最小边距 */
 }
 
 #fileSelectModal .modal-content,
-#createTaskModal .modal-content {
+#createTaskModal .modal-content,
+#editMetadataModal .modal-content {
   border-radius: 6px;
   border: 1px solid var(--border-color);
   box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
@@ -1446,7 +1537,8 @@ button.close:focus,
 
 /* 弹窗头部样式 */
 #fileSelectModal .modal-header,
-#createTaskModal .modal-header {
+#createTaskModal .modal-header,
+#editMetadataModal .modal-header {
   background-color: #fff;
   border-bottom: 1px solid var(--border-color);
   padding: 11px 16px;
@@ -1455,7 +1547,8 @@ button.close:focus,
 }
 
 #fileSelectModal .modal-title,
-#createTaskModal .modal-title {
+#createTaskModal .modal-title,
+#editMetadataModal .modal-title {
   font-size: 1.2rem;
   font-weight: 500;
   color: var(--dark-text-color);
@@ -1470,7 +1563,8 @@ button.close:focus,
 
 /* 弹窗关闭按钮 */
 #fileSelectModal .close,
-#createTaskModal .close {
+#createTaskModal .close,
+#editMetadataModal .close {
   font-size: 1.4rem;
   padding: 8px;
   margin: -8px -8px -8px auto;
@@ -1482,6 +1576,7 @@ button.close:focus,
 /* 修改关闭按钮样式，使用 bi-x-lg 图标 */
 #fileSelectModal .close .bi-x-lg,
 #createTaskModal .close .bi-x-lg,
+#editMetadataModal .close .bi-x-lg,
 .modal .close .bi-x-lg {
   font-size: 1.2rem;
   color: var(--dark-text-color);
@@ -1492,25 +1587,29 @@ button.close:focus,
 }
 
 #fileSelectModal .close:hover,
-#createTaskModal .close:hover {
+#createTaskModal .close:hover,
+#editMetadataModal .close:hover {
   opacity: 1;
   color: var(--dark-text-color);
 }
 
 /* 弹窗主体样式 */
 #fileSelectModal .modal-body,
-#createTaskModal .modal-body {
+#createTaskModal .modal-body,
+#editMetadataModal .modal-body {
   padding: 16px;
   font-size: 0.875rem;
 }
 
 /* 创建任务模态框主内容区相对定位 */
-#createTaskModal .modal-body {
+#createTaskModal .modal-body,
+#editMetadataModal .modal-body {
   position: relative;
 }
 
 /* 创建任务模态框主内容区底部分割线 */
-#createTaskModal .modal-body::after {
+#createTaskModal .modal-body::after,
+#editMetadataModal .modal-body::after {
   content: '';
   position: absolute;
   bottom: 7px;
@@ -1536,7 +1635,99 @@ button.close:focus,
   border-bottom: 1px solid var(--border-color);
   display: flex; /* 使用flexbox布局 */
   align-items: center; /* 垂直居中 */
-  flex-wrap: wrap; /* 允许换行 */
+  flex-wrap: nowrap; /* 禁止换行，改为水平滚动 */
+  overflow-x: auto; /* 水平滚动 */
+  overflow-y: hidden; /* 隐藏垂直滚动 */
+  -webkit-overflow-scrolling: touch; /* iOS设备平滑滚动 */
+  -ms-overflow-style: none; /* IE 和 Edge 隐藏滚动条 */
+  scrollbar-width: none; /* Firefox 隐藏滚动条 */
+  width: 100%; /* 限制宽度为100% */
+  max-width: 100%; /* 限制最大宽度 */
+}
+/* 编辑元数据模态框：输入前标题灰底，统一输入高度与字体，与创建任务保持一致 */
+#editMetadataModal .input-group-prepend .input-group-text {
+  background-color: var(--button-gray-background-color) !important;
+}
+#editMetadataModal .form-control,
+#editMetadataModal .input-group-text,
+#editMetadataModal .input-group .form-control::placeholder {
+  height: 32px;
+  font-size: 0.95rem; /* 与创建任务模态框的页面内容字号一致 */
+}
+#editMetadataModal .input-group-text,
+#editMetadataModal .form-control,
+#editMetadataModal .input-group-append .input-group-text {
+  border-color: var(--border-color);
+}
+
+/* 编辑模态：两列输入的横向间距 8px（每列左右各4px） */
+#editMetadataModal .row > [class*="col-"] {
+  padding-right: 4px;
+  padding-left: 4px;
+}
+/* 抵消父级row默认的左右负margin，确保净间距为8px */
+#editMetadataModal .row {
+  margin-right: -4px;
+  margin-left: -4px;
+}
+
+/* 灰底方块：第 / 季 统一尺寸并重叠边框 */
+#editMetadataModal .input-group .input-group-text.square-append,
+#editMetadataModal .input-group .input-group-prepend .input-group-text.square-append,
+#editMetadataModal .input-group .input-group-append .input-group-text.square-append {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--button-gray-background-color);
+  border-color: var(--border-color);
+}
+
+/* 重叠边框：后置灰块与输入之间、两端灰块与输入之间边框不重复 */
+#editMetadataModal .input-group .input-group-prepend .input-group-text.square-append,
+#editMetadataModal .input-group .input-group-append .input-group-text.square-append {
+  border-color: var(--border-color);
+}
+#editMetadataModal .input-group .input-group-prepend .input-group-text.square-append.season-left {
+  border-right: 0 !important; /* 取消右边框，由输入框左边框承担分隔线 */
+  width: 32px;
+  margin-right: 0;
+}
+#editMetadataModal .input-group .input-group-append .input-group-text.square-append.season-right {
+  border-left: 1px solid var(--border-color);
+}
+/* 修正：嵌入在 .form-control 内部的方块两侧边框不重复 */
+#editMetadataModal .form-control .input-group-text.square-append {
+  border-left: none;
+  border-right: none;
+}
+
+/* 修正季数输入宽度默认值和展示 */
+#editMetadataModal .edit-season-number {
+  box-sizing: border-box; /* 让边框计入总宽度 */
+  width: 32px; /* 基础宽度，允许内联样式按内容放大 */
+  min-width: 32px;
+  text-align: center;
+  padding: 0 8px; /* 提供足够内边距避免数字贴边被裁切 */
+  border-left: 1px solid var(--border-color); /* 使用输入框左边框作为唯一分隔线 */
+  margin-left: -1px; /* 将左边框与“第”的右侧对齐并覆盖，避免双线 */
+}
+
+/* 焦点态：与其他输入一致，仅边框变色，无阴影/扩展；左侧边线覆盖“第”的右边线 */
+#editMetadataModal .edit-season-number:focus {
+  outline: none;
+  box-shadow: none !important;
+  border-color: var(--focus-border-color) !important;
+  border-left-color: var(--focus-border-color) !important;
+  margin-left: -1px; /* 焦点态保持覆盖，避免出现双线 */
+}
+
+/* 焦点态：保持四边高亮（左侧也显示蓝色），不改变布局 */
+#editMetadataModal .edit-season-number:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1px #0d6efd, 0 0 0 0.2rem rgba(13,110,253,.25);
 }
 
 #fileSelectModal .breadcrumb-item {
@@ -1544,6 +1735,8 @@ button.close:focus,
   align-items: center;
   margin-right: 10px; /* 为每个项目添加右边距 */
   position: relative; /* 为伪元素定位提供参考 */
+  flex-shrink: 0; /* 防止项目被压缩 */
+  white-space: nowrap; /* 防止文本换行 */
 }
 
 /* 移除最后一个项目的右边距 */
@@ -1748,7 +1941,8 @@ button.close:focus,
 
 /* 弹窗底部样式 */
 #fileSelectModal .modal-footer,
-#createTaskModal .modal-footer {
+#createTaskModal .modal-footer,
+#editMetadataModal .modal-footer {
   border-top: none; /* 隐藏底部分割线 */
   padding: 0px 16px 12px 16px; /* 上 右 下 左：设置上内边距为0 */
   margin-top: -4px; /* 使用负margin使整个底部区域向上移动 */
@@ -1760,13 +1954,15 @@ button.close:focus,
 
 /* 添加文件选择模态框左下角文件信息文本的左边距样式 */
 #fileSelectModal .modal-footer .file-selection-info,
-#createTaskModal .modal-footer .file-selection-info {
+#createTaskModal .modal-footer .file-selection-info,
+#editMetadataModal .modal-footer .file-selection-info {
   margin-left: 0px; /* 与表格左边距保持一致 */
   font-size: 0.85rem !important; /* 覆盖内联样式 */
 }
 
 #fileSelectModal .modal-footer span,
-#createTaskModal .modal-footer span {
+#createTaskModal .modal-footer span,
+#editMetadataModal .modal-footer span {
   font-size: 0.85rem;
   color: var(--dark-text-color);
   margin-right: auto;
@@ -1774,7 +1970,8 @@ button.close:focus,
 
 /* 弹窗底部按钮样式 */
 #fileSelectModal .btn-primary,
-#createTaskModal .btn-primary {
+#createTaskModal .btn-primary,
+#editMetadataModal .btn-primary {
   background-color: var(--focus-border-color);
   border-color: var(--focus-border-color);
   font-size: 0.85rem;
@@ -1789,14 +1986,16 @@ button.close:focus,
 
 /* 弹窗底部按钮内的标记样式 */
 #fileSelectModal .btn-primary .badge,
-#createTaskModal .btn-primary .badge {
+#createTaskModal .btn-primary .badge,
+#editMetadataModal .btn-primary .badge {
   margin-left: 5px;
   display: flex;
   align-items: center;
 }
 
 #fileSelectModal .btn-primary:hover,
-#createTaskModal .btn-primary:hover {
+#createTaskModal .btn-primary:hover,
+#editMetadataModal .btn-primary:hover {
   background-color: #0A42CC !important;
   border-color: #0A42CC !important;
 }
@@ -2039,7 +2238,7 @@ div.jsoneditor-tree button.jsoneditor-button:focus {
 
 /* 登录页标题区域 - 浅灰色背景 */
 .login-header {
-  background-color: #f7f7fa;
+  background-color: #f7f7f9;
   padding: 30px;
   margin-bottom: 0;
   height: 100px; /* 设置固定高度 */
@@ -2192,6 +2391,10 @@ div.jsoneditor-tree button.jsoneditor-button:focus {
 }
 
 .sidebar .nav-link .bi-film {
+  font-size: 0.94rem;
+}
+
+.sidebar .nav-link .bi-calendar3-week {
   font-size: 0.94rem;
 }
 
@@ -2515,7 +2718,7 @@ body {
 
 /* 设置侧边栏背景色 */
 .sidebar.bg-light {
-  background-color: #f7f7fa !important;
+  background-color: #f7f7f9 !important;
 }
 
 /* 设置任务列表之间的分隔线颜色 */
@@ -2678,6 +2881,15 @@ body {
   color: var(--dark-text-color) !important;
   box-shadow: none !important;
   outline: none !important;
+}
+
+/* 确保日历图标按钮在获得焦点后，悬停时仍正确显示深色背景 */
+.btn-outline-secondary:has(.bi-calendar3):hover,
+.btn-outline-secondary:has(.bi-calendar3):hover:focus,
+.btn-outline-secondary:has(.bi-calendar3):hover:active {
+  background-color: var(--dark-text-color) !important;
+  border-color: var(--dark-text-color) !important;
+  color: #fff !important;
 }
 
 /* 自定义JSON编辑器样式 */
@@ -3752,7 +3964,7 @@ input::-moz-list-button {
   }
 
   #fileSelectModal .modal-body > div::-webkit-scrollbar-track {
-    background-color: #f7f7fa; /* 滚动条轨道 */
+    background-color: #f7f7f9; /* 滚动条轨道 */
     border-radius: 4px; /* 圆角滚动条 */
   }
 }
@@ -3834,7 +4046,7 @@ input::-moz-list-button {
 
 /* 模态框表头悬停样式 */
 #fileSelectModal .table th.cursor-pointer:hover {
-  background-color: #f7f7fa; /* 表头悬停背景色 */
+  background-color: #f7f7f9; /* 表头悬停背景色 */
   cursor: pointer;
 }
 
@@ -4196,7 +4408,14 @@ table.selectable-records .expand-button:hover {
   .task:hover .task-latest-date,
   .task:hover .task-latest-file,
   .task.task-expanded .task-latest-date,
-  .task.task-expanded .task-latest-file {
+  .task.task-expanded .task-latest-file,
+  /* 新增：移动端展开/悬停时隐藏 集数统计/任务进度/节目状态 */
+  .task:hover .task-season-counts,
+  .task:hover .task-progress,
+  .task:hover .task-show-status,
+  .task.task-expanded .task-season-counts,
+  .task.task-expanded .task-progress,
+  .task.task-expanded .task-show-status {
     display: none;
   }
 
@@ -4231,8 +4450,8 @@ table.selectable-records .expand-button:hover {
     justify-content: center;
   }
 
-  .task-latest-date,
-  .task-latest-file {
+  .task-latest-date:not(.hover-only),
+  .task-latest-file:not(.hover-only) {
     display: inline !important;
   }
 
@@ -4334,6 +4553,11 @@ table.selectable-records .expand-button:hover {
 .selectable-files tbody tr:hover .task-today-indicator.hover-only {
   opacity: 1;
   visibility: visible;
+}
+
+/* 日历（月视图）当日更新星标尺寸：日历剧名字号较小，星标相应缩小 */
+.calendar-month-episode .task-today-indicator {
+  font-size: 0.95em;
 }
 
 .display-setting-row {
@@ -4464,12 +4688,19 @@ select.task-filter-select,
 /* 文件整理页面面包屑导航样式 */
 .file-manager-breadcrumb {
   margin-top: 20px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch; /* iOS设备平滑滚动 */
+  -ms-overflow-style: none; /* IE 和 Edge 隐藏滚动条 */
+  scrollbar-width: none; /* Firefox 隐藏滚动条 */
 }
 
 .file-manager-breadcrumb .breadcrumb-item {
   color: var(--dark-text-color);
   padding: 0;
   position: relative; /* 添加相对定位 */
+  flex-shrink: 0; /* 防止项目被压缩 */
+  white-space: nowrap; /* 防止文本换行 */
 }
 
 .file-manager-breadcrumb .breadcrumb-item a {
@@ -4508,6 +4739,8 @@ select.task-filter-select,
 .batch-rename-btn {
   width: 32px;
   height: 32px;
+  min-width: 32px;
+  max-width: 32px;
   padding: 0;
   display: flex;
   align-items: center;
@@ -4515,6 +4748,7 @@ select.task-filter-select,
   border-radius: 6px !important;
   color: var(--dark-text-color) !important;
   border-color: var(--dark-text-color) !important;
+  flex-shrink: 0;
 }
 
 /* 为相邻的batch-rename-btn按钮添加左边距 */
@@ -4799,7 +5033,9 @@ tr.selected-file .file-size-cell .delete-record-btn {
   border-top: 1px solid var(--border-color) !important;
   border-bottom: 1px solid var(--border-color) !important;
   display: flex;
+  flex-wrap: nowrap; /* 禁止换行 */
   align-items: center;
+  min-width: max-content; /* 确保内容不被压缩 */
   height: 42px !important; /* 确保面包屑导航内容区域高度为42px（包含上下边框） */
   line-height: 23px !important; /* 设置行高以确保文字垂直居中 */
   box-sizing: border-box !important; /* 确保边框包含在总高度内 */
@@ -4809,6 +5045,8 @@ tr.selected-file .file-size-cell .delete-record-btn {
   color: var(--dark-text-color);
   padding: 0;
   position: relative; /* 添加相对定位 */
+  flex-shrink: 0; /* 防止项目被压缩 */
+  white-space: nowrap; /* 防止文本换行 */
 }
 
 .file-manager-breadcrumb .breadcrumb-item a {
@@ -4835,10 +5073,6 @@ tr.selected-file .file-size-cell .delete-record-btn {
   flex: 1;
 }
 
-/* 文件整理页面面包屑导航样式 */
-.file-manager-breadcrumb {
-  margin-top: 20px;
-}
 
 /* 文件整理规则栏样式 */
 .file-manager-rule-bar {
@@ -4965,7 +5199,7 @@ table.selectable-files .file-size-cell {
 
 /* 表头悬停样式 */
 .table thead th.cursor-pointer:hover {
-  background-color: #f7f7fa; /* 表头悬停背景色 */
+  background-color: #f7f7f9; /* 表头悬停背景色 */
 }
 
 /* 确保所有表格的表头悬停样式一致 */
@@ -4973,7 +5207,7 @@ table.selectable-files .file-size-cell {
 .selectable-files th.cursor-pointer:hover,
 table.selectable-files th.cursor-pointer:hover,
 table.selectable-records th.cursor-pointer:hover {
-  background-color: #f7f7fa !important; /* 表头悬停背景色 */
+  background-color: #f7f7f9 !important; /* 表头悬停背景色 */
   cursor: pointer;
 }
 
@@ -5608,13 +5842,15 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 }
 
 /* 创建任务模态框的取消按钮样式 */
-#createTaskModal .modal-footer .btn-cancel {
+#createTaskModal .modal-footer .btn-cancel,
+#editMetadataModal .modal-footer .btn-cancel {
   background-color: var(--button-gray-background-color) !important;
   border-color: var(--button-gray-background-color) !important;
   color: var(--dark-text-color) !important;
 }
 
-#createTaskModal .modal-footer .btn-cancel:hover {
+#createTaskModal .modal-footer .btn-cancel:hover,
+#editMetadataModal .modal-footer .btn-cancel:hover {
   background-color: #e0e2e6 !important;
   border-color: #e0e2e6 !important;
   color: var(--dark-text-color) !important;
@@ -5633,7 +5869,8 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 /* --------------- 创建任务模态框使用任务列表样式 --------------- */
 
 /* 创建任务模态框底部间距调整 */
-#createTaskModal .modal-footer {
+#createTaskModal .modal-footer,
+#editMetadataModal .modal-footer {
   margin-top: 5px; /* 调整为5px，让分割线距离按钮16px */
 }
 
@@ -6033,7 +6270,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   .file-manager-rule-bar-responsive .input-group-append .btn {
     margin-left: 8px;
   }
-    /* 只影响移动端的“预览并执行重命名”按钮上边距 */
+    /* 只影响移动端的"预览并执行重命名"按钮上边距 */
     .file-manager-rule-bar-responsive .batch-rename-btn {
       margin-top: 0px; /* 你想要的上边距 */
       width: 32px;
@@ -6167,7 +6404,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--dark-text-color);
   color: white;
   padding: 8px 8px 5px 8px;
   font-size: 0.75rem;
@@ -6216,6 +6453,26 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   z-index: 10;
 }
 
+/* 转存进度徽标颜色：类名使用状态名称，便于直接调整 */
+.discovery-rating.status-finale { color: #efb30a; } /* 黄色（评分同色） */
+.discovery-rating.status-ended { color: #ff4d4f; }  /* 红色 */
+.discovery-rating.status-other { color: #00C853; }  /* 绿色 */
+
+/* 追剧日历 - 已转存标识 */
+.calendar-transferred-badge { color: #00C853; padding: 2px 8px 2px 7.5px; }
+.calendar-transferred-badge i {
+  line-height: 1;
+  display: inline-block;
+  transform: translateY(0.5px) scale(1.5);
+  /* 使用多向阴影模拟加粗（图标为字体，font-weight不生效） */
+  text-shadow:
+    0 0 0 currentColor,
+    0 0.45px 0 currentColor,
+    0 -0.45px 0 currentColor,
+    0.45px 0 0 currentColor,
+    -0.45px 0 0 currentColor;
+}
+
 .discovery-create-task {
   position: absolute;
   top: 8px;
@@ -6237,8 +6494,16 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   font-weight: 210;
 }
 
-.discovery-create-task .plus-text {
-  transform: translateX(-0.5px) translateY(-1.5px);
+.discovery-create-task i {
+  font-size: 0.8em;
+  transform: translateX(0px) translateY(0px);
+  /* 使用多向阴影模拟加粗（图标为字体，font-weight不生效） */
+  text-shadow:
+    0 0 0 currentColor,
+    0 0.1px 0 currentColor,
+    0 -0.1px 0 currentColor,
+    0.1px 0 0 currentColor,
+    -0.1px 0 0 currentColor;
 }
 
 .discovery-poster:hover .discovery-create-task {
@@ -6249,6 +6514,142 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   background-color: var(--focus-border-color);
   border-color: var(--focus-border-color);
   color: white;
+}
+
+/* 追剧日历海报视图刷新按钮样式 */
+.calendar-refresh-metadata {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 22px;
+  height: 22px;
+  background-color: transparent;
+  border: 1px solid white;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.3s ease;
+  z-index: 10;
+  color: white;
+  font-size: 0.8rem;
+  /* 使用多向阴影模拟加粗（图标为字体，font-weight不生效） */
+  text-shadow:
+    0 0 0 currentColor,
+    0 0.1px 0 currentColor,
+    0 -0.1px 0 currentColor,
+    0.1px 0 0 currentColor,
+    -0.1px 0 0 currentColor;
+}
+
+.calendar-poster:hover .calendar-refresh-metadata {
+  opacity: 1;
+}
+
+.calendar-refresh-metadata:hover {
+  background-color: var(--focus-border-color);
+  border-color: var(--focus-border-color);
+  color: white;
+}
+
+/* 内容管理视图刷新元数据按钮样式 */
+.discovery-refresh-metadata {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 22px;
+  height: 22px;
+  background-color: transparent;
+  border: 1px solid white;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.3s ease;
+  z-index: 10;
+  color: white;
+  font-size: 0.82rem;
+  /* 使用多向阴影模拟加粗（图标为字体，font-weight不生效） */
+  text-shadow:
+    0 0 0 currentColor,
+    0 0.1px 0 currentColor,
+    0 -0.1px 0 currentColor,
+    0.1px 0 0 currentColor,
+    -0.1px 0 0 currentColor;
+}
+
+.discovery-poster:hover .discovery-refresh-metadata {
+  opacity: 1;
+}
+
+.discovery-refresh-metadata:hover {
+  background-color: var(--focus-border-color);
+  border-color: var(--focus-border-color);
+  color: white;
+}
+
+/* 内容管理视图编辑按钮样式（与刷新按钮一致，靠右一点） */
+.discovery-edit-metadata {
+  position: absolute;
+  top: 8px;
+  left: 36px;
+  width: 22px;
+  height: 22px;
+  background-color: transparent;
+  border: 1px solid white;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.3s ease;
+  z-index: 10;
+  color: white;
+  /* 使用多向阴影模拟加粗（图标为字体，font-weight不生效） */
+  text-shadow:
+    0 0 0 currentColor,
+    0 0.1px 0 currentColor,
+    0 -0.1px 0 currentColor,
+    0.1px 0 0 currentColor,
+    -0.1px 0 0 currentColor;
+}
+
+/* 内容管理视图编辑元数据按钮图标样式 */
+.discovery-edit-metadata i {
+  font-size: 0.67rem;
+}
+
+.discovery-poster:hover .discovery-edit-metadata {
+  opacity: 1;
+}
+
+.discovery-edit-metadata:hover {
+  background-color: var(--focus-border-color);
+  border-color: var(--focus-border-color);
+  color: white;
+}
+
+/* 新增：按钮行容器，使用相对定位+inline-flex保证自动补位 */
+.discovery-actions-row {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 22px;
+  display: inline-flex;
+  gap: 6px;
+}
+
+/* 行内部的按钮相对定位，使其不受按钮自身left样式影响（已覆盖） */
+.discovery-actions-row > .discovery-refresh-metadata,
+.discovery-actions-row > .discovery-edit-metadata {
+  position: relative;
+  top: 0;
+  left: 0;
 }
 
 .discovery-info {
@@ -6400,7 +6801,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   letter-spacing: normal;
 }
 
-/* 仅在“搜索来源”前的最后一个插件折叠时，将间距减少 2px */
+/* 仅在"搜索来源"前的最后一个插件折叠时，将间距减少 2px */
 div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   margin-bottom: -10px !important; /* override inline -8px only for collapsed state */
 }
@@ -6437,4 +6838,1355 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   line-height: 1.2;
   white-space: nowrap;
   vertical-align: baseline;
+}
+
+/* --------------- 追剧日历样式 --------------- */
+/* 日历分类按钮样式 */
+.calendar-category-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: -12px;
+}
+
+.calendar-category-btn {
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+  border: 1px solid var(--dark-text-color);
+  background-color: transparent;
+  color: var(--dark-text-color);
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.calendar-category-btn:hover {
+  background-color: var(--dark-text-color);
+  border-color: var(--dark-text-color);
+  color: white;
+}
+
+.calendar-category-btn.active {
+  background-color: var(--focus-border-color) !important;
+  border-color: var(--focus-border-color) !important;
+  color: white !important;
+}
+
+/* 日历控制按钮样式 */
+.calendar-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: -12px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+/* 移动端：追剧日历右上角按钮栏不换行并可横向滚动 */
+@media (max-width: 767.98px) {
+  /* 追剧日历：顶部一行（分类 + 控制）不换行 */
+  .calendar-header-row {
+    flex-wrap: nowrap !important;
+    align-items: center;
+    overflow-x: auto !important; /* 整行作为滚动容器 */
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    column-gap: 8px; /* 左右两组之间 8px 间距 */
+    margin-top: 8px !important; /* 与上方内容保持 8px 间距 */
+    /* 去除内边距，使用遮罩实现两侧 20px 的“硬遮挡”效果（无渐变） */
+    padding-left: 0;
+    padding-right: 0;
+    -webkit-mask-image: linear-gradient(to right,
+      transparent 0,
+      transparent 15px,
+      black 15px,
+      black calc(100% - 15px),
+      transparent calc(100% - 15px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(to right,
+      transparent 0,
+      transparent 15px,
+      black 15px,
+      black calc(100% - 15px),
+      transparent calc(100% - 15px),
+      transparent 100%
+    );
+  }
+  .calendar-header-row::-webkit-scrollbar { display: none; }
+  /* 两列都按内容宽度，不允许被压缩到0，通过外层行滚动 */
+  .calendar-header-row > .col-lg-8.col-md-6,
+  .calendar-header-row > .col-lg-4.col-md-6 {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+  /* 去除列内侧补白，避免视觉间距异常 */
+  .calendar-header-row > .col-lg-8.col-md-6 { padding-right: 0 !important; }
+  .calendar-header-row > .col-lg-4.col-md-6 { padding-left: 0 !important; }
+
+  /* 左侧分类按钮容器：保持单行（滚动交给外层行）*/
+  .calendar-category-buttons {
+    flex-wrap: nowrap !important;
+    margin-top: 0 !important; /* 覆盖全局 -12px，避免被遮挡 */
+  }
+
+  /* 按钮容器强制单行，超出部分横向滚动，隐藏滚动条 */
+  .calendar-controls {
+    width: auto !important;
+    max-width: 100% !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    white-space: nowrap; /* 兜底防止换行 */
+    justify-content: flex-start !important; /* 移动端从左对齐，便于滚动 */
+    margin-top: 0 !important; /* 覆盖全局 -12px，避免被上方遮挡 */
+    -webkit-overflow-scrolling: touch; /* 惯性滚动 */
+    scrollbar-width: none; /* Firefox 隐藏滚动条 */
+    touch-action: pan-x; /* 明确允许横向滑动 */
+  }
+  .calendar-controls::-webkit-scrollbar { /* WebKit 隐藏滚动条 */
+    display: none;
+  }
+  /* 防止子元素换行并被压缩 */
+  .calendar-controls > * {
+    flex: 0 0 auto !important; /* 不收缩，不换行 */
+  }
+
+  /* 移除先前对父级列的约束，交由外层行滚动 */
+  /* 压缩按钮间距为 8px（与PC一致，保证不再因为额外 margin 导致换行）*/
+  .calendar-controls .btn,
+  .calendar-controls .btn-group {
+    margin: 0; /* 由 gap 控制间距 */
+  }
+}
+
+/* 统一日历控制按钮的样式 */
+.calendar-controls .btn {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 移除按钮组的额外边距，使用gap统一控制间距 */
+.calendar-controls .btn-group {
+  margin: 0;
+  flex-shrink: 0;
+  display: flex;
+}
+
+/* 移除单独按钮的额外边距，使用gap统一控制间距 */
+.calendar-controls .btn:not(.btn-group .btn) {
+  margin: 0;
+}
+
+/* 确保按钮组内部按钮重叠显示 */
+.calendar-controls .btn-group .btn {
+  margin: 0;
+  border-radius: 0;
+  border-right-width: 0;
+}
+
+.calendar-controls .btn-group .btn:first-child {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+.calendar-controls .btn-group .btn:last-child {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+  border-right-width: 1px;
+}
+
+/* 今天按钮样式统一 */
+.calendar-controls .btn-primary {
+  background-color: transparent !important;
+  border-color: var(--dark-text-color) !important;
+  color: var(--dark-text-color) !important;
+  padding: 6px 8px !important;
+}
+
+.calendar-controls .btn-primary:hover {
+  background-color: var(--dark-text-color) !important;
+  border-color: var(--dark-text-color) !important;
+  color: white !important;
+}
+
+/* 海报模式样式 整体上边距调整 */
+.calendar-poster-mode {
+  padding-top: 4px;
+}
+
+.calendar-date-navigation {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  column-gap: 20px;
+  margin-bottom: 20px;
+}
+
+/* 日历模式样式 整体上边距调整 */
+.calendar-month-mode {
+  /* 在窄屏下，当内部表格达到最小宽度时，由本容器产生横向滚动，而不是页面溢出 */
+  padding-top: 4px;
+  overflow-x: auto; /* 横向滚动托管在日历容器 */
+  overflow-y: hidden; /* 纵向由页面滚动，避免双滚动条 */
+  /* 保留稳定的滚动条占位，让滚动条显示在表格下方不遮挡内容 */
+  scrollbar-gutter: stable both-edges; /* 支持的浏览器会在下方保留沟槽 */
+  padding-bottom: 16px; /* 为不支持 scrollbar-gutter 的浏览器腾出空间 */
+  padding-left: 0px;
+  padding-right: 0px;
+}
+
+.calendar-date-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background-color: transparent;
+  border: 1px solid var(--dark-text-color);
+  width: 100%;
+  height: 32px;
+  font-size: 0.95rem;
+  color: var(--dark-text-color);
+  cursor: default;
+}
+
+.calendar-date-item.today {
+  background-color: var(--focus-border-color);
+  border-color: var(--focus-border-color);
+  color: white;
+}
+
+.calendar-date-weekday {
+  font-size: 0.95rem;
+  font-weight: normal;
+  margin: 0;
+}
+
+.calendar-date-day {
+  font-size: 0.95rem;
+  font-weight: normal;
+  margin: 0;
+}
+
+.calendar-poster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  column-gap: 20px;
+  row-gap: 14px;
+  padding: 0;
+  margin-top: 20px;
+}
+
+.calendar-poster-column {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.calendar-poster-item {
+  width: 100%;
+}
+
+.calendar-poster {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2/3; /* 强制保持2:3比例 */
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 10px;
+}
+
+.calendar-poster-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.3s ease;
+}
+
+.calendar-poster-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--dark-text-color);
+  color: white;
+  padding: 8px 8px 5px 8px;
+  font-size: 0.75rem;
+  font-weight: normal;
+  line-height: 1.4;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.calendar-poster:hover .calendar-poster-overlay {
+  opacity: 1;
+}
+
+.calendar-poster:hover .calendar-poster-image {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.calendar-poster-overlay .info-line {
+  margin-bottom: 5.5px;
+  padding-bottom: 5px;
+  word-wrap: break-word;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.calendar-poster-overlay .info-line:first-child {
+  margin-top: 0;
+}
+
+.calendar-poster-overlay .info-line:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+/* 海报悬停简介按行数截断 */
+.calendar-poster-overlay .info-line.overview {
+  overflow: hidden; /* 隐藏超出部分，JS 负责截断 */
+  position: relative;
+  display: block;
+  white-space: normal;
+}
+
+.calendar-episode-info {
+  padding: 0 0px;
+  text-align: left;
+}
+
+.calendar-show-name {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--dark-text-color);
+  margin-bottom: 0px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer; /* 点击打开剧的TMDB页面 */
+  transition: color 0.2s ease;
+}
+
+.calendar-show-name:hover {
+  color: var(--focus-border-color);
+}
+
+.calendar-episode-number {
+  font-size: 0.95rem;
+  color: var(--secondary-text-color);
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer; /* 点击打开集的TMDB页面 */
+}
+
+/* 已达到最近转存进度的集数颜色（用于海报视图集数） */
+.calendar-episode-number.episode-number-reached {
+  color: var(--secondary-text-color);
+}
+
+/* 悬停时集数高亮为 focus-border-color */
+.calendar-episode-number:hover {
+  color: var(--focus-border-color);
+}
+
+/* 取消对钩图标样式（已移除对应元素） */
+
+/* 日历模式样式 */
+.calendar-month-table {
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  /* 作为统一网格容器，表头与表体共享列宽 */
+  display: grid;
+  grid-template-columns: repeat(7, minmax(100px, 1fr));
+  min-width: 700px; /* 7列 × 100px = 700px 最小宽度，配合外层开启横向滚动 */
+}
+
+.calendar-month-header {
+  /* 让表头的单元格直接参与父级网格，保证与表体同步缩放 */
+  display: contents;
+}
+
+/* 星期导航栏样式 */
+.calendar-month-header-cell {
+  /* 高度32px，垂直居中，左对齐左边距8px */
+  height: 32px;
+  padding: 0 14px;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  font-weight: 400; /* 常规体 */
+  font-size: 0.95rem;
+  color: var(--dark-text-color);
+  border-right: 1px solid var(--border-color); /* 显示内部分割线 */
+  background-color: #f7f7f9;
+  /* 防止文本被挤压成竖排 */
+  min-width: 100px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 移除星期导航最后一列的右侧分割线，避免溢出 */
+.calendar-month-header-cell:last-child {
+  border-right: none;
+}
+
+.calendar-month-body {
+  /* 表体同样作为父级网格的直接子项 */
+  display: contents;
+}
+
+.calendar-month-row {
+  /* 将行本身不渲染为容器，使单元格直接参与父级网格 */
+  display: contents;
+}
+
+.calendar-month-cell {
+  min-height: 101px; /* 调整日期单元格行高 */
+  padding: 8px;
+  border-right: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  position: relative;
+}
+
+.calendar-month-cell:nth-child(7n) {
+  border-right: none;
+}
+
+/* 移除最后一行（最后7个单元格）的底部边框，避免底部双线 */
+.calendar-month-body .calendar-month-cell:nth-last-child(-n + 7) {
+  border-bottom: none;
+}
+
+/* 为首行（前7个单元格）添加顶部边框，形成与星期导航栏之间的单一分割线 */
+.calendar-month-body .calendar-month-cell:nth-child(-n + 7) {
+  border-top: 1px solid var(--border-color);
+}
+
+.calendar-month-date {
+  /* 统一所有日期号的展示容器，避免"今天"与其他日期基线不一致 */
+  position: relative; /* 允许整体微调位置 */
+  top: -0.5px; /* 整体上移 0.5px，使号数与圆背景一同上移 */
+  left: 6px; /* 所有号数向右偏移6px */
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start; /* 默认居左对齐 */
+  width: 22px;
+  height: 22px;
+  line-height: 22px; /* 保障文本垂直居中且基线一致 */
+  vertical-align: middle; /* 与同行元素对齐 */
+  font-size: 1rem; /* 与集信息、按钮统一 */
+  font-weight: 600; /* 仅日期号数加粗 */
+  margin-bottom: 4px;
+}
+
+.calendar-month-cell.other-month {
+  background-color: #f7f7f9; /* 非本月背景 */
+  color: var(--secondary-text-color);
+}
+
+.calendar-month-cell.today {
+  /* 取消整格背景色与白字，改为仅日期圆形高亮 */
+  background-color: transparent;
+  color: inherit;
+}
+
+/* 当天日期圆形高亮背景 */
+.calendar-month-cell.today .calendar-month-date {
+  position: relative; /* 为伪元素定位 */
+  justify-content: flex-start; /* 今日与其他日期左对齐一致 */
+  color: var(--focus-border-color); /* 当天号数文本颜色改为focus-border-color */
+}
+
+.calendar-month-cell.today .calendar-month-date::before {
+  display: none; /* 隐藏蓝色圆形背景 */
+}
+
+.calendar-month-cell.has-episodes {
+  background-color: transparent !important; /* 去除有播出集背景色 */
+}
+
+.calendar-month-episodes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px; /* 下移单集列表的最高位置 4px */
+}
+
+/* 日历模式单集卡片样式 */
+.calendar-month-episode {
+  font-size: 0.85rem;
+  padding: 6px; /* 等距6px */
+  line-height: 1; /* 统一行高，消除上下视觉不等距 */
+  /* 日历视图：默认保持原按钮灰背景 */
+  background-color: #f7f7f9;
+  border-radius: 6px; /* 圆角6px */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 日历视图：仅当该集已达转存进度时，卡片背景改为导航悬停浅蓝色 */
+.calendar-month-episode:has(.episode-number.episode-number-reached) {
+  background-color: #e6f1ff;
+}
+
+.episode-title {
+  font-weight: 400; /* 常规体 */
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer; /* 点击打开剧的TMDB页面 */
+}
+
+.episode-number {
+  font-size: 0.85rem;
+  color: var(--secondary-text-color);
+  white-space: nowrap;
+  cursor: pointer; /* 点击打开集的TMDB页面 */
+}
+
+/* 日历视图：已转存与未转存集号不区分，统一保持原灰色 */
+.calendar-month-episode .episode-number.episode-number-reached {
+  color: var(--secondary-text-color);
+}
+
+/* 悬停时，日历模式下的剧名与集数分别高亮 */
+.calendar-month-episode .episode-title:hover,
+.calendar-month-episode .episode-number:hover {
+  color: var(--focus-border-color);
+}
+
+/* 集号响应式显示：不同宽度下显示不同格式 */
+
+/* 默认状态：显示完整格式 */
+.calendar-month-episode .episode-number {
+  display: inline;
+  font-size: 0.85rem;
+  color: var(--secondary-text-color);
+  white-space: nowrap;
+}
+
+/* 宽度 > 1280px：完整状态 S01E06, S01E34-E38 */
+@media (min-width: 1281px) {
+  .calendar-month-episode .episode-number::before {
+    content: attr(data-full);
+    font-size: 0.85rem;
+  }
+  .calendar-month-episode .episode-number {
+    font-size: 0;
+  }
+}
+
+/* 宽度 1080px - 1280px：省略季 E06, E34-E38 */
+@media (max-width: 1280px) and (min-width: 1081px) {
+  .calendar-month-episode .episode-number::before {
+    content: attr(data-episode-only);
+    font-size: 0.85rem;
+  }
+  .calendar-month-episode .episode-number {
+    font-size: 0;
+  }
+}
+
+/* 宽度 950px - 1080px：纯数字 06, 34-38 */
+@media (max-width: 1080px) and (min-width: 951px) {
+  .calendar-month-episode .episode-number::before {
+    content: attr(data-number-only);
+    font-size: 0.85rem;
+  }
+  .calendar-month-episode .episode-number {
+    font-size: 0;
+  }
+}
+
+/* 宽度 < 950px：隐藏集号 */
+@media (max-width: 950px) {
+  .calendar-month-episode .episode-number {
+    display: none;
+  }
+  
+  /* 在集号隐藏时，为剧名提供更多空间，确保至少显示四个汉字 */
+  .episode-title {
+    min-width: 60px;
+  }
+}
+
+.episode-completed {
+  color: var(--success-color);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+/* 响应式调整 */
+@media (max-width: 576px) {
+  .calendar-poster-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    column-gap: 20px;
+    row-gap: 14px;
+  }
+  
+  .calendar-date-navigation {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    column-gap: 20px;
+    row-gap: 14px;
+  }
+  
+  .calendar-date-item {
+    padding: 6px 8px; /* 文本左右间距 8px */
+    height: 32px; /* 高度 32px */
+  }
+  
+  .calendar-month-cell {
+    min-height: 42px;
+    padding: 6px;
+  }
+  
+  /* 表格内部的紧凑卡片样式（仅作用于日历表格体内） */
+  .calendar-month-body .calendar-month-episode {
+    font-size: 10px;
+    padding: 1px 3px;
+    transform: translateY(-7.5px); /* 整体上移 */
+  }
+
+  /* 超小模式：仅在表格内部隐藏文本，下方选中日期列表需正常显示 */
+  .calendar-month-body .calendar-month-episode .episode-title,
+  .calendar-month-body .calendar-month-episode .episode-number,
+  .calendar-month-body .calendar-month-episode .calendar-transferred-badge,
+  .calendar-month-body .calendar-month-episode .episode-completed {
+    display: none !important; /* 隐藏文本与徽标 */
+  }
+
+  /* 超小模式：表格内部最后一张集卡片到底部边框的可视间距 = 6px
+     由于集卡片整体向上位移 7.5px，使用负的 margin-bottom 抵消，保持 6px */
+  .calendar-month-body .calendar-month-episodes {
+    margin-bottom: -7.5px;
+  }
+
+  /* 超小模式：取消日历表格最小宽度，按屏幕宽度自适应 */
+  .calendar-month-table {
+    min-width: 0 !important; /* 覆盖 700px 最小宽度 */
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important; /* 7 列严格等宽 */
+    width: 100% !important; /* 填满容器宽度 */
+    box-sizing: border-box; /* 边框计入宽度，避免产生水平溢出 */
+  }
+
+  /* 超小模式：父容器不再需要横向滚动，由表格自适应 */
+  .calendar-month-mode {
+    overflow-x: hidden !important;
+  }
+
+  /* 超小模式：允许网格子项收缩，杜绝由最小内容宽度导致的溢出 */
+  .calendar-month-cell,
+  .calendar-month-header-cell {
+    min-width: 0 !important;
+  }
+  /* 超小模式：选中单元格背景色 */
+  .calendar-month-cell.selected {
+    background-color: #e6f1ff !important;
+  }
+
+  /* 超小模式：星期导航文本左边距 8px */
+  .calendar-month-header-cell {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  /* 超小模式：日期号数左边距 8px */
+  .calendar-month-date {
+    left: 2px !important;
+    top: -3.5px !important;
+  }
+  /* 超小模式：表格内部的卡片背景色覆盖（仅表格体内紧凑卡片） */
+  .calendar-month-body .calendar-month-episode {
+    background-color: var(--border-color) !important; /* 普通状态背景色 */
+  }
+  .calendar-month-body .calendar-month-episode:has(.episode-number.episode-number-reached) {
+    background-color: var(--focus-border-color) !important; /* 已转存背景色 */
+  }
+
+}
+
+/* 小屏手机：集卡片样式（仅小屏手机显示） */
+@media (max-width: 576px) {
+  .calendar-selected-episodes .calendar-month-episodes {
+    gap: 2px;
+    margin-top: 4px;
+  }
+  .calendar-selected-episodes .calendar-month-episode {
+    font-size: 0.85rem;
+    padding: 6px;
+    line-height: 1;
+    transform: none; /* 还原不上移 */
+    background-color: #f7f7f9; /* 桌面端默认背景 */
+    border-radius: 6px;
+  }
+  .calendar-selected-episodes .calendar-month-episode:has(.episode-number.episode-number-reached) {
+    background-color: #e6f1ff; /* 桌面端已转存背景 */
+  }
+
+  /* 移动端：下方列表的集号样式与桌面端一致（显示完整 SxxExx） */
+  .calendar-selected-episodes .calendar-month-episode .episode-number {
+    display: inline;
+    font-size: 0; /* 由伪元素承载显示文本 */
+    color: var(--secondary-text-color);
+    white-space: nowrap;
+  }
+  .calendar-selected-episodes .calendar-month-episode .episode-number::before {
+    content: attr(data-full);
+    font-size: 0.85rem;
+  }
+
+  /* 移动端：日历与下方选中日期卡片的间距 */
+  .calendar-selected-episodes {
+    margin-top: 20px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .calendar-poster-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+  
+  .calendar-date-navigation {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+}
+
+/* 追剧日历页面日期导航按钮组中的按钮固定宽度32px（包含左右边框） */
+.calendar-controls .btn-group .btn-sm:not(.btn-primary) {
+  width: 31px;
+  height: 32px;
+  min-width: 31px;
+  max-width: 31px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* 今天按钮固定宽度47.5px */
+.calendar-controls .btn-group .btn-sm.btn-primary {
+  width: 47.5px;
+  height: 32px;
+  min-width: 47.5px;
+  max-width: 47.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* 为最后一个按钮单独设置32px宽度，确保总宽度正确 */
+.calendar-controls .btn-group .btn-sm:last-child:not(.btn-primary) {
+  width: 32px;
+  min-width: 32px;
+  max-width: 32px;
+}
+
+/* 追剧日历页面单独按钮固定宽度32px */
+.calendar-controls .btn:not(.btn-group .btn) {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  max-width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* 追剧日历页面日期导航按钮的箭头图标大小 */
+.calendar-controls .btn-group .btn-sm .bi-chevron-double-left {
+  font-size: 1.09rem;
+  position: relative;
+  top: 0px;
+  left: 0.5px; /* 向左移动左箭头 */
+}
+
+.calendar-controls .btn-group .btn-sm .bi-chevron-left {
+  font-size: 1.09rem;
+  position: relative;
+  top: 0px;
+  left: -1px; /* 向左移动左箭头 */
+}
+
+.calendar-controls .btn-group .btn-sm .bi-chevron-double-right {
+  font-size: 1.09rem;
+  position: relative;
+  top: 0px;
+  right: 0.5px; /* 向右移动右箭头 */
+}
+
+.calendar-controls .btn-group .btn-sm .bi-chevron-right {
+  font-size: 1.09rem;
+  position: relative;
+  top: 0px;
+  right: -1px; /* 向右移动右箭头 */
+}
+
+/* 内容管理按钮的图标样式 */
+.calendar-controls .btn .bi-reply {
+  font-size: 1.25rem;
+  position: relative;
+  top: -1.5px;
+  left: 0px;
+}
+
+.calendar-controls .btn .bi-tags {
+  font-size: 1.1rem;
+  position: relative;
+  top: 0px;
+  left: 0.5px;
+}
+
+/* 系统配置高亮链接颜色，使用主题 focus 边框颜色 */
+.link-focus {
+  color: var(--focus-border-color);
+}
+.link-focus:hover,
+.link-focus:focus {
+  color: var(--focus-border-color);
+  text-decoration: none;
+}
+
+#editMetadataModal .matched-result .input-group-text.square-append {
+  border-left: none;
+  border-right: none;
+}
+#editMetadataModal .matched-result .input-group-text.square-append:first-of-type {
+  border-right: 1px solid var(--border-color);
+}
+#editMetadataModal .matched-result .input-group-text.square-append:last-of-type {
+  border-left: 1px solid var(--border-color);
+}
+#editMetadataModal .matched-season-wrap {
+  margin-left: auto;
+  margin-right: -8px;
+  display: flex;
+  align-items: center;
+}
+#editMetadataModal .matched-result .matched-season {
+  box-sizing: border-box; /* 宽高包含边框 */
+  width: 30px;            /* 默认尺寸减小 2px：30x32（含边框）*/
+  min-width: 30px;
+  height: 32px;
+  display: inline-flex;              /* 允许按内容自适应宽度 */
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;                    /* 左右各 8px 内边距 */
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  border-left: 0;                    /* 左右边线由两侧方块承担，重叠不显示双线 */
+  border-right: 0;
+}
+/* 1) 去除“第”的四个圆角 */
+#editMetadataModal .matched-season-wrap .input-group-text.square-append:first-of-type {
+  border-radius: 0 !important;
+  border-left: 1px solid var(--border-color) !important; /* 添加左侧边框线 */
+}
+/* 2) “季”固定尺寸，3) 去除其左侧圆角 */
+#editMetadataModal .matched-season-wrap .input-group-text.square-append:last-of-type {
+  box-sizing: border-box; /* 含边框宽高 */
+  width: 31px !important;
+  height: 32px !important;
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+}
+#editMetadataModal .matched-link {
+  color: var(--dark-text-color);
+  text-decoration: none;
+}
+#editMetadataModal .matched-link:hover {
+  color: var(--focus-border-color);
+  text-decoration: none;
+}
+
+/* 编辑元数据底部提示内的 TMDB 链接样式 */
+#editMetadataModal .tmdb-link {
+  color: var(--dark-text-color);
+  text-decoration: none;
+}
+#editMetadataModal .tmdb-link:hover {
+  color: var(--focus-border-color);
+  text-decoration: none;
+}
+
+/* 编辑元数据底部提示信息和按钮文本样式 */
+#editMetadataModal .modal-footer .file-selection-info {
+  transform: translateY(0.5px);
+}
+#editMetadataModal .modal-footer .btn .btn-text {
+  display: inline-block;
+  transform: translateY(0.5px);
+}
+#editMetadataModal .modal-footer .btn.btn-primary .btn-text {
+  color: #fff;
+}
+/* 取消按钮维持原有深色文字，不随主按钮白色规则变化 */
+#editMetadataModal .modal-footer .btn.btn-primary.btn-cancel .btn-text {
+  color: var(--dark-text-color);
+}
+
+/* 资源连续浏览按钮样式 */
+.resource-navigation-buttons {
+  display: flex;
+  gap: 8px;
+  margin-right: 4px;
+}
+
+.resource-navigation-buttons .btn {
+  min-width: 60px;
+  font-size: 0.85rem;
+}
+
+/* 资源导航按钮样式（与模态框中的btn-primary保持一致） */
+.resource-navigation-buttons .btn:not(:disabled) {
+  background-color: var(--focus-border-color);
+  border-color: var(--focus-border-color);
+  font-size: 0.85rem;
+}
+
+/* 资源导航按钮禁用状态样式（与文件整理页面保持一致） */
+.resource-navigation-buttons .btn:disabled {
+  color: #fff !important;
+  background-color: var(--focus-border-color) !important;
+  border-color: var(--focus-border-color) !important;
+  opacity: 0.65;
+  cursor: pointer;
+}
+
+/* 资源导航按钮正常状态悬停样式 */
+.resource-navigation-buttons .btn:not(:disabled):hover {
+  background-color: #0A42CC !important;
+  border-color: #0A42CC !important;
+}
+
+/* 显示设置：拖拽时显示“移动”而非“添加”视觉提示 */
+.draggable-item {
+  cursor: move; /* 显示移动光标 */
+}
+
+.draggable-item:active {
+  opacity: 1;
+}
+
+/* 被拖起的原位置元素半透明，表示“占位/已被拖动” */
+.draggable-item.drag-origin {
+  opacity: 0.4;
+}
+
+/* QASX API Token 显示框：不可编辑但显示文本指针 */
+.token-display {
+  cursor: text;
+}
+
+/* TMDB 说明文本样式与链接样式（继承颜色、无下划线、悬停不变） */
+.tmdb-attribution {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  color: var(--light-text-color);
+}
+.tmdb-attribution a {
+  text-decoration: none;
+  color: inherit;
+}
+.tmdb-attribution a:hover,
+.tmdb-attribution a:focus {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* 任务列表：类型筛选按钮与上方名称筛选区域的间距 */
+.tasklist-type-filter {
+  margin-top: 0px; /* 上移8px（从8px调整为0px） */
+  margin-bottom: 4px;
+}
+
+/* 排序模块内部的行容器，承载三段控件 */
+.tasklist-sort-wrapper {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+/* spacer：撑开空间以将控件推至右侧 */
+.tasklist-sort-spacer {
+  flex: 1 0 auto;
+}
+
+/* 三段胶囊通用样式（灰底、统一高度/字号） */
+.tasklist-sort-pill {
+  background-color: var(--button-gray-background-color) !important;
+  color: var(--dark-text-color);
+  border: none !important;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  line-height: 32px;
+  margin: 0 !important;
+  font-size: 0.95rem; /* 与左侧类型按钮一致 */
+}
+
+/* 左侧“按”按钮：保留边框，去右边框，与中间边框重叠 */
+.tasklist-sort-pill-icon {
+  width: 31px;
+  min-width: 31px;
+  justify-content: center;
+  border: 1px solid var(--border-color) !important;
+  border-right: none !important;
+  border-radius: 6px 0 0 6px;
+  background-color: var(--button-gray-background-color);
+}
+
+/* 中间下拉：白底，负责显示唯一可见边框（上下左右均有） */
+.tasklist-sort-select {
+  padding: 0 8px;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background: #fff !important;
+  cursor: pointer;
+  background-image: none;
+  height: 32px;
+  line-height: 30px;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  box-sizing: border-box !important;
+  vertical-align: middle;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.95rem; /* 与左侧类型按钮一致 */
+}
+
+/* 隐藏 IE 默认下拉箭头 */
+.tasklist-sort-select::-ms-expand {
+  display: none;
+}
+
+/* 聚焦高亮，保持与任务筛选一致 */
+.tasklist-sort-select:focus {
+  outline: none;
+  box-shadow: none;
+  border-color: var(--focus-border-color) !important; /* 聚焦时四边统一为主题色 */
+  background: #fff;
+}
+
+/* 下拉聚焦时，右侧按钮与其接缝的左边框采用同色，视觉连贯 */
+.tasklist-sort-select:focus + .tasklist-sort-order {
+  border-left-color: var(--focus-border-color) !important; /* 接缝同色，视觉连贯 */
+}
+
+/* 右侧"升/降序排列"按钮：保留边框，去左边框，与中间重叠 */
+.tasklist-sort-order {
+  padding: 0 8px;
+  cursor: pointer;
+  border: 1px solid var(--border-color) !important;
+  border-left: none !important;
+  border-radius: 0 6px 6px 0;
+  background: var(--button-gray-background-color) !important;
+  font-size: 0.95rem; /* 与左侧类型按钮一致 */
+}
+
+/* 兼容旧结构：若存在下拉菜单 DOM，最小宽度不小于 160px */
+.tasklist-sort-dropdown .dropdown-menu {
+  min-width: 160px;
+}
+
+/* 任务列表：移动端样式优化（复用追剧日历样式） */
+@media (max-width: 768px) {
+  /* 任务列表：顶部一行（类型筛选 + 排序）不换行 */
+  .tasklist-header-row {
+    flex-wrap: nowrap !important;
+    align-items: center;
+    overflow-x: auto !important; /* 整行作为滚动容器 */
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    column-gap: 8px; /* 左右两组之间 8px 间距 */
+    margin-top: 0px !important;
+    /* 去除内边距，使用遮罩实现两侧 20px 的"硬遮挡"效果（无渐变） */
+    padding-left: 0;
+    padding-right: 0;
+    -webkit-mask-image: linear-gradient(to right,
+      transparent 0,
+      transparent 15px,
+      black 15px,
+      black calc(100% - 15px),
+      transparent calc(100% - 15px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(to right,
+      transparent 0,
+      transparent 15px,
+      black 15px,
+      black calc(100% - 15px),
+      transparent calc(100% - 15px),
+      transparent 100%
+    );
+  }
+  .tasklist-header-row::-webkit-scrollbar { display: none; }
+  
+  /* 两列都按内容宽度，不允许被压缩到0，通过外层行滚动 */
+  .tasklist-header-row > .col-lg-8.col-md-6,
+  .tasklist-header-row > .col-lg-4.col-md-6 {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+  
+  /* 去除列内侧补白，避免视觉间距异常 */
+  .tasklist-header-row > .col-lg-8.col-md-6 { padding-right: 0 !important; }
+  .tasklist-header-row > .col-lg-4.col-md-6 { padding-left: 0 !important; }
+
+  /* 左侧类型筛选按钮容器：保持单行（滚动交给外层行）*/
+  .tasklist-header-row .calendar-category-buttons {
+    flex-wrap: nowrap !important;
+    margin-top: 0 !important; /* 覆盖全局 -12px，避免被遮挡 */
+  }
+
+  /* 右侧排序组件容器：强制单行，超出部分横向滚动，隐藏滚动条 */
+  .tasklist-sort-controls {
+    width: auto !important;
+    max-width: 100% !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin-top: -4px !important;
+  }
+  .tasklist-sort-controls::-webkit-scrollbar { display: none; }
+  
+  /* 排序组件内部容器：保持紧凑布局 */
+  .tasklist-sort-controls .tasklist-sort-wrapper {
+    flex-shrink: 0;
+  }
+}
+
+/* 海报卡片：悬停时隐藏带有 hide-on-hover 类的徽标（如任务编号/进度） */
+.discovery-poster:hover .hide-on-hover { opacity: 0; transition: opacity 0.15s ease-in-out; }
+.discovery-poster .hide-on-hover { opacity: 1; transition: opacity 0.15s ease-in-out; }
+
+/* 任务列表海报视图：操作按钮图标大小可定制 */
+.tasklist-run-btn i {
+  font-size: 0.94rem;
+}
+
+/* 任务列表删除此任务按钮图标大小 */
+.tasklist-delete-btn i {
+  font-size: 0.73rem;
+  position: relative;
+  top: 0.5px;
+}
+
+/* 任务列表编辑元数据按钮图标大小 */
+.tasklist-edit-metadata-btn i {
+  font-size: 0.81rem;
+  position: relative;
+  top: 0.5px;
+  left: 0.5px;
+}
+
+/* 任务列表编辑此任务按钮图标大小 */
+.tasklist-edit-task-btn i {
+  font-size: 0.69rem;
+  position: relative;
+  top: 0.5px;
+}
+
+/* 任务列表视图切换按钮的图标大小，统一为与追剧日历相同 */
+.tasklist-view-toggle-btn i.bi-grid-3x3-gap { /* 切换至海报视图图标 */
+  color: var(--dark-text-color);
+  font-size: 0.98rem; /* 与 .bi-grid-3x3-gap 统一 */
+}
+.tasklist-view-toggle-btn i.bi-list-ol { /* 切换至列表视图图标 */
+  color: var(--dark-text-color);
+  font-size: 1.1rem; /* 与网格图标保持一致的视觉尺寸 */
+  position: relative;
+  top: 0.5px;
+}
+.tasklist-view-toggle-btn.btn.btn-outline-secondary:hover i.bi-grid-3x3-gap,
+.tasklist-view-toggle-btn.btn.btn-outline-secondary:hover i.bi-list-ol {
+  color: #fff; /* 与日历按钮 hover 一致 */
+}
+
+/* 任务列表创建任务按钮样式，与视图切换按钮保持一致 */
+.tasklist-create-task-btn i.bi-plus-lg {
+  color: var(--dark-text-color);
+  font-size: 1.15rem; /* 与添加任务按钮图标大小一致 */
+  position: relative;
+  top: -0.2px; /* 与添加任务按钮图标位置一致 */
+}
+.tasklist-create-task-btn.btn.btn-outline-secondary:hover i.bi-plus-lg {
+  color: #fff; /* 与视图切换按钮 hover 一致 */
+}
+
+/* 任务列表海报视图：统一集数“/”分隔符的上移微调，与列表视图一致 */
+.tasklist-poster-mode .discovery-genre .count-slash {
+  position: relative;
+  top: -2px;
+  display: inline-block;
+  font-size: 0.8em; /* 与任务列表相同的斜杠缩小比例 */
+  font-weight: 600;  /* 适度加粗，与列表视觉一致 */
+}
+
+/* 任务列表删除按钮悬停颜色 */
+.tasklist-delete-btn:hover {
+  background-color: #dc3545 !important;
+  border-color: #dc3545 !important;
+  color: white !important;
+}
+
+/* 编辑任务模态框警告信息底部边距 */
+#createTaskModal .alert-warning {
+  margin-bottom: 8px;
+}
+
+/* 海报视图资源失效警告按钮样式 */
+.discovery-warning-btn {
+  position: relative;
+  top: 0;
+  left: 0;
+  width: 22px;
+  height: 22px;
+  background-color: rgba(0, 0, 0, 0.8);
+  border: none;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #efb30a;
+  cursor: default;
+  opacity: 1;
+  z-index: 10;
+  /* 使用多向阴影模拟加粗（图标为字体，font-weight不生效） */
+  text-shadow:
+    0 0 0 currentColor,
+    0 0.2px 0 currentColor,
+    0 -0.2px 0 currentColor,
+    0.2px 0 0 currentColor,
+    -0.2px 0 0 currentColor;
+}
+
+/* 资源失效警告按钮图标样式 */
+.discovery-warning-btn i {
+  font-size: 0.68rem;
+  position: relative;
+  top: 0.5px;
+}
+
+/* 任务列表Plex按钮图标样式 */
+.tasklist-plex-btn .plex-icon {
+  position: relative;
+  top: 0px;
+  opacity: 1 !important;
+  visibility: visible !important;
+  /* 使用与其他Plex按钮相同的尺寸设置 */
+  width: 7.2px;
+  height: auto;
+  object-fit: contain;
+  /* 移除可能导致加粗效果的阴影 */
+  text-shadow: none;
+  box-shadow: none;
+  /* 恢复简单的滤镜 */
+  filter: brightness(0) invert(1);
+  -webkit-filter: brightness(0) invert(1);
+}
+
+/* 任务列表AList按钮图标样式 */
+.tasklist-alist-btn .alist-icon {
+  position: relative;
+  top: -0.5px;
+  opacity: 1 !important;
+  visibility: visible !important;
+  /* 使用与其他AList按钮相同的尺寸设置 */
+  width: 12.6px;
+  height: auto;
+  object-fit: contain;
+  /* 移除可能导致加粗效果的阴影 */
+  text-shadow: none;
+  box-shadow: none;
+  /* 恢复简单的滤镜 */
+  filter: brightness(0) invert(1);
+  -webkit-filter: brightness(0) invert(1);
+}
+
+/* 海报视图Plex按钮悬停样式 */
+.tasklist-plex-btn:hover {
+  background-color: #EBAF00 !important;
+  border-color: #EBAF00 !important;
+  color: #fff !important;
+}
+
+.tasklist-plex-btn:hover .plex-icon {
+  filter: brightness(0) invert(1) !important;
+  -webkit-filter: brightness(0) invert(1) !important;
+}
+
+/* 海报视图AList按钮悬停样式 */
+.tasklist-alist-btn:hover {
+  background-color: #70C6BE !important;
+  border-color: #70C6BE !important;
+  color: #fff !important;
+}
+
+.tasklist-alist-btn:hover .alist-icon {
+  filter: brightness(0) invert(1) !important;
+  -webkit-filter: brightness(0) invert(1) !important;
+}
+
+/* 强制确保SVG图标在所有状态下都保持白色和可见 */
+.discovery-poster:hover .tasklist-plex-btn .plex-icon,
+.discovery-poster:hover .tasklist-alist-btn .alist-icon,
+.discovery-poster .tasklist-plex-btn .plex-icon,
+.discovery-poster .tasklist-alist-btn .alist-icon {
+  filter: brightness(0) invert(1) !important;
+  -webkit-filter: brightness(0) invert(1) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+
+/* 面包屑导航滚动条隐藏样式 */
+/* 文件整理页面面包屑导航滚动条隐藏 */
+.file-manager-breadcrumb::-webkit-scrollbar {
+  display: none; /* 隐藏滚动条 */
+}
+
+/* 模态框面包屑导航滚动条隐藏 */
+#fileSelectModal .breadcrumb::-webkit-scrollbar {
+  display: none; /* 隐藏滚动条 */
+}
+
+/* 任务列表海报视图 - 可点击的任务名称样式 */
+.discovery-title[style*="cursor: pointer"] {
+  color: var(--dark-text-color);
+  transition: color 0.2s ease;
+}
+
+.discovery-title[style*="cursor: pointer"]:hover {
+  color: var(--focus-border-color);
 }
