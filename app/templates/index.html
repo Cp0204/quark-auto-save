@@ -5531,6 +5531,18 @@
                     let changeReason = '';
                     try { changeReason = JSON.parse(ev && ev.data || '{}').reason || ''; } catch (e) {}
 
+                    // 如果是海报更新通知（poster_updated:<tmdb_id>），为该节目设置缓存穿透，避免使用旧缓存
+                    try {
+                      if (typeof changeReason === 'string' && changeReason.startsWith('poster_updated:')) {
+                        const idStr = changeReason.split(':')[1] || '';
+                        const eid = parseInt(idStr, 10);
+                        if (!isNaN(eid)) {
+                          const nowTick = Date.now();
+                          this.$set(this.imageCacheBustById, eid, nowTick);
+                        }
+                      }
+                    } catch (e) {}
+
                     // 先拉取最新转存信息并重建映射（用于管理视图与进度判定）
                     try {
                       const latestRes = await axios.get('/task_latest_info');
