@@ -573,6 +573,13 @@ app.json.sort_keys = False
 app.jinja_env.variable_start_string = "[["
 app.jinja_env.variable_end_string = "]]"
 
+# 注册 AVIF MIME 类型，确保静态路由能正确返回 Content-Type
+try:
+    import mimetypes
+    mimetypes.add_type('image/avif', '.avif')
+except Exception:
+    pass
+
 scheduler = BackgroundScheduler()
 logging.basicConfig(
     level=logging.DEBUG if DEBUG else logging.INFO,
@@ -690,7 +697,15 @@ def favicon():
 # 将 /cache/images/* 映射到宿主缓存目录，供前端访问
 @app.route('/cache/images/<path:filename>')
 def serve_cache_images(filename):
-    return send_from_directory(CACHE_IMAGES_DIR, filename)
+    resp = send_from_directory(CACHE_IMAGES_DIR, filename)
+    try:
+        # 禁用强缓存，允许协商缓存
+        resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+        resp.headers['Pragma'] = 'no-cache'
+        resp.headers['Expires'] = '0'
+    except Exception:
+        pass
+    return resp
 
 
 # 登录页面
@@ -4382,6 +4397,122 @@ def download_poster_local(poster_path: str) -> str:
         return ''
 
 
+def download_custom_poster(poster_url: str, tmdb_id: int, target_safe_name: str = None) -> str:
+    """下载自定义海报到本地，尽量覆盖原有海报文件名，返回相对路径。
+
+    注意：不引入任何额外依赖，不进行等比缩放。如需缩放应在容器具备工具时再扩展。
+    """
+    try:
+        if not poster_url or not tmdb_id:
+            return ''
+
+        folder = CACHE_IMAGES_DIR
+        # 目标文件名：若提供则使用现有文件名覆盖；否则根据内容类型/URL推断扩展名
+        default_ext = 'jpg'
+        safe_name = (target_safe_name or '').strip()
+        if not safe_name:
+            # 尝试从 URL 推断扩展名
+            guessed_ext = None
+            try:
+                from urllib.parse import urlparse
+                path = urlparse(poster_url).path
+                base = os.path.basename(path)
+                if '.' in base:
+                    guessed_ext = base.split('.')[-1].lower()
+            except Exception:
+                guessed_ext = None
+            ext = guessed_ext or default_ext
+            # 简单标准化
+            if ext in ('jpeg',):
+                ext = 'jpg'
+            safe_name = f"poster_{tmdb_id}.{ext}"
+        file_path = os.path.join(folder, safe_name)
+
+        # 确保目录存在
+        os.makedirs(folder, exist_ok=True)
+
+        # 处理 file:// 前缀
+        if poster_url.lower().startswith('file://'):
+            poster_url = poster_url[7:]
+
+        # 处理本地文件路径
+        if poster_url.startswith('/') or poster_url.startswith('./'):
+            # 本地文件路径
+            if os.path.exists(poster_url):
+                # 若提供了目标名但其扩展名与源文件明显不符（例如源为 .avif），则改用基于 tmdb_id 的标准文件名并匹配扩展
+                try:
+                    src_ext = os.path.splitext(poster_url)[1].lower().lstrip('.')
+                except Exception:
+                    src_ext = ''
+                if src_ext in ('jpeg',):
+                    src_ext = 'jpg'
+                if src_ext in ('jpg', 'png', 'webp', 'avif'):
+                    target_ext = os.path.splitext(safe_name)[1].lower().lstrip('.') if '.' in safe_name else ''
+                    if target_ext != src_ext:
+                        safe_name = f"poster_{tmdb_id}.{src_ext or default_ext}"
+                        file_path = os.path.join(folder, safe_name)
+                import shutil
+                shutil.copy2(poster_url, file_path)
+                return f"/cache/images/{safe_name}"
+            else:
+                logging.warning(f"本地海报文件不存在: {poster_url}")
+                return ''
+        else:
+            # 网络URL
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            r = requests.get(poster_url, timeout=15, headers=headers)
+            if r.status_code != 200:
+                logging.warning(f"下载自定义海报失败: {poster_url}, 状态码: {r.status_code}")
+                return ''
+
+            # 检查内容类型是否为图片（无法严格判断扩展名，这里仅基于响应头）
+            content_type = (r.headers.get('content-type') or '').lower()
+            if not any(img_type in content_type for img_type in ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/avif']):
+                logging.warning(f"自定义海报URL不是有效的图片格式: {poster_url}, 内容类型: {content_type}")
+                # 不强制失败，放行保存，部分服务不返回标准content-type
+                # return ''
+
+            # 若未指定目标文件名，或指定的扩展与内容类型不一致，则根据 content-type 修正扩展名
+            need_fix_ext = False
+            if (target_safe_name or '').strip():
+                # 校验已有目标名的扩展
+                current_ext = os.path.splitext(safe_name)[1].lower().lstrip('.') if '.' in safe_name else ''
+                if ('image/avif' in content_type and current_ext != 'avif') or \
+                   ('image/webp' in content_type and current_ext != 'webp') or \
+                   (('image/jpeg' in content_type or 'image/jpg' in content_type) and current_ext not in ('jpg','jpeg')) or \
+                   ('image/png' in content_type and current_ext != 'png'):
+                    need_fix_ext = True
+            if not (target_safe_name or '').strip() or need_fix_ext:
+                ext_map = {
+                    'image/jpeg': 'jpg',
+                    'image/jpg': 'jpg',
+                    'image/png': 'png',
+                    'image/webp': 'webp',
+                    'image/avif': 'avif',
+                }
+                chosen_ext = None
+                for k, v in ext_map.items():
+                    if k in content_type:
+                        chosen_ext = v
+                        break
+                if chosen_ext:
+                    base_no_ext = f"poster_{tmdb_id}"
+                    safe_name = f"{base_no_ext}.{chosen_ext}"
+                    file_path = os.path.join(folder, safe_name)
+
+            with open(file_path, 'wb') as f:
+                f.write(r.content)
+
+            logging.info(f"成功保存自定义海报: {poster_url} -> {file_path}")
+            return f"/cache/images/{safe_name}"
+
+    except Exception as e:
+        logging.error(f"下载自定义海报失败: {e}")
+        return ''
+
+
 # 刷新：拉取最新一季所有集，按有无 runtime 进行增量更新
 @app.route("/api/calendar/refresh_latest_season")
 def calendar_refresh_latest_season():
@@ -4709,6 +4840,7 @@ def calendar_edit_metadata():
         new_content_type = (data.get('new_content_type') or '').strip()
         new_tmdb_id = data.get('new_tmdb_id')
         new_season_number = data.get('new_season_number')
+        custom_poster_url = (data.get('custom_poster_url') or '').strip()
 
         if not task_name:
             return jsonify({"success": False, "message": "缺少任务名称"})
@@ -4968,6 +5100,70 @@ def calendar_edit_metadata():
 
                 changed = True
 
+        # 处理自定义海报
+        if custom_poster_url:
+            # 获取当前任务的TMDB ID
+            current_tmdb_id = None
+            if new_tmdb_id:
+                current_tmdb_id = int(new_tmdb_id)
+            elif old_tmdb_id:
+                current_tmdb_id = int(old_tmdb_id)
+
+            if current_tmdb_id:
+                try:
+                    # 尝试读取现有节目，若有已有海报，则覆盖同名文件以实现原位替换
+                    show_row = None
+                    try:
+                        show_row = cal_db.get_show(int(current_tmdb_id))
+                    except Exception:
+                        show_row = None
+
+                    target_safe_name = None
+                    if show_row and (show_row.get('poster_local_path') or '').strip():
+                        try:
+                            existing_path = (show_row.get('poster_local_path') or '').strip()
+                            # 期望格式：/cache/images/<filename>
+                            target_safe_name = existing_path.split('/')[-1]
+                        except Exception:
+                            target_safe_name = None
+
+                    # 覆盖保存（不进行缩放，不新增依赖）
+                    saved_path = download_custom_poster(custom_poster_url, current_tmdb_id, target_safe_name)
+
+                    if saved_path:
+                        # 若文件名发生变化则需要同步数据库并清理旧文件
+                        try:
+                            existing_path = ''
+                            if show_row:
+                                existing_path = (show_row.get('poster_local_path') or '').strip()
+                            if saved_path != existing_path:
+                                # 删除旧文件（若存在且在缓存目录下）
+                                try:
+                                    if existing_path and existing_path.startswith('/cache/images/'):
+                                        old_name = existing_path.replace('/cache/images/', '')
+                                        old_path = os.path.join(CACHE_IMAGES_DIR, old_name)
+                                        if os.path.exists(old_path):
+                                            os.remove(old_path)
+                                except Exception as e:
+                                    logging.warning(f"删除旧海报失败: {e}")
+                                # 更新数据库路径
+                                try:
+                                    cal_db.update_show_poster(int(current_tmdb_id), saved_path)
+                                except Exception as e:
+                                    logging.warning(f"更新海报路径失败: {e}")
+                        except Exception:
+                            # 即使对比失败也不影响功能
+                            pass
+
+                        logging.info(f"成功更新自定义海报: TMDB ID {current_tmdb_id}, 路径: {saved_path}")
+                        changed = True
+                    else:
+                        logging.warning(f"自定义海报保存失败: {custom_poster_url}")
+                except Exception as e:
+                    logging.error(f"处理自定义海报失败: {e}")
+            else:
+                logging.warning("无法处理自定义海报：缺少TMDB ID")
+
         if changed:
             Config.write_json(CONFIG_PATH, config_data)
 
@@ -4984,6 +5180,11 @@ def calendar_edit_metadata():
         msg = '元数据更新成功'
         if did_rematch:
             msg = '元数据更新成功，已重新匹配并刷新元数据'
+        if custom_poster_url:
+            if '已重新匹配' in msg:
+                msg = '元数据更新成功，已重新匹配并刷新元数据，自定义海报已更新'
+            else:
+                msg = '元数据更新成功，自定义海报已更新'
         return jsonify({"success": True, "message": msg})
     except Exception as e:
         return jsonify({"success": False, "message": f"保存失败: {str(e)}"})

@@ -2753,6 +2753,18 @@
                   </div>
                 </div>
               </div>
+
+              <!-- 更换海报 -->
+              <div class="row">
+                <div class="col-12 mb-2">
+                  <div class="input-group">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text" style="background-color: var(--button-gray-background-color);">更换海报</span>
+                    </div>
+                    <input type="text" class="form-control" v-model="editMetadata.form.custom_poster_url" placeholder="输入海报地址，支持网络地址或映射后的本地地址">
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <div class="modal-footer">
@@ -2775,6 +2787,11 @@
         versionTips: "",
         plugin_flags: "[[ plugin_flags ]]",
         weekdays: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+        // 全局缓存穿透时间戳（兜底）
+        imageCacheBustTick: 0,
+        // 按节目维度的缓存穿透时间戳
+        imageCacheBustById: {},       // { [tmdb_id:number]: number }
+        imageCacheBustByShowName: {}, // { [show_name:string]: number }
         sidebarCollapsed: false,
         showCloudSaverPassword: false,
         showWebuiPassword: false,
@@ -5151,7 +5168,8 @@
                 task_name: currentName,
                 content_type: task.content_type || '',
                 tmdb_id: '',
-                season_number: currentSeason || 1
+                season_number: currentSeason || 1,
+                custom_poster_url: ''
               },
               display: {
                 matched_label: matchedName ? `${matchedName}${matchedYear ? ' (' + matchedYear + ')' : ''}` : '未匹配',
@@ -5202,14 +5220,16 @@
               new_task_name: this.editMetadata.form.task_name,
               new_content_type: this.editMetadata.form.content_type,
               new_tmdb_id: this.editMetadata.form.tmdb_id,
-              new_season_number: this.editMetadata.form.season_number
+              new_season_number: this.editMetadata.form.season_number,
+              custom_poster_url: this.editMetadata.form.custom_poster_url
             };
 
             // 如果没有任何变化则直接关闭
             const noNameChange = (payload.new_task_name || '') === (this.editMetadata.original.task_name || '');
             const noTypeChange = (payload.new_content_type || '') === (this.editMetadata.original.content_type || '');
             const noRematch = !(payload.new_tmdb_id && String(payload.new_tmdb_id).trim()) && !(payload.new_season_number && String(payload.new_season_number).trim());
-            if (noNameChange && noTypeChange && noRematch) {
+            const noPosterChange = !(payload.custom_poster_url && String(payload.custom_poster_url).trim());
+            if (noNameChange && noTypeChange && noRematch && noPosterChange) {
               $('#editMetadataModal').modal('hide');
               return;
             }
@@ -5221,6 +5241,36 @@
               // 热更新任务与日历
               // 避免触发“未保存修改”提示：本次更新由后端变更引发
               this.suppressConfigModifiedOnce = true;
+              // 本次操作来自编辑元数据，不应提示未保存
+              this.configModified = false;
+              // 触发海报缓存穿透（按节目维度）：尽可能多地命中该节目的不同名称键
+              try {
+                const nowTick = Date.now();
+                const eid = (this.editMetadata.display && this.editMetadata.display.matched_tmdb_id) || (this.editMetadata.original && this.editMetadata.original.tmdb_id);
+                const taskName = (this.editMetadata.original && this.editMetadata.original.task_name) || '';
+                const matchedLabel = (this.editMetadata.display && this.editMetadata.display.matched_label) || '';
+                const normalizeMatchedName = (label) => {
+                  try {
+                    // 去掉类似 "名称 (2023)" 的年份后缀
+                    const m = String(label).trim().match(/^(.*?)(\s*\(\d{4}\))?$/);
+                    return (m && m[1]) ? m[1].trim() : String(label).trim();
+                  } catch (e) { return String(label || '').trim(); }
+                };
+                const normalizedMatched = normalizeMatchedName(matchedLabel);
+                // 从任务映射中找 show_name
+                let showName = '';
+                try {
+                  if (taskName && this.calendar && this.calendar.taskMapByName && this.calendar.taskMapByName[taskName]) {
+                    showName = (this.calendar.taskMapByName[taskName].show_name || '').trim();
+                  }
+                } catch (e) {}
+
+                if (eid) { this.$set(this.imageCacheBustById, eid, nowTick); }
+                if (taskName) { this.$set(this.imageCacheBustByShowName, taskName, nowTick); }
+                if (showName) { this.$set(this.imageCacheBustByShowName, showName, nowTick); }
+                if (normalizedMatched) { this.$set(this.imageCacheBustByShowName, normalizedMatched, nowTick); }
+                if (!eid && !taskName && !showName && !normalizedMatched) { this.imageCacheBustTick = nowTick; }
+              } catch (e) { this.imageCacheBustTick = Date.now(); }
               // 并行刷新：优先尽快更新任务列表的类型按钮与映射
               try {
                 const tasksPromise = axios.get('/api/calendar/tasks');
@@ -5259,6 +5309,34 @@
                   } catch (e) { /* 忽略类型热更新异常 */ }
                 }
                 await refreshPromise;
+                // 再次触发缓存穿透，保证刷新后的数据也使用新时间戳
+                try {
+                  const nowTick = Date.now();
+                  const eid = (this.editMetadata.display && this.editMetadata.display.matched_tmdb_id) || (this.editMetadata.original && this.editMetadata.original.tmdb_id);
+                  const taskName = (this.editMetadata.original && this.editMetadata.original.task_name) || '';
+                  const matchedLabel = (this.editMetadata.display && this.editMetadata.display.matched_label) || '';
+                  const normalizeMatchedName = (label) => {
+                    try {
+                      const m = String(label).trim().match(/^(.*?)(\s*\(\d{4}\))?$/);
+                      return (m && m[1]) ? m[1].trim() : String(label).trim();
+                    } catch (e) { return String(label || '').trim(); }
+                  };
+                  const normalizedMatched = normalizeMatchedName(matchedLabel);
+                  let showName = '';
+                  try {
+                    if (taskName && this.calendar && this.calendar.taskMapByName && this.calendar.taskMapByName[taskName]) {
+                      showName = (this.calendar.taskMapByName[taskName].show_name || '').trim();
+                    }
+                  } catch (e) {}
+
+                  if (eid) { this.$set(this.imageCacheBustById, eid, nowTick); }
+                  if (taskName) { this.$set(this.imageCacheBustByShowName, taskName, nowTick); }
+                  if (showName) { this.$set(this.imageCacheBustByShowName, showName, nowTick); }
+                  if (normalizedMatched) { this.$set(this.imageCacheBustByShowName, normalizedMatched, nowTick); }
+                  if (!eid && !taskName && !showName && !normalizedMatched) { this.imageCacheBustTick = nowTick; }
+                } catch (e) { this.imageCacheBustTick = Date.now(); }
+                // 刷新链路结束后，确保未保存标记为false
+                this.configModified = false;
               } catch (e) { /* 忽略后台刷新异常，前端不报错 */ }
             } else {
               this.showToast(res.data.message || '保存失败');
@@ -5732,7 +5810,20 @@
             const path = episode.poster_local_path.startsWith('/') 
               ? episode.poster_local_path 
               : '/' + episode.poster_local_path;
-            return path;
+            // 优先使用按节目维度的缓存穿透参数
+            let tick = 0;
+            try {
+              const eid = (episode.tmdb_id || episode.tv_id || episode.id);
+              const sname = (episode.show_name || '').trim();
+              if (eid && this.imageCacheBustById && this.imageCacheBustById[eid]) {
+                tick = this.imageCacheBustById[eid];
+              } else if (sname && this.imageCacheBustByShowName && this.imageCacheBustByShowName[sname]) {
+                tick = this.imageCacheBustByShowName[sname];
+              } else {
+                tick = this.imageCacheBustTick || 0;
+              }
+            } catch (e) { tick = this.imageCacheBustTick || 0; }
+            return tick ? `${path}?t=${tick}` : path;
           }
           
           // 如果没有海报，返回默认图片
@@ -6564,6 +6655,15 @@
             this.loadTasklistMetadata();
             // 启动任务列表的后台监听
             this.startTasklistAutoWatch();
+            // 该分支的系统性加载不应触发“未保存”提示
+            try {
+              this.suppressConfigModifiedOnce = true;
+              // 异步队列尾部再置一次，覆盖可能的深层变更
+              this.$nextTick(() => {
+                this.suppressConfigModifiedOnce = true;
+                this.configModified = false;
+              });
+            } catch (e) {}
           } else if (this.activeTab === 'tasklist') {
             // 离开任务列表页面时停止后台监听
             this.stopTasklistAutoWatch();
@@ -6639,7 +6739,8 @@
                 return task;
               });
               
-              // 直接赋值，排序通过计算属性处理
+              // 直接赋值，排序通过计算属性处理（属于系统性加载，抑制未保存提示）
+              this.suppressConfigModifiedOnce = true;
               this.formData.tasklist = config_data.tasklist || [];
 
               // 获取所有任务父目录
@@ -6821,6 +6922,8 @@
                   config_data.performance.calendar_refresh_interval_seconds = 21600;
                 }
               }
+              // 后端加载配置属于系统性赋值，不应触发未保存提示
+              this.suppressConfigModifiedOnce = true;
               this.formData = config_data;
               
               setTimeout(() => {
