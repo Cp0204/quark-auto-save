@@ -4513,7 +4513,7 @@ def download_custom_poster(poster_url: str, tmdb_id: int, target_safe_name: str 
             with open(file_path, 'wb') as f:
                 f.write(r.content)
 
-            logging.info(f"成功保存自定义海报: {poster_url} -> {file_path}")
+            # 自定义海报保存成功（静默）
             return f"/cache/images/{safe_name}"
 
     except Exception as e:
@@ -5169,7 +5169,7 @@ def calendar_edit_metadata():
                             # 即使对比失败也不影响功能
                             pass
 
-                        logging.info(f"成功更新自定义海报: TMDB ID {current_tmdb_id}, 路径: {saved_path}")
+                        # 成功更新自定义海报（静默）
                         changed = True
                         # 仅当自定义海报保存成功时，通知前端该节目海报已更新
                         try:
