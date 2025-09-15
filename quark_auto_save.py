@@ -339,7 +339,7 @@ class MagicRename:
         if match := re.search(r"\{I+\}", filename):
             magic_i = match.group()
             pattern_i = r"\d" * magic_i.count("I")
-            pattern = filename.replace(magic_i, pattern_i)
+            pattern = re.escape(filename).replace(re.escape(magic_i), pattern_i)
             for filename in filename_list:
                 if re.match(pattern, filename):
                     return filename
