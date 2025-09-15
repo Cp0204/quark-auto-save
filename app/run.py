@@ -699,10 +699,13 @@ def favicon():
 def serve_cache_images(filename):
     resp = send_from_directory(CACHE_IMAGES_DIR, filename)
     try:
-        # 禁用强缓存，允许协商缓存
-        resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
-        resp.headers['Pragma'] = 'no-cache'
-        resp.headers['Expires'] = '0'
+        # 启用长期缓存：依赖前端通过 `?t=` 穿透参数在变更时刷新
+        # 说明：图片文件名稳定且内容稳定，正常情况应命中浏览器缓存；
+        # 当用户主动更换海报时，前端会为该节目生成新的时间戳参数，形成新的 URL，从而触发重新下载。
+        resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+        # 清理可能的历史字段（部分代理可能保留）
+        resp.headers.pop('Pragma', None)
+        resp.headers.pop('Expires', None)
     except Exception:
         pass
     return resp
@@ -4353,6 +4356,11 @@ def redownload_all_posters():
                         # 更新数据库中的海报路径
                         cal_db.update_show_poster(int(tmdb_id), poster_local_path)
                         success_count += 1
+                        # 通知前端该节目海报已更新
+                        try:
+                            notify_calendar_changed(f'poster_updated:{int(tmdb_id)}')
+                        except Exception:
+                            pass
                         
             except Exception as e:
                 logging.error(f"重新下载海报失败 (TMDB ID: {show.get('tmdb_id')}): {e}")
@@ -4820,6 +4828,12 @@ def calendar_refresh_show():
 
         try:
             notify_calendar_changed('refresh_show')
+            # 通知前端指定节目海报可能已更新，用于触发按节目维度的缓存穿透
+            try:
+                if tmdb_id:
+                    notify_calendar_changed(f'poster_updated:{int(tmdb_id)}')
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -5157,6 +5171,11 @@ def calendar_edit_metadata():
 
                         logging.info(f"成功更新自定义海报: TMDB ID {current_tmdb_id}, 路径: {saved_path}")
                         changed = True
+                        # 仅当自定义海报保存成功时，通知前端该节目海报已更新
+                        try:
+                            notify_calendar_changed(f'poster_updated:{int(current_tmdb_id)}')
+                        except Exception:
+                            pass
                     else:
                         logging.warning(f"自定义海报保存失败: {custom_poster_url}")
                 except Exception as e:
