@@ -2654,6 +2654,9 @@
               <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmEditTask">
                 保存
               </button>
+              <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmEditAndRunTask" style="margin-left: 4px;">
+                保存并运行任务
+              </button>
             </template>
             <template v-else>
               <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmCreateTask">
@@ -12630,6 +12633,72 @@
             })
             .catch(error => {
               // 错误处理
+              alert("保存失败: " + (error.response?.data?.message || error.message || "未知错误"));
+              this.createTask.loading = false;
+            });
+        },
+        confirmEditAndRunTask() {
+          // 确认编辑任务并立即运行
+          if (this.createTask.loading) return;
+
+          // 复用与编辑验证相同的逻辑
+          if (!this.createTask.taskData.taskname.trim()) {
+            this.createTask.error = '任务名称不能为空';
+            return;
+          }
+          if (!this.createTask.taskData.shareurl.trim()) {
+            this.createTask.error = '分享链接不能为空';
+            return;
+          }
+          if (!this.createTask.taskData.savepath.trim()) {
+            this.createTask.error = '保存路径不能为空';
+            return;
+          }
+
+          this.createTask.loading = true;
+          this.createTask.error = null;
+
+          // 更新任务数据
+          const updatedTask = { ...this.createTask.taskData };
+
+          // 应用全局插件配置
+          this.applyGlobalPluginConfig(updatedTask);
+
+          // 处理命名模式
+          if (updatedTask.use_sequence_naming) {
+            updatedTask.pattern = updatedTask.sequence_naming;
+          } else if (updatedTask.use_episode_naming) {
+            updatedTask.pattern = updatedTask.episode_naming;
+          }
+
+          // 更新任务列表中的任务
+          if (this.createTask.editTaskIndex !== null && this.formData.tasklist && this.formData.tasklist[this.createTask.editTaskIndex]) {
+            this.$set(this.formData.tasklist, this.createTask.editTaskIndex, updatedTask);
+          }
+
+          // 保存配置
+          axios.post('/update', this.formData)
+            .then(response => {
+              if (response.data.success) {
+                this.configModified = false;
+                this.showToast('任务编辑成功并开始运行', 'success');
+                this.fetchUserInfo();
+                this.updateTasklistMetadata();
+                const taskIndex = this.createTask.editTaskIndex;
+                this.createTask.loading = false;
+                this.cancelCreateTask();
+                // 稍后运行任务，保证模态框关闭完成
+                setTimeout(() => {
+                  if (taskIndex !== null && taskIndex >= 0) {
+                    this.runScriptNow(taskIndex);
+                  }
+                }, 300);
+              } else {
+                alert(response.data.message);
+                this.createTask.loading = false;
+              }
+            })
+            .catch(error => {
               alert("保存失败: " + (error.response?.data?.message || error.message || "未知错误"));
               this.createTask.loading = false;
             });
