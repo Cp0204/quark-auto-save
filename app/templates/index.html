@@ -1236,17 +1236,21 @@
               <div class="discovery-grid">
                 <div class="discovery-item"
                      v-for="(task, index) in sortedTasklist"
-                     :key="'poster-'+index"
+                     :key="'poster-'+(task.taskname || index)"
                      v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task)">
                   <div class="discovery-poster" @mouseenter="handleManagementPosterHover($event, getCalendarTaskByName(task.taskname) || {})">
                     <img :src="getEpisodePosterUrl(getTasklistPosterLikeEpisode(task))"
-                         :alt="(getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name) ? getCalendarTaskByName(task.taskname).matched_show_name : task.taskname"
+                         :alt="task.taskname"
                          referrerpolicy="no-referrer"
                          crossorigin="anonymous"
+                         decoding="async"
+                         loading="lazy"
+                         :fetchpriority="index < 50 ? 'high' : 'auto'"
+                         @load="tasklistPosterLoaded[task.taskname] = true"
                          @error="handleImageError($event)">
 
                     <!-- 按钮行容器：自动补位布局 -->
-                    <div class="discovery-actions-row" style="top: 8px;">
+                    <div class="discovery-actions-row" style="top: 8px;" v-if="tasklistPosterLoaded[task.taskname]">
                       <!-- 运行此任务按钮（正常状态） -->
                       <div v-if="!task.shareurl_ban" class="discovery-refresh-metadata tasklist-run-btn" @click.stop="runScriptNow(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="运行此任务">
                         <i class="bi bi-caret-right"></i>
@@ -1262,7 +1266,7 @@
                         <i class="bi bi-pencil"></i>
                       </div>
                     </div>
-                    <div class="discovery-actions-row" style="top: 36px;">
+                    <div class="discovery-actions-row" style="top: 36px;" v-if="tasklistPosterLoaded[task.taskname]">
                       <div class="discovery-refresh-metadata" v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).match_tmdb_id" @click="refreshSeasonMetadata(getCalendarTaskByName(task.taskname))" title="刷新元数据">
                         <i class="bi bi-arrow-clockwise"></i>
                       </div>
@@ -1281,7 +1285,7 @@
 
                     <!-- 转存进度徽标（复用评分样式） -->
                     <div class="discovery-rating"
-                         v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name && getCalendarTaskByName(task.taskname).season_counts"
+                         v-if="tasklistPosterLoaded[task.taskname] && getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name && getCalendarTaskByName(task.taskname).season_counts"
                          :class="getProgressBadgeClass(getCalendarTaskByName(task.taskname))"
                          :title="'已转存/已播出：' + getTaskTransferredCount(getCalendarTaskByName(task.taskname)) + '/' + getTaskAiredCount(getCalendarTaskByName(task.taskname))">
                       {{ getTransferProgress(getCalendarTaskByName(task.taskname)) }}%
@@ -1289,7 +1293,7 @@
                     <!-- 左上角任务编号徽标：按需求移除 -->
 
                     <!-- 海报悬停信息 -->
-                    <div class="discovery-poster-overlay">
+                    <div class="discovery-poster-overlay" v-if="tasklistPosterLoaded[task.taskname]">
                       <!-- 任务编号 -->
                       <div class="info-line">#{{ String((task.__originalIndex !== undefined ? task.__originalIndex : index) + 1).padStart(2, '0') }}</div>
                       <!-- 匹配的剧名 -->
@@ -3187,6 +3191,8 @@
           // 任务列表视图模式：list 或 poster（默认列表视图，支持持久化）
           viewMode: (localStorage.getItem('tasklist_view_mode') === 'poster') ? 'poster' : 'list'
         },
+        // 任务列表海报加载标记：taskname -> boolean（用于优先显示图片，再渐进显示其他信息）
+        tasklistPosterLoaded: {},
         // 任务列表排序设置（记忆到localStorage）
         tasklistSort: (() => {
           try {
@@ -5888,7 +5894,13 @@
               } else if (sname && this.imageCacheBustByShowName && this.imageCacheBustByShowName[sname]) {
                 tick = this.imageCacheBustByShowName[sname];
               } else {
-                tick = this.imageCacheBustTick || 0;
+                // 优化：任务列表海报视图下，未命中特定节目/名称的情况下不使用全局穿透参数，避免本地海报反复绕过浏览器缓存
+                // 仅对日历等视图保留全局 bust（以确保热更新及时生效）
+                if (this.activeTab === 'calendar') {
+                  tick = this.imageCacheBustTick || 0;
+                } else {
+                  tick = 0;
+                }
               }
             } catch (e) { tick = this.imageCacheBustTick || 0; }
             return tick ? `${path}?t=${tick}` : path;

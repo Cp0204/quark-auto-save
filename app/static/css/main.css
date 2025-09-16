@@ -6384,6 +6384,8 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   margin-bottom: 10px;
+  /* 默认占位背景，避免纯白闪烁 */
+  background: #f3f3f3 url('../images/no-poster.svg') center/contain no-repeat;
 }
 
 .discovery-poster img {
