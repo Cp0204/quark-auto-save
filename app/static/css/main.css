@@ -8065,6 +8065,12 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   margin-bottom: 8px;
 }
 
+/* 创建与编辑任务模态框：插件配置与下方分割线间距 16px */
+#createTaskModal .form-group .jsoneditor,
+#createTaskModal .form-group .jsoneditor-vue {
+  margin-bottom: 16px !important;
+}
+
 /* 海报视图资源失效警告按钮样式 */
 .discovery-warning-btn {
   position: relative;
