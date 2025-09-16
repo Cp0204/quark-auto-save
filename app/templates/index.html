@@ -3877,7 +3877,60 @@
               } else if (by === 'progress') {
                 const ap = (this.getTaskProgress && this.getTaskProgress(a.t.taskname) != null) ? Number(this.getTaskProgress(a.t.taskname)) : -1;
                 const bp = (this.getTaskProgress && this.getTaskProgress(b.t.taskname) != null) ? Number(this.getTaskProgress(b.t.taskname)) : -1;
-                cmp = ap - bp;
+                // 1) 主排序：任务进度（支持升降序）
+                const pDiff = ap - bp;
+                if (pDiff !== 0) {
+                  cmp = pDiff;
+                } else {
+                  // 2) 次排序：节目状态优先级（与主排序方向一致，通过最终 factor 生效）
+                  const getStatusPriority = (task) => {
+                    try {
+                      // 任务对象可能为任务配置，需要先从日历任务映射中取状态
+                      const calTask = this.getCalendarTaskByName(task && (task.taskname || task.task_name));
+                      const status = this.getTaskShowStatus(calTask || task) || '';
+                      if (status === '本季终') return 1;
+                      if (status === '已取消') return 2;
+                      if (status === '已完结') return 3;
+                      return 0; // 播出中/无状态
+                    } catch (e) { return 0; }
+                  };
+                  const aStatus = getStatusPriority(a.t);
+                  const bStatus = getStatusPriority(b.t);
+                  const sDiff = aStatus - bStatus;
+                  if (sDiff !== 0) {
+                    cmp = sDiff; // 顺序：播出中/无 < 本季终 < 已取消 < 已完结（方向由最终 factor 决定）
+                  } else {
+                    // 3) 三次排序：节目的播出进度（已播出/总集数），与主排序同方向
+                    const getBroadcastPct = (task) => {
+                      try {
+                        const calTask = this.getCalendarTaskByName(task && (task.taskname || task.task_name));
+                        const aired = this.getTaskAiredCount(calTask || {});
+                        const total = this.getTaskTotalCount(calTask || {});
+                        if (!total || total <= 0) return 0;
+                        return aired / total;
+                      } catch (e) { return 0; }
+                    };
+                    const aPct = getBroadcastPct(a.t);
+                    const bPct = getBroadcastPct(b.t);
+                    const pctDiff = aPct - bPct;
+                    if (pctDiff !== 0) {
+                      cmp = pctDiff;
+                    } else {
+                      // 3.1) 百分比也相同：按节目总集数排序（与主排序同方向）
+                      const aTotal = this.getTaskTotalCount(this.getCalendarTaskByName(a.t && (a.t.taskname || a.t.task_name)) || {});
+                      const bTotal = this.getTaskTotalCount(this.getCalendarTaskByName(b.t && (b.t.taskname || b.t.task_name)) || {});
+                      const totalDiff = aTotal - bTotal;
+                      if (totalDiff !== 0) {
+                        cmp = totalDiff;
+                      } else {
+                        // 4) 末级排序：任务编号（#XX），与主排序同方向
+                        const aNum = parseInt((a.t.taskname || '').match(/^#?(\d+)/)?.[1] || '0');
+                        const bNum = parseInt((b.t.taskname || '').match(/^#?(\d+)/)?.[1] || '0');
+                        cmp = aNum - bNum;
+                      }
+                    }
+                  }
+                }
               } else if (by === 'update_time') {
                 // 按任务最近转存时间排序
                 const aRecord = this.taskLatestRecords[a.t.taskname];
