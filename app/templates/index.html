@@ -11783,6 +11783,13 @@
         createTaskFromDiscovery(item) {
           // 从影视发现页面创建任务
           try {
+            // 强制切换为创建模式并重置表单
+            this.createTask.isEditMode = false;
+            this.createTask.editTaskIndex = null;
+            this.createTask.error = null;
+            // 使用 newTask 的完整结构初始化，再由智能填充覆盖
+            this.createTask.taskData = { ...this.newTask };
+
             // 存储影视作品数据，并提取年份信息
             const movieData = { ...item };
             // 如果没有year字段，尝试从card_subtitle中提取
