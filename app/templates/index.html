@@ -13022,9 +13022,23 @@
           // 计算主内容区域可用宽度
           const availableWidth = windowWidth - sidebarWidth - 20; // 减去侧边栏宽度和左右边距
           
-
+          // 根据页面宽度模式应用最大宽度上限，避免中/窄模式下超限
+          // 对应 CSS: .page-width-narrow/.page-width-medium/.page-width-wide 的 container-fluid max-width
+          let maxContentWidth;
+          if (this.pageWidthMode === 'narrow') {
+            maxContentWidth = 1440; // 与 CSS 保持一致
+          } else if (this.pageWidthMode === 'medium') {
+            maxContentWidth = 1680; // 与 CSS 保持一致
+          } else {
+            maxContentWidth = 2160; // 宽模式上限
+          }
+          // 主内容区域在 Bootstrap 栅格中通常占 10/12 宽度（col-md-10 col-lg-10），需要按比例折算
+          // 这里以可视窗口宽度估算容器宽度并取上限，再减去侧边栏与边距后作为可用宽度
+          const containerMaxWidth = Math.min(windowWidth, maxContentWidth);
+          const maxAvailableByMode = containerMaxWidth - sidebarWidth - 20;
+          const boundedWidth = Math.min(availableWidth, maxAvailableByMode);
           
-          return Math.max(availableWidth, 300); // 确保最小可用宽度为300px
+          return Math.max(boundedWidth, 300); // 确保最小可用宽度为300px
         },
         
         // 格式化日期为YYYY-MM-DD格式（使用本地时间）
