@@ -2683,7 +2683,9 @@
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">编辑元数据</h5>
+            <h5 class="modal-title" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">编辑元数据
+              <div v-show="editMetadata && editMetadata.loading" class="spinner-border spinner-border-sm m-1" role="status"></div>
+            </h5>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
               <i class="bi bi-x-lg"></i>
             </button>
@@ -2929,6 +2931,7 @@
         modalLoading: false,
         // 编辑元数据状态
         editMetadata: {
+          loading: false,
           visible: false,
           original: {
             task_name: '',
@@ -5276,6 +5279,19 @@
         // 保存编辑元数据
         async saveEditMetadata() {
           try {
+            this.editMetadata.loading = true;
+            // 立即刷新一次视图，确保标题处 spinner 及时渲染
+            await this.$nextTick();
+            // 直接强制显示并触发一次重绘，确保首帧可见
+            try {
+              var __sp = document.querySelector('#editMetadataModal .modal-title .spinner-border');
+              if (__sp) {
+                __sp.style.display = 'inline-block';
+                void __sp.offsetHeight;
+              }
+            } catch (e) {}
+            // 再让出到宏任务队列，确保浏览器先完成一次绘制
+            await new Promise(function(resolve){ setTimeout(resolve, 0); });
             if (!this.editMetadata || !this.editMetadata.form) return;
             const payload = {
               task_name: this.editMetadata.original.task_name,
@@ -5405,6 +5421,8 @@
             }
           } catch (e) {
             this.showToast('保存失败：' + (e.response?.data?.message || e.message));
+          } finally {
+            this.editMetadata.loading = false;
           }
         },
         // 根据输入内容自适应季数输入框宽度，最小32px

@@ -2056,6 +2056,15 @@ button.close:focus,
   margin-left: 5px;
 }
 
+/* 统一创建/编辑任务 与 编辑元数据 模态框的标题转圈样式 */
+#createTaskModal .spinner-border-sm,
+#editMetadataModal .spinner-border-sm {
+  width: 1rem;
+  height: 1rem;
+  border-width: 0.15em;
+  margin-left: 5px;
+}
+
 /* --------------- 深度搜索任务建议样式 --------------- */
 .task-suggestions {
   width: 100%;
