@@ -2640,7 +2640,7 @@
               <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" :title="getCreateTaskPluginConfigTitle()">
                 <label class="col-sm-2 col-form-label">插件配置</label>
                 <div class="col-sm-10">
-                  <v-jsoneditor v-model="createTask.taskData.addition" :options="{mode:'tree'}" :plus="false" height="162px" style="margin-bottom: -8px;" :disabled="isPluginConfigDisabled(createTask.taskData)"></v-jsoneditor>
+                  <v-jsoneditor v-model="createTask.taskData.addition" :options="{mode:'tree'}" :plus="false" height="162px" :disabled="isPluginConfigDisabled(createTask.taskData)"></v-jsoneditor>
                 </div>
               </div>
             </div>
