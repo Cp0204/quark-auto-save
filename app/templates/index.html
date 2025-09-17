@@ -1236,17 +1236,21 @@
               <div class="discovery-grid">
                 <div class="discovery-item"
                      v-for="(task, index) in sortedTasklist"
-                     :key="'poster-'+index"
+                     :key="'poster-'+(task.taskname || index)"
                      v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task)">
                   <div class="discovery-poster" @mouseenter="handleManagementPosterHover($event, getCalendarTaskByName(task.taskname) || {})">
                     <img :src="getEpisodePosterUrl(getTasklistPosterLikeEpisode(task))"
-                         :alt="(getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name) ? getCalendarTaskByName(task.taskname).matched_show_name : task.taskname"
+                         :alt="task.taskname"
                          referrerpolicy="no-referrer"
                          crossorigin="anonymous"
+                         decoding="async"
+                         loading="lazy"
+                         :fetchpriority="index < 50 ? 'high' : 'auto'"
+                         @load="tasklistPosterLoaded[task.taskname] = true"
                          @error="handleImageError($event)">
 
                     <!-- 按钮行容器：自动补位布局 -->
-                    <div class="discovery-actions-row" style="top: 8px;">
+                    <div class="discovery-actions-row" style="top: 8px;" v-if="tasklistPosterLoaded[task.taskname]">
                       <!-- 运行此任务按钮（正常状态） -->
                       <div v-if="!task.shareurl_ban" class="discovery-refresh-metadata tasklist-run-btn" @click.stop="runScriptNow(task.__originalIndex !== undefined ? task.__originalIndex : index)" title="运行此任务">
                         <i class="bi bi-caret-right"></i>
@@ -1262,7 +1266,7 @@
                         <i class="bi bi-pencil"></i>
                       </div>
                     </div>
-                    <div class="discovery-actions-row" style="top: 36px;">
+                    <div class="discovery-actions-row" style="top: 36px;" v-if="tasklistPosterLoaded[task.taskname]">
                       <div class="discovery-refresh-metadata" v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).match_tmdb_id" @click="refreshSeasonMetadata(getCalendarTaskByName(task.taskname))" title="刷新元数据">
                         <i class="bi bi-arrow-clockwise"></i>
                       </div>
@@ -1281,7 +1285,7 @@
 
                     <!-- 转存进度徽标（复用评分样式） -->
                     <div class="discovery-rating"
-                         v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name && getCalendarTaskByName(task.taskname).season_counts"
+                         v-if="tasklistPosterLoaded[task.taskname] && getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name && getCalendarTaskByName(task.taskname).season_counts"
                          :class="getProgressBadgeClass(getCalendarTaskByName(task.taskname))"
                          :title="'已转存/已播出：' + getTaskTransferredCount(getCalendarTaskByName(task.taskname)) + '/' + getTaskAiredCount(getCalendarTaskByName(task.taskname))">
                       {{ getTransferProgress(getCalendarTaskByName(task.taskname)) }}%
@@ -1289,7 +1293,7 @@
                     <!-- 左上角任务编号徽标：按需求移除 -->
 
                     <!-- 海报悬停信息 -->
-                    <div class="discovery-poster-overlay">
+                    <div class="discovery-poster-overlay" v-if="tasklistPosterLoaded[task.taskname]">
                       <!-- 任务编号 -->
                       <div class="info-line">#{{ String((task.__originalIndex !== undefined ? task.__originalIndex : index) + 1).padStart(2, '0') }}</div>
                       <!-- 匹配的剧名 -->
@@ -2679,7 +2683,9 @@
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">编辑元数据</h5>
+            <h5 class="modal-title" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">编辑元数据
+              <div v-show="editMetadata && editMetadata.loading" class="spinner-border spinner-border-sm m-1" role="status"></div>
+            </h5>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
               <i class="bi bi-x-lg"></i>
             </button>
@@ -2925,6 +2931,7 @@
         modalLoading: false,
         // 编辑元数据状态
         editMetadata: {
+          loading: false,
           visible: false,
           original: {
             task_name: '',
@@ -3187,6 +3194,8 @@
           // 任务列表视图模式：list 或 poster（默认列表视图，支持持久化）
           viewMode: (localStorage.getItem('tasklist_view_mode') === 'poster') ? 'poster' : 'list'
         },
+        // 任务列表海报加载标记：taskname -> boolean（用于优先显示图片，再渐进显示其他信息）
+        tasklistPosterLoaded: {},
         // 任务列表排序设置（记忆到localStorage）
         tasklistSort: (() => {
           try {
@@ -3877,7 +3886,60 @@
               } else if (by === 'progress') {
                 const ap = (this.getTaskProgress && this.getTaskProgress(a.t.taskname) != null) ? Number(this.getTaskProgress(a.t.taskname)) : -1;
                 const bp = (this.getTaskProgress && this.getTaskProgress(b.t.taskname) != null) ? Number(this.getTaskProgress(b.t.taskname)) : -1;
-                cmp = ap - bp;
+                // 1) 主排序：任务进度（支持升降序）
+                const pDiff = ap - bp;
+                if (pDiff !== 0) {
+                  cmp = pDiff;
+                } else {
+                  // 2) 次排序：节目状态优先级（与主排序方向一致，通过最终 factor 生效）
+                  const getStatusPriority = (task) => {
+                    try {
+                      // 任务对象可能为任务配置，需要先从日历任务映射中取状态
+                      const calTask = this.getCalendarTaskByName(task && (task.taskname || task.task_name));
+                      const status = this.getTaskShowStatus(calTask || task) || '';
+                      if (status === '本季终') return 1;
+                      if (status === '已取消') return 2;
+                      if (status === '已完结') return 3;
+                      return 0; // 播出中/无状态
+                    } catch (e) { return 0; }
+                  };
+                  const aStatus = getStatusPriority(a.t);
+                  const bStatus = getStatusPriority(b.t);
+                  const sDiff = aStatus - bStatus;
+                  if (sDiff !== 0) {
+                    cmp = sDiff; // 顺序：播出中/无 < 本季终 < 已取消 < 已完结（方向由最终 factor 决定）
+                  } else {
+                    // 3) 三次排序：节目的播出进度（已播出/总集数），与主排序同方向
+                    const getBroadcastPct = (task) => {
+                      try {
+                        const calTask = this.getCalendarTaskByName(task && (task.taskname || task.task_name));
+                        const aired = this.getTaskAiredCount(calTask || {});
+                        const total = this.getTaskTotalCount(calTask || {});
+                        if (!total || total <= 0) return 0;
+                        return aired / total;
+                      } catch (e) { return 0; }
+                    };
+                    const aPct = getBroadcastPct(a.t);
+                    const bPct = getBroadcastPct(b.t);
+                    const pctDiff = aPct - bPct;
+                    if (pctDiff !== 0) {
+                      cmp = pctDiff;
+                    } else {
+                      // 3.1) 百分比也相同：按节目总集数排序（与主排序同方向）
+                      const aTotal = this.getTaskTotalCount(this.getCalendarTaskByName(a.t && (a.t.taskname || a.t.task_name)) || {});
+                      const bTotal = this.getTaskTotalCount(this.getCalendarTaskByName(b.t && (b.t.taskname || b.t.task_name)) || {});
+                      const totalDiff = aTotal - bTotal;
+                      if (totalDiff !== 0) {
+                        cmp = totalDiff;
+                      } else {
+                        // 4) 末级排序：任务编号（#XX），与主排序同方向
+                        const aNum = parseInt((a.t.taskname || '').match(/^#?(\d+)/)?.[1] || '0');
+                        const bNum = parseInt((b.t.taskname || '').match(/^#?(\d+)/)?.[1] || '0');
+                        cmp = aNum - bNum;
+                      }
+                    }
+                  }
+                }
               } else if (by === 'update_time') {
                 // 按任务最近转存时间排序
                 const aRecord = this.taskLatestRecords[a.t.taskname];
@@ -5217,6 +5279,19 @@
         // 保存编辑元数据
         async saveEditMetadata() {
           try {
+            this.editMetadata.loading = true;
+            // 立即刷新一次视图，确保标题处 spinner 及时渲染
+            await this.$nextTick();
+            // 直接强制显示并触发一次重绘，确保首帧可见
+            try {
+              var __sp = document.querySelector('#editMetadataModal .modal-title .spinner-border');
+              if (__sp) {
+                __sp.style.display = 'inline-block';
+                void __sp.offsetHeight;
+              }
+            } catch (e) {}
+            // 再让出到宏任务队列，确保浏览器先完成一次绘制
+            await new Promise(function(resolve){ setTimeout(resolve, 0); });
             if (!this.editMetadata || !this.editMetadata.form) return;
             const payload = {
               task_name: this.editMetadata.original.task_name,
@@ -5346,6 +5421,8 @@
             }
           } catch (e) {
             this.showToast('保存失败：' + (e.response?.data?.message || e.message));
+          } finally {
+            this.editMetadata.loading = false;
           }
         },
         // 根据输入内容自适应季数输入框宽度，最小32px
@@ -5835,7 +5912,13 @@
               } else if (sname && this.imageCacheBustByShowName && this.imageCacheBustByShowName[sname]) {
                 tick = this.imageCacheBustByShowName[sname];
               } else {
-                tick = this.imageCacheBustTick || 0;
+                // 优化：任务列表海报视图下，未命中特定节目/名称的情况下不使用全局穿透参数，避免本地海报反复绕过浏览器缓存
+                // 仅对日历等视图保留全局 bust（以确保热更新及时生效）
+                if (this.activeTab === 'calendar') {
+                  tick = this.imageCacheBustTick || 0;
+                } else {
+                  tick = 0;
+                }
               }
             } catch (e) { tick = this.imageCacheBustTick || 0; }
             return tick ? `${path}?t=${tick}` : path;
@@ -13022,9 +13105,23 @@
           // 计算主内容区域可用宽度
           const availableWidth = windowWidth - sidebarWidth - 20; // 减去侧边栏宽度和左右边距
           
-
+          // 根据页面宽度模式应用最大宽度上限，避免中/窄模式下超限
+          // 对应 CSS: .page-width-narrow/.page-width-medium/.page-width-wide 的 container-fluid max-width
+          let maxContentWidth;
+          if (this.pageWidthMode === 'narrow') {
+            maxContentWidth = 1440; // 与 CSS 保持一致
+          } else if (this.pageWidthMode === 'medium') {
+            maxContentWidth = 1680; // 与 CSS 保持一致
+          } else {
+            maxContentWidth = 2160; // 宽模式上限
+          }
+          // 主内容区域在 Bootstrap 栅格中通常占 10/12 宽度（col-md-10 col-lg-10），需要按比例折算
+          // 这里以可视窗口宽度估算容器宽度并取上限，再减去侧边栏与边距后作为可用宽度
+          const containerMaxWidth = Math.min(windowWidth, maxContentWidth);
+          const maxAvailableByMode = containerMaxWidth - sidebarWidth - 20;
+          const boundedWidth = Math.min(availableWidth, maxAvailableByMode);
           
-          return Math.max(availableWidth, 300); // 确保最小可用宽度为300px
+          return Math.max(boundedWidth, 300); // 确保最小可用宽度为300px
         },
         
         // 格式化日期为YYYY-MM-DD格式（使用本地时间）
