@@ -2066,11 +2066,29 @@ class Quark:
         # 获取分享详情
         is_sharing, stoken = self.get_stoken(pwd_id, passcode)
         if not is_sharing:
+            # 如果是可恢复错误（网络/临时），不要设置为失效资源
+            try:
+                error_text = str(stoken or "")
+                if self.is_recoverable_error(error_text):
+                    print(f"分享详情获取失败（网络异常）: {error_text}")
+                    return  # 直接返回，不设置 shareurl_ban
+            except Exception:
+                pass
+            # 非可恢复错误，按失效处理
             task["shareurl_ban"] = stoken
-            print(f"分享详情获取失败: {stoken}")
             add_notify(f"❗《{task['taskname']}》分享详情获取失败: {stoken}\n")
             return
         share_detail = self.get_detail(pwd_id, stoken, pdir_fid, _fetch_share=1)
+        # 如果获取详情返回错误，按可恢复性判断
+        if isinstance(share_detail, dict) and share_detail.get("error"):
+            error_text = str(share_detail.get("error") or "")
+            if self.is_recoverable_error(error_text):
+                print(f"获取分享详情失败（网络异常）: {error_text}")
+                return  # 直接返回，不设置 shareurl_ban
+            else:
+                task["shareurl_ban"] = self.format_unrecoverable_error(error_text) if hasattr(self, 'format_unrecoverable_error') else error_text
+                add_notify(f"❗《{task['taskname']}》获取分享详情失败: {task['shareurl_ban']}\n")
+                return
         # 获取保存路径fid
         savepath = task["savepath"]
         if not self.savepath_fid.get(savepath):
