@@ -4777,11 +4777,23 @@
           });
           
           // 如果启用了合并集功能，则进行合并处理
-          if (this.calendar.mergeEpisodes) {
-            return this.mergeEpisodesByShow(filteredEpisodes);
-          }
-          
-          return filteredEpisodes;
+          let result = this.calendar.mergeEpisodes
+            ? this.mergeEpisodesByShow(filteredEpisodes)
+            : filteredEpisodes;
+
+          // 统一对同一天节目按节目名称拼音排序（与内容管理一致）
+          try {
+            result = result.slice().sort((a, b) => {
+              const an = (a && a.show_name) ? String(a.show_name) : '';
+              const bn = (b && b.show_name) ? String(b.show_name) : '';
+              const ak = pinyinPro.pinyin(an, { toneType: 'none', type: 'string' }).toLowerCase();
+              const bk = pinyinPro.pinyin(bn, { toneType: 'none', type: 'string' }).toLowerCase();
+              if (ak === bk) return 0;
+              return ak > bk ? 1 : -1;
+            });
+          } catch (e) {}
+
+          return result;
         },
         
         // 根据剧集名称查找对应的任务
