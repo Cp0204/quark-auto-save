@@ -586,6 +586,27 @@ logging.basicConfig(
     format="[%(asctime)s][%(levelname)s] %(message)s",
     datefmt="%m-%d %H:%M:%S",
 )
+# 降低第三方网络库的重试噪音：将 urllib3/requests 的日志调为 ERROR，并把“Retrying ...”消息降级为 DEBUG
+try:
+    logging.getLogger("urllib3").setLevel(logging.ERROR)
+    logging.getLogger("requests").setLevel(logging.ERROR)
+
+    class _RetryWarningToDebug(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            try:
+                msg = str(record.getMessage())
+                if "Retrying (Retry(" in msg or "Retrying (" in msg:
+                    # 将此条记录的等级降到 DEBUG
+                    record.levelno = logging.DEBUG
+                    record.levelname = "DEBUG"
+            except Exception:
+                pass
+            return True
+
+    _urllib3_logger = logging.getLogger("urllib3.connectionpool")
+    _urllib3_logger.addFilter(_RetryWarningToDebug())
+except Exception:
+    pass
 # 过滤werkzeug日志输出
 if not DEBUG:
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
