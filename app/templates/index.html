@@ -8112,6 +8112,23 @@
             this.smart_param.currentResourceIndex--;
             const previousResource = this.smart_param.taskSuggestions.data[this.smart_param.currentResourceIndex];
             if (previousResource) {
+              // 在切换资源时，重置展示相关状态，避免错误提示残留
+              this.fileSelect.error = undefined;
+              this.fileSelect.fileList = [];
+              this.fileSelect.paths = [];
+              // 确保处于“选择需转存的文件夹”界面
+              this.fileSelect.previewRegex = false;
+              this.fileSelect.selectDir = true;
+              // 如果基础链接变化，清空stoken强制刷新
+              try {
+                const oldBase = this.getShareurl(this.fileSelect.shareurl);
+                const newBase = this.getShareurl(previousResource.shareurl);
+                if (oldBase !== newBase) {
+                  this.fileSelect.stoken = "";
+                }
+              } catch (e) {
+                this.fileSelect.stoken = "";
+              }
               // 更新当前分享链接并重新加载内容
               this.fileSelect.shareurl = previousResource.shareurl;
               this.getShareDetail(0, 1);
@@ -8124,6 +8141,23 @@
             this.smart_param.currentResourceIndex++;
             const nextResource = this.smart_param.taskSuggestions.data[this.smart_param.currentResourceIndex];
             if (nextResource) {
+              // 在切换资源时，重置展示相关状态，避免错误提示残留
+              this.fileSelect.error = undefined;
+              this.fileSelect.fileList = [];
+              this.fileSelect.paths = [];
+              // 确保处于“选择需转存的文件夹”界面
+              this.fileSelect.previewRegex = false;
+              this.fileSelect.selectDir = true;
+              // 如果基础链接变化，清空stoken强制刷新
+              try {
+                const oldBase = this.getShareurl(this.fileSelect.shareurl);
+                const newBase = this.getShareurl(nextResource.shareurl);
+                if (oldBase !== newBase) {
+                  this.fileSelect.stoken = "";
+                }
+              } catch (e) {
+                this.fileSelect.stoken = "";
+              }
               // 更新当前分享链接并重新加载内容
               this.fileSelect.shareurl = nextResource.shareurl;
               this.getShareDetail(0, 1);
@@ -8370,6 +8404,8 @@
           }
         },
         getShareDetail(retryCount = 0, maxRetries = 1) {
+          // 切换或重试前清理残留错误提示，避免覆盖新资源展示
+          this.fileSelect.error = undefined;
           this.modalLoading = true;
 
           // 检查index是否有效，如果无效则使用默认值
