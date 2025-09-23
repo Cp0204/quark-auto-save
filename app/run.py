@@ -3169,6 +3169,12 @@ def reset_folder():
             logging.error(f">>> 删除记录时出错: {str(e)}")
             # 即使删除记录失败，也返回文件删除成功
         
+        # 成功后通过 SSE 通知前端进行热更新
+        try:
+            notify_calendar_changed('reset_folder')
+        except Exception:
+            pass
+
         return jsonify({
             "success": True, 
             "message": f"重置成功，删除了 {deleted_files} 个文件和 {deleted_records} 条记录",

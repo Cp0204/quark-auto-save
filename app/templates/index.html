@@ -10488,6 +10488,19 @@
             .then(response => {
               if (response.data.success) {
                 this.showToast(`重置成功：删除了 ${response.data.deleted_files || 0} 个文件，${response.data.deleted_records || 0} 条记录`);
+                // 重置成功后，主动热更新最近转存文件与任务元数据，避免等待 SSE 或轮询
+                (async () => {
+                  try {
+                    const latestRes = await axios.get('/task_latest_info');
+                    if (latestRes.data && latestRes.data.success) {
+                      const latestFiles = latestRes.data.data.latest_files || {};
+                      this.taskLatestFiles = latestFiles;
+                      this.taskLatestRecords = latestRes.data.data.latest_records || {};
+                    }
+                  } catch (e) {}
+                  // 重新加载任务元数据（海报与详细信息）
+                  try { await this.loadTasklistMetadata(); } catch (e) {}
+                })();
                 // 如果当前是历史记录页面，刷新记录
                 if (this.activeTab === 'history') {
                   this.loadHistoryRecords();
