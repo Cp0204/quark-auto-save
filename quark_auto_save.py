@@ -289,7 +289,9 @@ def sort_file_by_name(file):
     if episode_value == float('inf'):
         match_e = re.search(r'[Ee][Pp]?(\d+)', filename)
         if match_e:
-            episode_value = int(match_e.group(1))
+            # 若数字位于含字母的中括号内部，跳过该匹配
+            if not _in_alpha_brackets(filename, match_e.start(1), match_e.end(1)):
+                episode_value = int(match_e.group(1))
     
     # 2.5 1x01格式
     if episode_value == float('inf'):
@@ -315,16 +317,33 @@ def sort_file_by_name(file):
             resolution_patterns = [
                 r'\b\d+[pP]\b',  # 匹配 720p, 1080P, 2160p 等
                 r'\b\d+x\d+\b',  # 匹配 1920x1080 等
-                # 注意：不移除4K/8K，避免误删文件名中的4K标识
+                r'(?<!\d)[248]\s*[Kk](?!\d)',  # 匹配 2K/4K/8K
             ]
 
             for pattern in resolution_patterns:
                 filename_without_resolution = re.sub(pattern, ' ', filename_without_resolution)
 
             # 否则尝试提取任何数字
-            any_num_match = re.search(r'(\d+)', filename_without_resolution)
-            if any_num_match:
-                episode_value = int(any_num_match.group(1))
+            candidates = []
+            for m in re.finditer(r'\\d+', filename_without_resolution):
+                num_str = m.group(0)
+                # 过滤日期模式
+                if is_date_format(num_str):
+                    continue
+                # 过滤中括号内且含字母的片段
+                span_l, span_r = m.start(), m.end()
+                if _in_alpha_brackets(filename_without_resolution, span_l, span_r):
+                    continue
+                try:
+                    value = int(num_str)
+                except ValueError:
+                    continue
+                if value > 9999:
+                    continue
+                candidates.append((m.start(), value))
+            if candidates:
+                candidates.sort(key=lambda x: x[0])
+                episode_value = candidates[0][1]
     
     # 3. 提取上中下标记或其他细分 - 第三级排序键
     segment_base = 0  # 基础值：上=1, 中=2, 下=3
@@ -415,6 +434,54 @@ def sort_file_by_name(file):
 
 
 # 全局的剧集编号提取函数
+def _in_alpha_brackets(text, start, end):
+    """
+    判断 [start,end) 范围内的数字是否位于"含字母的中括号对"内部。
+    支持英文方括号 [] 和中文方括号 【】。
+    要求：数字左侧最近的未闭合括号与右侧最近的对应闭合括号形成对，且括号内容包含字母。
+    但是允许 E/e 和 EP/ep/Ep 这样的集数格式。
+    """
+    if start < 0 or end > len(text):
+        return False
+    
+    # 检查英文方括号 []
+    last_open_en = text.rfind('[', 0, start)
+    if last_open_en != -1:
+        close_before_en = text.rfind(']', 0, start)
+        if close_before_en == -1 or close_before_en < last_open_en:
+            close_after_en = text.find(']', end)
+            if close_after_en != -1:
+                content = text[last_open_en + 1:close_after_en]
+                if _check_bracket_content(content):
+                    return True
+    
+    # 检查中文方括号 【】
+    last_open_cn = text.rfind('【', 0, start)
+    if last_open_cn != -1:
+        close_before_cn = text.rfind('】', 0, start)
+        if close_before_cn == -1 or close_before_cn < last_open_cn:
+            close_after_cn = text.find('】', end)
+            if close_after_cn != -1:
+                content = text[last_open_cn + 1:close_after_cn]
+                if _check_bracket_content(content):
+                    return True
+    
+    return False
+
+def _check_bracket_content(content):
+    """
+    检查括号内容是否应该被排除
+    """
+    # 检查是否包含字母
+    has_letters = bool(re.search(r'[A-Za-z]', content))
+    if not has_letters:
+        return False
+    
+    # 如果是 E/e 或 EP/ep/Ep 格式，则允许通过
+    if re.match(r'^[Ee][Pp]?\d+$', content):
+        return False
+    
+    return True
 def extract_episode_number(filename, episode_patterns=None, config_data=None):
     """
     从文件名中提取剧集编号
@@ -429,6 +496,11 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
     """
     # 首先去除文件扩展名
     file_name_without_ext = os.path.splitext(filename)[0]
+    
+    # 特判：SxxEyy.zz 模式（例如 S01E11.11），在日期清洗前优先识别
+    m_spec = re.search(r'[Ss](\d+)[Ee](\d{1,2})[._\-/]\d{1,2}', file_name_without_ext)
+    if m_spec:
+        return int(m_spec.group(2))
     
     # 预处理：排除文件名中可能是日期的部分，避免误识别
     date_patterns = [
@@ -453,6 +525,11 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
         for match in matches:
             # 检查匹配的内容是否确实是日期
             date_str = match.group(0)
+            # 针对短日期 x.x 或 xx.xx：前一字符为 E/e 时不清洗（保护 E11.11 场景）
+            if re.match(r'^\d{1,2}[./-]\d{1,2}$', date_str):
+                prev_char = filename_without_dates[match.start()-1] if match.start() > 0 else ''
+                if prev_char in 'Ee':
+                    continue
             month = None
             day = None
             
@@ -496,7 +573,7 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
     resolution_patterns = [
         r'\b\d+[pP]\b',  # 匹配 720p, 1080P, 2160p 等
         r'\b\d+x\d+\b',  # 匹配 1920x1080 等
-        # 注意：不移除4K/8K，避免误删文件名中的4K标识
+        r'(?<!\d)[248]\s*[Kk](?!\d)',  # 匹配 2K/4K/8K
     ]
 
     for pattern in resolution_patterns:
@@ -523,7 +600,9 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
     # 其次匹配E01格式
     match_e = re.search(r'[Ee][Pp]?(\d+)', filename_without_dates)
     if match_e:
-        return int(match_e.group(1))
+        # 若数字位于含字母的中括号内部，跳过该匹配
+        if not _in_alpha_brackets(filename_without_dates, match_e.start(1), match_e.end(1)):
+            return int(match_e.group(1))
     
     # 添加中文数字匹配模式（优先匹配）
     chinese_patterns = [
@@ -547,19 +626,6 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
         except:
             continue
     
-    # 智能4K匹配：检查是否匹配到4K模式，但要验证这个匹配是否合理
-    match_4k = re.search(r'(\d+)[-_\s]*4[Kk]', filename_without_dates)
-    if match_4k:
-        episode_num = int(match_4k.group(1))
-        # 检查文件名中是否已经有明确的剧集标识（中文数字或阿拉伯数字）
-        has_episode_indicator = re.search(r'第[一二三四五六七八九十百千万零两]+[期集话]|第\d+[期集话]', filename_without_dates)
-        if has_episode_indicator:
-            # 如果已经有明确的剧集标识，跳过4K匹配，避免冲突
-            pass
-        else:
-            # 没有明确的剧集标识，4K匹配有效
-            return episode_num
-    
     # 尝试匹配更多格式（注意：避免匹配季数）
     default_patterns = [
         r'第(\d+)集',
@@ -569,25 +635,46 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
         r'(?<!第\d+季\s*)(\d+)期',  # 避免匹配"第X季 Y期"中的季数
         r'(?<!第\d+季\s*)(\d+)话',  # 避免匹配"第X季 Y话"中的季数
         r'[Ee][Pp]?(\d+)',
-        r'(\d+)[-_\s]*4[Kk]',
         r'\[(\d+)\]',
         r'【(\d+)】',
-        r'_?(\d+)_?'
+        # 中文数字匹配模式
+        r'第([一二三四五六七八九十百千万零两]+)集',
+        r'第([一二三四五六七八九十百千万零两]+)期',
+        r'第([一二三四五六七八九十百千万零两]+)话',
+        r'([一二三四五六七八九十百千万零两]+)集',
+        r'([一二三四五六七八九十百千万零两]+)期',
+        r'([一二三四五六七八九十百千万零两]+)话',
+        # 先匹配"前方有分隔符"的数字，避免后一个规则优先命中单字符
+        r'[- _\s\.]([0-9]+)(?:[^0-9]|$)',
+        r'(?:^|[^0-9])(\d+)(?=[- _\s\.][^0-9])'
     ]
     
-    patterns = None
+    # 构建最终的patterns：默认模式 + 用户补充模式
+    patterns = []
+    
+    # 1. 首先添加默认模式（除了最后的纯数字模式）
+    default_non_numeric = [p for p in default_patterns if not re.match(r'^[- _\\s\\.]\([0-9]+\)', p) and not re.match(r'^\([^)]*\)\([0-9]+\)', p)]
+    patterns.extend(default_non_numeric)
+    
+    # 2. 添加用户补充的模式
+    user_patterns = []
     
     # 检查传入的episode_patterns参数
     if episode_patterns:
-        patterns = [p.get("regex", "(\\d+)") for p in episode_patterns]
-    # 如果配置了task的自定义规则，优先使用
+        user_patterns = [p.get("regex", "(\\d+)") for p in episode_patterns if p.get("regex", "").strip()]
+    # 如果配置了task的自定义规则
     elif config_data and isinstance(config_data.get("episode_patterns"), list) and config_data["episode_patterns"]:
-        patterns = [p.get("regex", "(\\d+)") for p in config_data["episode_patterns"]]
+        user_patterns = [p.get("regex", "(\\d+)") for p in config_data["episode_patterns"] if p.get("regex", "").strip()]
     # 尝试从全局配置获取
     elif 'CONFIG_DATA' in globals() and isinstance(globals()['CONFIG_DATA'].get("episode_patterns"), list) and globals()['CONFIG_DATA']["episode_patterns"]:
-        patterns = [p.get("regex", "(\\d+)") for p in globals()['CONFIG_DATA']["episode_patterns"]]
-    else:
-        patterns = default_patterns
+        user_patterns = [p.get("regex", "(\\d+)") for p in globals()['CONFIG_DATA']["episode_patterns"] if p.get("regex", "").strip()]
+    
+    # 添加用户补充的模式
+    patterns.extend(user_patterns)
+    
+    # 3. 最后添加默认的纯数字模式
+    default_numeric = [p for p in default_patterns if re.match(r'^[- _\\s\\.]\([0-9]+\)', p) or re.match(r'^\([^)]*\)\([0-9]+\)', p)]
+    patterns.extend(default_numeric)
     
     # 尝试使用每个正则表达式匹配文件名（使用不含日期的文件名）
     for pattern_regex in patterns:
@@ -623,6 +710,10 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
                     # 遍历所有捕获组，找到第一个非空的
                     for group_num in range(1, len(match.groups()) + 1):
                         if match.group(group_num):
+                            # 若数字位于含字母的中括号内部，跳过
+                            span_l, span_r = match.start(group_num), match.end(group_num)
+                            if _in_alpha_brackets(filename_without_dates, span_l, span_r):
+                                continue
                             episode_num = int(match.group(group_num))
 
                             # 检查提取的数字是否可能是日期的一部分
@@ -646,6 +737,10 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
                 # 单一模式的正则表达式
                 match = re.search(pattern_regex, filename_without_dates)
                 if match:
+                    # 若数字位于含字母的中括号内部，跳过
+                    span_l, span_r = match.start(1), match.end(1)
+                    if _in_alpha_brackets(filename_without_dates, span_l, span_r):
+                        continue
                     episode_num = int(match.group(1))
 
                     # 检查提取的数字是否可能是日期的一部分
@@ -661,16 +756,27 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
         return int(filename_without_dates)
     
     # 最后尝试提取任何数字，但要排除日期可能性
-    num_match = re.search(r'(\d+)', filename_without_dates)
-    if num_match:
-        episode_num = int(num_match.group(1))
-        # 检查提取的数字是否可能是日期
-        if not is_date_format(str(episode_num)):
-            # 检查是否是过大的数字（可能是时间戳、文件大小等）
-            if episode_num > 9999:
-                return None  # 跳过过大的数字
-            return episode_num
-
+    candidates = []
+    for m in re.finditer(r'\\d+', filename_without_dates):
+        num_str = m.group(0)
+        # 过滤日期模式
+        if is_date_format(num_str):
+            continue
+        # 过滤中括号内且含字母的片段
+        span_l, span_r = m.start(), m.end()
+        if _in_alpha_brackets(filename_without_dates, span_l, span_r):
+            continue
+        try:
+            value = int(num_str)
+        except ValueError:
+            continue
+        if value > 9999:
+            continue
+        candidates.append((m.start(), value))
+    if candidates:
+        candidates.sort(key=lambda x: x[0])
+        return candidates[0][1]
+ 
     return None
 
 # 全局变量
@@ -684,7 +790,7 @@ NOTIFYS = []
 def is_date_format(number_str):
     """
     判断一个纯数字字符串是否可能是日期格式
-    支持的格式：YYYYMMDD, MMDD, YYMMDD
+    支持的格式：YYYYMMDD, YYMMDD
     """
     # 判断YYYYMMDD格式 (8位数字)
     if len(number_str) == 8 and number_str.startswith('20'):
@@ -708,16 +814,8 @@ def is_date_format(number_str):
             # 可能是日期格式
             return True
     
-    # 判断MMDD格式 (4位数字)
-    elif len(number_str) == 4:
-        month = int(number_str[:2])
-        day = int(number_str[2:4])
-        
-        # 简单检查月份和日期是否有效
-        if 1 <= month <= 12 and 1 <= day <= 31:
-            # 可能是日期格式
-            return True
-            
+    # 不再将 4 位纯数字按 MMDD 视为日期，避免误伤集号（如 1124）
+    
     # 其他格式不视为日期格式
     return False
 
@@ -1038,22 +1136,6 @@ class Config:
                 if task.get("media_id"):
                     del task["media_id"]
                     
-        # 添加剧集识别模式配置
-        if not config_data.get("episode_patterns"):
-            print("🔼 添加剧集识别模式配置")
-            config_data["episode_patterns"] = [
-                {"description": "第[]集", "regex": "第(\\d+)集"},
-                {"description": "第[]期", "regex": "第(\\d+)期"},
-                {"description": "第[]话", "regex": "第(\\d+)话"},
-                {"description": "[]集", "regex": "(\\d+)集"},
-                {"description": "[]期", "regex": "(\\d+)期"},
-                {"description": "[]话", "regex": "(\\d+)话"},
-                {"description": "E/EP[]", "regex": "[Ee][Pp]?(\\d+)"},
-                {"description": "[]-4K", "regex": "(\\d+)[-_\\s]*4[Kk]"},
-                {"description": "[[]", "regex": "\\[(\\d+)\\]"},
-                {"description": "【[]】", "regex": "【(\\d+)】"},
-                {"description": "_[]_", "regex": "_?(\\d+)_?"}
-            ]
 
 
 class Quark:
@@ -3417,6 +3499,9 @@ class Quark:
             episode_pattern = task["episode_naming"]
             regex_pattern = task.get("regex_pattern")
             
+            # 初始化变量
+            already_renamed_files = set()  # 用于防止重复重命名
+            
             # 获取目录文件列表 - 添加这行代码初始化dir_file_list
             savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
             if not self.savepath_fid.get(savepath):
@@ -3455,8 +3540,10 @@ class Quark:
             
             # 实现序号提取函数
             def extract_episode_number_local(filename):
-                # 使用全局的统一提取函数
-                return extract_episode_number(filename, config_data=task.get("config_data"))
+                # 使用全局的统一提取函数，直接使用全局CONFIG_DATA
+                if 'CONFIG_DATA' not in globals() or not CONFIG_DATA:
+                    return extract_episode_number(filename)
+                return extract_episode_number(filename, config_data=CONFIG_DATA)
                 
             # 找出已命名的文件列表，避免重复转存
             existing_episode_numbers = set()

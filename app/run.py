@@ -144,7 +144,7 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
         except Exception:
             transferred_by_task = {}
 
-        # 统计“已播出集数”：读取本地 episodes 表中有 air_date 且 <= 今天的集数
+        # 统计"已播出集数"：读取本地 episodes 表中有 air_date 且 <= 今天的集数
         from datetime import datetime as _dt
         today = _dt.now().strftime('%Y-%m-%d')
         aired_by_show_season = {}
@@ -586,7 +586,7 @@ logging.basicConfig(
     format="[%(asctime)s][%(levelname)s] %(message)s",
     datefmt="%m-%d %H:%M:%S",
 )
-# 降低第三方网络库的重试噪音：将 urllib3/requests 的日志调为 ERROR，并把“Retrying ...”消息降级为 DEBUG
+# 降低第三方网络库的重试噪音：将 urllib3/requests 的日志调为 ERROR，并把"Retrying ..."消息降级为 DEBUG
 try:
     logging.getLogger("urllib3").setLevel(logging.ERROR)
     logging.getLogger("requests").setLevel(logging.ERROR)
@@ -2113,32 +2113,15 @@ def get_share_detail():
             episode_pattern = regex.get("episode_naming")
             episode_patterns = regex.get("episode_patterns", [])
             
-            # 获取默认的剧集模式
-            default_episode_pattern = {"regex": '第(\\d+)集|第(\\d+)期|第(\\d+)话|(\\d+)集|(\\d+)期|(\\d+)话|[Ee][Pp]?(\\d+)|(\\d+)[-_\\s]*4[Kk]|\\[(\\d+)\\]|【(\\d+)】|_?(\\d+)_?'}
-            
-            # 获取配置的剧集模式，确保每个模式都是字典格式
+            # 获取用户补充的剧集模式（默认模式由后端内部提供，这里只处理用户补充）
             episode_patterns = []
-            raw_patterns = config_data.get("episode_patterns", [default_episode_pattern])
+            raw_patterns = config_data.get("episode_patterns", [])
             for p in raw_patterns:
                 if isinstance(p, dict) and p.get("regex"):
                     episode_patterns.append(p)
                 elif isinstance(p, str):
                     episode_patterns.append({"regex": p})
-            
-            # 如果没有有效的模式，使用默认模式
-            if not episode_patterns:
-                episode_patterns = [default_episode_pattern]
                 
-            # 添加中文数字匹配模式
-            chinese_patterns = [
-                {"regex": r'第([一二三四五六七八九十百千万零两]+)集'},
-                {"regex": r'第([一二三四五六七八九十百千万零两]+)期'},
-                {"regex": r'第([一二三四五六七八九十百千万零两]+)话'},
-                {"regex": r'([一二三四五六七八九十百千万零两]+)集'},
-                {"regex": r'([一二三四五六七八九十百千万零两]+)期'},
-                {"regex": r'([一二三四五六七八九十百千万零两]+)话'}
-            ]
-            episode_patterns.extend(chinese_patterns)
             
             # 应用高级过滤词过滤
             filterwords = regex.get("filterwords", "")
@@ -2558,6 +2541,9 @@ def init():
     # 读取配置
     config_data = Config.read_json(CONFIG_PATH)
     Config.breaking_change_update(config_data)
+    
+    # 自动清理剧集识别规则配置
+    cleanup_episode_patterns_config(config_data)
 
     # 默认管理账号
     config_data["webui"] = {
@@ -3400,55 +3386,46 @@ def preview_rename():
                 
         elif naming_mode == "episode":
             # 剧集命名模式
-            # 获取默认的剧集模式
-            default_episode_pattern = {"regex": '第(\\d+)集|第(\\d+)期|第(\\d+)话|(\\d+)集|(\\d+)期|(\\d+)话|[Ee][Pp]?(\\d+)|(\\d+)[-_\\s]*4[Kk]|\\[(\\d+)\\]|【(\\d+)】|_?(\\d+)_?'}
-            
-            # 获取配置的剧集模式，确保每个模式都是字典格式
+            # 获取用户补充的剧集模式（默认模式由后端内部提供，这里只处理用户补充）
             episode_patterns = []
-            raw_patterns = config_data.get("episode_patterns", [default_episode_pattern])
+            raw_patterns = config_data.get("episode_patterns", [])
             for p in raw_patterns:
                 if isinstance(p, dict) and p.get("regex"):
                     episode_patterns.append(p)
                 elif isinstance(p, str):
                     episode_patterns.append({"regex": p})
-            
-            # 如果没有有效的模式，使用默认模式
-            if not episode_patterns:
-                episode_patterns = [default_episode_pattern]
                 
-            # 添加中文数字匹配模式
-            chinese_patterns = [
-                {"regex": r'第([一二三四五六七八九十百千万零两]+)集'},
-                {"regex": r'第([一二三四五六七八九十百千万零两]+)期'},
-                {"regex": r'第([一二三四五六七八九十百千万零两]+)话'},
-                {"regex": r'([一二三四五六七八九十百千万零两]+)集'},
-                {"regex": r'([一二三四五六七八九十百千万零两]+)期'},
-                {"regex": r'([一二三四五六七八九十百千万零两]+)话'}
-            ]
-            episode_patterns.extend(chinese_patterns)
             
-            # 处理每个文件
+            # 应用高级过滤词过滤（filterwords 已在函数开头获取）
+            if filterwords:
+                # 使用高级过滤函数
+                filtered_files = advanced_filter_files(filtered_files, filterwords)
+                # 标记被过滤的文件
+                for item in filtered_files:
+                    if item not in filtered_files:
+                        item["filtered"] = True
+            
+            # 处理未被过滤的文件
             for file in filtered_files:
-                extension = os.path.splitext(file["file_name"])[1] if not file["dir"] else ""
-                # 从文件名中提取集号
-                episode_num = extract_episode_number(file["file_name"], episode_patterns=episode_patterns)
-                
-                if episode_num is not None:
-                    new_name = pattern.replace("[]", f"{episode_num:02d}") + extension
-                    preview_results.append({
-                        "original_name": file["file_name"],
-                        "new_name": new_name,
-                        "file_id": file["fid"],
-                        "episode_number": episode_num  # 添加集数字段用于前端排序
-                    })
-                else:
-                    # 没有提取到集号，显示无法识别的提示
-                    preview_results.append({
-                        "original_name": file["file_name"],
-                        "new_name": "× 无法识别剧集编号",
-                        "file_id": file["fid"]
-                    })
-        
+                if not file["dir"] and not file.get("filtered"):  # 只处理未被过滤的非目录文件
+                    extension = os.path.splitext(file["file_name"])[1]
+                    # 从文件名中提取集号
+                    episode_num = extract_episode_number(file["file_name"], episode_patterns=episode_patterns)
+
+                    if episode_num is not None:
+                        new_name = pattern.replace("[]", f"{episode_num:02d}") + extension
+                        preview_results.append({
+                            "original_name": file["file_name"],
+                            "new_name": new_name,
+                            "file_id": file["fid"]
+                        })
+                    else:
+                        # 没有提取到集号，显示无法识别的提示
+                        preview_results.append({
+                            "original_name": file["file_name"],
+                            "new_name": "× 无法识别剧集编号",
+                            "file_id": file["fid"]
+                        })
         else:
             # 正则命名模式
             for file in filtered_files:
@@ -5681,6 +5658,84 @@ def get_content_types():
             'success': False,
             'message': f'获取节目内容类型失败: {str(e)}'
         })
+
+def cleanup_episode_patterns_config(config_data):
+    """清理剧集识别规则配置"""
+    try:
+        # 需要清理的默认剧集识别规则（按部分规则匹配）
+        default_pattern_parts = [
+            "第(\\d+)集",
+            "第(\\d+)期", 
+            "第(\\d+)话",
+            "(\\d+)集",
+            "(\\d+)期",
+            "(\\d+)话",
+            "[Ee][Pp]?(\\d+)",
+            "(\\d+)[-_\\s]*4[Kk]",
+            "(\\d+)[-_\\\\s]*4[Kk]",
+            "\\[(\\d+)\\]",
+            "【(\\d+)】",
+            "_?(\\d+)_?"
+        ]
+        
+        cleaned_tasks = 0
+        cleaned_global = False
+        
+        # 1. 清理任务级别的 config_data.episode_patterns
+        if 'tasklist' in config_data:
+            for task in config_data['tasklist']:
+                if 'config_data' in task and 'episode_patterns' in task['config_data']:
+                    del task['config_data']['episode_patterns']
+                    cleaned_tasks += 1
+                    # 如果 config_data 为空，删除整个 config_data
+                    if not task['config_data']:
+                        del task['config_data']
+        
+        # 2. 清理全局配置中的默认规则
+        if 'episode_patterns' in config_data:
+            current_patterns = config_data['episode_patterns']
+            if isinstance(current_patterns, list):
+                # 过滤掉包含默认规则的配置
+                filtered_patterns = []
+                for pattern in current_patterns:
+                    if isinstance(pattern, dict) and 'regex' in pattern:
+                        pattern_regex = pattern['regex']
+                        # 用竖线分割规则
+                        pattern_parts = pattern_regex.split('|')
+                        # 过滤掉默认规则部分，保留自定义规则
+                        custom_parts = [part.strip() for part in pattern_parts if part.strip() not in default_pattern_parts]
+                        
+                        if custom_parts:
+                            # 如果有自定义规则，保留并重新组合
+                            filtered_patterns.append({
+                                'regex': '|'.join(custom_parts)
+                            })
+                    elif isinstance(pattern, str):
+                        pattern_regex = pattern
+                        # 用竖线分割规则
+                        pattern_parts = pattern_regex.split('|')
+                        # 过滤掉默认规则部分，保留自定义规则
+                        custom_parts = [part.strip() for part in pattern_parts if part.strip() not in default_pattern_parts]
+                        
+                        if custom_parts:
+                            # 如果有自定义规则，保留并重新组合
+                            filtered_patterns.append('|'.join(custom_parts))
+                
+                # 更新配置
+                if filtered_patterns:
+                    config_data['episode_patterns'] = filtered_patterns
+                else:
+                    # 如果没有剩余规则，清空配置
+                    config_data['episode_patterns'] = []
+                    cleaned_global = True
+        
+        # 静默执行清理操作，不输出日志
+        
+        return True
+        
+    except Exception as e:
+        logging.error(f"清理剧集识别规则配置失败: {str(e)}")
+        return False
 
 if __name__ == "__main__":
     init()

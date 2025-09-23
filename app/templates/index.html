@@ -692,7 +692,7 @@
             </div>
 
             <!-- 剧集识别模块 -->
-            <div class="row title" title="识别文件名中的剧集编号，用于自动重命名，查阅Wiki了解详情">
+            <div class="row title" title="识别文件名中的剧集编号，用于自动重命名，留空时使用内置默认规则，支持输入自定义规则作为补充，查阅Wiki了解详情">
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">剧集识别</h2>
                 <span class="badge badge-pill badge-light">
@@ -705,7 +705,7 @@
                 <div class="input-group-prepend">
                   <span class="input-group-text">集编号识别规则</span>
                 </div>
-                <input type="text" class="form-control" v-model="episodePatternsText" placeholder="输入用于识别集编号的正则表达式，多个表达式用竖线分隔，特殊符号需要转义">
+                <input type="text" class="form-control" v-model="episodePatternsText" placeholder="留空使用内置默认规则，或输入自定义正则表达式作为补充规则，多个表达式用竖线分隔，特殊符号需要转义">
               </div>
             </div>
 
@@ -3256,11 +3256,15 @@
             return this.formData.episode_patterns.map(p => p.regex || '').join('|');
           },
           set(value) {
-            // 允许直接输入正则表达式，当用户按下Enter键或失焦时再处理
-            // 这里我们创建一个单一的正则表达式对象，而不是拆分
-            this.formData.episode_patterns = [{
-              regex: value.trim()
-            }];
+            // 支持竖线分割的多个正则表达式
+            if (!value || value.trim() === '') {
+              this.formData.episode_patterns = [];
+              return;
+            }
+            
+            // 按竖线分割并创建多个正则表达式对象
+            const patterns = value.split('|').map(p => p.trim()).filter(p => p !== '');
+            this.formData.episode_patterns = patterns.map(regex => ({ regex }));
           }
         },
         // 管理视图：按任务名（拼音）排序并应用顶部筛选
@@ -9689,9 +9693,23 @@
                     bValue = String(b.episode_number);
                   }
                 } else {
-                  // 否则使用重命名后的文件名进行拼音排序
-                  aValue = pinyinPro.pinyin(a.file_name_re || '', { toneType: 'none', type: 'string' }).toLowerCase();
-                  bValue = pinyinPro.pinyin(b.file_name_re || '', { toneType: 'none', type: 'string' }).toLowerCase();
+                  // 否则尝试从重命名结果中提取数字进行数值排序
+                  const aRename = a.file_name_re || '';
+                  const bRename = b.file_name_re || '';
+                  
+                  // 尝试提取数字（包括小数）
+                  const aMatch = aRename.match(/(\d+(?:\.\d+)?)/);
+                  const bMatch = bRename.match(/(\d+(?:\.\d+)?)/);
+                  
+                  if (aMatch && bMatch) {
+                    // 如果都能提取到数字，进行数值比较
+                    aValue = parseFloat(aMatch[1]);
+                    bValue = parseFloat(bMatch[1]);
+                  } else {
+                    // 否则使用重命名后的文件名进行拼音排序
+                    aValue = pinyinPro.pinyin(aRename, { toneType: 'none', type: 'string' }).toLowerCase();
+                    bValue = pinyinPro.pinyin(bRename, { toneType: 'none', type: 'string' }).toLowerCase();
+                  }
                 }
 
                 if (this.fileSelect.sortOrder === 'asc') {
@@ -9820,9 +9838,23 @@
                     bValue = String(b.episode_number);
                   }
                 } else {
-                  // 否则使用重命名后的文件名进行拼音排序
-                  aValue = pinyinPro.pinyin(a.file_name_re || '', { toneType: 'none', type: 'string' }).toLowerCase();
-                  bValue = pinyinPro.pinyin(b.file_name_re || '', { toneType: 'none', type: 'string' }).toLowerCase();
+                  // 否则尝试从重命名结果中提取数字进行数值排序
+                  const aRename = a.file_name_re || '';
+                  const bRename = b.file_name_re || '';
+                  
+                  // 尝试提取数字（包括小数）
+                  const aMatch = aRename.match(/(\d+(?:\.\d+)?)/);
+                  const bMatch = bRename.match(/(\d+(?:\.\d+)?)/);
+                  
+                  if (aMatch && bMatch) {
+                    // 如果都能提取到数字，进行数值比较
+                    aValue = parseFloat(aMatch[1]);
+                    bValue = parseFloat(bMatch[1]);
+                  } else {
+                    // 否则使用重命名后的文件名进行拼音排序
+                    aValue = pinyinPro.pinyin(aRename, { toneType: 'none', type: 'string' }).toLowerCase();
+                    bValue = pinyinPro.pinyin(bRename, { toneType: 'none', type: 'string' }).toLowerCase();
+                  }
                 }
 
                 if (order === 'asc') {
