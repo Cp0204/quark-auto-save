@@ -502,7 +502,74 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
     if m_spec:
         return int(m_spec.group(2))
     
-    # 预处理：排除文件名中可能是日期的部分，避免误识别
+    # 预处理顺序调整：先移除技术规格，再移除日期，降低误判
+    # 预处理：先移除技术规格信息，避免误提取技术参数中的数字为集编号
+    filename_without_dates = file_name_without_ext
+    tech_spec_patterns = [
+        # 分辨率相关（限定常见p档）
+        r'\b(?:240|360|480|540|720|900|960|1080|1440|2160|4320)[pP]\b',
+        # 常见分辨率 WxH（白名单）
+        r'\b(?:640x360|640x480|720x480|720x576|854x480|960x540|1024x576|1280x720|1280x800|1280x960|1366x768|1440x900|1600x900|1920x1080|2560x1080|2560x1440|3440x1440|3840x1600|3840x2160|4096x2160|7680x4320)\b',
+        r'(?<!\d)[248]\s*[Kk](?!\d)',  # 匹配 2K/4K/8K
+        
+        # 视频编码相关（包含数字的编码）
+        r'\b[Hh]\.?(?:264|265)\b',  # 匹配 h264/h265, h.264/h.265 等
+        r'\b[Xx](?:264|265)\b',     # 匹配 x264/x265, X264/X265
+        
+        # 音频采样率（限定常见采样率）
+        r'\b(?:44\.1|48|96)\s*[Kk][Hh][Zz]\b',
+        r'\b(?:44100|48000|96000)\s*[Hh][Zz]\b',
+        
+        # 比特率
+        # 常见码率（白名单）
+        r'\b(?:64|96|128|160|192|256|320)\s*[Kk][Bb][Pp][Ss]\b',
+        r'\b(?:1|1\.5|2|2\.5|3|4|5|6|8|10|12|15|20|25|30|35|40|50|80|100)\s*[Mm][Bb][Pp][Ss]\b',
+        
+        # 视频相关
+        # 位深（白名单）
+        r'\b(?:8|10|12)\s*[Bb][Ii][Tt]s?\b',
+        # 严格限定常见帧率，避免将 "07.30FPS" 视为帧率从而连带清除集数
+        r'\b(?:23\.976|29\.97|59\.94|24|25|30|50|60|90|120)\s*[Ff][Pp][Ss]\b',
+        
+        # 频率相关
+        # 频率相关（白名单，含空格/无空格）
+        r'\b(?:100|144|200|240|400|800)\s*[Mm][Hh][Zz]\b',
+        r'\b(?:1|1\.4|2|2\.4|5|5\.8)\s*[Gg][Hh][Zz]\b',
+        r'\b(?:100|144|200|240|400|800)[Mm][Hh][Zz]\b',
+        r'\b(?:1|1\.4|2|2\.4|5|5\.8)[Gg][Hh][Zz]\b',
+        
+        # 声道相关（限定常见声道）
+        r'\b(?:1\.0|2\.0|5\.1|7\.1)\s*[Cc][Hh]\b',
+        r'\b(?:1\.0|2\.0|5\.1|7\.1)[Cc][Hh]\b',
+        r'\b(?:1\.0|2\.0|5\.1|7\.1)\s*[Cc][Hh][Aa][Nn][Nn][Ee][Ll]\b',
+        
+        # 位深相关
+        r'\b\d+\.?\d*\s*[Bb][Ii][Tt][Ss]\b',  # 匹配 128bits, 256bits 等
+        
+        # 其他技术参数
+        # 其他技术参数（白名单）
+        r'\b(?:8|12|16|24|32|48|50|64|108)\s*[Mm][Pp]\b',
+        r'\b(?:720|1080|1440|1600|1920|2160|4320)\s*[Pp][Ii][Xx][Ee][Ll]\b',
+        r'\b(?:5400|7200)\s*[Rr][Pp][Mm]\b',
+        r'\b(?:720|1080|1440|1600|1920|2160|4320)[Pp][Ii][Xx][Ee][Ll]\b',
+        r'\b(?:5400|7200)[Rr][Pp][Mm]\b',
+    ]
+    for pattern in tech_spec_patterns:
+        filename_without_dates = re.sub(pattern, ' ', filename_without_dates, flags=re.IGNORECASE)
+
+    # 预处理：移除季编号标识，避免误提取季编号为集编号（放在日期清洗之前）
+    season_patterns = [
+        r'[Ss]\d+(?![Ee])',  # S1, S01 (但不包括S01E01中的S01)
+        r'[Ss]\s+\d+',  # S 1, S 01
+        r'Season\s*\d+',  # Season1, Season 1
+        r'第\s*\d+\s*季',  # 第1季, 第 1 季
+        r'第\s*[一二三四五六七八九十百千万零两]+\s*季',  # 第一季, 第 二 季
+    ]
+
+    for pattern in season_patterns:
+        filename_without_dates = re.sub(pattern, ' ', filename_without_dates, flags=re.IGNORECASE)
+
+    # 预处理：再排除文件名中可能是日期的部分，避免误识别
     date_patterns = [
         # YYYY-MM-DD 或 YYYY.MM.DD 或 YYYY/MM/DD 或 YYYY MM DD格式（四位年份）
         r'((?:19|20)\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})',
@@ -518,8 +585,7 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
         r'(?<![Ee])(?<![Ee][Pp])(?<!\d)(\d{1,2})[-./](\d{1,2})(?!\d)(?![KkPp])',
     ]
     
-    # 从不含扩展名的文件名中移除日期部分
-    filename_without_dates = file_name_without_ext
+    # 从已清除技术规格的信息中移除日期部分
     for pattern in date_patterns:
         matches = re.finditer(pattern, filename_without_dates)
         for match in matches:
@@ -591,78 +657,6 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
             # 如果能确定月日且是有效的日期，则从文件名中删除该日期
             if month and day and 1 <= month <= 12 and 1 <= day <= 31:
                 filename_without_dates = filename_without_dates.replace(date_str, " ")
-
-    # 预处理：移除技术规格信息，避免误提取技术参数中的数字为集编号
-    tech_spec_patterns = [
-        # 分辨率相关
-        r'\b\d+[pP]\b',  # 匹配 720p, 1080P, 2160p 等
-        r'\b\d+x\d+\b',  # 匹配 1920x1080 等
-        r'(?<!\d)[248]\s*[Kk](?!\d)',  # 匹配 2K/4K/8K
-        
-        # 视频编码相关（包含数字的编码）
-        r'\b[Hh]\.?264\b',  # 匹配 h264, h.264, H264, H.264
-        r'\b[Hh]\.?265\b',  # 匹配 h265, h.265, H265, H.265
-        r'\b[Xx]264\b',     # 匹配 x264, X264
-        r'\b[Xx]265\b',     # 匹配 x265, X265
-        
-        # 文件大小相关
-        r'\b\d+\.?\d*\s*[Gg][Bb]\b',  # 匹配 5.2GB, 7GB, 1.5GB 等
-        r'\b\d+\.?\d*\s*[Mm][Bb]\b',  # 匹配 850MB, 1.5MB 等
-        r'\b\d+\.?\d*\s*[Kk][Bb]\b',  # 匹配 128KB, 1.5KB 等
-        r'\b\d+\.?\d*\s*[Tt][Bb]\b',  # 匹配 1.5TB, 2TB 等
-        r'\b\d+\.?\d*\s*[Pp][Bb]\b',  # 匹配 1.5PB 等
-        r'\b\d+\.?\d*[Gg][Bb]\b',     # 匹配 5.2GB, 7GB, 1.5GB 等（无空格）
-        r'\b\d+\.?\d*[Mm][Bb]\b',     # 匹配 850MB, 1.5MB 等（无空格）
-        r'\b\d+\.?\d*[Kk][Bb]\b',     # 匹配 128KB, 1.5KB 等（无空格）
-        r'\b\d+\.?\d*[Tt][Bb]\b',     # 匹配 1.5TB, 2TB 等（无空格）
-        
-        # 音频采样率
-        r'\b\d+\.?\d*\s*[Kk][Hh][Zz]\b',  # 匹配 44.1kHz, 48kHz, 96kHz 等
-        r'\b\d+\.?\d*\s*[Hh][Zz]\b',      # 匹配 44100Hz, 48000Hz 等
-        
-        # 比特率
-        r'\b\d+\.?\d*\s*[Kk]?[Bb][Pp][Ss]\b',  # 匹配 128kbps, 320kbps, 1.5Mbps 等
-        r'\b\d+\.?\d*\s*[Mm][Bb][Pp][Ss]\b',   # 匹配 1.5Mbps, 2Mbps 等
-        
-        # 视频相关
-        r'\b\d+\.?\d*\s*[Bb][Ii][Tt]\b',  # 匹配 10bit, 8bit, 12bit 等
-        r'\b\d+\.?\d*\s*[Ff][Pp][Ss]\b',  # 匹配 30FPS, 60fps, 24fps 等
-        r'\b\d+\.?\d*\s*[Ff][Pp][Ss]\b',  # 匹配 30FPS, 60fps, 24fps 等
-        
-        # 频率相关
-        r'\b\d+\.?\d*\s*[Mm][Hh][Zz]\b',  # 匹配 100MHz, 2.4GHz 等
-        r'\b\d+\.?\d*\s*[Gg][Hh][Zz]\b',  # 匹配 2.4GHz, 5GHz 等
-        r'\b\d+\.?\d*[Mm][Hh][Zz]\b',     # 匹配 100MHz, 2.4GHz 等（无空格）
-        r'\b\d+\.?\d*[Gg][Hh][Zz]\b',     # 匹配 2.4GHz, 5GHz 等（无空格）
-        
-        # 声道相关
-        r'\b\d+\.?\d*\s*[Cc][Hh]\b',      # 匹配 7.1ch, 5.1ch, 2.0ch 等
-        r'\b\d+\.?\d*[Cc][Hh]\b',         # 匹配 7.1ch, 5.1ch, 2.0ch 等（无空格）
-        r'\b\d+\.?\d*\s*[Cc][Hh][Aa][Nn][Nn][Ee][Ll]\b',  # 匹配 7.1channel 等
-        
-        # 位深相关
-        r'\b\d+\.?\d*\s*[Bb][Ii][Tt][Ss]\b',  # 匹配 128bits, 256bits 等
-        
-        # 其他技术参数
-        r'\b\d+\.?\d*\s*[Mm][Pp]\b',      # 匹配 1080MP, 4KMP 等
-        r'\b\d+\.?\d*\s*[Pp][Ii][Xx][Ee][Ll]\b',  # 匹配 1920pixel 等
-        r'\b\d+\.?\d*\s*[Rr][Pp][Mm]\b',  # 匹配 7200RPM 等
-    ]
-
-    for pattern in tech_spec_patterns:
-        filename_without_dates = re.sub(pattern, ' ', filename_without_dates, flags=re.IGNORECASE)
-
-    # 预处理：移除季编号标识，避免误提取季编号为集编号
-    season_patterns = [
-        r'[Ss]\d+(?![Ee])',  # S1, S01 (但不包括S01E01中的S01)
-        r'[Ss]\s+\d+',  # S 1, S 01
-        r'Season\s*\d+',  # Season1, Season 1
-        r'第\s*\d+\s*季',  # 第1季, 第 1 季
-        r'第\s*[一二三四五六七八九十百千万零两]+\s*季',  # 第一季, 第 二 季
-    ]
-
-    for pattern in season_patterns:
-        filename_without_dates = re.sub(pattern, ' ', filename_without_dates, flags=re.IGNORECASE)
 
     # 优先匹配SxxExx格式
     match_s_e = re.search(r'[Ss](\d+)[Ee](\d+)', filename_without_dates)
