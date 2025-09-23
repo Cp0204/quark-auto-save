@@ -28,6 +28,59 @@ function sortFileByName(file) {
     let filename = typeof file === 'object' ? (file.file_name || '') : file;
     let update_time = typeof file === 'object' ? (file.updated_at || 0) : 0;
     let file_name_without_ext = filename.replace(/\.[^/.]+$/, '');
+    
+    // 0. 预处理（前移）：移除技术规格与季号，供后续“日期与集数”提取共同使用
+    // 这样可以避免 30FPS/1080p/Season 等噪音影响识别
+    let cleanedName = file_name_without_ext;
+    try {
+        const techSpecs = [
+            // 分辨率相关（限定常见p档）
+            /\b(?:240|360|480|540|720|900|960|1080|1440|2160|4320)[pP]\b/g,
+            // 常见分辨率 WxH（白名单）
+            /\b(?:640x360|640x480|720x480|720x576|854x480|960x540|1024x576|1280x720|1280x800|1280x960|1366x768|1440x900|1600x900|1920x1080|2560x1080|2560x1440|3440x1440|3840x1600|3840x2160|4096x2160|7680x4320)\b/g,
+            /(?<!\d)[248]\s*[Kk](?!\d)/g,       // 2K/4K/8K
+
+            // 视频编码相关（包含数字的编码）
+            /\b[Hh]\.?264\b/g,                  // h264, h.264, H264, H.264
+            /\b[Hh]\.?265\b/g,                  // h265, h.265, H265, H.265
+            /\b[Xx]264\b/g,                      // x264, X264
+            /\b[Xx]265\b/g,                      // x265, X265
+
+            // 音频采样率（限定常见采样率）
+            /\b(?:44\.1|48|96)\s*[Kk][Hh][Zz]\b/g,
+            /\b(?:44100|48000|96000)\s*[Hh][Zz]\b/g,
+
+            // 常见码率（白名单）
+            /\b(?:64|96|128|160|192|256|320)\s*[Kk][Bb][Pp][Ss]\b/g,
+            /\b(?:1|1\.5|2|2\.5|3|4|5|6|8|10|12|15|20|25|30|35|40|50|80|100)\s*[Mm][Bb][Pp][Ss]\b/g,
+
+            // 位深（白名单）
+            /\b(?:8|10|12)\s*[Bb][Ii][Tt]s?\b/g,
+            // 严格限定常见帧率，避免将 "07.30FPS" 视为帧率从而连带清除集数
+            /\b(?:23\.976|29\.97|59\.94|24|25|30|50|60|90|120)\s*[Ff][Pp][Ss]\b/g,
+
+            // 频率相关（白名单，含空格/无空格）
+            /\b(?:100|144|200|240|400|800)\s*[Mm][Hh][Zz]\b/g,
+            /\b(?:1|1\.4|2|2\.4|5|5\.8)\s*[Gg][Hh][Zz]\b/g,
+            /\b(?:100|144|200|240|400|800)[Mm][Hh][Zz]\b/g,
+            /\b(?:1|1\.4|2|2\.4|5|5\.8)[Gg][Hh][Zz]\b/g,
+
+            // 声道相关（限定常见声道）
+            /\b(?:1\.0|2\.0|5\.1|7\.1)\s*[Cc][Hh]\b/g,
+            /\b(?:1\.0|2\.0|5\.1|7\.1)[Cc][Hh]\b/g,
+            /\b(?:1\.0|2\.0|5\.1|7\.1)\s*[Cc][Hh][Aa][Nn][Nn][Ee][Ll]\b/g,
+
+            // 其他技术参数（白名单）
+            /\b(?:8|12|16|24|32|48|50|64|108)\s*[Mm][Pp]\b/g,
+            /\b(?:720|1080|1440|1600|1920|2160|4320)\s*[Pp][Ii][Xx][Ee][Ll]\b/g,
+            /\b(?:5400|7200)\s*[Rr][Pp][Mm]\b/g,
+            /\b(?:720|1080|1440|1600|1920|2160|4320)[Pp][Ii][Xx][Ee][Ll]\b/g,
+            /\b(?:5400|7200)[Rr][Pp][Mm]\b/g,
+        ];
+        const seasons = [/[Ss]\d+(?![Ee])/gi, /[Ss]\s+\d+/gi, /Season\s*\d+/gi, /第\s*\d+\s*季/gi, /第\s*[一二三四五六七八九十百千万零两]+\s*季/gi];
+        for (const p of techSpecs) cleanedName = cleanedName.replace(p, ' ');
+        for (const p of seasons) cleanedName = cleanedName.replace(p, ' ');
+    } catch (e) {}
     let date_value = Infinity, episode_value = Infinity, segment_value = 0;
 
     // 生成拼音排序键（第五级排序）
@@ -43,16 +96,16 @@ function sortFileByName(file) {
         pinyin_sort_key = filename.toLowerCase();
     }
 
-    // 1. 日期提取
+    // 1. 日期提取（改为基于 cleanedName，以避免技术规格噪音干扰）
     let match;
     // YYYY-MM-DD
-    match = filename.match(/((?:19|20)\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})/);
+    match = cleanedName.match(/((?:19|20)\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})/);
     if (match) {
         date_value = parseInt(match[1]) * 10000 + parseInt(match[2]) * 100 + parseInt(match[3]);
     }
     // YY-MM-DD
     if (date_value === Infinity) {
-        match = filename.match(/((?:19|20)?\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})/);
+        match = cleanedName.match(/(?<![Ee][Pp]?)((?:19|20)?\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})/);
         if (match && match[1].length === 2) {
             let year = parseInt('20' + match[1]);
             date_value = year * 10000 + parseInt(match[2]) * 100 + parseInt(match[3]);
@@ -60,14 +113,14 @@ function sortFileByName(file) {
     }
     // YYYYMMDD
     if (date_value === Infinity) {
-        match = filename.match(/((?:19|20)\d{2})(\d{2})(\d{2})/);
+    match = cleanedName.match(/((?:19|20)\d{2})(\d{2})(\d{2})/);
         if (match) {
             date_value = parseInt(match[1]) * 10000 + parseInt(match[2]) * 100 + parseInt(match[3]);
         }
     }
     // YYMMDD
     if (date_value === Infinity) {
-        match = filename.match(/(?<!\d)(\d{2})(\d{2})(\d{2})(?!\d)/);
+    match = cleanedName.match(/(?<!\d)(\d{2})(\d{2})(\d{2})(?!\d)/);
         if (match) {
             let month = parseInt(match[2]), day = parseInt(match[3]);
             if (1 <= month && month <= 12 && 1 <= day && day <= 31) {
@@ -78,7 +131,7 @@ function sortFileByName(file) {
     }
     // MM/DD/YYYY
     if (date_value === Infinity) {
-        match = filename.match(/(\d{1,2})[-./\s](\d{1,2})[-./\s]((?:19|20)\d{2})/);
+    match = cleanedName.match(/(\d{1,2})[-./\s](\d{1,2})[-./\s]((?:19|20)\d{2})/);
         if (match) {
             let month = parseInt(match[1]), day = parseInt(match[2]), year = parseInt(match[3]);
             if (month > 12) [month, day] = [day, month];
@@ -87,7 +140,7 @@ function sortFileByName(file) {
     }
     // MM-DD
     if (date_value === Infinity) {
-        match = filename.match(/(?<!\d)(\d{1,2})[-./](\d{1,2})(?!\d)/);
+    match = cleanedName.match(/(?<![Ee][Pp]?)(?<!\d)(\d{1,2})[-./](\d{1,2})(?!\d)/);
         if (match) {
             let month = parseInt(match[1]), day = parseInt(match[2]);
             // 验证是否为有效的月日组合
@@ -99,13 +152,13 @@ function sortFileByName(file) {
         }
     }
 
-    // 2. 期数/集数
+    // 2. 期数/集数（同样基于 cleanedName）
     // 第X期/集/话
-    match = filename.match(/第(\d+)[期集话]/);
+    match = cleanedName.match(/第(\d+)[期集话]/);
     if (match) episode_value = parseInt(match[1]);
     // 第[中文数字]期/集/话
     if (episode_value === Infinity) {
-        match = filename.match(/第([一二三四五六七八九十百千万零两]+)[期集话]/);
+        match = cleanedName.match(/第([一二三四五六七八九十百千万零两]+)[期集话]/);
         if (match) {
             let arabic = chineseToArabic(match[1]);
             if (arabic !== null) episode_value = arabic;
@@ -113,12 +166,12 @@ function sortFileByName(file) {
     }
     // X集/期/话
     if (episode_value === Infinity) {
-        match = filename.match(/(\d+)[期集话]/);
+        match = cleanedName.match(/(\d+)[期集话]/);
         if (match) episode_value = parseInt(match[1]);
     }
     // [中文数字]集/期/话
     if (episode_value === Infinity) {
-        match = filename.match(/([一二三四五六七八九十百千万零两]+)[期集话]/);
+        match = cleanedName.match(/([一二三四五六七八九十百千万零两]+)[期集话]/);
         if (match) {
             let arabic = chineseToArabic(match[1]);
             if (arabic !== null) episode_value = arabic;
@@ -126,42 +179,31 @@ function sortFileByName(file) {
     }
     // S01E01
     if (episode_value === Infinity) {
-        match = filename.match(/[Ss](\d+)[Ee](\d+)/);
+        match = cleanedName.match(/[Ss](\d+)[Ee](\d+)/);
         if (match) episode_value = parseInt(match[2]);
     }
     // E01/EP01
     if (episode_value === Infinity) {
-        match = filename.match(/[Ee][Pp]?(\d+)/);
+        match = cleanedName.match(/[Ee][Pp]?(\d+)/);
         if (match) episode_value = parseInt(match[1]);
     }
     // 1x01
     if (episode_value === Infinity) {
-        match = filename.match(/(\d+)[Xx](\d+)/);
+        match = cleanedName.match(/(\d+)[Xx](\d+)/);
         if (match) episode_value = parseInt(match[2]);
     }
     // [数字]或【数字】
     if (episode_value === Infinity) {
-        match = filename.match(/\[(\d+)\]|【(\d+)】/);
+        match = cleanedName.match(/\[(\d+)\]|【(\d+)】/);
         if (match) episode_value = parseInt(match[1] || match[2]);
     }
     // 纯数字文件名
     if (episode_value === Infinity) {
-        if (/^\d+$/.test(file_name_without_ext)) {
-            episode_value = parseInt(file_name_without_ext);
+        if (/^\d+$/.test(cleanedName)) {
+            episode_value = parseInt(cleanedName);
         } else {
-            // 预处理：移除分辨率标识（如 720p, 1080P, 2160p 等）
-            let filename_without_resolution = filename;
-            const resolution_patterns = [
-                /\b\d+[pP]\b/g,  // 匹配 720p, 1080P, 2160p 等
-                /\b\d+x\d+\b/g,  // 匹配 1920x1080 等
-                // 注意：不移除4K/8K，避免误删文件名中的4K标识
-            ];
-
-            for (const pattern of resolution_patterns) {
-                filename_without_resolution = filename_without_resolution.replace(pattern, ' ');
-            }
-
-            match = filename_without_resolution.match(/(\d+)/);
+            // 兜底：直接从已清洗的 cleanedName 中提取第一个数字
+            match = cleanedName.match(/(\d+)/);
             if (match) episode_value = parseInt(match[1]);
         }
     }

@@ -41,7 +41,7 @@ class TMDBService:
     def reset_to_primary_url(self):
         """重置到主API地址"""
         self.current_url = self.primary_url
-        logger.info("TMDB API地址已重置为主地址")
+        logger.debug("TMDB API地址已重置为主地址")
     
     def get_current_api_url(self) -> str:
         """获取当前使用的API地址"""
@@ -87,17 +87,17 @@ class TMDBService:
                 pass
             return data
         except Exception as e:
-            logger.warning(f"TMDB主地址请求失败: {e}")
+            logger.debug(f"TMDB主地址请求失败: {e}")
             
             # 如果当前使用的是主地址，尝试切换到备用地址
             if self.current_url == self.primary_url:
-                logger.info("尝试切换到TMDB备用地址...")
+                logger.debug("尝试切换到TMDB备用地址...")
                 self.current_url = self.backup_url
                 try:
                     url = f"{self.current_url}{endpoint}"
                     response = self.session.get(url, params=params, timeout=10)
                     response.raise_for_status()
-                    logger.info("TMDB备用地址连接成功")
+                    logger.debug("TMDB备用地址连接成功")
                     data = response.json()
                     try:
                         self._cache[cache_key] = (_now(), data)
@@ -111,7 +111,7 @@ class TMDBService:
                     return None
             else:
                 # 如果备用地址也失败，重置回主地址
-                logger.error(f"TMDB备用地址请求失败: {e}")
+                logger.debug(f"TMDB备用地址请求失败: {e}")
                 self.current_url = self.primary_url
                 return None
     
@@ -186,7 +186,7 @@ class TMDBService:
                 return original_title
                 
         except Exception as e:
-            logger.warning(f"获取中文标题失败: {e}, 使用原始标题: {original_title}")
+            logger.debug(f"获取中文标题失败: {e}, 使用原始标题: {original_title}")
             return original_title
     
     def get_tv_show_episodes(self, tv_id: int, season_number: int) -> Optional[Dict]:
@@ -458,7 +458,7 @@ class TMDBService:
                     if poster_path:
                         return poster_path
                 except Exception as e:
-                    logger.warning(f"获取原始语言海报失败: {e}")
+                    logger.debug(f"获取原始语言海报失败: {e}")
             
             # 如果设置为中文或原始语言获取失败，尝试中文海报
             if self.poster_language == "zh-CN" or self.poster_language == "original":
@@ -477,7 +477,7 @@ class TMDBService:
                     if poster_path:
                         return poster_path
                 except Exception as e:
-                    logger.warning(f"获取中文海报失败: {e}")
+                    logger.debug(f"获取中文海报失败: {e}")
             
             # 如果都失败了，返回默认海报路径
             return details.get('poster_path', '')

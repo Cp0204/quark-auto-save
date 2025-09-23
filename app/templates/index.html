@@ -692,7 +692,7 @@
             </div>
 
             <!-- 剧集识别模块 -->
-            <div class="row title" title="识别文件名中的剧集编号，用于自动重命名，查阅Wiki了解详情">
+            <div class="row title" title="识别文件名中的剧集编号，用于自动重命名，留空时使用内置默认规则，支持输入自定义规则作为补充，查阅Wiki了解详情">
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">剧集识别</h2>
                 <span class="badge badge-pill badge-light">
@@ -705,7 +705,7 @@
                 <div class="input-group-prepend">
                   <span class="input-group-text">集编号识别规则</span>
                 </div>
-                <input type="text" class="form-control" v-model="episodePatternsText" placeholder="输入用于识别集编号的正则表达式，多个表达式用竖线分隔，特殊符号需要转义">
+                <input type="text" class="form-control" v-model="episodePatternsText" placeholder="留空使用内置默认规则，或输入自定义正则表达式作为补充规则，多个表达式用竖线分隔，特殊符号需要转义">
               </div>
             </div>
 
@@ -1886,7 +1886,7 @@
                     <div class="input-group-prepend">
                       <span class="input-group-text">名称筛选</span>
                     </div>
-                    <input type="text" class="form-control" v-model="calendar.nameFilter" placeholder="任务名称或剧集名称关键词">
+                    <input type="text" class="form-control" v-model="calendar.nameFilter" placeholder="任务或节目名称关键词">
                     <div class="input-group-append">
                       <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearCalendarFilter('nameFilter')"><i class="bi bi-x-lg"></i></button>
                     </div>
@@ -3256,11 +3256,15 @@
             return this.formData.episode_patterns.map(p => p.regex || '').join('|');
           },
           set(value) {
-            // 允许直接输入正则表达式，当用户按下Enter键或失焦时再处理
-            // 这里我们创建一个单一的正则表达式对象，而不是拆分
-            this.formData.episode_patterns = [{
-              regex: value.trim()
-            }];
+            // 支持竖线分割的多个正则表达式
+            if (!value || value.trim() === '') {
+              this.formData.episode_patterns = [];
+              return;
+            }
+            
+            // 按竖线分割并创建多个正则表达式对象
+            const patterns = value.split('|').map(p => p.trim()).filter(p => p !== '');
+            this.formData.episode_patterns = patterns.map(regex => ({ regex }));
           }
         },
         // 管理视图：按任务名（拼音）排序并应用顶部筛选
@@ -3748,11 +3752,9 @@
             });
           }
           
-          // 如果没有剧集识别模式，添加默认模式
-          if (!this.formData.episode_patterns || this.formData.episode_patterns.length === 0) {
-            this.formData.episode_patterns = [
-              { regex: '第(\\d+)集|第(\\d+)期|第(\\d+)话|(\\d+)集|(\\d+)期|(\\d+)话|[Ee][Pp]?(\\d+)|(\\d+)[-_\\s]*4[Kk]|\\[(\\d+)\\]|【(\\d+)】|_?(\\d+)_?' }
-            ];
+          // 确保剧集识别模式字段存在（但不自动添加默认规则）
+          if (!this.formData.episode_patterns) {
+            this.formData.episode_patterns = [];
           }
           
           // 如果当前标签是历史记录，则加载历史记录
@@ -4777,11 +4779,23 @@
           });
           
           // 如果启用了合并集功能，则进行合并处理
-          if (this.calendar.mergeEpisodes) {
-            return this.mergeEpisodesByShow(filteredEpisodes);
-          }
-          
-          return filteredEpisodes;
+          let result = this.calendar.mergeEpisodes
+            ? this.mergeEpisodesByShow(filteredEpisodes)
+            : filteredEpisodes;
+
+          // 统一对同一天节目按节目名称拼音排序（与内容管理一致）
+          try {
+            result = result.slice().sort((a, b) => {
+              const an = (a && a.show_name) ? String(a.show_name) : '';
+              const bn = (b && b.show_name) ? String(b.show_name) : '';
+              const ak = pinyinPro.pinyin(an, { toneType: 'none', type: 'string' }).toLowerCase();
+              const bk = pinyinPro.pinyin(bn, { toneType: 'none', type: 'string' }).toLowerCase();
+              if (ak === bk) return 0;
+              return ak > bk ? 1 : -1;
+            });
+          } catch (e) {}
+
+          return result;
         },
         
         // 根据剧集名称查找对应的任务
@@ -8112,6 +8126,23 @@
             this.smart_param.currentResourceIndex--;
             const previousResource = this.smart_param.taskSuggestions.data[this.smart_param.currentResourceIndex];
             if (previousResource) {
+              // 在切换资源时，重置展示相关状态，避免错误提示残留
+              this.fileSelect.error = undefined;
+              this.fileSelect.fileList = [];
+              this.fileSelect.paths = [];
+              // 确保处于“选择需转存的文件夹”界面
+              this.fileSelect.previewRegex = false;
+              this.fileSelect.selectDir = true;
+              // 如果基础链接变化，清空stoken强制刷新
+              try {
+                const oldBase = this.getShareurl(this.fileSelect.shareurl);
+                const newBase = this.getShareurl(previousResource.shareurl);
+                if (oldBase !== newBase) {
+                  this.fileSelect.stoken = "";
+                }
+              } catch (e) {
+                this.fileSelect.stoken = "";
+              }
               // 更新当前分享链接并重新加载内容
               this.fileSelect.shareurl = previousResource.shareurl;
               this.getShareDetail(0, 1);
@@ -8124,6 +8155,23 @@
             this.smart_param.currentResourceIndex++;
             const nextResource = this.smart_param.taskSuggestions.data[this.smart_param.currentResourceIndex];
             if (nextResource) {
+              // 在切换资源时，重置展示相关状态，避免错误提示残留
+              this.fileSelect.error = undefined;
+              this.fileSelect.fileList = [];
+              this.fileSelect.paths = [];
+              // 确保处于“选择需转存的文件夹”界面
+              this.fileSelect.previewRegex = false;
+              this.fileSelect.selectDir = true;
+              // 如果基础链接变化，清空stoken强制刷新
+              try {
+                const oldBase = this.getShareurl(this.fileSelect.shareurl);
+                const newBase = this.getShareurl(nextResource.shareurl);
+                if (oldBase !== newBase) {
+                  this.fileSelect.stoken = "";
+                }
+              } catch (e) {
+                this.fileSelect.stoken = "";
+              }
               // 更新当前分享链接并重新加载内容
               this.fileSelect.shareurl = nextResource.shareurl;
               this.getShareDetail(0, 1);
@@ -8370,6 +8418,8 @@
           }
         },
         getShareDetail(retryCount = 0, maxRetries = 1) {
+          // 切换或重试前清理残留错误提示，避免覆盖新资源展示
+          this.fileSelect.error = undefined;
           this.modalLoading = true;
 
           // 检查index是否有效，如果无效则使用默认值
@@ -9604,14 +9654,12 @@
                 // 其他模态框：文件夹排在文件前面
                 if (a.dir && !b.dir) return -1;
                 if (!a.dir && b.dir) return 1;
-                // 其他模态框：使用拼音排序
-                let aValue = pinyinPro.pinyin(a.file_name, { toneType: 'none', type: 'string' }).toLowerCase();
-                let bValue = pinyinPro.pinyin(b.file_name, { toneType: 'none', type: 'string' }).toLowerCase();
-                if (this.fileSelect.sortOrder === 'asc') {
-                  return aValue > bValue ? 1 : -1;
-                } else {
-                  return aValue < bValue ? 1 : -1;
+                // 其他模态框：使用与任务列表一致的自然排序算法
+                const ka = sortFileByName(a), kb = sortFileByName(b);
+                for (let i = 0; i < ka.length; ++i) {
+                  if (ka[i] !== kb[i]) return this.fileSelect.sortOrder === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
                 }
+                return 0;
               }
             }
             if (field === 'file_name_re') {
@@ -9641,14 +9689,48 @@
                     bValue = String(b.episode_number);
                   }
                 } else {
-                  // 否则使用重命名后的文件名进行拼音排序
-                  aValue = pinyinPro.pinyin(a.file_name_re || '', { toneType: 'none', type: 'string' }).toLowerCase();
-                  bValue = pinyinPro.pinyin(b.file_name_re || '', { toneType: 'none', type: 'string' }).toLowerCase();
+                  // 否则使用智能排序：优先数值排序，其次日期排序，最后字符串排序
+                  const aRename = a.file_name_re || '';
+                  const bRename = b.file_name_re || '';
+                  
+                  // 尝试提取所有数字进行数值排序
+                  const aNumbers = aRename.match(/\d+/g);
+                  const bNumbers = bRename.match(/\d+/g);
+                  
+                  if (aNumbers && bNumbers && aNumbers.length > 0 && bNumbers.length > 0) {
+                    // 如果都能提取到数字，进行数值比较
+                    // 优先比较第一个数字，如果相同则比较后续数字
+                    for (let i = 0; i < Math.max(aNumbers.length, bNumbers.length); i++) {
+                      const aNum = parseInt(aNumbers[i] || '0', 10);
+                      const bNum = parseInt(bNumbers[i] || '0', 10);
+                      if (aNum !== bNum) {
+                        aValue = aNum;
+                        bValue = bNum;
+                        break;
+                      }
+                    }
+                    // 如果所有数字都相同，使用自然排序
+                    if (aValue === undefined) {
+                      aValue = aRename;
+                      bValue = bRename;
+                    }
+                  } else {
+                    // 否则使用自然排序（支持数值和日期的智能排序）
+                    aValue = aRename;
+                    bValue = bRename;
+                  }
                 }
 
                 if (this.fileSelect.sortOrder === 'asc') {
+                  // 字符串使用自然排序，数值直接比较
+                  if (typeof aValue === 'string' && typeof bValue === 'string') {
+                    return aValue.localeCompare(bValue, undefined, { numeric: true, sensitivity: 'base' });
+                  }
                   return aValue > bValue ? 1 : -1;
                 } else {
+                  if (typeof aValue === 'string' && typeof bValue === 'string') {
+                    return bValue.localeCompare(aValue, undefined, { numeric: true, sensitivity: 'base' });
+                  }
                   return aValue < bValue ? 1 : -1;
                 }
               }
@@ -9772,14 +9854,49 @@
                     bValue = String(b.episode_number);
                   }
                 } else {
-                  // 否则使用重命名后的文件名进行拼音排序
-                  aValue = pinyinPro.pinyin(a.file_name_re || '', { toneType: 'none', type: 'string' }).toLowerCase();
-                  bValue = pinyinPro.pinyin(b.file_name_re || '', { toneType: 'none', type: 'string' }).toLowerCase();
+                  // 否则使用智能排序：优先数值排序，其次日期排序，最后字符串排序
+                  const aRename = a.file_name_re || '';
+                  const bRename = b.file_name_re || '';
+                  
+                  // 尝试提取所有数字进行数值排序
+                  const aNumbers = aRename.match(/\d+/g);
+                  const bNumbers = bRename.match(/\d+/g);
+                  
+                  if (aNumbers && bNumbers && aNumbers.length > 0 && bNumbers.length > 0) {
+                    // 如果都能提取到数字，进行数值比较
+                    // 优先比较第一个数字，如果相同则比较后续数字
+                    for (let i = 0; i < Math.max(aNumbers.length, bNumbers.length); i++) {
+                      const aNum = parseInt(aNumbers[i] || '0', 10);
+                      const bNum = parseInt(bNumbers[i] || '0', 10);
+                      if (aNum !== bNum) {
+                        aValue = aNum;
+                        bValue = bNum;
+                        break;
+                      }
+                    }
+                    // 如果所有数字都相同，使用自然排序
+                    if (aValue === undefined) {
+                      aValue = aRename;
+                      bValue = bRename;
+                    }
+                  } else {
+                    // 否则使用自然排序（支持数值和日期的智能排序）
+                    aValue = aRename;
+                    bValue = bRename;
+                  }
                 }
 
                 if (order === 'asc') {
+                  // 如果都是字符串，使用自然排序
+                  if (typeof aValue === 'string' && typeof bValue === 'string') {
+                    return aValue.localeCompare(bValue, undefined, { numeric: true, sensitivity: 'base' });
+                  }
                   return aValue > bValue ? 1 : -1;
                 } else {
+                  // 如果都是字符串，使用自然排序
+                  if (typeof aValue === 'string' && typeof bValue === 'string') {
+                    return bValue.localeCompare(aValue, undefined, { numeric: true, sensitivity: 'base' });
+                  }
                   return aValue < bValue ? 1 : -1;
                 }
               }
@@ -10371,6 +10488,19 @@
             .then(response => {
               if (response.data.success) {
                 this.showToast(`重置成功：删除了 ${response.data.deleted_files || 0} 个文件，${response.data.deleted_records || 0} 条记录`);
+                // 重置成功后，主动热更新最近转存文件与任务元数据，避免等待 SSE 或轮询
+                (async () => {
+                  try {
+                    const latestRes = await axios.get('/task_latest_info');
+                    if (latestRes.data && latestRes.data.success) {
+                      const latestFiles = latestRes.data.data.latest_files || {};
+                      this.taskLatestFiles = latestFiles;
+                      this.taskLatestRecords = latestRes.data.data.latest_records || {};
+                    }
+                  } catch (e) {}
+                  // 重新加载任务元数据（海报与详细信息）
+                  try { await this.loadTasklistMetadata(); } catch (e) {}
+                })();
                 // 如果当前是历史记录页面，刷新记录
                 if (this.activeTab === 'history') {
                   this.loadHistoryRecords();
@@ -10841,7 +10971,7 @@
           this.fileSelect.paths = [];
           this.fileSelect.error = undefined;
           this.fileSelect.selectedFiles = [];
-          // 设置排序方式为按重命名结果降序排序
+          // 预览默认按重命名列降序（与任务列表一致）
           this.fileSelect.sortBy = "file_name_re";
           this.fileSelect.sortOrder = "desc";
           // 展示当前文件夹的文件
@@ -13246,11 +13376,9 @@
             });
           }
           
-          // 如果没有剧集识别模式，添加默认模式
-          if (!this.formData.episode_patterns || this.formData.episode_patterns.length === 0) {
-            this.formData.episode_patterns = [
-              { regex: '第(\\d+)集|第(\\d+)期|第(\\d+)话|(\\d+)集|(\\d+)期|(\\d+)话|[Ee][Pp]?(\\d+)|(\\d+)[-_\\s]*4[Kk]|\\[(\\d+)\\]|【(\\d+)】|_?(\\d+)_?' }
-            ];
+          // 确保剧集识别模式字段存在（但不自动添加默认规则）
+          if (!this.formData.episode_patterns) {
+            this.formData.episode_patterns = [];
           }
           
           // 如果当前标签是历史记录，则加载历史记录
