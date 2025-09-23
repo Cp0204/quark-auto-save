@@ -325,7 +325,7 @@ def sort_file_by_name(file):
 
             # 否则尝试提取任何数字
             candidates = []
-            for m in re.finditer(r'\\d+', filename_without_resolution):
+            for m in re.finditer(r'\d+', filename_without_resolution):
                 num_str = m.group(0)
                 # 过滤日期模式
                 if is_date_format(num_str):
@@ -506,16 +506,16 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
     date_patterns = [
         # YYYY-MM-DD 或 YYYY.MM.DD 或 YYYY/MM/DD 或 YYYY MM DD格式（四位年份）
         r'((?:19|20)\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})',
-        # YY-MM-DD 或 YY.MM.DD 或 YY/MM/DD 或 YY MM DD格式（两位年份）
-        r'((?:19|20)?\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})',
+        # YY-MM-DD 或 YY.MM.DD 或 YY/MM/DD 或 YY MM DD格式（两位年份），但排除E后面的数字
+        r'(?<![Ee])((?:19|20)?\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})',
         # 完整的YYYYMMDD格式（无分隔符）
         r'((?:19|20)\d{2})(\d{2})(\d{2})',
         # YYMMDD格式（两位年份，无分隔符）
         r'(?<!\d)(\d{2})(\d{2})(\d{2})(?!\d)',
         # MM/DD/YYYY 或 DD/MM/YYYY 格式
         r'(\d{1,2})[-./\s](\d{1,2})[-./\s]((?:19|20)\d{2})',
-        # MM-DD 或 MM.DD 或 MM/DD格式（无年份，不包括空格分隔）
-        r'(?<!\d)(\d{1,2})[-./](\d{1,2})(?!\d)',
+        # MM-DD 或 MM.DD 或 MM/DD格式（无年份，不包括空格分隔），但排除E后面的数字
+        r'(?<![Ee])(?<!\d)(\d{1,2})[-./](\d{1,2})(?!\d)',
     ]
     
     # 从不含扩展名的文件名中移除日期部分
@@ -527,6 +527,11 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
             date_str = match.group(0)
             # 针对短日期 x.x 或 xx.xx：前一字符为 E/e 时不清洗（保护 E11.11 场景）
             if re.match(r'^\d{1,2}[./-]\d{1,2}$', date_str):
+                prev_char = filename_without_dates[match.start()-1] if match.start() > 0 else ''
+                if prev_char in 'Ee':
+                    continue
+            # 保护 E 格式的集编号，如 E07, E14 等
+            if re.match(r'^\d+$', date_str) and len(date_str) <= 3:
                 prev_char = filename_without_dates[match.start()-1] if match.start() > 0 else ''
                 if prev_char in 'Ee':
                     continue
@@ -569,15 +574,65 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
             if month and day and 1 <= month <= 12 and 1 <= day <= 31:
                 filename_without_dates = filename_without_dates.replace(date_str, " ")
 
-    # 预处理：移除分辨率标识（如 720p, 1080P, 2160p 等）
-    resolution_patterns = [
+    # 预处理：移除技术规格信息，避免误提取技术参数中的数字为集编号
+    tech_spec_patterns = [
+        # 分辨率相关
         r'\b\d+[pP]\b',  # 匹配 720p, 1080P, 2160p 等
         r'\b\d+x\d+\b',  # 匹配 1920x1080 等
         r'(?<!\d)[248]\s*[Kk](?!\d)',  # 匹配 2K/4K/8K
+        
+        # 视频编码相关（包含数字的编码）
+        r'\b[Hh]\.?264\b',  # 匹配 h264, h.264, H264, H.264
+        r'\b[Hh]\.?265\b',  # 匹配 h265, h.265, H265, H.265
+        r'\b[Xx]264\b',     # 匹配 x264, X264
+        r'\b[Xx]265\b',     # 匹配 x265, X265
+        
+        # 文件大小相关
+        r'\b\d+\.?\d*\s*[Gg][Bb]\b',  # 匹配 5.2GB, 7GB, 1.5GB 等
+        r'\b\d+\.?\d*\s*[Mm][Bb]\b',  # 匹配 850MB, 1.5MB 等
+        r'\b\d+\.?\d*\s*[Kk][Bb]\b',  # 匹配 128KB, 1.5KB 等
+        r'\b\d+\.?\d*\s*[Tt][Bb]\b',  # 匹配 1.5TB, 2TB 等
+        r'\b\d+\.?\d*\s*[Pp][Bb]\b',  # 匹配 1.5PB 等
+        r'\b\d+\.?\d*[Gg][Bb]\b',     # 匹配 5.2GB, 7GB, 1.5GB 等（无空格）
+        r'\b\d+\.?\d*[Mm][Bb]\b',     # 匹配 850MB, 1.5MB 等（无空格）
+        r'\b\d+\.?\d*[Kk][Bb]\b',     # 匹配 128KB, 1.5KB 等（无空格）
+        r'\b\d+\.?\d*[Tt][Bb]\b',     # 匹配 1.5TB, 2TB 等（无空格）
+        
+        # 音频采样率
+        r'\b\d+\.?\d*\s*[Kk][Hh][Zz]\b',  # 匹配 44.1kHz, 48kHz, 96kHz 等
+        r'\b\d+\.?\d*\s*[Hh][Zz]\b',      # 匹配 44100Hz, 48000Hz 等
+        
+        # 比特率
+        r'\b\d+\.?\d*\s*[Kk]?[Bb][Pp][Ss]\b',  # 匹配 128kbps, 320kbps, 1.5Mbps 等
+        r'\b\d+\.?\d*\s*[Mm][Bb][Pp][Ss]\b',   # 匹配 1.5Mbps, 2Mbps 等
+        
+        # 视频相关
+        r'\b\d+\.?\d*\s*[Bb][Ii][Tt]\b',  # 匹配 10bit, 8bit, 12bit 等
+        r'\b\d+\.?\d*\s*[Ff][Pp][Ss]\b',  # 匹配 30FPS, 60fps, 24fps 等
+        r'\b\d+\.?\d*\s*[Ff][Pp][Ss]\b',  # 匹配 30FPS, 60fps, 24fps 等
+        
+        # 频率相关
+        r'\b\d+\.?\d*\s*[Mm][Hh][Zz]\b',  # 匹配 100MHz, 2.4GHz 等
+        r'\b\d+\.?\d*\s*[Gg][Hh][Zz]\b',  # 匹配 2.4GHz, 5GHz 等
+        r'\b\d+\.?\d*[Mm][Hh][Zz]\b',     # 匹配 100MHz, 2.4GHz 等（无空格）
+        r'\b\d+\.?\d*[Gg][Hh][Zz]\b',     # 匹配 2.4GHz, 5GHz 等（无空格）
+        
+        # 声道相关
+        r'\b\d+\.?\d*\s*[Cc][Hh]\b',      # 匹配 7.1ch, 5.1ch, 2.0ch 等
+        r'\b\d+\.?\d*[Cc][Hh]\b',         # 匹配 7.1ch, 5.1ch, 2.0ch 等（无空格）
+        r'\b\d+\.?\d*\s*[Cc][Hh][Aa][Nn][Nn][Ee][Ll]\b',  # 匹配 7.1channel 等
+        
+        # 位深相关
+        r'\b\d+\.?\d*\s*[Bb][Ii][Tt][Ss]\b',  # 匹配 128bits, 256bits 等
+        
+        # 其他技术参数
+        r'\b\d+\.?\d*\s*[Mm][Pp]\b',      # 匹配 1080MP, 4KMP 等
+        r'\b\d+\.?\d*\s*[Pp][Ii][Xx][Ee][Ll]\b',  # 匹配 1920pixel 等
+        r'\b\d+\.?\d*\s*[Rr][Pp][Mm]\b',  # 匹配 7200RPM 等
     ]
 
-    for pattern in resolution_patterns:
-        filename_without_dates = re.sub(pattern, ' ', filename_without_dates)
+    for pattern in tech_spec_patterns:
+        filename_without_dates = re.sub(pattern, ' ', filename_without_dates, flags=re.IGNORECASE)
 
     # 预处理：移除季编号标识，避免误提取季编号为集编号
     season_patterns = [
@@ -646,7 +701,9 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
         r'([一二三四五六七八九十百千万零两]+)话',
         # 先匹配"前方有分隔符"的数字，避免后一个规则优先命中单字符
         r'[- _\s\.]([0-9]+)(?:[^0-9]|$)',
-        r'(?:^|[^0-9])(\d+)(?=[- _\s\.][^0-9])'
+        r'(?:^|[^0-9])(\d+)(?=[- _\s\.][^0-9])',
+        # 新增：文件名起始纯数字后接非数字（如 1094(1).mp4）
+        r'^(\d+)(?=\D)'
     ]
     
     # 构建最终的patterns：默认模式 + 用户补充模式
@@ -757,7 +814,7 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
     
     # 最后尝试提取任何数字，但要排除日期可能性
     candidates = []
-    for m in re.finditer(r'\\d+', filename_without_dates):
+    for m in re.finditer(r'\d+', filename_without_dates):
         num_str = m.group(0)
         # 过滤日期模式
         if is_date_format(num_str):
@@ -814,7 +871,7 @@ def is_date_format(number_str):
             # 可能是日期格式
             return True
     
-    # 不再将 4 位纯数字按 MMDD 视为日期，避免误伤集号（如 1124）
+    # 不再将4位纯数字按MMDD视为日期，避免误伤集号（如1124）
     
     # 其他格式不视为日期格式
     return False

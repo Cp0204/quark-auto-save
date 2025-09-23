@@ -149,15 +149,64 @@ function sortFileByName(file) {
         if (/^\d+$/.test(file_name_without_ext)) {
             episode_value = parseInt(file_name_without_ext);
         } else {
-            // 预处理：移除分辨率标识（如 720p, 1080P, 2160p 等）
+            // 预处理：移除技术规格信息，避免误提取技术参数中的数字为集编号
             let filename_without_resolution = filename;
-            const resolution_patterns = [
+            const tech_spec_patterns = [
+                // 分辨率相关
                 /\b\d+[pP]\b/g,  // 匹配 720p, 1080P, 2160p 等
                 /\b\d+x\d+\b/g,  // 匹配 1920x1080 等
-                // 注意：不移除4K/8K，避免误删文件名中的4K标识
+                /(?<!\d)[248]\s*[Kk](?!\d)/g,  // 匹配 2K/4K/8K
+                
+                // 视频编码相关（包含数字的编码）
+                /\b[Hh]\.?264\b/g,  // 匹配 h264, h.264, H264, H.264
+                /\b[Hh]\.?265\b/g,  // 匹配 h265, h.265, H265, H.265
+                /\b[Xx]264\b/g,     // 匹配 x264, X264
+                /\b[Xx]265\b/g,     // 匹配 x265, X265
+                
+                // 文件大小相关
+                /\b\d+\.?\d*\s*[Gg][Bb]\b/g,  // 匹配 5.2GB, 7GB, 1.5GB 等
+                /\b\d+\.?\d*\s*[Mm][Bb]\b/g,  // 匹配 850MB, 1.5MB 等
+                /\b\d+\.?\d*\s*[Kk][Bb]\b/g,  // 匹配 128KB, 1.5KB 等
+                /\b\d+\.?\d*\s*[Tt][Bb]\b/g,  // 匹配 1.5TB, 2TB 等
+                /\b\d+\.?\d*\s*[Pp][Bb]\b/g,  // 匹配 1.5PB 等
+                /\b\d+\.?\d*[Gg][Bb]\b/g,     // 匹配 5.2GB, 7GB, 1.5GB 等（无空格）
+                /\b\d+\.?\d*[Mm][Bb]\b/g,     // 匹配 850MB, 1.5MB 等（无空格）
+                /\b\d+\.?\d*[Kk][Bb]\b/g,     // 匹配 128KB, 1.5KB 等（无空格）
+                /\b\d+\.?\d*[Tt][Bb]\b/g,     // 匹配 1.5TB, 2TB 等（无空格）
+                
+                // 音频采样率
+                /\b\d+\.?\d*\s*[Kk][Hh][Zz]\b/g,  // 匹配 44.1kHz, 48kHz, 96kHz 等
+                /\b\d+\.?\d*\s*[Hh][Zz]\b/g,      // 匹配 44100Hz, 48000Hz 等
+                
+                // 比特率
+                /\b\d+\.?\d*\s*[Kk]?[Bb][Pp][Ss]\b/g,  // 匹配 128kbps, 320kbps, 1.5Mbps 等
+                /\b\d+\.?\d*\s*[Mm][Bb][Pp][Ss]\b/g,   // 匹配 1.5Mbps, 2Mbps 等
+                
+                // 视频相关
+                /\b\d+\.?\d*\s*[Bb][Ii][Tt]\b/g,  // 匹配 10bit, 8bit, 12bit 等
+                /\b\d+\.?\d*\s*[Ff][Pp][Ss]\b/g,  // 匹配 30FPS, 60fps, 24fps 等
+                
+                // 频率相关
+                /\b\d+\.?\d*\s*[Mm][Hh][Zz]\b/g,  // 匹配 100MHz, 2.4GHz 等
+                /\b\d+\.?\d*\s*[Gg][Hh][Zz]\b/g,  // 匹配 2.4GHz, 5GHz 等
+                /\b\d+\.?\d*[Mm][Hh][Zz]\b/g,     // 匹配 100MHz, 2.4GHz 等（无空格）
+                /\b\d+\.?\d*[Gg][Hh][Zz]\b/g,     // 匹配 2.4GHz, 5GHz 等（无空格）
+                
+                // 声道相关
+                /\b\d+\.?\d*\s*[Cc][Hh]\b/g,      // 匹配 7.1ch, 5.1ch, 2.0ch 等
+                /\b\d+\.?\d*[Cc][Hh]\b/g,         // 匹配 7.1ch, 5.1ch, 2.0ch 等（无空格）
+                /\b\d+\.?\d*\s*[Cc][Hh][Aa][Nn][Nn][Ee][Ll]\b/g,  // 匹配 7.1channel 等
+                
+                // 位深相关
+                /\b\d+\.?\d*\s*[Bb][Ii][Tt][Ss]\b/g,  // 匹配 128bits, 256bits 等
+                
+                // 其他技术参数
+                /\b\d+\.?\d*\s*[Mm][Pp]\b/g,      // 匹配 1080MP, 4KMP 等
+                /\b\d+\.?\d*\s*[Pp][Ii][Xx][Ee][Ll]\b/g,  // 匹配 1920pixel 等
+                /\b\d+\.?\d*\s*[Rr][Pp][Mm]\b/g,  // 匹配 7200RPM 等
             ];
 
-            for (const pattern of resolution_patterns) {
+            for (const pattern of tech_spec_patterns) {
                 filename_without_resolution = filename_without_resolution.replace(pattern, ' ');
             }
 
