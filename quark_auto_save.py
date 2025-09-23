@@ -2200,7 +2200,6 @@ class Quark:
     def do_save_task(self, task):
         # 判断资源失效记录
         if task.get("shareurl_ban"):
-            print(f"分享资源已失效: {task['shareurl_ban']}")
             add_notify(f"❗《{task['taskname']}》分享资源已失效: {task['shareurl_ban']}\n")
             return
             
@@ -3949,13 +3948,11 @@ class Quark:
                                 err_msg = query_task_return["message"]
                                 add_notify(f"❌《{task['taskname']}》转存失败: {err_msg}\n")
                         else:
-                            print(f"❌ 保存文件失败: {save_file_return['message']}")
                             add_notify(f"❌《{task['taskname']}》转存失败: {save_file_return['message']}\n")
                     else:
                         # print("没有需要保存的新文件")
                         pass
                 except Exception as e:
-                    print(f"处理分享链接时发生错误: {str(e)}")
                     add_notify(f"❌《{task['taskname']}》处理分享链接时发生错误: {str(e)}\n")
 
             # 对本地已有文件进行重命名（即使没有分享链接或处理失败也执行）
