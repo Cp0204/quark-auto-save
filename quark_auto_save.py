@@ -506,16 +506,16 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
     date_patterns = [
         # YYYY-MM-DD 或 YYYY.MM.DD 或 YYYY/MM/DD 或 YYYY MM DD格式（四位年份）
         r'((?:19|20)\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})',
-        # YY-MM-DD 或 YY.MM.DD 或 YY/MM/DD 或 YY MM DD格式（两位年份），但排除E后面的数字
-        r'(?<![Ee])((?:19|20)?\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})',
+        # YY-MM-DD 或 YY.MM.DD 或 YY/MM/DD 或 YY MM DD格式（两位年份），但排除E/EP后面的数字
+        r'(?<![Ee])(?<![Ee][Pp])((?:19|20)?\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})',
         # 完整的YYYYMMDD格式（无分隔符）
         r'((?:19|20)\d{2})(\d{2})(\d{2})',
         # YYMMDD格式（两位年份，无分隔符）
         r'(?<!\d)(\d{2})(\d{2})(\d{2})(?!\d)',
         # MM/DD/YYYY 或 DD/MM/YYYY 格式
         r'(\d{1,2})[-./\s](\d{1,2})[-./\s]((?:19|20)\d{2})',
-        # MM-DD 或 MM.DD 或 MM/DD格式（无年份，不包括空格分隔），但排除E后面的数字
-        r'(?<![Ee])(?<!\d)(\d{1,2})[-./](\d{1,2})(?!\d)',
+        # MM-DD 或 MM.DD 或 MM/DD格式（无年份，不包括空格分隔），但排除E/EP后面的数字和分辨率标识
+        r'(?<![Ee])(?<![Ee][Pp])(?<!\d)(\d{1,2})[-./](\d{1,2})(?!\d)(?![KkPp])',
     ]
     
     # 从不含扩展名的文件名中移除日期部分
@@ -525,15 +525,15 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
         for match in matches:
             # 检查匹配的内容是否确实是日期
             date_str = match.group(0)
-            # 针对短日期 x.x 或 xx.xx：前一字符为 E/e 时不清洗（保护 E11.11 场景）
+            # 针对短日期 x.x 或 xx.xx：前一字符为 E/e/EP/Ep 时不清洗（保护 E11.11, EP08.7 场景）
             if re.match(r'^\d{1,2}[./-]\d{1,2}$', date_str):
-                prev_char = filename_without_dates[match.start()-1] if match.start() > 0 else ''
-                if prev_char in 'Ee':
+                prev_chars = filename_without_dates[max(0, match.start()-2):match.start()]
+                if prev_chars.endswith(('E', 'e', 'EP', 'Ep', 'ep')):
                     continue
-            # 保护 E 格式的集编号，如 E07, E14 等
+            # 保护 E/EP 格式的集编号，如 E07, E14, EP08 等
             if re.match(r'^\d+$', date_str) and len(date_str) <= 3:
-                prev_char = filename_without_dates[match.start()-1] if match.start() > 0 else ''
-                if prev_char in 'Ee':
+                prev_chars = filename_without_dates[max(0, match.start()-2):match.start()]
+                if prev_chars.endswith(('E', 'e', 'EP', 'Ep', 'ep')):
                     continue
             month = None
             day = None
@@ -569,6 +569,24 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
                     except ValueError:
                         # 转换失败，保持month和day为None
                         pass
+            elif len(match.groups()) == 2:
+                # 处理两个分组的模式（如MM-DD格式）
+                try:
+                    month = int(match.group(1))
+                    day = int(match.group(2))
+                    
+                    # 检查月和日的有效性
+                    if not (1 <= month <= 12 and 1 <= day <= 31):
+                        # 尝试另一种解释：日-月
+                        month = int(match.group(2))
+                        day = int(match.group(1))
+                        if not (1 <= month <= 12 and 1 <= day <= 31):
+                            # 仍然无效，重置month和day
+                            month = None
+                            day = None
+                except ValueError:
+                    # 转换失败，保持month和day为None
+                    pass
             
             # 如果能确定月日且是有效的日期，则从文件名中删除该日期
             if month and day and 1 <= month <= 12 and 1 <= day <= 31:

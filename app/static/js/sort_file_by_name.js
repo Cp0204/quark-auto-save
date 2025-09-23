@@ -52,7 +52,7 @@ function sortFileByName(file) {
     }
     // YY-MM-DD
     if (date_value === Infinity) {
-        match = filename.match(/((?:19|20)?\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})/);
+        match = filename.match(/(?<![Ee][Pp]?)((?:19|20)?\d{2})[-./\s](\d{1,2})[-./\s](\d{1,2})/);
         if (match && match[1].length === 2) {
             let year = parseInt('20' + match[1]);
             date_value = year * 10000 + parseInt(match[2]) * 100 + parseInt(match[3]);
@@ -87,7 +87,7 @@ function sortFileByName(file) {
     }
     // MM-DD
     if (date_value === Infinity) {
-        match = filename.match(/(?<!\d)(\d{1,2})[-./](\d{1,2})(?!\d)/);
+        match = filename.match(/(?<![Ee][Pp]?)(?<!\d)(\d{1,2})[-./](\d{1,2})(?!\d)/);
         if (match) {
             let month = parseInt(match[1]), day = parseInt(match[2]);
             // 验证是否为有效的月日组合
