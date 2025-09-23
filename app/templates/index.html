@@ -3752,11 +3752,9 @@
             });
           }
           
-          // 如果没有剧集识别模式，添加默认模式
-          if (!this.formData.episode_patterns || this.formData.episode_patterns.length === 0) {
-            this.formData.episode_patterns = [
-              { regex: '第(\\d+)集|第(\\d+)期|第(\\d+)话|(\\d+)集|(\\d+)期|(\\d+)话|[Ee][Pp]?(\\d+)|(\\d+)[-_\\s]*4[Kk]|\\[(\\d+)\\]|【(\\d+)】|_?(\\d+)_?' }
-            ];
+          // 确保剧集识别模式字段存在（但不自动添加默认规则）
+          if (!this.formData.episode_patterns) {
+            this.formData.episode_patterns = [];
           }
           
           // 如果当前标签是历史记录，则加载历史记录
@@ -9656,14 +9654,12 @@
                 // 其他模态框：文件夹排在文件前面
                 if (a.dir && !b.dir) return -1;
                 if (!a.dir && b.dir) return 1;
-                // 其他模态框：使用拼音排序
-                let aValue = pinyinPro.pinyin(a.file_name, { toneType: 'none', type: 'string' }).toLowerCase();
-                let bValue = pinyinPro.pinyin(b.file_name, { toneType: 'none', type: 'string' }).toLowerCase();
-                if (this.fileSelect.sortOrder === 'asc') {
-                  return aValue > bValue ? 1 : -1;
-                } else {
-                  return aValue < bValue ? 1 : -1;
+                // 其他模态框：使用与任务列表一致的自然排序算法
+                const ka = sortFileByName(a), kb = sortFileByName(b);
+                for (let i = 0; i < ka.length; ++i) {
+                  if (ka[i] !== kb[i]) return this.fileSelect.sortOrder === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
                 }
+                return 0;
               }
             }
             if (field === 'file_name_re') {
@@ -9693,28 +9689,48 @@
                     bValue = String(b.episode_number);
                   }
                 } else {
-                  // 否则尝试从重命名结果中提取数字进行数值排序
+                  // 否则使用智能排序：优先数值排序，其次日期排序，最后字符串排序
                   const aRename = a.file_name_re || '';
                   const bRename = b.file_name_re || '';
                   
-                  // 尝试提取数字（包括小数）
-                  const aMatch = aRename.match(/(\d+(?:\.\d+)?)/);
-                  const bMatch = bRename.match(/(\d+(?:\.\d+)?)/);
+                  // 尝试提取所有数字进行数值排序
+                  const aNumbers = aRename.match(/\d+/g);
+                  const bNumbers = bRename.match(/\d+/g);
                   
-                  if (aMatch && bMatch) {
+                  if (aNumbers && bNumbers && aNumbers.length > 0 && bNumbers.length > 0) {
                     // 如果都能提取到数字，进行数值比较
-                    aValue = parseFloat(aMatch[1]);
-                    bValue = parseFloat(bMatch[1]);
+                    // 优先比较第一个数字，如果相同则比较后续数字
+                    for (let i = 0; i < Math.max(aNumbers.length, bNumbers.length); i++) {
+                      const aNum = parseInt(aNumbers[i] || '0', 10);
+                      const bNum = parseInt(bNumbers[i] || '0', 10);
+                      if (aNum !== bNum) {
+                        aValue = aNum;
+                        bValue = bNum;
+                        break;
+                      }
+                    }
+                    // 如果所有数字都相同，使用自然排序
+                    if (aValue === undefined) {
+                      aValue = aRename;
+                      bValue = bRename;
+                    }
                   } else {
-                    // 否则使用重命名后的文件名进行拼音排序
-                    aValue = pinyinPro.pinyin(aRename, { toneType: 'none', type: 'string' }).toLowerCase();
-                    bValue = pinyinPro.pinyin(bRename, { toneType: 'none', type: 'string' }).toLowerCase();
+                    // 否则使用自然排序（支持数值和日期的智能排序）
+                    aValue = aRename;
+                    bValue = bRename;
                   }
                 }
 
                 if (this.fileSelect.sortOrder === 'asc') {
+                  // 字符串使用自然排序，数值直接比较
+                  if (typeof aValue === 'string' && typeof bValue === 'string') {
+                    return aValue.localeCompare(bValue, undefined, { numeric: true, sensitivity: 'base' });
+                  }
                   return aValue > bValue ? 1 : -1;
                 } else {
+                  if (typeof aValue === 'string' && typeof bValue === 'string') {
+                    return bValue.localeCompare(aValue, undefined, { numeric: true, sensitivity: 'base' });
+                  }
                   return aValue < bValue ? 1 : -1;
                 }
               }
@@ -9838,28 +9854,49 @@
                     bValue = String(b.episode_number);
                   }
                 } else {
-                  // 否则尝试从重命名结果中提取数字进行数值排序
+                  // 否则使用智能排序：优先数值排序，其次日期排序，最后字符串排序
                   const aRename = a.file_name_re || '';
                   const bRename = b.file_name_re || '';
                   
-                  // 尝试提取数字（包括小数）
-                  const aMatch = aRename.match(/(\d+(?:\.\d+)?)/);
-                  const bMatch = bRename.match(/(\d+(?:\.\d+)?)/);
+                  // 尝试提取所有数字进行数值排序
+                  const aNumbers = aRename.match(/\d+/g);
+                  const bNumbers = bRename.match(/\d+/g);
                   
-                  if (aMatch && bMatch) {
+                  if (aNumbers && bNumbers && aNumbers.length > 0 && bNumbers.length > 0) {
                     // 如果都能提取到数字，进行数值比较
-                    aValue = parseFloat(aMatch[1]);
-                    bValue = parseFloat(bMatch[1]);
+                    // 优先比较第一个数字，如果相同则比较后续数字
+                    for (let i = 0; i < Math.max(aNumbers.length, bNumbers.length); i++) {
+                      const aNum = parseInt(aNumbers[i] || '0', 10);
+                      const bNum = parseInt(bNumbers[i] || '0', 10);
+                      if (aNum !== bNum) {
+                        aValue = aNum;
+                        bValue = bNum;
+                        break;
+                      }
+                    }
+                    // 如果所有数字都相同，使用自然排序
+                    if (aValue === undefined) {
+                      aValue = aRename;
+                      bValue = bRename;
+                    }
                   } else {
-                    // 否则使用重命名后的文件名进行拼音排序
-                    aValue = pinyinPro.pinyin(aRename, { toneType: 'none', type: 'string' }).toLowerCase();
-                    bValue = pinyinPro.pinyin(bRename, { toneType: 'none', type: 'string' }).toLowerCase();
+                    // 否则使用自然排序（支持数值和日期的智能排序）
+                    aValue = aRename;
+                    bValue = bRename;
                   }
                 }
 
                 if (order === 'asc') {
+                  // 如果都是字符串，使用自然排序
+                  if (typeof aValue === 'string' && typeof bValue === 'string') {
+                    return aValue.localeCompare(bValue, undefined, { numeric: true, sensitivity: 'base' });
+                  }
                   return aValue > bValue ? 1 : -1;
                 } else {
+                  // 如果都是字符串，使用自然排序
+                  if (typeof aValue === 'string' && typeof bValue === 'string') {
+                    return bValue.localeCompare(aValue, undefined, { numeric: true, sensitivity: 'base' });
+                  }
                   return aValue < bValue ? 1 : -1;
                 }
               }
@@ -10921,7 +10958,7 @@
           this.fileSelect.paths = [];
           this.fileSelect.error = undefined;
           this.fileSelect.selectedFiles = [];
-          // 设置排序方式为按重命名结果降序排序
+          // 预览默认按重命名列降序（与任务列表一致）
           this.fileSelect.sortBy = "file_name_re";
           this.fileSelect.sortOrder = "desc";
           // 展示当前文件夹的文件
@@ -13326,11 +13363,9 @@
             });
           }
           
-          // 如果没有剧集识别模式，添加默认模式
-          if (!this.formData.episode_patterns || this.formData.episode_patterns.length === 0) {
-            this.formData.episode_patterns = [
-              { regex: '第(\\d+)集|第(\\d+)期|第(\\d+)话|(\\d+)集|(\\d+)期|(\\d+)话|[Ee][Pp]?(\\d+)|(\\d+)[-_\\s]*4[Kk]|\\[(\\d+)\\]|【(\\d+)】|_?(\\d+)_?' }
-            ];
+          // 确保剧集识别模式字段存在（但不自动添加默认规则）
+          if (!this.formData.episode_patterns) {
+            this.formData.episode_patterns = [];
           }
           
           // 如果当前标签是历史记录，则加载历史记录
