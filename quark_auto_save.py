@@ -1063,7 +1063,7 @@ def get_file_icon(file_name, is_dir=False):
     lower_name = file_name.lower()
 
     # 视频文件
-    if any(lower_name.endswith(ext) for ext in ['.mp4', '.mkv', '.avi', '.mov', '.rmvb', '.flv', '.wmv', '.m4v', '.ts']):
+    if any(lower_name.endswith(ext) for ext in ['.mp4', '.mkv', '.avi', '.mov', '.rmvb', '.flv', '.wmv', '.m4v', '.ts', '.webm', '.3gp', '.f4v']):
         return "🎞️"
 
     # 图片文件
