@@ -6967,6 +6967,13 @@
               if (config_data.task_settings.tv_ignore_extension === undefined) {
                 config_data.task_settings.tv_ignore_extension = true;
               }
+              // 为字幕命名规则添加默认值（向后兼容）
+              if (config_data.task_settings.subtitle_naming_rule === undefined) {
+                config_data.task_settings.subtitle_naming_rule = "zh";
+              }
+              if (config_data.task_settings.subtitle_add_language_code === undefined) {
+                config_data.task_settings.subtitle_add_language_code = false;
+              }
               // 确保自动搜索资源设置存在
               if (!config_data.task_settings.auto_search_resources) {
                 config_data.task_settings.auto_search_resources = "enabled";
