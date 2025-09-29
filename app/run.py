@@ -44,7 +44,7 @@ from quark_auto_save import Config, format_bytes
 
 # 添加导入全局extract_episode_number和sort_file_by_name函数
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from quark_auto_save import extract_episode_number, sort_file_by_name, chinese_to_arabic, is_date_format
+from quark_auto_save import extract_episode_number, sort_file_by_name, chinese_to_arabic, is_date_format, apply_subtitle_naming_rule
 
 # 导入豆瓣服务
 from sdk.douban_service import douban_service
@@ -2105,6 +2105,9 @@ def get_share_detail():
                     else:
                         # 替换所有的{}为当前序号
                         file["file_name_re"] = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
+                    
+                    # 应用字幕命名规则
+                    file["file_name_re"] = apply_subtitle_naming_rule(file["file_name_re"], config_data["task_settings"])
                     current_sequence += 1
             
             return share_detail
@@ -2143,6 +2146,8 @@ def get_share_detail():
 
                     if episode_num is not None:
                         file["file_name_re"] = episode_pattern.replace("[]", f"{episode_num:02d}") + extension
+                        # 应用字幕命名规则
+                        file["file_name_re"] = apply_subtitle_naming_rule(file["file_name_re"], config_data["task_settings"])
                         # 添加episode_number字段用于前端排序
                         file["episode_number"] = episode_num
                     else:
@@ -2177,6 +2182,8 @@ def get_share_detail():
                     item["file_name_re"] = (
                         re.sub(pattern, replace, file_name) if replace != "" else file_name
                     )
+                    # 应用字幕命名规则
+                    item["file_name_re"] = apply_subtitle_naming_rule(item["file_name_re"], config_data["task_settings"])
             return share_detail
 
     share_detail = preview_regex(share_detail)
@@ -3383,6 +3390,8 @@ def preview_rename():
             for file in filtered_files:
                 extension = os.path.splitext(file["file_name"])[1] if not file["dir"] else ""
                 new_name = pattern.replace("{}", f"{sequence:02d}") + extension
+                # 应用字幕命名规则
+                new_name = apply_subtitle_naming_rule(new_name, config_data["task_settings"])
                 preview_results.append({
                     "original_name": file["file_name"],
                     "new_name": new_name,
@@ -3420,6 +3429,8 @@ def preview_rename():
 
                     if episode_num is not None:
                         new_name = pattern.replace("[]", f"{episode_num:02d}") + extension
+                        # 应用字幕命名规则
+                        new_name = apply_subtitle_naming_rule(new_name, config_data["task_settings"])
                         preview_results.append({
                             "original_name": file["file_name"],
                             "new_name": new_name,
@@ -3439,10 +3450,14 @@ def preview_rename():
                     # 应用正则表达式
                     if replace:
                         new_name = re.sub(pattern, replace, file["file_name"])
+                        # 应用字幕命名规则
+                        new_name = apply_subtitle_naming_rule(new_name, config_data["task_settings"])
                     else:
                         # 如果没有提供替换表达式，则检查是否匹配
                         if re.search(pattern, file["file_name"]):
                             new_name = file["file_name"]  # 匹配但不替换
+                            # 应用字幕命名规则
+                            new_name = apply_subtitle_naming_rule(new_name, config_data["task_settings"])
                         else:
                             new_name = ""  # 表示不匹配
                             

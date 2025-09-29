@@ -791,6 +791,20 @@
             <div class="form-group">
               <div class="input-group">
                 <div class="input-group-prepend">
+                  <span class="input-group-text">字幕命名规则</span>
+                </div>
+                <input type="text" class="form-control" v-model="formData.task_settings.subtitle_naming_rule" placeholder="zh" title="设置字幕文件的语言代码，在重命名字幕文件时会在文件名末尾添加此代码">
+                <div class="input-group-append" title="启用后，重命名字幕文件时会在文件名末尾添加语言代码后缀">
+                  <div class="input-group-text">
+                    <input type="checkbox" v-model="formData.task_settings.subtitle_add_language_code">&nbsp;添加语言代码
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="input-group">
+                <div class="input-group-prepend">
                   <span class="input-group-text">自动搜索资源</span>
                 </div>
                 <select class="form-control" v-model="formData.task_settings.auto_search_resources" title="启用后，在影视发现页面点击海报创建任务时，如果配置了有效的CloudSaver信息，将自动触发资源搜索功能">
@@ -2831,7 +2845,9 @@
             movie_naming_pattern: "^(.*)\\.([^.]+)",
             movie_naming_replace: "片名 (年份).\\2",
             tv_naming_rule: "剧名 - S季数E[]",
-            tv_ignore_extension: true
+            tv_ignore_extension: true,
+            subtitle_naming_rule: "zh",
+            subtitle_add_language_code: false
           },
           source: {
             cloudsaver: {
@@ -6935,6 +6951,8 @@
                   movie_naming_replace: "片名 (年份).\\2",
                   tv_naming_rule: "剧名 - S季数E[]",
                   tv_ignore_extension: true,
+                  subtitle_naming_rule: "zh",
+                  subtitle_add_language_code: false,
                   auto_search_resources: "enabled"
                 };
               }
