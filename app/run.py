@@ -15,7 +15,9 @@ from flask import (
 )
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from sdk.cloudsaver import CloudSaver
+from sdk.pansou import PanSou
 from datetime import timedelta
 import subprocess
 import requests
@@ -32,8 +34,15 @@ from quark_auto_save import Quark, Config, MagicRename
 
 
 def get_app_ver():
-    BUILD_SHA = os.environ.get("BUILD_SHA", "")
-    BUILD_TAG = os.environ.get("BUILD_TAG", "")
+    """获取应用版本"""
+    try:
+        with open("build.json", "r") as f:
+            build_info = json.loads(f.read())
+            BUILD_SHA = build_info["BUILD_SHA"]
+            BUILD_TAG = build_info["BUILD_TAG"]
+    except Exception as e:
+        BUILD_SHA = os.getenv("BUILD_SHA", "")
+        BUILD_TAG = os.getenv("BUILD_TAG", "")
     if BUILD_TAG[:1] == "v":
         return BUILD_TAG
     elif BUILD_SHA:
@@ -233,8 +242,19 @@ def get_task_suggestions():
         return jsonify({"success": False, "message": "未登录"})
     query = request.args.get("q", "").lower()
     deep = request.args.get("d", "").lower()
-    try:
-        cs_data = config_data.get("source", {}).get("cloudsaver", {})
+    net_data = config_data.get("source", {}).get("net", {})
+    cs_data = config_data.get("source", {}).get("cloudsaver", {})
+    ps_data = config_data.get("source", {}).get("pansou", {})
+
+    def net_search():
+        if str(net_data.get("enable", "true")).lower() != "false":
+            base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
+            url = f"{base_url}/task_suggestions?q={query}&d={deep}"
+            response = requests.get(url)
+            return response.json()
+        return []
+
+    def cs_search():
         if (
             cs_data.get("server")
             and cs_data.get("username")
@@ -252,18 +272,37 @@ def get_task_suggestions():
                     cs_data["token"] = search.get("new_token")
                     Config.write_json(CONFIG_PATH, config_data)
                 search_results = cs.clean_search_results(search.get("data"))
-                return jsonify(
-                    {"success": True, "source": "CloudSaver", "data": search_results}
-                )
-            else:
-                return jsonify({"success": True, "message": search.get("message")})
-        else:
-            base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
-            url = f"{base_url}/task_suggestions?q={query}&d={deep}"
-            response = requests.get(url)
-            return jsonify(
-                {"success": True, "source": "网络公开", "data": response.json()}
-            )
+                return search_results
+        return []
+
+    def ps_search():
+        if ps_data.get("server"):
+            ps = PanSou(ps_data.get("server"))
+            return ps.search(query, deep == "1")
+        return []
+
+    try:
+        search_results = []
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            features = []
+            features.append(executor.submit(net_search))
+            features.append(executor.submit(cs_search))
+            features.append(executor.submit(ps_search))
+            for future in as_completed(features):
+                result = future.result()
+                search_results.extend(result)
+
+        # 按时间排序并去重
+        results = []
+        link_array = []
+        search_results.sort(key=lambda x: x.get("datetime", ""), reverse=True)
+        for item in search_results:
+            url = item.get("shareurl", "")
+            if url != "" and url not in link_array:
+                link_array.append(url)
+                results.append(item)
+
+        return jsonify({"success": True, "data": results})
     except Exception as e:
         return jsonify({"success": True, "message": f"error: {str(e)}"})
 
@@ -284,7 +323,9 @@ def get_share_detail():
             return jsonify(
                 {"success": False, "data": {"error": get_stoken.get("message")}}
             )
-    share_detail = account.get_detail(pwd_id, stoken, pdir_fid, _fetch_share=1)
+    share_detail = account.get_detail(
+        pwd_id, stoken, pdir_fid, _fetch_share=1, fetch_share_full_path=1
+    )
 
     if share_detail.get("code") != 0:
         return jsonify(
@@ -292,7 +333,10 @@ def get_share_detail():
         )
 
     data = share_detail["data"]
-    data["paths"] = paths
+    data["paths"] = [
+        {"fid": i["fid"], "name": i["file_name"]}
+        for i in share_detail["data"].get("full_path", [])
+    ] or paths
     data["stoken"] = stoken
 
     # 正则处理预览

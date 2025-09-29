@@ -103,7 +103,7 @@ class Fnv:
             if key not in self.OPTIONAL_KEYS and not getattr(self, key, None)
         ]
         if missing_keys:
-            print(f"{self.plugin_name} 模块缺少必要参数: {', '.join(missing_keys)}")
+            # print(f"{self.plugin_name} 模块缺少必要参数: {', '.join(missing_keys)}")
             return False
         return True
 

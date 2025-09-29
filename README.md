@@ -8,7 +8,7 @@
 
 对于一些持续更新的资源，隔段时间去转存十分麻烦。
 
-定期执行本脚本自动转存、文件名整理，配合 Alist, rclone, Emby 可达到自动追更的效果。🥳
+定期执行本脚本自动转存、文件名整理，配合 [SmartStrm](https://github.com/Cp0204/SmartStrm) / [OpenList](https://github.com/OpenListTeam/OpenList) , Emby 可达到自动追更的效果。🥳
 
 
 [![wiki][wiki-image]][wiki-url] [![github releases][gitHub-releases-image]][github-url] [![docker pulls][docker-pulls-image]][docker-url] [![docker image size][docker-image-size-image]][docker-url]
@@ -29,7 +29,7 @@
 > ⛔️⛔️⛔️ 注意！资源不会每时每刻更新，**严禁设定过高的定时运行频率！** 以免账号风控和给夸克服务器造成不必要的压力。雪山崩塌，每一片雪花都有责任！
 
 > [!NOTE]
-> 开发者≠客服，开源免费≠帮你解决使用问题；本项目Wiki和已经相对完善，遇到问题请先翻阅 Issues 和 Wiki ，请勿盲目发问。
+> 开发者≠客服，开源免费≠帮你解决使用问题；本项目 Wiki 已经相对完善，遇到问题请先翻阅 Issues 和 Wiki ，请勿盲目发问。
 
 ## 功能
 
@@ -107,10 +107,11 @@ services:
 
 管理地址：http://yourhost:5005
 
-| 环境变量         | 默认       | 备注     |
-| ---------------- | ---------- | -------- |
-| `WEBUI_USERNAME` | `admin`    | 管理账号 |
-| `WEBUI_PASSWORD` | `admin123` | 管理密码 |
+| 环境变量         | 默认       | 备注                                     |
+| ---------------- | ---------- | ---------------------------------------- |
+| `WEBUI_USERNAME` | `admin`    | 管理账号                                 |
+| `WEBUI_PASSWORD` | `admin123` | 管理密码                                 |
+| `PORT`           | `5005`     | 管理后台端口                             |
 | `PLUGIN_FLAGS`   |            | 插件标志，如 `-emby,-aria2` 禁用某些插件 |
 
 #### 一键更新
@@ -128,23 +129,17 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 
 </details>
 
-### 青龙部署
-
-程序也支持以青龙定时任务的方式运行，但该方式无法使用 WebUI 管理任务，需手动修改配置文件。
-
-青龙部署说明已转移到 Wiki ：[青龙部署教程](https://github.com/Cp0204/quark-auto-save/wiki/部署教程#青龙部署)
-
 ## 使用说明
 
 ### 正则处理示例
 
-| pattern                                | replace      | 效果                                                                   |
-| -------------------------------------- | ------------ | ---------------------------------------------------------------------- |
-| `.*`                                   |              | 无脑转存所有文件，不整理                                               |
-| `\.mp4$`                               |              | 转存所有 `.mp4` 后缀的文件                                             |
-| `^【电影TT】花好月圆(\d+)\.(mp4\|mkv)` | `\1.\2`      | 【电影TT】花好月圆01.mp4 → 01.mp4<br>【电影TT】花好月圆02.mkv → 02.mkv |
-| `^(\d+)\.mp4`                          | `S02E\1.mp4` | 01.mp4 → S02E01.mp4<br>02.mp4 → S02E02.mp4                             |
-| `$TV`                                  |              | [魔法匹配](#魔法匹配)剧集文件                                          |
+| pattern                                | replace                 | 效果                                                                   |
+| -------------------------------------- | ----------------------- | ---------------------------------------------------------------------- |
+| `.*`                                   |                         | 无脑转存所有文件，不整理                                               |
+| `\.mp4$`                               |                         | 转存所有 `.mp4` 后缀的文件                                             |
+| `^【电影TT】花好月圆(\d+)\.(mp4\|mkv)` | `\1.\2`                 | 【电影TT】花好月圆01.mp4 → 01.mp4<br>【电影TT】花好月圆02.mkv → 02.mkv |
+| `^(\d+)\.mp4`                          | `S02E\1.mp4`            | 01.mp4 → S02E01.mp4<br>02.mp4 → S02E02.mp4                             |
+| `$TV`                                  |                         | [魔法匹配](#魔法匹配)剧集文件                                          |
 | `^(\d+)\.mp4`                          | `{TASKNAME}.S02E\1.mp4` | 01.mp4 → 任务名.S02E01.mp4                                             |
 
 更多正则使用说明：[正则处理教程](https://github.com/Cp0204/quark-auto-save/wiki/正则处理教程)
@@ -166,6 +161,36 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 ### 更多使用技巧
 
 请参考 Wiki ：[使用技巧集锦](https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦)
+
+## 生态项目
+
+以下展示 QAS 生态项目，包括官方项目和第三方项目。
+
+### 官方项目
+
+* [QAS一键推送助手](https://greasyfork.org/zh-CN/scripts/533201-qas一键推送助手)
+
+  油猴脚本，在夸克网盘分享页面添加推送到 QAS 的按钮
+
+* [SmartStrm](https://github.com/Cp0204/SmartStrm)
+
+  STRM 文件生成工具，用于转存后处理，媒体免下载入库播放。
+
+### 第三方开源项目
+
+> [!TIP]
+>
+> 以下第三方开源项目均由社区开发并保持开源，与 QAS 作者无直接关联。在部署到生产环境前，请自行评估相关风险。
+>
+> 如果您有新的项目没有在此列出，可以通过 Issues 提交。
+
+* [nonebot-plugin-quark-autosave](https://github.com/fllesser/nonebot-plugin-quark-autosave)
+
+  QAS Telegram 机器人，快速管理自动转存任务
+
+* [Astrbot_plugin_quarksave](https://github.com/lm379/astrbot_plugin_quarksave)
+
+  AstrBot 插件，调用 quark_auto_save 实现自动转存资源到夸克网盘
 
 ## 打赏
 
