@@ -507,7 +507,7 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
     filename_without_dates = file_name_without_ext
     tech_spec_patterns = [
         # 分辨率相关（限定常见p档）
-        r'\b(?:240|360|480|540|720|900|960|1080|1440|2160|4320)[pP]\b',
+        r'(?:240|360|480|540|720|900|960|1080|1440|2160|4320)[pP]',
         # 常见分辨率 WxH（白名单）
         r'\b(?:640x360|640x480|720x480|720x576|854x480|960x540|1024x576|1280x720|1280x800|1280x960|1366x768|1440x900|1600x900|1920x1080|2560x1080|2560x1440|3440x1440|3840x1600|3840x2160|4096x2160|7680x4320)\b',
         r'(?<!\d)[248]\s*[Kk](?!\d)',  # 匹配 2K/4K/8K
@@ -530,6 +530,8 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
         r'\b(?:8|10|12)\s*[Bb][Ii][Tt]s?\b',
         # 严格限定常见帧率，避免将 "07.30FPS" 视为帧率从而连带清除集数
         r'\b(?:23\.976|29\.97|59\.94|24|25|30|50|60|90|120)\s*[Ff][Pp][Ss]\b',
+        # 无空格的帧率格式（如 60fps, 30fps 等）
+        r'(?:23\.976|29\.97|59\.94|24|25|30|50|60|90|120)[Ff][Pp][Ss]',
         
         # 频率相关
         # 频率相关（白名单，含空格/无空格）
@@ -712,8 +714,8 @@ def extract_episode_number(filename, episode_patterns=None, config_data=None):
         r'([一二三四五六七八九十百千万零两]+)期',
         r'([一二三四五六七八九十百千万零两]+)话',
         # 先匹配"前方有分隔符"的数字，避免后一个规则优先命中单字符
-        r'[- _\s\.]([0-9]+)(?:[^0-9]|$)',
-        r'(?:^|[^0-9])(\d+)(?=[- _\s\.][^0-9])',
+        r'[- _\s\.]([0-9]+)',
+        r'(?:^|[^0-9])(\d+)(?=[- _\s\.])',
         # 新增：文件名起始纯数字后接非数字（如 1094(1).mp4）
         r'^(\d+)(?=\D)'
     ]
@@ -1081,7 +1083,7 @@ def get_file_icon(file_name, is_dir=False):
         return "📝"
 
     # 字幕文件
-    if any(lower_name.endswith(ext) for ext in ['.srt', '.ass', '.ssa', '.vtt']):
+    if any(lower_name.endswith(ext) for ext in ['.srt', '.ass', '.ssa', '.vtt', '.sup']):
         return "💬"
 
     # 歌词文件
@@ -1105,6 +1107,54 @@ def remove_file_icons(filename):
             break
 
     return clean_name
+
+# 定义一个函数来检测字幕文件并应用语言代码后缀
+def apply_subtitle_naming_rule(filename, task_settings):
+    """
+    检测字幕文件并应用语言代码后缀
+    
+    Args:
+        filename: 原始文件名
+        task_settings: 任务设置，包含字幕命名规则配置
+    
+    Returns:
+        处理后的文件名
+    """
+    # 从任务设置中获取字幕命名规则配置
+    subtitle_add_language_code = task_settings.get("subtitle_add_language_code", False)
+    subtitle_naming_rule = task_settings.get("subtitle_naming_rule", "zh")
+    
+    # 如果任务设置中没有配置，尝试从全局配置中获取
+    if not subtitle_add_language_code:
+        try:
+            if 'CONFIG_DATA' in globals() and CONFIG_DATA:
+                global_task_settings = CONFIG_DATA.get("task_settings", {})
+                subtitle_add_language_code = global_task_settings.get("subtitle_add_language_code", False)
+                subtitle_naming_rule = global_task_settings.get("subtitle_naming_rule", "zh")
+        except (KeyError, AttributeError, TypeError):
+            # 配置获取失败，使用默认值
+            pass
+    
+    # 检查是否启用了字幕命名规则
+    if not subtitle_add_language_code or not subtitle_naming_rule:
+        return filename
+    
+    # 检测是否为字幕文件
+    lower_name = filename.lower()
+    subtitle_extensions = ['.srt', '.ass', '.ssa', '.vtt', '.sup']
+    
+    if not any(lower_name.endswith(ext) for ext in subtitle_extensions):
+        return filename
+    
+    # 分离文件名和扩展名
+    name_without_ext, ext = os.path.splitext(filename)
+    
+    # 检查是否已经包含语言代码后缀，避免重复添加
+    if f".{subtitle_naming_rule}" in name_without_ext:
+        return filename
+    
+    # 添加语言代码后缀
+    return f"{name_without_ext}.{subtitle_naming_rule}{ext}"
 
 
 class Config:
@@ -2559,6 +2609,9 @@ class Quark:
                 # 生成新文件名
                 save_name = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
                 
+                # 应用字幕命名规则
+                save_name = apply_subtitle_naming_rule(save_name, task)
+                
                 # 检查目标目录是否已存在此文件，支持忽略后缀选项
                 if task.get("ignore_extension", False):
                     # 忽略后缀模式：只比较文件名部分，不比较扩展名
@@ -2761,6 +2814,9 @@ class Quark:
                             target_name = f"{episode_num:02d}{file_ext}"
                         else:
                             target_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                        
+                        # 应用字幕命名规则
+                        target_name = apply_subtitle_naming_rule(target_name, task)
 
                         # 检查目标文件名是否已存在，支持忽略后缀选项
                         if task.get("ignore_extension", False):
@@ -2902,6 +2958,8 @@ class Quark:
                                 # 尝试应用正则替换
                                 if re.search(pattern, original_file_name):
                                     renamed_file = re.sub(pattern, replace, original_file_name)
+                                    # 应用字幕命名规则
+                                    renamed_file = apply_subtitle_naming_rule(renamed_file, task)
                                     renamed_base = os.path.splitext(renamed_file)[0]
                                 else:
                                     renamed_file = None
@@ -3055,6 +3113,9 @@ class Quark:
                             if replace != ""
                             else share_file["file_name"]
                         )
+                        
+                        # 应用字幕命名规则
+                        save_name = apply_subtitle_naming_rule(save_name, task)
                         
                         # 检查新名称是否存在重复的前缀
                         if replace and " - " in save_name:
@@ -3507,6 +3568,9 @@ class Quark:
                 else:
                     save_name = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
                 
+                # 应用字幕命名规则
+                save_name = apply_subtitle_naming_rule(save_name, task)
+                
                 # 检查是否需要重命名，支持忽略后缀选项
                 name_conflict = False
                 if task.get("ignore_extension", False):
@@ -3699,6 +3763,8 @@ class Quark:
                                     new_name = f"{episode_num:02d}{file_ext}"
                                 else:
                                     new_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                                # 应用字幕命名规则
+                                new_name = apply_subtitle_naming_rule(new_name, task)
                             else:
                                 new_name = None
                             
@@ -3772,6 +3838,9 @@ class Quark:
                                 save_name = f"{episode_num:02d}{file_ext}"
                             else:
                                 save_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                            
+                            # 应用字幕命名规则
+                            save_name = apply_subtitle_naming_rule(save_name, task)
                             
                             # 检查过滤词
                             should_filter = False
@@ -3985,12 +4054,16 @@ class Quark:
                         # 使用完整的剧集号识别逻辑，而不是简单的纯数字判断
                         # 生成新文件名
                         new_name = f"{episode_num:02d}{file_ext}"
+                        # 应用字幕命名规则
+                        new_name = apply_subtitle_naming_rule(new_name, task)
                         # 只有当当前文件名与目标文件名不同时才重命名
                         if dir_file["file_name"] != new_name:
                             rename_operations.append((dir_file, new_name, episode_num))
                     else:
                         # 生成目标文件名
                         new_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                        # 应用字幕命名规则
+                        new_name = apply_subtitle_naming_rule(new_name, task)
                         # 检查文件名是否已经符合目标格式
                         if dir_file["file_name"] != new_name:
                             rename_operations.append((dir_file, new_name, episode_num))
@@ -4137,6 +4210,9 @@ class Quark:
                     
                     # 应用正则表达式获取目标文件名
                     new_name = re.sub(pattern, replace, orig_name)
+                    
+                    # 应用字幕命名规则
+                    new_name = apply_subtitle_naming_rule(new_name, task)
                     
                     # 如果替换后的文件名没有变化，跳过
                     if new_name == orig_name:
