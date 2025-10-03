@@ -1571,7 +1571,57 @@ class Quark:
                 break
             if len(file_list) >= response["metadata"]["_total"]:
                 break
+        
+        # 修复文件夹大小显示问题：当include_items字段不存在时，通过额外API调用获取
+        file_list = self._fix_folder_sizes(file_list)
+        
         return file_list
+
+    def _fix_folder_sizes(self, file_list):
+        """
+        修复文件夹大小显示问题
+        当include_items字段不存在时，通过额外API调用获取文件夹项目数量
+        """
+        if not isinstance(file_list, list):
+            return file_list
+            
+        for item in file_list:
+            if item.get("dir", False) and "include_items" not in item:
+                folder_id = item.get("fid")
+                if folder_id:
+                    # 获取文件夹项目数量
+                    item_count = self._get_folder_item_count(folder_id)
+                    item["include_items"] = item_count
+                    
+        return file_list
+    
+    def _get_folder_item_count(self, folder_id):
+        """
+        获取文件夹项目数量
+        """
+        try:
+            url = f"{self.BASE_URL}/1/clouddrive/file/sort"
+            querystring = {
+                "pr": "ucpro",
+                "fr": "pc",
+                "uc_param_str": "",
+                "pdir_fid": folder_id,
+                "_page": 1,
+                "_size": 1,  # 只获取第一页，用于获取总数
+                "_fetch_total": "1",
+                "_fetch_sub_dirs": "0",
+                "_sort": "file_type:asc,updated_at:desc",
+                "_fetch_full_path": 0,
+            }
+            
+            response = self._send_request("GET", url, params=querystring).json()
+            if response.get("code") == 0:
+                metadata = response.get("metadata", {})
+                return metadata.get("_total", 0)
+            else:
+                return 0
+        except Exception:
+            return 0
 
     def get_paths(self, folder_id):
         """
