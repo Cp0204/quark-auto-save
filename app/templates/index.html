@@ -2739,10 +2739,12 @@
                       <span class="input-group-text" style="background-color: var(--button-gray-background-color);">匹配结果</span>
                     </div>
                     <div class="form-control matched-result" style="display: flex; align-items: center; gap: 8px;">
-                      <a v-if="editMetadata.display.matched_tmdb_id" href="#" @click.prevent="openTaskMatchedTmdbPage({ match: { tmdb_id: editMetadata.display.matched_tmdb_id } })" class="matched-link">
-                        {{ editMetadata.display.matched_label }}
-                      </a>
-                      <span v-else>{{ editMetadata.display.matched_label }}</span>
+                      <div class="matched-main">
+                        <a v-if="editMetadata.display.matched_tmdb_id" href="#" @click.prevent="openTaskMatchedTmdbPage({ match: { tmdb_id: editMetadata.display.matched_tmdb_id } })" class="matched-link">
+                          {{ editMetadata.display.matched_label }}
+                        </a>
+                        <span v-else>{{ editMetadata.display.matched_label }}</span>
+                      </div>
                       <span v-if="editMetadata.display.matched_season_number" class="matched-season-wrap">
                         <span class="input-group-text square-append">第</span>
                         <a href="#" @click.prevent="editMetadata.display.matched_tmdb_id && window.open('https://www.themoviedb.org/tv/' + editMetadata.display.matched_tmdb_id + '/season/' + parseInt(editMetadata.display.matched_season_number), '_blank')" class="matched-link matched-season">
