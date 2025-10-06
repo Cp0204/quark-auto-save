@@ -7735,6 +7735,34 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   text-decoration: none;
 }
 
+/* 匹配结果主文本区域：防止换行，仅该区域横向滚动 */
+#editMetadataModal .matched-result {
+  flex-wrap: nowrap !important; /* 整体不换行，季数固定在末尾 */
+  min-width: 0 !important;
+}
+
+#editMetadataModal .matched-result .matched-main {
+  overflow-x: auto !important;   /* 主文本横向滚动 */
+  overflow-y: hidden !important;
+  white-space: nowrap !important; /* 主文本单行 */
+  flex: 1 1 auto !important;     /* 占据剩余空间 */
+  min-width: 0 !important;       /* 允许收缩以形成滚动 */
+  scrollbar-width: none;          /* Firefox 隐藏滚动条 */
+  -ms-overflow-style: none;       /* IE/Edge (旧版) 隐藏滚动条 */
+}
+
+/* WebKit 隐藏滚动条但保留滚动行为 */
+#editMetadataModal .matched-result .matched-main::-webkit-scrollbar {
+  display: none;
+}
+
+/* 主文本内部元素不换行且不被挤压 */
+#editMetadataModal .matched-result .matched-main a,
+#editMetadataModal .matched-result .matched-main span {
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+}
+
 /* 编辑元数据底部提示内的 TMDB 链接样式 */
 #editMetadataModal .tmdb-link {
   color: var(--dark-text-color);
