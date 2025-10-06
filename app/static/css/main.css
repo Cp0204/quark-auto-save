@@ -8242,3 +8242,19 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
 .discovery-poster:hover {
   background-image: none !important;
 }
+
+/* 任务列表海报视图：悬停时隐藏右上角的任务进度徽标，不影响其他页面 */
+.tasklist-poster-mode .discovery-poster .discovery-rating {
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.tasklist-poster-mode .discovery-poster:hover .discovery-rating {
+  opacity: 0;
+}
+
+/* 任务列表海报视图：悬停时让进度徽标完全“不可交互” */
+.tasklist-poster-mode .discovery-poster:hover .discovery-rating {
+  pointer-events: none !important; /* 不响应鼠标事件 */
+  cursor: default !important;      /* 指针恢复为默认 */
+}
