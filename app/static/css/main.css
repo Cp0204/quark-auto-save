@@ -8235,3 +8235,10 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
 .discovery-title[style*="cursor: pointer"]:hover {
   color: var(--focus-border-color);
 }
+
+/* 修复：发现/任务列表海报悬停时不应显示半透明 no-poster
+   原因：.discovery-poster 设有默认背景图 no-poster.svg，悬停时 img 透明度为 0，导致背景图透出
+   处理：悬停状态下移除背景图，仅保留底色，避免 no-poster 露出 */
+.discovery-poster:hover {
+  background-image: none !important;
+}
