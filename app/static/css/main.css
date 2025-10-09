@@ -8283,3 +8283,19 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   padding-top: 10.5px;
   padding-bottom: 10.5px;
 }
+
+/* --------------- 创建/编辑任务模态框：警告提示专属样式 --------------- */
+/* 仅作用于 #createTaskModal 内的警告提示，不影响其他位置 */
+#createTaskModal .alert-warning {
+  height: 32px; /* 固定提示栏高度 */
+  min-height: 32px; /* 覆盖全局 36px */
+  max-height: 32px; /* 防止内容撑高 */
+  display: flex; /* 垂直/水平居中文本 */
+  align-items: center;
+  justify-content: center;
+  text-align: center; /* 文本居中 */
+  margin-bottom: 8px; /* 与周边间距保持一致 */
+  padding-top: 0; /* 严格控制视觉高度为 32px */
+  padding-bottom: 0;
+  box-sizing: border-box; /* 高度包含内边距与边框，避免被额外撑高 */
+}
