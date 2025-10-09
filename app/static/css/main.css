@@ -8274,3 +8274,12 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   pointer-events: none !important; /* 不响应鼠标事件 */
   cursor: default !important;      /* 指针恢复为默认 */
 }
+
+/* --------------- 模态框标题栏统一高度微调（总高度 -1px） --------------- */
+#logModal .modal-header,
+#fileSelectModal .modal-header,
+#createTaskModal .modal-header,
+#editMetadataModal .modal-header {
+  padding-top: 10.5px;
+  padding-bottom: 10.5px;
+}
