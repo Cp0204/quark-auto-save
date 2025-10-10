@@ -101,23 +101,35 @@ body.login-page {
 /* --------------- Toast 通知组件 --------------- */
 .toast-container-center {
   position: fixed;
-  top: 90.5px;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 64px;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  transform: none; /* 固定顶部距离，不随内容高度变化 */
   z-index: 9999;
-  width: auto;
-  max-width: 80%;
+  width: 100%;
+  max-width: 100%;
   pointer-events: none;
+  text-align: center; /* 容器内居中，使移动端与桌面端一致 */
+  padding: 0 10px; /* 页面左右各 10px 的安全边距 */
 }
 
 .toast-custom {
-  min-width: 120px;
   background-color: var(--focus-border-color);
   box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
   border: none;
   border-radius: 6px;
-  margin: 0 auto;
-  width: fit-content;
+  margin: 0; /* 由容器 padding 提供页面边距限制，避免强制扩张 */
+  display: inline-block; /* 保持根据内容自适应，同时允许换行后包裹 */
+  width: -moz-fit-content;
+  width: fit-content; /* 内容自适应宽度 */
+  max-width: calc(100vw - 20px); /* 视口宽度减去左右 10px */
+}
+
+/* Bootstrap 在显示阶段可能将 .toast 设为 block，强制保持 inline-block 以持续居中 */
+.toast-custom.show,
+.toast-custom.showing {
+  display: inline-block !important;
 }
 
 .toast-body-custom {
@@ -125,7 +137,11 @@ body.login-page {
   padding: 0.93rem 1.2rem;
   color: #fff;
   font-size: 0.95rem;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  margin: 0 auto; /* 保持正文在容器中水平居中 */
+  padding-top: calc(0.93rem - 0.25px);
+  padding-bottom: calc(0.93rem - 0.25px);
 }
 
 /* --------------- 底部按钮 --------------- */
@@ -8257,4 +8273,29 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
 .tasklist-poster-mode .discovery-poster:hover .discovery-rating {
   pointer-events: none !important; /* 不响应鼠标事件 */
   cursor: default !important;      /* 指针恢复为默认 */
+}
+
+/* --------------- 模态框标题栏统一高度微调（总高度 -1px） --------------- */
+#logModal .modal-header,
+#fileSelectModal .modal-header,
+#createTaskModal .modal-header,
+#editMetadataModal .modal-header {
+  padding-top: 10.5px;
+  padding-bottom: 10.5px;
+}
+
+/* --------------- 创建/编辑任务模态框：警告提示专属样式 --------------- */
+/* 仅作用于 #createTaskModal 内的警告提示，不影响其他位置 */
+#createTaskModal .alert-warning {
+  height: 32px; /* 固定提示栏高度 */
+  min-height: 32px; /* 覆盖全局 36px */
+  max-height: 32px; /* 防止内容撑高 */
+  display: flex; /* 垂直/水平居中文本 */
+  align-items: center;
+  justify-content: center;
+  text-align: center; /* 文本居中 */
+  margin-bottom: 8px; /* 与周边间距保持一致 */
+  padding-top: 0; /* 严格控制视觉高度为 32px */
+  padding-bottom: 0;
+  box-sizing: border-box; /* 高度包含内边距与边框，避免被额外撑高 */
 }
