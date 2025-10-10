@@ -23,6 +23,7 @@ import subprocess
 import requests
 import hashlib
 import logging
+import traceback
 import base64
 import sys
 import os
@@ -470,7 +471,35 @@ def add_task():
 # 定时任务执行的函数
 def run_python(args):
     logging.info(f">>> 定时运行任务")
-    os.system(f"{PYTHON_PATH} {args}")
+    try:
+        # 使用 subprocess 替代 os.system，并设置超时时间（默认30分钟）
+        timeout = int(os.environ.get("TASK_TIMEOUT", "1800"))  # 秒
+        result = subprocess.run(
+            f"{PYTHON_PATH} {args}",
+            shell=True,
+            timeout=timeout,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace"
+        )
+        # 输出执行日志
+        if result.stdout:
+            for line in result.stdout.strip().split('\n'):
+                if line.strip():
+                    logging.info(line)
+        
+        if result.returncode == 0:
+            logging.info(f">>> 任务执行成功")
+        else:
+            logging.error(f">>> 任务执行失败，返回码: {result.returncode}")
+            if result.stderr:
+                logging.error(f"错误信息: {result.stderr[:500]}")
+    except subprocess.TimeoutExpired:
+        logging.error(f">>> 任务执行超时（超过 {timeout} 秒），已强制终止")
+    except Exception as e:
+        logging.error(f">>> 任务执行异常: {str(e)}")
+        logging.error(traceback.format_exc())
 
 
 # 重新加载任务
