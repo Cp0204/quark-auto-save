@@ -36,6 +36,22 @@ except ImportError:
             def close(self):
                 pass
 
+def notify_calendar_changed_safe(reason):
+    """安全地触发SSE通知，避免导入错误"""
+    try:
+        # 尝试导入notify_calendar_changed函数
+        import sys
+        import os
+        # 添加app目录到Python路径
+        app_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app')
+        if app_dir not in sys.path:
+            sys.path.insert(0, app_dir)
+        
+        from run import notify_calendar_changed
+        notify_calendar_changed(reason)
+    except Exception as e:
+        print(f"触发SSE通知失败: {e}")
+
 def advanced_filter_files(file_list, filterwords):
     """
     高级过滤函数，支持保留词和过滤词
@@ -2016,6 +2032,10 @@ class Quark:
             
             # 关闭数据库连接
             db.close()
+            
+            # 触发SSE通知，让前端实时感知转存记录变化
+            notify_calendar_changed_safe('transfer_record_created')
+                
         except Exception as e:
             print(f"保存转存记录失败: {e}")
     
@@ -2074,6 +2094,10 @@ class Quark:
             
             # 关闭数据库连接
             db.close()
+            
+            # 如果更新成功，触发SSE通知
+            if updated > 0:
+                notify_calendar_changed_safe('transfer_record_updated')
             
             return updated > 0
         except Exception as e:

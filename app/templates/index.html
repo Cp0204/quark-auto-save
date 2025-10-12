@@ -5705,6 +5705,11 @@
                       }
                     } catch (e) {}
 
+                    // 如果是转存记录相关的通知，立即刷新今日更新数据
+                    if (changeReason === 'transfer_record_created' || changeReason === 'transfer_record_updated' || changeReason === 'batch_rename_completed') {
+                        try { await this.loadTodayUpdatesLocal(); } catch (e) {}
+                    }
+                    
                     // 再仅本地读取并热更新日历/海报视图
                     await this.loadCalendarEpisodesLocal();
                     this.initializeCalendarDates();

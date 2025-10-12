@@ -3546,6 +3546,10 @@ def batch_rename():
                         "error": str(e)
                     })
         
+        # 如果有成功重命名的文件，触发SSE通知
+        if success_count > 0:
+            notify_calendar_changed('batch_rename_completed')
+        
         return jsonify({
             "success": True, 
             "message": f"成功重命名 {success_count} 个文件，失败 {len(failed_files)} 个",
