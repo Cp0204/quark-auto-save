@@ -1179,7 +1179,18 @@ def purge_calendar_by_tmdb_id_internal(tmdb_id: int, force: bool = False) -> boo
                     match = (cal.get('match') or {})
                     bound = match.get('tmdb_id') or cal.get('tmdb_id')
                     if bound and int(bound) == int(tmdb_id):
-                        logging.info(f"跳过清理 tmdb_id={tmdb_id}（仍被其他任务引用）")
+                        # 获取海报文件名用于日志提示
+                        try:
+                            db = CalendarDB()
+                            show = db.get_show(int(tmdb_id))
+                            poster_path = show.get('poster_local_path', '') if show else ''
+                            if poster_path and poster_path.startswith('/cache/images/'):
+                                poster_filename = poster_path.replace('/cache/images/', '')
+                            else:
+                                poster_filename = f"poster_{tmdb_id}"
+                        except Exception:
+                            poster_filename = f"poster_{tmdb_id}"
+                        logging.debug(f"跳过清理海报文件 {poster_filename}（仍被其他任务引用）")
                         return True
             except Exception:
                 pass
@@ -4133,15 +4144,24 @@ def process_single_task_async(task, tmdb_service, cal_db):
                 latest_season_number = updated_match.get('latest_season_number') or 1
                 logging.debug(f"process_single_task_async - 最终使用的季数: {latest_season_number}")
 
-                poster_local_path = ''
-                if poster_path:
-                    poster_local_path = download_poster_local(poster_path)
-
                 # 获取现有的绑定关系和内容类型，避免被覆盖
                 existing_show = cal_db.get_show(int(tmdb_id))
                 existing_bound_tasks = existing_show.get('bound_task_names', '') if existing_show else ''
                 existing_content_type = existing_show.get('content_type', '') if existing_show else ''
+                existing_poster_path = existing_show.get('poster_local_path', '') if existing_show else ''
+                is_custom_poster = bool(existing_show.get('is_custom_poster', 0)) if existing_show else False
+                
+                poster_local_path = ''
+                if poster_path:
+                    poster_local_path = download_poster_local(poster_path, int(tmdb_id), existing_poster_path, is_custom_poster)
                 cal_db.upsert_show(int(tmdb_id), name, first_air, status, poster_local_path, int(latest_season_number), 0, existing_bound_tasks, existing_content_type)
+                
+                # 如果海报路径发生变化，触发孤立文件清理
+                if poster_local_path and poster_local_path != existing_poster_path:
+                    try:
+                        cleanup_orphaned_posters()
+                    except Exception as e:
+                        logging.warning(f"清理孤立海报失败: {e}")
                 
                 # 更新 seasons 表
                 refresh_url = f"/tv/{tmdb_id}/season/{latest_season_number}"
@@ -4247,14 +4267,16 @@ def do_calendar_bootstrap() -> tuple:
             poster_path = tmdb_service.get_poster_path_with_language(int(tmdb_id)) if tmdb_service else (details.get('poster_path') or '')
             latest_season_number = match.get('latest_season_number') or 1
 
-            poster_local_path = ''
-            if poster_path:
-                poster_local_path = download_poster_local(poster_path)
-
             # 获取现有的绑定关系和内容类型，避免被覆盖
             existing_show = cal_db.get_show(int(tmdb_id))
             existing_bound_tasks = existing_show.get('bound_task_names', '') if existing_show else ''
             existing_content_type = existing_show.get('content_type', '') if existing_show else ''
+            existing_poster_path = existing_show.get('poster_local_path', '') if existing_show else ''
+            is_custom_poster = bool(existing_show.get('is_custom_poster', 0)) if existing_show else False
+            
+            poster_local_path = ''
+            if poster_path:
+                poster_local_path = download_poster_local(poster_path, int(tmdb_id), existing_poster_path, is_custom_poster)
             cal_db.upsert_show(int(tmdb_id), name, first_air, status, poster_local_path, int(latest_season_number), 0, existing_bound_tasks, existing_content_type)
             refresh_url = f"/tv/{tmdb_id}/season/{latest_season_number}"
             # 处理季名称
@@ -4342,6 +4364,49 @@ def clear_all_posters():
         logging.error(f"清空海报文件失败: {e}")
         return False
 
+def cleanup_orphaned_posters():
+    """清理孤立的旧海报文件（不在数据库中的海报文件）"""
+    try:
+        from app.sdk.db import CalendarDB
+        cal_db = CalendarDB()
+        
+        # 获取数据库中所有正在使用的海报路径
+        shows = cal_db.get_all_shows()
+        used_posters = set()
+        for show in shows:
+            poster_path = show.get('poster_local_path', '')
+            if poster_path and poster_path.startswith('/cache/images/'):
+                poster_name = poster_path.replace('/cache/images/', '')
+                used_posters.add(poster_name)
+        
+        # 扫描缓存目录中的所有文件
+        if os.path.exists(CACHE_IMAGES_DIR):
+            orphaned_files = []
+            for filename in os.listdir(CACHE_IMAGES_DIR):
+                if filename not in used_posters:
+                    file_path = os.path.join(CACHE_IMAGES_DIR, filename)
+                    if os.path.isfile(file_path):
+                        orphaned_files.append(file_path)
+            
+            # 删除孤立文件
+            deleted_count = 0
+            for file_path in orphaned_files:
+                try:
+                    os.remove(file_path)
+                    deleted_count += 1
+                except Exception as e:
+                    logging.warning(f"删除孤立海报文件失败: {e}")
+            
+            # 只在删除了文件时才输出日志
+            if deleted_count > 0:
+                logging.info(f"海报清理完成，删除了 {deleted_count} 个孤立文件")
+            return deleted_count > 0
+        
+        return False
+    except Exception as e:
+        logging.error(f"清理孤立海报失败: {e}")
+        return False
+
 def redownload_all_posters():
     """重新下载所有海报"""
     try:
@@ -4373,8 +4438,11 @@ def redownload_all_posters():
                 # 获取新的海报路径
                 new_poster_path = tmdb_service.get_poster_path_with_language(int(tmdb_id))
                 if new_poster_path:
+                    # 获取现有海报信息
+                    existing_poster_path = show.get('poster_local_path', '')
+                    is_custom_poster = bool(show.get('is_custom_poster', 0))
                     # 下载新海报
-                    poster_local_path = download_poster_local(new_poster_path)
+                    poster_local_path = download_poster_local(new_poster_path, int(tmdb_id), existing_poster_path, is_custom_poster)
                     if poster_local_path:
                         # 更新数据库中的海报路径
                         cal_db.update_show_poster(int(tmdb_id), poster_local_path)
@@ -4389,14 +4457,27 @@ def redownload_all_posters():
                 logging.error(f"重新下载海报失败 (TMDB ID: {show.get('tmdb_id')}): {e}")
                 continue
                 
+        # 重新下载完成后，清理孤立的旧海报文件
+        try:
+            cleanup_orphaned_posters()
+        except Exception as e:
+            logging.warning(f"清理孤立海报失败: {e}")
+        
         return success_count > 0
         
     except Exception as e:
         logging.error(f"重新下载所有海报失败: {e}")
         return False
 
-def download_poster_local(poster_path: str) -> str:
-    """下载 TMDB 海报到本地 static/cache/images 下，等比缩放为宽400px，返回相对路径。"""
+def download_poster_local(poster_path: str, tmdb_id: int = None, existing_poster_path: str = None, is_custom_poster: bool = False) -> str:
+    """下载 TMDB 海报到本地 static/cache/images 下，等比缩放为宽400px，返回相对路径。
+    
+    Args:
+        poster_path: TMDB海报路径
+        tmdb_id: TMDB ID，用于检查自定义海报标记
+        existing_poster_path: 现有的海报路径，用于检查是否需要更新
+        is_custom_poster: 是否为自定义海报标记
+    """
     try:
         if not poster_path:
             return ''
@@ -4409,6 +4490,25 @@ def download_poster_local(poster_path: str) -> str:
         # 检查文件是否已存在，如果存在则直接返回路径
         if os.path.exists(file_path):
             return f"/cache/images/{safe_name}"
+        
+        # 如果提供了现有海报路径，检查是否需要更新
+        if existing_poster_path and tmdb_id is not None:
+            existing_file_name = existing_poster_path.replace('/cache/images/', '')
+            new_file_name = safe_name
+            
+            # 如果文件名不同，说明TMDB海报有变更
+            if existing_file_name != new_file_name:
+                # 检查是否有自定义海报标记
+                if is_custom_poster:
+                    return existing_poster_path
+                else:
+                    # 删除旧文件
+                    try:
+                        old_file_path = os.path.join(folder, existing_file_name)
+                        if os.path.exists(old_file_path):
+                            os.remove(old_file_path)
+                    except Exception as e:
+                        logging.warning(f"删除旧海报文件失败: {e}")
         
         # 文件不存在，需要下载
         base = "https://image.tmdb.org/t/p/w400"
@@ -4828,7 +4928,9 @@ def calendar_refresh_show():
         poster_local_path = ''
         try:
             if poster_path:
-                poster_local_path = download_poster_local(poster_path)
+                existing_poster_path = existing_show.get('poster_local_path', '') if existing_show else ''
+                is_custom_poster = bool(existing_show.get('is_custom_poster', 0)) if existing_show else False
+                poster_local_path = download_poster_local(poster_path, int(tmdb_id), existing_poster_path, is_custom_poster)
             elif existing_show and existing_show.get('poster_local_path'):
                 poster_local_path = existing_show.get('poster_local_path')
         except Exception:
@@ -4848,6 +4950,14 @@ def calendar_refresh_show():
             bound_task_names,
             content_type
         )
+
+        # 如果海报路径发生变化，触发孤立文件清理
+        existing_poster_path = existing_show.get('poster_local_path', '') if existing_show else ''
+        if poster_local_path and poster_local_path != existing_poster_path:
+            try:
+                cleanup_orphaned_posters()
+            except Exception as e:
+                logging.warning(f"清理孤立海报失败: {e}")
 
         try:
             notify_calendar_changed('refresh_show')
@@ -5168,7 +5278,13 @@ def calendar_edit_metadata():
                     saved_path = download_custom_poster(custom_poster_url, current_tmdb_id, target_safe_name)
 
                     if saved_path:
-                        # 若文件名发生变化则需要同步数据库并清理旧文件
+                        # 更新数据库路径，标记为自定义海报
+                        try:
+                            cal_db.update_show_poster(int(current_tmdb_id), saved_path, is_custom_poster=1)
+                        except Exception as e:
+                            logging.warning(f"更新海报路径失败: {e}")
+                        
+                        # 若文件名发生变化则需要删除旧文件
                         try:
                             existing_path = ''
                             if show_row:
@@ -5183,14 +5299,15 @@ def calendar_edit_metadata():
                                             os.remove(old_path)
                                 except Exception as e:
                                     logging.warning(f"删除旧海报失败: {e}")
-                                # 更新数据库路径
-                                try:
-                                    cal_db.update_show_poster(int(current_tmdb_id), saved_path)
-                                except Exception as e:
-                                    logging.warning(f"更新海报路径失败: {e}")
                         except Exception:
                             # 即使对比失败也不影响功能
                             pass
+                        
+                        # 用户上传自定义海报后，总是触发孤立文件清理
+                        try:
+                            cleanup_orphaned_posters()
+                        except Exception as e:
+                            logging.warning(f"清理孤立海报失败: {e}")
 
                         # 成功更新自定义海报（静默）
                         changed = True
@@ -5761,6 +5878,21 @@ def cleanup_episode_patterns_config(config_data):
     except Exception as e:
         logging.error(f"清理剧集识别规则配置失败: {str(e)}")
         return False
+
+@app.route("/api/calendar/cleanup_orphaned_posters", methods=["POST"])
+def cleanup_orphaned_posters_api():
+    """手动清理孤立的旧海报文件"""
+    try:
+        if not is_login():
+            return jsonify({"success": False, "message": "未登录"})
+        
+        success = cleanup_orphaned_posters()
+        if success:
+            return jsonify({"success": True, "message": "孤立海报文件清理完成"})
+        else:
+            return jsonify({"success": True, "message": "没有发现需要清理的孤立文件"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"清理孤立海报失败: {str(e)}"})
 
 if __name__ == "__main__":
     init()

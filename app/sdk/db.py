@@ -303,6 +303,10 @@ class CalendarDB:
         columns = [column[1] for column in cursor.fetchall()]
         if 'content_type' not in columns:
             cursor.execute('ALTER TABLE shows ADD COLUMN content_type TEXT')
+        
+        # 检查 is_custom_poster 字段是否存在，如果不存在则添加
+        if 'is_custom_poster' not in columns:
+            cursor.execute('ALTER TABLE shows ADD COLUMN is_custom_poster INTEGER DEFAULT 0')
 
         # seasons
         cursor.execute('''
@@ -341,11 +345,11 @@ class CalendarDB:
             self.conn.close()
 
     # shows
-    def upsert_show(self, tmdb_id:int, name:str, year:str, status:str, poster_local_path:str, latest_season_number:int, last_refreshed_at:int=0, bound_task_names:str="", content_type:str=""):
+    def upsert_show(self, tmdb_id:int, name:str, year:str, status:str, poster_local_path:str, latest_season_number:int, last_refreshed_at:int=0, bound_task_names:str="", content_type:str="", is_custom_poster:int=0):
         cursor = self.conn.cursor()
         cursor.execute('''
-        INSERT INTO shows (tmdb_id, name, year, status, poster_local_path, latest_season_number, last_refreshed_at, bound_task_names, content_type)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO shows (tmdb_id, name, year, status, poster_local_path, latest_season_number, last_refreshed_at, bound_task_names, content_type, is_custom_poster)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(tmdb_id) DO UPDATE SET
             name=excluded.name,
             year=excluded.year,
@@ -354,8 +358,9 @@ class CalendarDB:
             latest_season_number=excluded.latest_season_number,
             last_refreshed_at=excluded.last_refreshed_at,
             bound_task_names=excluded.bound_task_names,
-            content_type=excluded.content_type
-        ''', (tmdb_id, name, year, status, poster_local_path, latest_season_number, last_refreshed_at, bound_task_names, content_type))
+            content_type=excluded.content_type,
+            is_custom_poster=excluded.is_custom_poster
+        ''', (tmdb_id, name, year, status, poster_local_path, latest_season_number, last_refreshed_at, bound_task_names, content_type, is_custom_poster))
         self.conn.commit()
 
     def bind_task_to_show(self, tmdb_id:int, task_name:str):
@@ -579,10 +584,10 @@ class CalendarDB:
         cursor.execute('UPDATE shows SET latest_season_number=? WHERE tmdb_id=?', (latest_season_number, tmdb_id))
         self.conn.commit()
 
-    def update_show_poster(self, tmdb_id: int, poster_local_path: str):
-        """更新节目的海报路径"""
+    def update_show_poster(self, tmdb_id: int, poster_local_path: str, is_custom_poster: int = 0):
+        """更新节目的海报路径和自定义标记"""
         cursor = self.conn.cursor()
-        cursor.execute('UPDATE shows SET poster_local_path=? WHERE tmdb_id=?', (poster_local_path, tmdb_id))
+        cursor.execute('UPDATE shows SET poster_local_path=?, is_custom_poster=? WHERE tmdb_id=?', (poster_local_path, is_custom_poster, tmdb_id))
         self.conn.commit()
 
     def get_all_shows(self):
