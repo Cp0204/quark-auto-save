@@ -33,6 +33,19 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
 from quark_auto_save import Quark, Config, MagicRename
 
+print(
+    r"""
+   ____    ___   _____
+  / __ \  /   | / ___/
+ / / / / / /| | \__ \
+/ /_/ / / ___ |___/ /
+\___\_\/_/  |_/____/
+
+-- Quark-Auto-Save --
+ """
+)
+sys.stdout.flush()
+
 
 def get_app_ver():
     """获取应用版本"""
@@ -60,6 +73,7 @@ PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "")
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = os.environ.get("PORT", 5005)
+TASK_TIMEOUT = int(os.environ.get("TASK_TIMEOUT", 1800))
 
 config_data = {}
 task_plugins_config_default = {}
@@ -83,6 +97,8 @@ logging.basicConfig(
 # 过滤werkzeug日志输出
 if not DEBUG:
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
+    logging.getLogger("apscheduler").setLevel(logging.ERROR)
+    sys.modules["flask.cli"].show_server_banner = lambda *x: None
 
 
 def gen_md5(string):
@@ -472,23 +488,21 @@ def add_task():
 def run_python(args):
     logging.info(f">>> 定时运行任务")
     try:
-        # 使用 subprocess 替代 os.system，并设置超时时间（默认30分钟）
-        timeout = int(os.environ.get("TASK_TIMEOUT", "1800"))  # 秒
         result = subprocess.run(
             f"{PYTHON_PATH} {args}",
             shell=True,
-            timeout=timeout,
+            timeout=TASK_TIMEOUT,
             capture_output=True,
             text=True,
             encoding="utf-8",
-            errors="replace"
+            errors="replace",
         )
         # 输出执行日志
         if result.stdout:
-            for line in result.stdout.strip().split('\n'):
+            for line in result.stdout.strip().split("\n"):
                 if line.strip():
                     logging.info(line)
-        
+
         if result.returncode == 0:
             logging.info(f">>> 任务执行成功")
         else:
@@ -496,7 +510,7 @@ def run_python(args):
             if result.stderr:
                 logging.error(f"错误信息: {result.stderr[:500]}")
     except subprocess.TimeoutExpired as e:
-        logging.error(f">>> 任务执行超时（超过 {timeout} 秒），已强制终止")
+        logging.error(f">>> 任务执行超时(>{TASK_TIMEOUT}s)，强制终止")
         # 尝试终止进程
         if e.process:
             try:
@@ -547,7 +561,7 @@ def reload_tasks():
 
 def init():
     global config_data, task_plugins_config_default
-    logging.info(f">>> 初始化配置")
+    logging.info(">>> 初始化配置")
     # 检查配置文件是否存在
     if not os.path.exists(CONFIG_PATH):
         if not os.path.exists(os.path.dirname(CONFIG_PATH)):
@@ -585,6 +599,8 @@ def init():
 if __name__ == "__main__":
     init()
     reload_tasks()
+    logging.info(">>> 启动Web服务")
+    logging.info(f"运行在: http://{HOST}:{PORT}")
     app.run(
         debug=DEBUG,
         host=HOST,
