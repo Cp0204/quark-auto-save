@@ -3237,6 +3237,15 @@
         // 任务列表自动检测更新相关
         tasklistAutoWatchTimer: null,
         tasklistLatestFilesSignature: '',
+        // 全局 SSE 单例与监听标志
+        appSSE: null,
+        appSSEInitialized: false,
+        calendarSSEListenerAdded: false,
+        tasklistSSEListenerAdded: false,
+        // 存放已绑定的事件处理器，便于避免重复绑定
+        onCalendarChangedHandler: null,
+        onTasklistChangedHandler: null,
+        // 兼容旧字段（不再使用独立 SSE 实例）
         tasklistSSE: null,
         calendarSSE: null,
         // 创建任务相关数据
@@ -3576,6 +3585,8 @@
         activeTab(newValue, oldValue) {
           // 如果切换到任务列表页面，则刷新任务最新信息和元数据
           if (newValue === 'tasklist') {
+            // 确保全局 SSE 已建立
+            try { this.ensureGlobalSSE(); } catch (e) {}
             this.loadTaskLatestInfo();
             this.loadTasklistMetadata();
             // 启动任务列表的后台监听
@@ -3586,6 +3597,8 @@
           }
           // 切换到追剧日历：立刻检查一次并启动后台监听；离开则停止监听
           if (newValue === 'calendar') {
+            // 确保全局 SSE 已建立
+            try { this.ensureGlobalSSE(); } catch (e) {}
             // 立即检查一次（若已初始化过监听，直接调用tick引用）
             // 先本地读取一次，立刻应用“已转存”状态（不依赖轮询）
             try { this.loadCalendarEpisodesLocal && this.loadCalendarEpisodesLocal(); } catch (e) {}
@@ -3632,6 +3645,9 @@
         this.checkNewVersion();
         this.fetchUserInfo(); // 获取用户信息
         this.fetchAccountsDetail(); // 获取账号详细信息
+
+        // 应用级别：在挂载时确保全局 SSE 建立一次
+        try { this.ensureGlobalSSE(); } catch (e) {}
 
         // 迁移旧的localStorage数据到新格式（为每个账号单独存储目录）
         this.migrateFileManagerFolderData();
@@ -3822,6 +3838,80 @@
         this.stopCalendarAutoWatch();
       },
       methods: {
+        // 启动任务列表轮询兜底（仅在未运行时启动）
+        startTasklistPollingFallback() {
+          try {
+            if (!this.tasklistAutoWatchTimer) {
+              this.tasklistAutoWatchTimer = setInterval(async () => {
+                try {
+                  const res = await axios.get('/task_latest_info');
+                  if (res.data && res.data.success) {
+                    const latestFiles = res.data.data.latest_files || {};
+                    const sig = this.calcLatestFilesSignature(latestFiles);
+                    if (sig && sig !== this.tasklistLatestFilesSignature) {
+                      // 更新签名，触发热更新
+                      this.tasklistLatestFilesSignature = sig;
+                      this.taskLatestFiles = latestFiles;
+                      // 重新加载任务元数据，确保海报和元数据能热更新
+                      await this.loadTasklistMetadata();
+                    }
+                  }
+                } catch (e) {
+                  console.warn('任务列表后台监听检查失败:', e);
+                }
+              }, 60000);
+            }
+          } catch (e) {}
+        },
+        // 确保全局 SSE 单例存在（仅建立一次）
+        ensureGlobalSSE() {
+          try {
+            if (this.appSSEInitialized && this.appSSE) return;
+            if (!this.appSSE) {
+              this.appSSE = new EventSource('/api/calendar/stream');
+            }
+            this.appSSEInitialized = true;
+            // 统一 onopen：SSE 成功后停止两侧轮询
+            this.appSSE.onopen = () => {
+              try {
+                if (this.calendarAutoWatchTimer) {
+                  clearInterval(this.calendarAutoWatchTimer);
+                  this.calendarAutoWatchTimer = null;
+                }
+              } catch (e) {}
+              try {
+                if (this.tasklistAutoWatchTimer) {
+                  clearInterval(this.tasklistAutoWatchTimer);
+                  this.tasklistAutoWatchTimer = null;
+                }
+              } catch (e) {}
+            };
+            // 统一 onerror：关闭SSE并回退双侧轮询
+            this.appSSE.onerror = () => {
+              try { this.appSSE.close(); } catch (e) {}
+              this.appSSE = null;
+              this.appSSEInitialized = false;
+              // 日历回退：若没有轮询定时器，则恢复轮询并立即执行一次
+              try {
+                if (!this.calendarAutoWatchTimer && this.calendarAutoWatchTickRef) {
+                  const baseIntervalMs = this.calendar && this.calendar.manageMode ? 5 * 1000 : 60 * 1000;
+                  this.calendarAutoWatchTimer = setInterval(this.calendarAutoWatchTickRef, baseIntervalMs);
+                  this.calendarAutoWatchTickRef();
+                }
+              } catch (e) {}
+              // 任务列表回退：若没有轮询定时器，则恢复轮询
+              try {
+                if (!this.tasklistAutoWatchTimer) {
+                  this.startTasklistPollingFallback();
+                }
+              } catch (e) {}
+            };
+            // ping 心跳占位
+            try { this.appSSE.addEventListener('ping', () => {}); } catch (e) {}
+          } catch (e) {
+            // 忽略失败，后续可回退轮询
+          }
+        },
         // 任务列表海报标题（悬停：#编号 任务名称 · 状态）
         getTasklistPosterTitle(task, index) {
           try {
@@ -5612,7 +5702,7 @@
                   this.calendarAutoWatchTimer = null;
                 }
               } else {
-                if (!this.calendarSSE && !this.calendarAutoWatchTimer && this.calendarAutoWatchTickRef) {
+                if (!this.appSSE && !this.calendarAutoWatchTimer && this.calendarAutoWatchTickRef) {
                   const baseIntervalMs = this.calendar && this.calendar.manageMode ? 5 * 1000 : 60 * 1000;
                   this.calendarAutoWatchTimer = setInterval(this.calendarAutoWatchTickRef, baseIntervalMs);
                   this.calendarAutoWatchTickRef();
@@ -5624,19 +5714,10 @@
             window.addEventListener('focus', this.calendarAutoWatchFocusHandler);
             document.addEventListener('visibilitychange', this.calendarAutoWatchVisibilityHandler);
 
-            // 建立 SSE 连接，实时感知日历数据库变化（成功建立后停用轮询，失败时回退轮询）
+            // 建立/复用全局 SSE 连接（成功建立后停用轮询，失败时回退轮询）
             try {
-              if (!this.calendarSSE) {
-                this.calendarSSE = new EventSource('/api/calendar/stream');
-                // SSE 打开后，停止轮询
-                this.calendarSSE.onopen = () => {
-                  try {
-                    if (this.calendarAutoWatchTimer) {
-                      clearInterval(this.calendarAutoWatchTimer);
-                      this.calendarAutoWatchTimer = null;
-                    }
-                  } catch (e) {}
-                };
+              this.ensureGlobalSSE();
+              if (this.appSSE && !this.calendarSSEListenerAdded) {
                 const onChanged = async (ev) => {
                   try {
                     // 解析变更原因（后端通过 SSE data 传递）
@@ -5717,21 +5798,10 @@
                     try { await this.loadTodayUpdatesLocal(); } catch (e) {}
                   } catch (e) {}
                 };
-                this.calendarSSE.addEventListener('calendar_changed', onChanged);
-                // 初次连接会收到一次 ping，不做处理即可
-                this.calendarSSE.addEventListener('ping', () => {});
-                this.calendarSSE.onerror = () => {
-                  try { this.calendarSSE.close(); } catch (e) {}
-                  this.calendarSSE = null;
-                  // 回退：若没有轮询定时器，则恢复轮询
-                  try {
-                    if (!this.calendarAutoWatchTimer && this.calendarAutoWatchTickRef) {
-                      const baseIntervalMs = this.calendar && this.calendar.manageMode ? 5 * 1000 : 60 * 1000;
-                      this.calendarAutoWatchTimer = setInterval(this.calendarAutoWatchTickRef, baseIntervalMs);
-                      this.calendarAutoWatchTickRef();
-                    }
-                  } catch (e) {}
-                };
+                this.onCalendarChangedHandler = onChanged;
+                this.appSSE.addEventListener('calendar_changed', onChanged);
+                this.calendarSSEListenerAdded = true;
+                // onopen/onerror 已集中在 ensureGlobalSSE，无需重复设置
               }
             } catch (e) {
               // 忽略 SSE 失败，继续使用轮询
@@ -5756,10 +5826,7 @@
               document.removeEventListener('visibilitychange', this.calendarAutoWatchVisibilityHandler);
               this.calendarAutoWatchVisibilityHandler = null;
             }
-            if (this.calendarSSE) {
-              try { this.calendarSSE.close(); } catch (e) {}
-              this.calendarSSE = null;
-            }
+            // 不再关闭全局 SSE；仅移除本地监听（如有需要）
           } catch (e) {
             // ignore
           }
@@ -9351,17 +9418,9 @@
             
             // 建立 SSE 连接，实时感知任务列表变化（成功建立后停用轮询，失败时回退轮询）
             try {
-              if (!this.tasklistSSE) {
-                this.tasklistSSE = new EventSource('/api/calendar/stream');
-                // SSE 打开后，停止轮询
-                this.tasklistSSE.onopen = () => {
-                  try {
-                    if (this.tasklistAutoWatchTimer) {
-                      clearInterval(this.tasklistAutoWatchTimer);
-                      this.tasklistAutoWatchTimer = null;
-                    }
-                  } catch (e) {}
-                };
+              // 使用全局 SSE 单例
+              this.ensureGlobalSSE();
+              if (this.appSSE && !this.tasklistSSEListenerAdded) {
                 const onTasklistChanged = async (ev) => {
                   try {
                     // 解析变更原因（后端通过 SSE data 传递）
@@ -9406,37 +9465,10 @@
                     }
                   } catch (e) {}
                 };
-                this.tasklistSSE.addEventListener('calendar_changed', onTasklistChanged);
-                // 初次连接会收到一次 ping，不做处理即可
-                this.tasklistSSE.addEventListener('ping', () => {});
-                this.tasklistSSE.onerror = () => {
-                  try { this.tasklistSSE.close(); } catch (e) {}
-                  this.tasklistSSE = null;
-                  // 回退：若没有轮询定时器，则恢复轮询
-                  try {
-                    if (!this.tasklistAutoWatchTimer) {
-                      this.tasklistAutoWatchTimer = setInterval(async () => {
-                        try {
-                          const res = await axios.get('/task_latest_info');
-                          if (res.data && res.data.success) {
-                            const latestFiles = res.data.data.latest_files || {};
-                            const sig = this.calcLatestFilesSignature(latestFiles);
-                            if (sig && sig !== this.tasklistLatestFilesSignature) {
-                              // 更新签名，触发热更新
-                              this.tasklistLatestFilesSignature = sig;
-                              this.taskLatestFiles = latestFiles;
-                              
-                              // 重新加载任务元数据，确保海报和元数据能热更新
-                              await this.loadTasklistMetadata();
-                            }
-                          }
-                        } catch (e) {
-                          console.warn('任务列表后台监听检查失败:', e);
-                        }
-                      }, 60000);
-                    }
-                  } catch (e) {}
-                };
+                this.onTasklistChangedHandler = onTasklistChanged;
+                this.appSSE.addEventListener('calendar_changed', onTasklistChanged);
+                this.tasklistSSEListenerAdded = true;
+                // onopen/onerror 已集中在 ensureGlobalSSE，无需重复设置
               }
             } catch (e) {
               // 忽略 SSE 失败，继续使用轮询
