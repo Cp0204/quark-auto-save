@@ -6166,6 +6166,12 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   color: #fff !important;
 }
 
+/* 调整模态框内“正在验证/搜索中”行的转圈图标左边距，仅影响图标本身 */
+#createTaskModal .task-suggestions .dropdown-item.text-muted .spinner-border-sm {
+  margin-left: 0; /* 在不改变文本左距的情况下，将图标视觉左距校正至约8px */
+  margin-right: 0; /* 图标与文字间距 */
+}
+
 /* 创建任务模态框移动端响应式样式 */
 @media (max-width: 767.98px) {
   #createTaskModal .form-group.row .col-sm-2 {
