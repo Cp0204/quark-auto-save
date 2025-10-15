@@ -1312,7 +1312,7 @@ def sync_content_type_between_config_and_database() -> bool:
                             synced_count += 1
                             logging.debug(f"建立绑定关系并同步内容类型 - 任务: '{task_name}', 类型: '{config_content_type}', tmdb_id: {tmdb_id}")
                         else:
-                            logging.debug(f"任务有 TMDB 匹配信息但数据库中无对应节目 - 任务: '{task_name}', tmdb_id: {tmdb_id}")
+                            logging.debug(f"任务配置中的 TMDB ID 在数据库中不存在 - 任务: '{task_name}', tmdb_id: {tmdb_id}")
                     else:
                         logging.debug(f"任务无 TMDB 匹配信息，无法建立绑定关系 - 任务: '{task_name}'")
         
@@ -1797,6 +1797,13 @@ def get_task_suggestions():
                     Config.write_json(CONFIG_PATH, config_data)
                 search_results = cs.clean_search_results(search.get("data"))
                 if isinstance(search_results, list):
+                    # 为 CloudSaver 结果补齐来源字段
+                    for it in search_results:
+                        try:
+                            if not it.get("source"):
+                                it["source"] = "CloudSaver"
+                        except Exception:
+                            pass
                     merged.extend(search_results)
                     providers.append("CloudSaver")
 
@@ -1806,6 +1813,13 @@ def get_task_suggestions():
                 ps = PanSou(ps_data.get("server"))
                 result = ps.search(search_query)
                 if result.get("success") and isinstance(result.get("data"), list):
+                    # 为 PanSou 结果补齐来源字段
+                    for it in result.get("data"):
+                        try:
+                            if not it.get("source"):
+                                it["source"] = "PanSou"
+                        except Exception:
+                            pass
                     merged.extend(result.get("data"))
                     providers.append("PanSou")
             except Exception as e:
@@ -1817,8 +1831,8 @@ def get_task_suggestions():
         # 2) 兜底（极少）：无链接时按完整指纹（shareurl|title|date|source）归并
         # 3) 二次归并：对所有候选结果再按 标题+发布时间 做一次归并（无论 shareurl 是否相同），取最新
         # 注意：当发生归并冲突时，始终保留发布时间最新的记录
-        dedup_map = {}          # 按 shareurl 归并
-        fingerprint_map = {}    # 兜底：完整指纹归并（仅当缺失链接时）
+        dedup_map = {}          # 按 shareurl 归并，值为 {item, _sources:set}
+        fingerprint_map = {}    # 兜底：完整指纹归并（仅当缺失链接时），同上
         # 规范化工具
         def normalize_shareurl(url: str) -> str:
             try:
@@ -1897,22 +1911,37 @@ def get_task_suggestions():
             # 条件1：按 shareurl 归并，取最新
             if shareurl:
                 existed = dedup_map.get(shareurl)
-                if not existed or to_ts(existed.get("publish_date")) < timestamp:
-                    dedup_map[shareurl] = item
+                if not existed or to_ts(existed["item"].get("publish_date")) < timestamp:
+                    dedup_map[shareurl] = {"item": item, "_sources": set([src for src in [source] if src])}
+                else:
+                    # 更新时间较旧但来源需要合并
+                    try:
+                        if source:
+                            existed["_sources"].add(source)
+                    except Exception:
+                        pass
             else:
                 # 条件2（兜底）：完整指纹归并（极少发生），依然取最新
                 fingerprint = f"{shareurl}|{title}|{pubdate}|{source}"
                 existed = fingerprint_map.get(fingerprint)
-                if not existed or to_ts(existed.get("publish_date")) < timestamp:
-                    fingerprint_map[fingerprint] = item
+                if not existed or to_ts(existed["item"].get("publish_date")) < timestamp:
+                    fingerprint_map[fingerprint] = {"item": item, "_sources": set([src for src in [source] if src])}
+                else:
+                    try:
+                        if source:
+                            existed["_sources"].add(source)
+                    except Exception:
+                        pass
 
         # 第一轮：汇总归并后的候选结果
         candidates = list(dedup_map.values()) + list(fingerprint_map.values())
 
         # 第二轮：无论 shareurl 是否相同，再按 标题+发布时间 归并一次（使用时间戳作为键，兼容不同时间格式），保留最新
         final_map = {}
-        for item in candidates:
+        for pack in candidates:
             try:
+                item = pack.get("item") if isinstance(pack, dict) else pack
+                src_set = pack.get("_sources") if isinstance(pack, dict) else set([ (item.get("source") or "").strip() ])
                 t = normalize_title(item.get("taskname") or "")
                 d = normalize_date(item.get("publish_date") or "")
                 s = normalize_shareurl(item.get("shareurl") or "")
@@ -1928,27 +1957,71 @@ def get_task_suggestions():
                 existed = final_map.get(key)
                 current_ts = to_ts(item.get("publish_date"))
                 if not existed:
-                    final_map[key] = item
+                    # 初次放入时带上来源集合
+                    item_copy = dict(item)
+                    item_copy["_sources"] = set([*list(src_set)])
+                    final_map[key] = item_copy
                 else:
                     existed_ts = to_ts(existed.get("publish_date"))
                     if current_ts > existed_ts:
-                        final_map[key] = item
+                        item_copy = dict(item)
+                        # 继承旧来源并合并新来源
+                        merged_sources = set(list(existed.get("_sources") or set()))
+                        for ssrc in list(src_set):
+                            if ssrc:
+                                merged_sources.add(ssrc)
+                        item_copy["_sources"] = merged_sources
+                        final_map[key] = item_copy
                     elif current_ts == existed_ts:
                         # 时间完全相同，使用确定性优先级打破平手
                         source_priority = {"CloudSaver": 2, "PanSou": 1}
                         existed_pri = source_priority.get((existed.get("source") or "").strip(), 0)
                         current_pri = source_priority.get(src, 0)
+                        # 无论谁胜出，都要合并来源集合
                         if current_pri > existed_pri:
-                            final_map[key] = item
+                            item_copy = dict(item)
+                            merged_sources = set(list(existed.get("_sources") or set()))
+                            for ssrc in list(src_set):
+                                if ssrc:
+                                    merged_sources.add(ssrc)
+                            item_copy["_sources"] = merged_sources
+                            final_map[key] = item_copy
                         elif current_pri == existed_pri:
                             # 进一步比较信息丰富度（content 长度）
                             if len(str(item.get("content") or "")) > len(str(existed.get("content") or "")):
-                                final_map[key] = item
+                                item_copy = dict(item)
+                                # 合并来源
+                                merged_sources = set(list(existed.get("_sources") or set()))
+                                for ssrc in list(src_set):
+                                    if ssrc:
+                                        merged_sources.add(ssrc)
+                                item_copy["_sources"] = merged_sources
+                                final_map[key] = item_copy
+                            else:
+                                # 即便不替换主体，也合并来源
+                                try:
+                                    merged_sources = set(list(existed.get("_sources") or set()))
+                                    for ssrc in list(src_set):
+                                        if ssrc:
+                                            merged_sources.add(ssrc)
+                                    existed["_sources"] = merged_sources
+                                except Exception:
+                                    pass
             except Exception:
                 # 出现异常则跳过该项
                 continue
 
-        dedup = list(final_map.values())
+        # 输出前：将来源集合压缩为展示字符串
+        dedup = []
+        for v in final_map.values():
+            try:
+                srcs = sorted([s for s in list(v.get("_sources") or []) if s])
+                v.pop("_sources", None)
+                if srcs:
+                    v["source"] = " · ".join(srcs)
+                dedup.append(v)
+            except Exception:
+                dedup.append(v)
 
         # 仅在排序时对多种格式进行解析（优先解析 YYYY-MM-DD HH:mm:ss，其次 ISO）
         if dedup:

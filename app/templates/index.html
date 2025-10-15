@@ -3838,6 +3838,14 @@
         this.stopCalendarAutoWatch();
       },
       methods: {
+        // 计算来源徽标 class：多来源时使用 multi-source，单来源使用小写来源名
+        getSourceBadgeClass(source) {
+          try {
+            if (!source) return '';
+            if (typeof source === 'string' && source.indexOf('·') !== -1) return 'multi-source';
+            return String(source).toLowerCase();
+          } catch (e) { return ''; }
+        },
         // 启动任务列表轮询兜底（仅在未运行时启动）
         startTasklistPollingFallback() {
           try {
