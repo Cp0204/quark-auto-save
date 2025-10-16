@@ -23,6 +23,7 @@ import subprocess
 import requests
 import hashlib
 import logging
+import traceback
 import base64
 import sys
 import os
@@ -31,6 +32,19 @@ import re
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
 from quark_auto_save import Quark, Config, MagicRename
+
+print(
+    r"""
+   ____    ___   _____
+  / __ \  /   | / ___/
+ / / / / / /| | \__ \
+/ /_/ / / ___ |___/ /
+\___\_\/_/  |_/____/
+
+-- Quark-Auto-Save --
+ """
+)
+sys.stdout.flush()
 
 
 def get_app_ver():
@@ -59,6 +73,7 @@ PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "")
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = os.environ.get("PORT", 5005)
+TASK_TIMEOUT = int(os.environ.get("TASK_TIMEOUT", 1800))
 
 config_data = {}
 task_plugins_config_default = {}
@@ -82,6 +97,8 @@ logging.basicConfig(
 # 过滤werkzeug日志输出
 if not DEBUG:
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
+    logging.getLogger("apscheduler").setLevel(logging.ERROR)
+    sys.modules["flask.cli"].show_server_banner = lambda *x: None
 
 
 def gen_md5(string):
@@ -470,7 +487,43 @@ def add_task():
 # 定时任务执行的函数
 def run_python(args):
     logging.info(f">>> 定时运行任务")
-    os.system(f"{PYTHON_PATH} {args}")
+    try:
+        result = subprocess.run(
+            f"{PYTHON_PATH} {args}",
+            shell=True,
+            timeout=TASK_TIMEOUT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        # 输出执行日志
+        if result.stdout:
+            for line in result.stdout.strip().split("\n"):
+                if line.strip():
+                    logging.info(line)
+
+        if result.returncode == 0:
+            logging.info(f">>> 任务执行成功")
+        else:
+            logging.error(f">>> 任务执行失败，返回码: {result.returncode}")
+            if result.stderr:
+                logging.error(f"错误信息: {result.stderr[:500]}")
+    except subprocess.TimeoutExpired as e:
+        logging.error(f">>> 任务执行超时(>{TASK_TIMEOUT}s)，强制终止")
+        # 尝试终止进程
+        if e.process:
+            try:
+                e.process.kill()
+                logging.info(">>> 已终止超时进程")
+            except:
+                pass
+    except Exception as e:
+        logging.error(f">>> 任务执行异常: {str(e)}")
+        logging.error(traceback.format_exc())
+    finally:
+        # 确保函数能够正常返回
+        logging.debug(f">>> run_python 函数执行完成")
 
 
 # 重新加载任务
@@ -486,6 +539,10 @@ def reload_tasks():
             trigger=trigger,
             args=[f"{SCRIPT_PATH} {CONFIG_PATH}"],
             id=SCRIPT_PATH,
+            max_instances=1,  # 最多允许1个实例运行
+            coalesce=True,  # 合并错过的任务，避免堆积
+            misfire_grace_time=300,  # 错过任务的宽限期(秒)，超过则跳过
+            replace_existing=True,  # 替换已存在的同ID任务
         )
         if scheduler.state == 0:
             scheduler.start()
@@ -504,7 +561,7 @@ def reload_tasks():
 
 def init():
     global config_data, task_plugins_config_default
-    logging.info(f">>> 初始化配置")
+    logging.info(">>> 初始化配置")
     # 检查配置文件是否存在
     if not os.path.exists(CONFIG_PATH):
         if not os.path.exists(os.path.dirname(CONFIG_PATH)):
@@ -542,6 +599,8 @@ def init():
 if __name__ == "__main__":
     init()
     reload_tasks()
+    logging.info(">>> 启动Web服务")
+    logging.info(f"运行在: http://{HOST}:{PORT}")
     app.run(
         debug=DEBUG,
         host=HOST,
