@@ -23,7 +23,7 @@
     },
     "$SHOW_MAGIC": {
       "pattern": "^(?!.*纯享)(?!.*加更)(?!.*抢先)(?!.*预告).*?第\\d+期.*",
-      "replace": "{II}.{TASKNAME}.{DATE}.第{E}期{PART}.{EXT}"
+      "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}"
     },
     "$TV_MAGIC": {
       "pattern": "",
