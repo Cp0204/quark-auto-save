@@ -2,7 +2,7 @@
 // @name         QAS一键推送助手
 // @namespace    https://github.com/Cp0204/quark-auto-save
 // @license      AGPL
-// @version      0.5
+// @version      0.6
 // @description  在夸克网盘分享页面添加推送到 QAS 的按钮
 // @icon         https://pan.quark.cn/favicon.ico
 // @author       Cp0204
@@ -76,16 +76,16 @@
             }
         }
 
-        waitForElement('.DetailLayout--client-download--FpyCkdW.ant-dropdown-trigger', (clientDownloadButton) => {
+        waitForElement('.pc-member-entrance', (PcMemberButton) => {
             const qasSettingButton = document.createElement('div');
-            qasSettingButton.className = 'DetailLayout--client-download--FpyCkdW ant-dropdown-trigger';
+            qasSettingButton.className = 'pc-member-entrance';
             qasSettingButton.innerHTML = 'QAS设置';
 
             qasSettingButton.addEventListener('click', () => {
                 showQASSettingDialog();
             });
 
-            clientDownloadButton.parentNode.insertBefore(qasSettingButton, clientDownloadButton.nextSibling);
+            PcMemberButton.parentNode.insertBefore(qasSettingButton, PcMemberButton.nextSibling);
         });
     }
 
@@ -155,6 +155,63 @@
                     },
                     data: JSON.stringify(data),
                     onload: function (response) {
+                        // 检查 HTTP 状态码
+                        if (response.status === 401) {
+                            Swal.fire({
+                                title: '认证失败',
+                                text: 'Token 无效或已过期，请重新配置 QAS Token',
+                                icon: 'error',
+                                confirmButtonText: '重新配置',
+                                showCancelButton: true,
+                                cancelButtonText: '取消'
+                            }).then((result) => {
+                                if (result.isConfirmed) {
+                                    showQASSettingDialog();
+                                }
+                            });
+                            return;
+                        }
+
+                        if (response.status === 503) {
+                            Swal.fire({
+                                title: '服务器不可用',
+                                html: `服务器暂时无法处理请求 (503)<br><br>
+                                       <small>可能原因：<br>
+                                       • QAS 服务未运行<br>
+                                       • 服务器过载<br>
+                                       • 网络连接问题</small>`,
+                                icon: 'error',
+                                confirmButtonText: '重新配置',
+                                showCancelButton: true,
+                                cancelButtonText: '取消'
+                            }).then((result) => {
+                                if (result.isConfirmed) {
+                                    showQASSettingDialog();
+                                }
+                            });
+                            return;
+                        }
+
+                        // 检查响应内容类型
+                        const contentType = response.responseHeaders.match(/content-type:\s*([^;\s]+)/i);
+                        if (contentType && !contentType[1].includes('application/json')) {
+                            Swal.fire({
+                                title: '认证失败',
+                                html: `服务器返回了非 JSON 响应，可能是 Token 错误<br><br>
+                                       <small>响应类型: ${contentType[1]}</small><br>
+                                       <small>响应状态: ${response.status}</small>`,
+                                icon: 'error',
+                                confirmButtonText: '重新配置',
+                                showCancelButton: true,
+                                cancelButtonText: '取消'
+                            }).then((result) => {
+                                if (result.isConfirmed) {
+                                    showQASSettingDialog();
+                                }
+                            });
+                            return;
+                        }
+
                         try {
                             const jsonResponse = JSON.parse(response.responseText);
                             if (jsonResponse.success) {
@@ -177,16 +234,34 @@
                         } catch (e) {
                             Swal.fire({
                                 title: '解析响应失败',
-                                text: `无法解析 JSON 响应: ${response.responseText}`,
-                                icon: 'error'
+                                html: `<small>
+                                       响应状态: ${response.status}<br>
+                                       响应内容: ${response.responseText.substring(0, 200)}...<br><br>
+                                       错误详情: ${e.message}
+                                       </small>`,
+                                icon: 'error',
+                                confirmButtonText: '重新配置',
+                                showCancelButton: true,
+                                cancelButtonText: '取消'
+                            }).then((result) => {
+                                if (result.isConfirmed) {
+                                    showQASSettingDialog();
+                                }
                             });
                         }
                     },
                     onerror: function (error) {
                         Swal.fire({
-                            title: '任务创建失败',
-                            text: error,
-                            icon: 'error'
+                            title: '网络请求失败',
+                            text: '无法连接到 QAS 服务器，请检查网络连接和服务器地址',
+                            icon: 'error',
+                            confirmButtonText: '重新配置',
+                            showCancelButton: true,
+                            cancelButtonText: '取消'
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                showQASSettingDialog();
+                            }
                         });
                     }
                 });

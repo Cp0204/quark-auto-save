@@ -58,7 +58,7 @@
 - 媒体库整合
   - [x] 根据任务名搜索 Emby 媒体库
   - [x] 追更或整理后自动刷新 Emby 媒体库
-  - [x] 媒体库模块化，用户可很方便地[开发自己的媒体库hook模块](./plugins)
+  - [x] 插件模块化，允许自行开发和挂载[插件](./plugins)
 
 - 其它
   - [x] 每日签到领空间 <sup>[?](https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦#每日签到领空间)</sup>
@@ -69,7 +69,7 @@
 
 ### Docker 部署
 
-Docker 部署提供 WebUI 管理配置，图形化配置已能满足绝大多数需求。部署命令：
+Docker 部署提供 WebUI 进行管理配置，部署命令：
 
 ```shell
 docker run -d \
@@ -113,6 +113,7 @@ services:
 | `WEBUI_PASSWORD` | `admin123` | 管理密码                                 |
 | `PORT`           | `5005`     | 管理后台端口                             |
 | `PLUGIN_FLAGS`   |            | 插件标志，如 `-emby,-aria2` 禁用某些插件 |
+| `TASK_TIMEOUT`   | `1800`     | 任务执行超时时间（秒），超时则任务结束   |
 
 #### 一键更新
 
@@ -191,6 +192,10 @@ docker run --rm -v /var/run/docker.sock:/var/run/docker.sock containrrr/watchtow
 * [Astrbot_plugin_quarksave](https://github.com/lm379/astrbot_plugin_quarksave)
 
   AstrBot 插件，调用 quark_auto_save 实现自动转存资源到夸克网盘
+
+* [Telegram 媒体资源管理机器人](https://github.com/2beetle/tgbot)
+
+  一个功能丰富的 Telegram 机器人，专注于媒体资源管理、Emby 集成、自动下载和夸克网盘资源管理。
 
 ## 打赏
 
