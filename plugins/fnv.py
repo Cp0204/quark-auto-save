@@ -25,6 +25,7 @@ class Fnv:
     default_task_config = {
         "auto_refresh": False,  # 是否自动刷新媒体库
         "mdb_name": "",  # 飞牛影视目标媒体库名称
+        "mdb_dir_list": "",  # 飞牛影视目标媒体库文件夹路径列表，多个用逗号分隔
     }
 
     # 定义一个可选键的集合
@@ -84,13 +85,17 @@ class Fnv:
         if not target_library_name:
             print("飞牛影视: 未指定媒体库名称，跳过处理。")
             return
+        target_library_mdb_dir_list = task_config.get("mdb_dir_list")
+        dir_list = []
+        if target_library_mdb_dir_list:
+            dir_list = [dir_path.strip() for dir_path in target_library_mdb_dir_list.split(",") if dir_path.strip()]
 
         # 获取媒体库ID
         library_id = self._get_library_id(target_library_name)
 
         if library_id:
             # 获取ID成功后，刷新该媒体库
-            self._refresh_library(library_id)
+            self._refresh_library(library_id, dir_list=dir_list)
 
     # =====================================================================
     # Internal Methods (内部实现方法)
@@ -131,7 +136,8 @@ class Fnv:
 
             try:
                 response = self.session.request(
-                    method, url, headers=headers, params=params, json=data if data is not None else {}
+                    method, url, headers=headers, params=params,
+                    data=self._serialize_data(data if data is not None else {})
                 )
                 response.raise_for_status()
                 response_data = response.json()
@@ -206,7 +212,7 @@ class Fnv:
             print(f"飞牛影视: 未在媒体库列表中找到名为 '{library_name}' 的媒体库 ❌")
         return None
 
-    def _refresh_library(self, library_id: str) -> bool:
+    def _refresh_library(self, library_id: str, dir_list: list[str] = None) -> bool:
         """
         根据给定的媒体库ID触发一次媒体库扫描/刷新。
         """
@@ -214,9 +220,13 @@ class Fnv:
             print("飞牛影视: 必须先登录才能刷新媒体库。")
             return False
 
-        print(f"飞牛影视: 正在为媒体库 {library_id} 发送刷新指令...")
+        if dir_list:
+            print(f"飞牛影视: 正在为媒体库 {library_id} 发送部分目录{dir_list}刷新指令...")
+        else:
+            print(f"飞牛影视: 正在为媒体库 {library_id} 发送刷新指令...")
         rel_url = self.API_MDB_SCAN.format(library_id)
-        response_json = self._make_request('post', rel_url, data={})
+        request_body = {"dir_list": dir_list} if dir_list else {}
+        response_json = self._make_request('post', rel_url, data=request_body)
 
         if not response_json: return False
 
@@ -263,8 +273,10 @@ class Fnv:
         nonce = str(random.randint(100000, 999999))
         timestamp = str(int(time.time() * 1000))
 
-        if method.lower() == 'get' and params:
-            serialized_str = urlencode(sorted(params.items()))
+        serialized_str = ""
+        if method.lower() == 'get':
+            if params:
+                serialized_str = urlencode(sorted(params.items()))
         else:
             serialized_str = self._serialize_data(data)
         body_hash = self._md5_hash(serialized_str)
@@ -292,7 +304,7 @@ class Fnv:
         将请求体数据序列化为紧凑的JSON字符串。
         """
         if isinstance(data, dict):
-            return json.dumps(data, sort_keys=True, separators=(',', ':'))
+            return json.dumps(data, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
         if isinstance(data, str):
             return data
         if not data:
