@@ -148,7 +148,27 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
 
         # 统计"已播出集数"：读取本地 episodes 表中有 air_date 且 <= 今天的集数
         from datetime import datetime as _dt
-        today = _dt.now().strftime('%Y-%m-%d')
+        now = _dt.now()
+        today = now.strftime('%Y-%m-%d')
+        current_time_str = now.strftime('%H:%M')
+        # 获取用户配置的刷新时间，默认 00:00
+        perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
+        refresh_time_str = perf.get('aired_refresh_time', '00:00')
+        # 判断当前时间是否已经过了用户设置的刷新时间
+        allow_refresh = False
+        try:
+            refresh_parts = refresh_time_str.split(':')
+            if len(refresh_parts) == 2:
+                refresh_hour = int(refresh_parts[0])
+                refresh_minute = int(refresh_parts[1])
+                current_hour = now.hour
+                current_minute = now.minute
+                # 当前时间 >= 刷新时间，允许刷新
+                if current_hour > refresh_hour or (current_hour == refresh_hour and current_minute >= refresh_minute):
+                    allow_refresh = True
+        except Exception:
+            # 解析失败时默认允许刷新（向后兼容）
+            allow_refresh = True
         aired_by_show_season = {}
         try:
             cur.execute(
@@ -215,12 +235,13 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                         # fallback：无缓存则用即时计算（按匹配季）
                         if total_count in (None, 0):
                             total_count = sm.get('episode_count')
-                        # 若缓存存在但不是“今天”生成，强制使用今天的即时统计覆盖（确保日切后自动更新）
+                        # 若缓存存在但不是"今天"生成，且当前时间已过用户设置的刷新时间，才强制使用今天的即时统计覆盖
                         try:
                             _ua_date = None
                             if _updated_at:
                                 _ua_date = _dt.fromtimestamp(int(_updated_at)).strftime('%Y-%m-%d')
-                            if (_ua_date is None) or (_ua_date != today):
+                            # 只有在缓存日期非当日且当前时间已过刷新时间时才强制刷新
+                            if ((_ua_date is None) or (_ua_date != today)) and allow_refresh:
                                 _aired_today = aired_by_show_season.get((int(tmdb_id), latest_sn))
                                 if _aired_today is not None:
                                     aired_count = _aired_today
@@ -988,7 +1009,23 @@ def restart_daily_aired_update_job():
             scheduler.remove_job('daily_aired_update')
         except Exception:
             pass
-        trigger = CronTrigger(hour=0, minute=0)
+        # 从配置读取刷新时间，默认 00:00
+        perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
+        time_str = perf.get('aired_refresh_time', '00:00')
+        # 解析时间格式 HH:MM
+        try:
+            parts = time_str.split(':')
+            if len(parts) == 2:
+                hour = int(parts[0])
+                minute = int(parts[1])
+                if 0 <= hour <= 23 and 0 <= minute <= 59:
+                    trigger = CronTrigger(hour=hour, minute=minute)
+                else:
+                    trigger = CronTrigger(hour=0, minute=0)
+            else:
+                trigger = CronTrigger(hour=0, minute=0)
+        except Exception:
+            trigger = CronTrigger(hour=0, minute=0)
         scheduler.add_job(recompute_all_seasons_aired_daily, trigger=trigger, id='daily_aired_update', replace_existing=True)
         if scheduler.state == 0:
             scheduler.start()
@@ -1161,10 +1198,12 @@ def get_data():
     # 确保有秒级刷新默认值（不做迁移逻辑）
     perf = data.get('performance') if isinstance(data, dict) else None
     if not isinstance(perf, dict):
-        data['performance'] = {'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS}
+        data['performance'] = {'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS, 'aired_refresh_time': '00:00'}
     else:
         if 'calendar_refresh_interval_seconds' not in perf:
             data['performance']['calendar_refresh_interval_seconds'] = DEFAULT_REFRESH_SECONDS
+        if 'aired_refresh_time' not in perf:
+            data['performance']['aired_refresh_time'] = '00:00'
     
     # 确保海报语言有默认值
     if 'poster_language' not in data:
@@ -1470,6 +1509,12 @@ def update():
             restart_calendar_refresh_job()
         except Exception as e:
             logging.warning(f"重启追剧日历自动刷新任务失败: {e}")
+        
+        # 根据最新性能配置重启已播出集数更新任务
+        try:
+            restart_daily_aired_update_job()
+        except Exception as e:
+            logging.warning(f"重启已播出集数更新任务失败: {e}")
 
         # 如果 TMDB API 从无到有，自动执行一次 bootstrap
         try:
@@ -1491,9 +1536,10 @@ def update():
     
     # 确保性能配置包含秒级字段
     if not isinstance(config_data.get('performance'), dict):
-        config_data['performance'] = {'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS}
+        config_data['performance'] = {'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS, 'aired_refresh_time': '00:00'}
     else:
         config_data['performance'].setdefault('calendar_refresh_interval_seconds', DEFAULT_REFRESH_SECONDS)
+        config_data['performance'].setdefault('aired_refresh_time', '00:00')
     Config.write_json(CONFIG_PATH, config_data)
     # 更新session token，确保当前会话在用户名密码更改后仍然有效
     session["token"] = get_login_token()
