@@ -4264,6 +4264,19 @@ def process_single_task_async(task, tmdb_service, cal_db):
                 try:
                     season = tmdb_service.get_tv_show_episodes(int(tmdb_id), int(latest_season_number)) or {}
                     episodes = season.get('episodes', []) or []
+                    # 根因修复：清理本地该季中 TMDB 不存在的多余集
+                    try:
+                        valid_eps = []
+                        for _ep in episodes:
+                            try:
+                                n = int(_ep.get('episode_number') or 0)
+                                if n > 0:
+                                    valid_eps.append(n)
+                            except Exception:
+                                pass
+                        cal_db.prune_season_episodes_not_in(int(tmdb_id), int(latest_season_number), valid_eps)
+                    except Exception:
+                        pass
                     from time import time as _now
                     now_ts = int(_now())
                     for ep in episodes:
@@ -4378,6 +4391,19 @@ def do_calendar_bootstrap() -> tuple:
             try:
                 season = tmdb_service.get_tv_show_episodes(int(tmdb_id), int(latest_season_number)) or {}
                 episodes = season.get('episodes', []) or []
+                # 根因修复：清理本地该季中 TMDB 不存在的多余集
+                try:
+                    valid_eps = []
+                    for _ep in episodes:
+                        try:
+                            n = int(_ep.get('episode_number') or 0)
+                            if n > 0:
+                                valid_eps.append(n)
+                        except Exception:
+                            pass
+                    cal_db.prune_season_episodes_not_in(int(tmdb_id), int(latest_season_number), valid_eps)
+                except Exception:
+                    pass
                 from time import time as _now
                 now_ts = int(_now())
                 for ep in episodes:
@@ -4747,6 +4773,19 @@ def calendar_refresh_latest_season():
         now_ts = int(_now())
 
         any_written = False
+        # 根因修复：清理本地该季中 TMDB 不存在的多余集
+        try:
+            valid_eps = []
+            for _ep in episodes:
+                try:
+                    n = int(_ep.get('episode_number') or 0)
+                    if n > 0:
+                        valid_eps.append(n)
+                except Exception:
+                    pass
+            cal_db.prune_season_episodes_not_in(int(tmdb_id), int(latest_season), valid_eps)
+        except Exception:
+            pass
         for ep in episodes:
             cal_db.upsert_episode(
                 tmdb_id=int(tmdb_id),
@@ -4895,6 +4934,20 @@ def calendar_refresh_season():
         from time import time as _now
         now_ts = int(_now())
         
+        # 根因修复：清理本地该季中 TMDB 不存在的多余集
+        try:
+            valid_eps = []
+            for _ep in episodes:
+                try:
+                    n = int(_ep.get('episode_number') or 0)
+                    if n > 0:
+                        valid_eps.append(n)
+                except Exception:
+                    pass
+            cal_db.prune_season_episodes_not_in(int(tmdb_id), int(season_number), valid_eps)
+        except Exception:
+            pass
+
         updated_count = 0
         for ep in episodes:
             cal_db.upsert_episode(
@@ -5224,6 +5277,19 @@ def calendar_edit_metadata():
                     cal_db.purge_other_seasons(int(new_tid), int(season_no))
                 except Exception:
                     pass
+                # 根因修复：清理本地该季中 TMDB 不存在的多余集
+                try:
+                    valid_eps = []
+                    for _ep in eps:
+                        try:
+                            n = int(_ep.get('episode_number') or 0)
+                            if n > 0:
+                                valid_eps.append(n)
+                        except Exception:
+                            pass
+                    cal_db.prune_season_episodes_not_in(int(new_tid), int(season_no), valid_eps)
+                except Exception:
+                    pass
                 for ep in eps:
                     cal_db.upsert_episode(
                         tmdb_id=int(new_tid),
@@ -5285,6 +5351,19 @@ def calendar_edit_metadata():
                     # 清理除当前季外其他季，避免残留
                     try:
                         cal_db.purge_other_seasons(int(old_tmdb_id), int(season_no))
+                    except Exception:
+                        pass
+                    # 根因修复：清理本地该季中 TMDB 不存在的多余集
+                    try:
+                        valid_eps = []
+                        for _ep in eps:
+                            try:
+                                n = int(_ep.get('episode_number') or 0)
+                                if n > 0:
+                                    valid_eps.append(n)
+                            except Exception:
+                                pass
+                        cal_db.prune_season_episodes_not_in(int(old_tmdb_id), int(season_no), valid_eps)
                     except Exception:
                         pass
                     for ep in eps:

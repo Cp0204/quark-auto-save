@@ -578,6 +578,41 @@ class CalendarDB:
         cursor.execute('DELETE FROM seasons WHERE tmdb_id=? AND season_number=?', (tmdb_id, season_number))
         self.conn.commit()
 
+    def prune_season_episodes_not_in(self, tmdb_id: int, season_number: int, valid_episode_numbers):
+        """删除本地该季中不在 valid_episode_numbers 列表内的所有集
+        
+        参数:
+            tmdb_id: 节目 TMDB ID
+            season_number: 季编号
+            valid_episode_numbers: 允许保留的集号列表
+        """
+        try:
+            cursor = self.conn.cursor()
+            # 当 TMDB 返回空集时，表示该季应无集，直接清空该季的 episodes
+            if not valid_episode_numbers:
+                cursor.execute('DELETE FROM episodes WHERE tmdb_id=? AND season_number=?', (tmdb_id, season_number))
+                self.conn.commit()
+                return
+            # 动态占位符
+            placeholders = ','.join(['?'] * len(valid_episode_numbers))
+            params = [tmdb_id, season_number] + [int(x) for x in valid_episode_numbers]
+            cursor.execute(
+                f'SELECT episode_number FROM episodes WHERE tmdb_id=? AND season_number=? AND episode_number NOT IN ({placeholders})',
+                params
+            )
+            to_delete = [row[0] for row in (cursor.fetchall() or [])]
+            if to_delete:
+                placeholders_del = ','.join(['?'] * len(to_delete))
+                params_del = [tmdb_id, season_number] + to_delete
+                cursor.execute(
+                    f'DELETE FROM episodes WHERE tmdb_id=? AND season_number=? AND episode_number IN ({placeholders_del})',
+                    params_del
+                )
+            self.conn.commit()
+        except Exception:
+            # 静默失败，避免影响主流程
+            pass
+
     def update_show_latest_season_number(self, tmdb_id: int, latest_season_number: int):
         """更新 shows.latest_season_number"""
         cursor = self.conn.cursor()
