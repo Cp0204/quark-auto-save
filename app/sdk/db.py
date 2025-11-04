@@ -338,6 +338,48 @@ class CalendarDB:
         )
         ''')
 
+        # season_metrics（缓存：每季的三项计数）
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS season_metrics (
+            tmdb_id INTEGER,
+            season_number INTEGER,
+            transferred_count INTEGER,
+            aired_count INTEGER,
+            total_count INTEGER,
+            progress_pct INTEGER,
+            updated_at INTEGER,
+            PRIMARY KEY (tmdb_id, season_number)
+        )
+        ''')
+        # 迁移：如缺少 progress_pct 列则新增
+        try:
+            cursor.execute('PRAGMA table_info(season_metrics)')
+            cols = [c[1] for c in cursor.fetchall()]
+            if 'progress_pct' not in cols:
+                cursor.execute('ALTER TABLE season_metrics ADD COLUMN progress_pct INTEGER')
+        except Exception:
+            pass
+
+        # task_metrics（缓存：每任务的转存进度）
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS task_metrics (
+            task_name TEXT PRIMARY KEY,
+            tmdb_id INTEGER,
+            season_number INTEGER,
+            transferred_count INTEGER,
+            progress_pct INTEGER,
+            updated_at INTEGER
+        )
+        ''')
+        # 迁移：如缺少 progress_pct 列则新增
+        try:
+            cursor.execute('PRAGMA table_info(task_metrics)')
+            cols = [c[1] for c in cursor.fetchall()]
+            if 'progress_pct' not in cols:
+                cursor.execute('ALTER TABLE task_metrics ADD COLUMN progress_pct INTEGER')
+        except Exception:
+            pass
+
         self.conn.commit()
 
     def close(self):
@@ -522,6 +564,88 @@ class CalendarDB:
                 result.append(item)
         return result
 
+    # --------- 孤儿数据清理（seasons / episodes / season_metrics / task_metrics） ---------
+    def cleanup_orphan_data(self, valid_task_pairs, valid_task_names):
+        """清理不再与任何任务对应的数据
+
+        参数:
+            valid_task_pairs: 由当前任务映射得到的 (tmdb_id, season_number) 元组列表
+            valid_task_names: 当前存在的任务名列表
+
+        规则:
+        - task_metrics: 删除 task_name 不在当前任务列表中的记录
+        - seasons/episodes: 仅保留出现在 valid_task_pairs 内的季与对应所有集；其余删除
+        - season_metrics: 仅保留出现在 valid_task_pairs 内的记录；其余删除
+        """
+        try:
+            cursor = self.conn.cursor()
+
+            # 1) 清理 task_metrics（孤立任务）
+            try:
+                if not valid_task_names:
+                    cursor.execute('DELETE FROM task_metrics')
+                else:
+                    placeholders = ','.join(['?'] * len(valid_task_names))
+                    cursor.execute(f"DELETE FROM task_metrics WHERE task_name NOT IN ({placeholders})", valid_task_names)
+            except Exception:
+                pass
+
+            # 2) 清理 seasons/episodes 与 season_metrics（仅保留任务声明的 (tmdb_id, season)）
+            # 组装参数列表
+            pairs = [(int(tid), int(sn)) for (tid, sn) in (valid_task_pairs or []) if tid and sn]
+
+            if not pairs:
+                # 没有任何有效任务映射：清空 seasons/episodes/season_metrics
+                try:
+                    cursor.execute('DELETE FROM episodes')
+                    cursor.execute('DELETE FROM seasons')
+                    cursor.execute('DELETE FROM season_metrics')
+                except Exception:
+                    pass
+            else:
+                # 批量删除不在 pairs 中的记录
+                # 为 (tmdb_id, season_number) 对构造占位符
+                tuple_placeholders = ','.join(['(?, ?)'] * len(pairs))
+                flat_params = []
+                for tid, sn in pairs:
+                    flat_params.extend([tid, sn])
+
+                # episodes 先删（避免残留）
+                try:
+                    cursor.execute(
+                        f'''DELETE FROM episodes
+                            WHERE (tmdb_id, season_number) NOT IN ({tuple_placeholders})''',
+                        flat_params
+                    )
+                except Exception:
+                    pass
+
+                # seasons 再删
+                try:
+                    cursor.execute(
+                        f'''DELETE FROM seasons
+                            WHERE (tmdb_id, season_number) NOT IN ({tuple_placeholders})''',
+                        flat_params
+                    )
+                except Exception:
+                    pass
+
+                # season_metrics 最后删
+                try:
+                    cursor.execute(
+                        f'''DELETE FROM season_metrics
+                            WHERE (tmdb_id, season_number) NOT IN ({tuple_placeholders})''',
+                        flat_params
+                    )
+                except Exception:
+                    pass
+
+            self.conn.commit()
+            return True
+        except Exception:
+            # 静默失败，避免影响核心流程
+            return False
+
     # 内容类型管理方法
     def update_show_content_type(self, tmdb_id:int, content_type:str):
         """更新节目的内容类型"""
@@ -560,6 +684,50 @@ class CalendarDB:
         self.bind_task_to_show(tmdb_id, task_name)
         # 再更新内容类型
         self.update_show_content_type(tmdb_id, content_type)
+
+    # --------- 统计缓存（season_metrics / task_metrics） ---------
+    def upsert_season_metrics(self, tmdb_id:int, season_number:int, transferred_count, aired_count, total_count, progress_pct, updated_at:int):
+        """写入/更新季级指标缓存。允许某些字段传 None，保持原值不变。"""
+        cursor = self.conn.cursor()
+        cursor.execute('''
+        INSERT INTO season_metrics (tmdb_id, season_number, transferred_count, aired_count, total_count, progress_pct, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(tmdb_id, season_number) DO UPDATE SET
+            transferred_count=COALESCE(excluded.transferred_count, transferred_count),
+            aired_count=COALESCE(excluded.aired_count, aired_count),
+            total_count=COALESCE(excluded.total_count, total_count),
+            progress_pct=COALESCE(excluded.progress_pct, progress_pct),
+            updated_at=MAX(COALESCE(excluded.updated_at, 0), COALESCE(updated_at, 0))
+        ''', (tmdb_id, season_number, transferred_count, aired_count, total_count, progress_pct, updated_at))
+        self.conn.commit()
+
+    def get_season_metrics(self, tmdb_id:int, season_number:int):
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT transferred_count, aired_count, total_count, progress_pct, updated_at FROM season_metrics WHERE tmdb_id=? AND season_number=?', (tmdb_id, season_number))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            'transferred_count': row[0],
+            'aired_count': row[1],
+            'total_count': row[2],
+            'progress_pct': row[3],
+            'updated_at': row[4],
+        }
+
+    def upsert_task_metrics(self, task_name:str, tmdb_id:int, season_number:int, transferred_count:int, progress_pct, updated_at:int):
+        cursor = self.conn.cursor()
+        cursor.execute('''
+        INSERT INTO task_metrics (task_name, tmdb_id, season_number, transferred_count, progress_pct, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(task_name) DO UPDATE SET
+            tmdb_id=excluded.tmdb_id,
+            season_number=excluded.season_number,
+            transferred_count=excluded.transferred_count,
+            progress_pct=COALESCE(excluded.progress_pct, progress_pct),
+            updated_at=excluded.updated_at
+        ''', (task_name, tmdb_id, season_number, transferred_count, progress_pct, updated_at))
+        self.conn.commit()
 
     # --------- 扩展：管理季与集清理/更新工具方法 ---------
     def purge_other_seasons(self, tmdb_id: int, keep_season_number: int):

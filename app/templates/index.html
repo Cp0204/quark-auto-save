@@ -5277,24 +5277,10 @@
               return;
             }
             
-            // 获取最新季数，优先使用任务中的 season_number，否则从数据库获取
-            let season_number = task.season_number;
+            // 获取季数：仅使用任务匹配到的季（未匹配则不继续）
+            const season_number = task.matched_latest_season_number;
             if (!season_number) {
-              // 从数据库获取最新季数
-              try {
-                const showResponse = await axios.get('/api/calendar/show_info', {
-                  params: { tmdb_id: task.match_tmdb_id }
-                });
-                if (showResponse.data.success && showResponse.data.data) {
-                  season_number = showResponse.data.data.latest_season_number;
-                }
-              } catch (e) {
-                console.warn('获取最新季数失败:', e);
-              }
-            }
-            
-            if (!season_number) {
-              this.showToast('无法获取季数信息');
+              this.showToast('该任务未匹配季信息');
               return;
             }
             
@@ -5347,7 +5333,8 @@
             const currentName = task.task_name || '';
             const currentType = this.getContentTypeCN(task.content_type) || '';
             const currentTmdbId = (task.match && task.match.tmdb_id) || task.match_tmdb_id || (task.calendar_info && task.calendar_info.match && task.calendar_info.match.tmdb_id) || '';
-            const currentSeason = task.season_number || task.matched_latest_season_number || (task.calendar_info && task.calendar_info.match && task.calendar_info.match.latest_season_number) || '';
+            // 仅使用匹配季：若未匹配则为空，由界面表现为未匹配
+            const currentSeason = task.matched_latest_season_number || '';
             const matchedName = task.matched_show_name || '';
             const matchedYear = task.matched_year || '';
 

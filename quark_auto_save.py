@@ -2029,6 +2029,14 @@ class Quark:
                 file_type=file_type,
                 save_path=save_path
             )
+            # 调用后端接口触发该任务的指标实时同步（进度热更新）
+            try:
+                import requests
+                _tname = task.get("taskname", "")
+                if _tname:
+                    requests.post("http://127.0.0.1:9898/api/calendar/metrics/sync_task", json={"task_name": _tname}, timeout=1)
+            except Exception:
+                pass
             
             # 关闭数据库连接
             db.close()
