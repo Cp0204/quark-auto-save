@@ -909,6 +909,8 @@ except Exception:
     pass
 
 scheduler = BackgroundScheduler()
+# 记录每日任务上次生效的时间，避免重复日志
+_daily_aired_last_time_str = None
 logging.basicConfig(
     level=logging.DEBUG if DEBUG else logging.INFO,
     format="[%(asctime)s][%(levelname)s] %(message)s",
@@ -938,6 +940,11 @@ except Exception:
 # 过滤werkzeug日志输出
 if not DEBUG:
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
+    # 静音 APScheduler 的普通信息日志，避免 "Adding job tentatively" 等噪音
+    try:
+        logging.getLogger("apscheduler").setLevel(logging.WARNING)
+    except Exception:
+        pass
 
 # 统一所有已有处理器（包括 werkzeug、apscheduler）的日志格式
 _root_logger = logging.getLogger()
@@ -1005,6 +1012,7 @@ def recompute_all_seasons_aired_daily():
 
 def restart_daily_aired_update_job():
     try:
+        global _daily_aired_last_time_str
         try:
             scheduler.remove_job('daily_aired_update')
         except Exception:
@@ -1022,15 +1030,26 @@ def restart_daily_aired_update_job():
                     trigger = CronTrigger(hour=hour, minute=minute)
                 else:
                     trigger = CronTrigger(hour=0, minute=0)
+                    hour, minute = 0, 0
             else:
                 trigger = CronTrigger(hour=0, minute=0)
+                hour, minute = 0, 0
         except Exception:
             trigger = CronTrigger(hour=0, minute=0)
+            hour, minute = 0, 0
         scheduler.add_job(recompute_all_seasons_aired_daily, trigger=trigger, id='daily_aired_update', replace_existing=True)
         if scheduler.state == 0:
             scheduler.start()
+        # 友好提示：每日任务已启动（仅在时间变化时输出，避免重复）
+        try:
+            _time_str = f"{hour:02d}:{minute:02d}"
+            if _daily_aired_last_time_str != _time_str:
+                logging.info(f"已启动播出集数自动刷新，时间 {_time_str}")
+                _daily_aired_last_time_str = _time_str
+        except Exception:
+            pass
     except Exception as e:
-        logging.warning(f"启动每日已播出集数任务失败: {e}")
+        logging.warning(f"启动播出集数自动刷新失败: {e}")
 
 
 # 应用启动时注册每日任务
@@ -3059,11 +3078,12 @@ def reload_tasks():
         scheduler_state_map = {0: "停止", 1: "运行", 2: "暂停"}
         logging.info(">>> 重载调度器")
         logging.info(f"调度状态: {scheduler_state_map[scheduler.state]}")
-        logging.info(f"定时规则: {crontab}")
+        # 合并输出：定时规则 + 任务说明
+        logging.info(f"已启动定时运行全部任务，定时规则 {crontab}")
         # 记录延迟执行设置
         if delay := config_data.get("crontab_delay"):
             logging.info(f"延迟执行: 0-{delay}秒")
-        logging.info(f"现有任务: {scheduler.get_jobs()}")
+        # 不再冗余输出现有任务列表
         return True
     else:
         logging.info(">>> no crontab")
@@ -6618,6 +6638,15 @@ def cleanup_orphaned_posters_api():
 if __name__ == "__main__":
     init()
     reload_tasks()
+    # 在 reload_tasks() 之后重新注册会被清空的后台任务（避免 remove_all_jobs 的影响）
+    try:
+        restart_calendar_refresh_job()
+    except Exception:
+        pass
+    try:
+        restart_daily_aired_update_job()
+    except Exception:
+        pass
     # 初始化全局db对象，确保所有接口可用
     record_db = RecordDB()
     app.run(debug=DEBUG, host="0.0.0.0", port=PORT)
