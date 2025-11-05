@@ -55,6 +55,43 @@ from sdk.tmdb_service import TMDBService
 from sdk.db import CalendarDB
 from sdk.db import RecordDB
 from utils.task_extractor import TaskExtractor
+
+def get_effective_date_for_aired_count():
+    """
+    根据用户设置的播出集数刷新时间，返回应该用于计算已播出集数的日期。
+    如果在刷新时间之前，返回昨天的日期；如果在刷新时间之后，返回今天的日期。
+    这样可以确保在刷新时间之前，已播出集数不会被提前更新。
+    """
+    from datetime import datetime as _dt, timedelta
+    now = _dt.now()
+    today = now.strftime('%Y-%m-%d')
+    
+    # 获取用户配置的刷新时间，默认 00:00
+    perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
+    refresh_time_str = perf.get('aired_refresh_time', '00:00')
+    
+    try:
+        refresh_parts = refresh_time_str.split(':')
+        if len(refresh_parts) == 2:
+            refresh_hour = int(refresh_parts[0])
+            refresh_minute = int(refresh_parts[1])
+            current_hour = now.hour
+            current_minute = now.minute
+            
+            # 当前时间 >= 刷新时间，使用今天的日期
+            if current_hour > refresh_hour or (current_hour == refresh_hour and current_minute >= refresh_minute):
+                return today
+            else:
+                # 当前时间 < 刷新时间，使用昨天的日期
+                yesterday = (now - timedelta(days=1)).strftime('%Y-%m-%d')
+                return yesterday
+        else:
+            # 解析失败时默认使用今天的日期（向后兼容）
+            return today
+    except Exception:
+        # 解析失败时默认使用今天的日期（向后兼容）
+        return today
+
 def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
     """为任务列表注入日历相关元数据：节目状态、最新季处理后名称、已转存/已播出/本季总集数。
     返回新的任务字典列表，增加以下字段：
@@ -146,10 +183,12 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
         except Exception:
             transferred_by_task = {}
 
-        # 统计"已播出集数"：读取本地 episodes 表中有 air_date 且 <= 今天的集数
+        # 统计"已播出集数"：读取本地 episodes 表中有 air_date 且 <= 有效日期的集数
+        # 有效日期根据播出集数刷新时间确定：刷新时间之前使用昨天的日期，之后使用今天的日期
         from datetime import datetime as _dt
         now = _dt.now()
         today = now.strftime('%Y-%m-%d')
+        effective_date = get_effective_date_for_aired_count()  # 获取应该用于计算已播出集数的有效日期
         current_time_str = now.strftime('%H:%M')
         # 获取用户配置的刷新时间，默认 00:00
         perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
@@ -177,7 +216,7 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                 WHERE air_date IS NOT NULL AND air_date != '' AND air_date <= ?
                 GROUP BY tmdb_id, season_number
                 """,
-                (today,)
+                (effective_date,)
             )
             for tid, sn, cnt in (cur.fetchall() or []):
                 aired_by_show_season[(int(tid), int(sn))] = int(cnt or 0)
@@ -235,16 +274,17 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                         # fallback：无缓存则用即时计算（按匹配季）
                         if total_count in (None, 0):
                             total_count = sm.get('episode_count')
-                        # 若缓存存在但不是"今天"生成，且当前时间已过用户设置的刷新时间，才强制使用今天的即时统计覆盖
+                        # 若缓存存在但不是"今天"生成，且当前时间已过用户设置的刷新时间，才强制使用有效日期的即时统计覆盖
                         try:
                             _ua_date = None
                             if _updated_at:
                                 _ua_date = _dt.fromtimestamp(int(_updated_at)).strftime('%Y-%m-%d')
                             # 只有在缓存日期非当日且当前时间已过刷新时间时才强制刷新
+                            # 注意：这里仍然使用 today 来判断缓存日期，但计算已播出集数时使用 effective_date
                             if ((_ua_date is None) or (_ua_date != today)) and allow_refresh:
-                                _aired_today = aired_by_show_season.get((int(tmdb_id), latest_sn))
-                                if _aired_today is not None:
-                                    aired_count = _aired_today
+                                _aired_effective = aired_by_show_season.get((int(tmdb_id), latest_sn))
+                                if _aired_effective is not None:
+                                    aired_count = _aired_effective
                         except Exception:
                             pass
                         if aired_count in (None, 0):
@@ -521,15 +561,14 @@ def recompute_task_metrics_and_notify(task_name: str) -> bool:
             aired = metrics.get('aired_count')
             total = metrics.get('total_count')
             if aired in (None, 0) or total in (None, 0):
-                # 动态回退
-                from datetime import datetime as _dt
-                today = _dt.now().strftime('%Y-%m-%d')
+                # 动态回退：使用有效日期计算已播出集数
+                effective_date = get_effective_date_for_aired_count()
                 cur.execute(
                     """
                     SELECT COUNT(1) FROM episodes
                     WHERE tmdb_id=? AND season_number=? AND air_date IS NOT NULL AND air_date != '' AND air_date <= ?
                     """,
-                    (tmdb_id, season_no, today)
+                    (tmdb_id, season_no, effective_date)
                 )
                 aired = int((cur.fetchone() or [0])[0])
                 cur.execute('SELECT episode_count FROM seasons WHERE tmdb_id=? AND season_number=?', (tmdb_id, season_no))
@@ -914,6 +953,9 @@ IS_FLASK_SERVER_PROCESS = False
 scheduler = BackgroundScheduler()
 # 记录每日任务上次生效的时间，避免重复日志
 _daily_aired_last_time_str = None
+_calendar_refresh_last_interval = None
+_last_crontab = None
+_last_crontab_delay = None
 logging.basicConfig(
     level=logging.DEBUG if DEBUG else logging.INFO,
     format="[%(asctime)s][%(levelname)s] %(message)s",
@@ -970,13 +1012,14 @@ for _name in ("werkzeug", "apscheduler", "gunicorn.error", "gunicorn.access"):
             pass
 
 
-# --------- 每日任务：在 00:00 重算所有季的已播出集数并更新进度 ---------
+# --------- 每日任务：在用户设置的刷新时间重算所有季的已播出集数并更新进度 ---------
 def recompute_all_seasons_aired_daily():
     try:
         from datetime import datetime as _dt
-        today = _dt.now().strftime('%Y-%m-%d')
         from time import time as _now
         now_ts = int(_now())
+        # 获取应该用于计算已播出集数的有效日期（根据播出集数刷新时间确定）
+        effective_date = get_effective_date_for_aired_count()
         cal_db = CalendarDB()
         cur = cal_db.conn.cursor()
         # 遍历本地所有季
@@ -987,13 +1030,13 @@ def recompute_all_seasons_aired_daily():
                 tmdb_id_i = int(tmdb_id)
                 season_no_i = int(season_no)
                 total_i = int(total or 0)
-                # 计算今日口径的已播出集数
+                # 使用有效日期计算已播出集数
                 cur.execute(
                     """
                     SELECT COUNT(1) FROM episodes
                     WHERE tmdb_id=? AND season_number=? AND air_date IS NOT NULL AND air_date != '' AND air_date <= ?
                     """,
-                    (tmdb_id_i, season_no_i, today)
+                    (tmdb_id_i, season_no_i, effective_date)
                 )
                 aired_i = int((cur.fetchone() or [0])[0])
                 # 取已转存集数用于计算进度
@@ -1401,6 +1444,9 @@ def update():
     
     # 记录旧的海报语言设置
     old_poster_language = config_data.get('poster_language', 'zh-CN')
+    # 记录旧的播出集数刷新时间设置
+    old_perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
+    old_aired_refresh_time = old_perf.get('aired_refresh_time', '00:00')
     dont_save_keys = ["task_plugins_config_default", "api_token"]
     for key, value in request.json.items():
         if key not in dont_save_keys:
@@ -1442,7 +1488,7 @@ def update():
         prev_tmdb, new_tmdb = '', None
 
     import threading
-    def _post_update_tasks(old_task_map_snapshot, prev_tmdb_value, new_tmdb_value, old_poster_lang):
+    def _post_update_tasks(old_task_map_snapshot, prev_tmdb_value, new_tmdb_value, old_poster_lang, old_aired_refresh_time_value):
         # 检查海报语言设置是否改变
         new_poster_language = config_data.get('poster_language', 'zh-CN')
         if old_poster_lang != new_poster_language:
@@ -1453,6 +1499,19 @@ def update():
                 redownload_all_posters()
             except Exception as e:
                 logging.error(f"重新下载海报失败: {e}")
+        
+        # 检查播出集数刷新时间是否改变
+        new_perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
+        new_aired_refresh_time = new_perf.get('aired_refresh_time', '00:00')
+        if old_aired_refresh_time_value != new_aired_refresh_time:
+            try:
+                # 立即重新计算所有已播出集数，使用新的刷新时间设置
+                recompute_all_seasons_aired_daily()
+                # 通知前端日历数据已更新
+                notify_calendar_changed('aired_refresh_time_changed')
+                logging.info(f"播出集数刷新时间已更改 ({old_aired_refresh_time_value} -> {new_aired_refresh_time})，已重新计算已播出集数")
+            except Exception as e:
+                logging.warning(f"重新计算已播出集数失败: {e}")
         
         # 在保存配置时自动进行任务信息提取与TMDB匹配（若缺失则补齐）
         try:
@@ -1555,7 +1614,7 @@ def update():
         except Exception as e:
             logging.warning(f"自动初始化 bootstrap 失败: {e}")
 
-    threading.Thread(target=_post_update_tasks, args=(old_task_map, prev_tmdb, new_tmdb, old_poster_language), daemon=True).start()
+    threading.Thread(target=_post_update_tasks, args=(old_task_map, prev_tmdb, new_tmdb, old_poster_language, old_aired_refresh_time), daemon=True).start()
     
     # 确保性能配置包含秒级字段
     if not isinstance(config_data.get('performance'), dict):
@@ -1950,7 +2009,9 @@ def ensure_calendar_info_for_tasks() -> bool:
                     logging.debug(f"TMDB季数数据: {seasons}")
                     
                     # 选择已播出的季中最新的一季
-                    current_date = datetime.now().date()
+                    # 使用有效日期判断季是否已播出（考虑播出集数刷新时间）
+                    effective_date_str = get_effective_date_for_aired_count()
+                    effective_date = datetime.strptime(effective_date_str, '%Y-%m-%d').date()
                     latest_season_number = 0
                     latest_air_date = None
                     
@@ -1959,11 +2020,11 @@ def ensure_calendar_info_for_tasks() -> bool:
                         air_date = s.get('air_date')
                         logging.debug(f"季数: {sn}, 播出日期: {air_date}, 类型: {type(sn)}")
                         
-                        # 只考虑已播出的季（有air_date且早于或等于当前日期）
+                        # 只考虑已播出的季（有air_date且早于或等于有效日期）
                         if sn and sn > 0 and air_date:  # 排除第0季（特殊季）
                             try:
                                 season_air_date = datetime.strptime(air_date, '%Y-%m-%d').date()
-                                if season_air_date <= current_date:
+                                if season_air_date <= effective_date:
                                     # 选择播出日期最新的季
                                     if latest_air_date is None or season_air_date > latest_air_date:
                                         latest_season_number = sn
@@ -3063,6 +3124,7 @@ def run_python(args):
 
 # 重新加载任务
 def reload_tasks():
+    global _last_crontab, _last_crontab_delay
     # 读取定时规则
     if crontab := config_data.get("crontab"):
         if scheduler.state == 1:
@@ -3079,18 +3141,35 @@ def reload_tasks():
             scheduler.start()
         elif scheduler.state == 2:
             scheduler.resume()
-        scheduler_state_map = {0: "停止", 1: "运行", 2: "暂停"}
-        logging.info(">>> 重载调度器")
-        logging.info(f"调度状态: {scheduler_state_map[scheduler.state]}")
-        # 合并输出：定时规则 + 任务说明
-        logging.info(f"已启动定时运行全部任务，定时规则 {crontab}")
-        # 记录延迟执行设置
-        if delay := config_data.get("crontab_delay"):
-            logging.info(f"延迟执行: 0-{delay}秒")
+        
+        # 读取延迟执行设置
+        delay = config_data.get("crontab_delay")
+        delay_str = str(delay) if delay is not None else None
+        
+        # 仅在配置真正改变时输出日志（避免重复输出）
+        crontab_changed = (_last_crontab != crontab)
+        delay_changed = (_last_crontab_delay != delay_str)
+        
+        if crontab_changed or delay_changed:
+            scheduler_state_map = {0: "停止", 1: "运行", 2: "暂停"}
+            logging.info(">>> 重载调度器")
+            logging.info(f"调度状态: {scheduler_state_map[scheduler.state]}")
+            # 合并输出：定时规则 + 任务说明
+            logging.info(f"已启动定时运行全部任务，定时规则 {crontab}")
+            # 记录延迟执行设置
+            if delay:
+                logging.info(f"延迟执行: 0-{delay}秒")
+            # 更新记录的值
+            _last_crontab = crontab
+            _last_crontab_delay = delay_str
         # 不再冗余输出现有任务列表
         return True
     else:
-        logging.info(">>> no crontab")
+        # crontab 被移除的情况
+        if _last_crontab is not None:
+            logging.info(">>> no crontab")
+            _last_crontab = None
+            _last_crontab_delay = None
         return False
 
 
@@ -4655,7 +4734,9 @@ def process_single_task_async(task, tmdb_service, cal_db):
                     logging.debug(f"process_single_task_async - TMDB季数数据: {seasons}")
                     
                     # 选择已播出的季中最新的一季
-                    current_date = datetime.now().date()
+                    # 使用有效日期判断季是否已播出（考虑播出集数刷新时间）
+                    effective_date_str = get_effective_date_for_aired_count()
+                    effective_date = datetime.strptime(effective_date_str, '%Y-%m-%d').date()
                     latest_season_number = 0
                     latest_air_date = None
                     
@@ -4664,11 +4745,11 @@ def process_single_task_async(task, tmdb_service, cal_db):
                         air_date = s.get('air_date')
                         logging.debug(f"process_single_task_async - 季数: {sn}, 播出日期: {air_date}, 类型: {type(sn)}")
                         
-                        # 只考虑已播出的季（有air_date且早于或等于当前日期）
+                        # 只考虑已播出的季（有air_date且早于或等于有效日期）
                         if sn and sn > 0 and air_date:  # 排除第0季（特殊季）
                             try:
                                 season_air_date = datetime.strptime(air_date, '%Y-%m-%d').date()
-                                if season_air_date <= current_date:
+                                if season_air_date <= effective_date:
                                     # 选择播出日期最新的季
                                     if latest_air_date is None or season_air_date > latest_air_date:
                                         latest_season_number = sn
@@ -5323,13 +5404,13 @@ def calendar_refresh_latest_season():
             )
             # 写回 season_metrics（air/total），transferred 留待聚合更新
             try:
-                from datetime import datetime as _dt
-                today = _dt.now().strftime('%Y-%m-%d')
+                # 使用有效日期计算已播出集数
+                effective_date = get_effective_date_for_aired_count()
                 cur = cal_db.conn.cursor()
                 cur.execute("""
                     SELECT COUNT(1) FROM episodes
                     WHERE tmdb_id=? AND season_number=? AND air_date IS NOT NULL AND air_date != '' AND air_date <= ?
-                """, (int(tmdb_id), int(latest_season), today))
+                """, (int(tmdb_id), int(latest_season), effective_date))
                 aired_cnt = int((cur.fetchone() or [0])[0])
                 progress_pct = 0
                 from time import time as _now
@@ -5501,13 +5582,13 @@ def calendar_refresh_season():
             )
             # 写回 season_metrics（air/total），transferred 留待聚合更新
             try:
-                from datetime import datetime as _dt
-                today = _dt.now().strftime('%Y-%m-%d')
+                # 使用有效日期计算已播出集数
+                effective_date = get_effective_date_for_aired_count()
                 cur = cal_db.conn.cursor()
                 cur.execute("""
                     SELECT COUNT(1) FROM episodes
                     WHERE tmdb_id=? AND season_number=? AND air_date IS NOT NULL AND air_date != '' AND air_date <= ?
-                """, (int(tmdb_id), int(season_number), today))
+                """, (int(tmdb_id), int(season_number), effective_date))
                 aired_cnt = int((cur.fetchone() or [0])[0])
                 from time import time as _now
                 cal_db.upsert_season_metrics(int(tmdb_id), int(season_number), None, aired_cnt, int(len(episodes)), int(_now()))
@@ -5845,13 +5926,13 @@ def calendar_edit_metadata():
                     cal_db.update_show_latest_season_number(int(new_tid), int(season_no))
                     # 写回 season_metrics（air/total），transferred 留给聚合环节补齐
                     try:
-                        from datetime import datetime as _dt
-                        today = _dt.now().strftime('%Y-%m-%d')
+                        # 使用有效日期计算已播出集数
+                        effective_date = get_effective_date_for_aired_count()
                         cur = cal_db.conn.cursor()
                         cur.execute("""
                             SELECT COUNT(1) FROM episodes
                             WHERE tmdb_id=? AND season_number=? AND air_date IS NOT NULL AND air_date != '' AND air_date <= ?
-                        """, (int(new_tid), int(season_no), today))
+                        """, (int(new_tid), int(season_no), effective_date))
                         aired_cnt = int((cur.fetchone() or [0])[0])
                         progress_pct = 0  # 此处无 transferred_count，百分比暂置 0，由聚合环节补齐
                         from time import time as _now
@@ -6127,6 +6208,7 @@ def get_calendar_show_info():
 # --------- 日历刷新调度：按性能设置的周期自动刷新最新季 ---------
 def restart_calendar_refresh_job():
     try:
+        global _calendar_refresh_last_interval
         # 读取用户配置的刷新周期（秒），默认21600秒（6小时）
         perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
         interval_seconds = int(perf.get('calendar_refresh_interval_seconds', 21600))
@@ -6136,7 +6218,10 @@ def restart_calendar_refresh_job():
                 scheduler.remove_job('calendar_refresh_job')
             except Exception:
                 pass
-            logging.info("已关闭追剧日历元数据自动刷新")
+            # 只在状态改变时输出日志
+            if _calendar_refresh_last_interval is not None:
+                logging.info("已关闭追剧日历元数据自动刷新")
+                _calendar_refresh_last_interval = None
             return
 
         # 重置任务
@@ -6147,7 +6232,14 @@ def restart_calendar_refresh_job():
         scheduler.add_job(run_calendar_refresh_all_internal, IntervalTrigger(seconds=interval_seconds), id='calendar_refresh_job', replace_existing=True)
         if scheduler.state == 0:
             scheduler.start()
-        logging.info(f"已启动追剧日历自动刷新，周期 {interval_seconds} 秒")
+        # 友好提示：仅在周期变化时输出日志（避免重复输出）
+        try:
+            if IS_FLASK_SERVER_PROCESS:
+                if _calendar_refresh_last_interval != interval_seconds:
+                    logging.info(f"已启动追剧日历自动刷新，周期 {interval_seconds} 秒")
+                    _calendar_refresh_last_interval = interval_seconds
+        except Exception:
+            pass
     except Exception as e:
         logging.warning(f"配置自动刷新任务失败: {e}")
 
