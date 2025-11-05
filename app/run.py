@@ -908,6 +908,9 @@ try:
 except Exception:
     pass
 
+# 是否为 Flask 主服务进程（仅该进程输出某些提示）
+IS_FLASK_SERVER_PROCESS = False
+
 scheduler = BackgroundScheduler()
 # 记录每日任务上次生效的时间，避免重复日志
 _daily_aired_last_time_str = None
@@ -1040,12 +1043,13 @@ def restart_daily_aired_update_job():
         scheduler.add_job(recompute_all_seasons_aired_daily, trigger=trigger, id='daily_aired_update', replace_existing=True)
         if scheduler.state == 0:
             scheduler.start()
-        # 友好提示：每日任务已启动（仅在时间变化时输出，避免重复）
+        # 友好提示：每日任务已启动（仅在时间变化时输出，且仅在 Flask 主进程中打印，避免子进程噪音）
         try:
-            _time_str = f"{hour:02d}:{minute:02d}"
-            if _daily_aired_last_time_str != _time_str:
-                logging.info(f"已启动播出集数自动刷新，时间 {_time_str}")
-                _daily_aired_last_time_str = _time_str
+            if IS_FLASK_SERVER_PROCESS:
+                _time_str = f"{hour:02d}:{minute:02d}"
+                if _daily_aired_last_time_str != _time_str:
+                    logging.info(f"已启动播出集数自动刷新，时间 {_time_str}")
+                    _daily_aired_last_time_str = _time_str
         except Exception:
             pass
     except Exception as e:
@@ -6636,6 +6640,7 @@ def cleanup_orphaned_posters_api():
         return jsonify({"success": False, "message": f"清理孤立海报失败: {str(e)}"})
 
 if __name__ == "__main__":
+    IS_FLASK_SERVER_PROCESS = True
     init()
     reload_tasks()
     # 在 reload_tasks() 之后重新注册会被清空的后台任务（避免 remove_all_jobs 的影响）
