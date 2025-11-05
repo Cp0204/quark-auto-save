@@ -6169,6 +6169,7 @@ def run_calendar_refresh_all_internal():
         except Exception:
             shows = []
         any_written = False
+        status_changed_any = False
         for tmdb_id in shows:
             try:
                 # 直接重用内部逻辑
@@ -6191,11 +6192,44 @@ def run_calendar_refresh_all_internal():
                             updated_at=now_ts,
                         )
                         any_written = True
+
+                    # 新增：节目状态变更检测与更新（如 Returning → 本季终/已完结 等）
+                    try:
+                        existing_show = db.get_show(int(tmdb_id)) or {}
+                        raw_details = tmdb_service.get_tv_show_details(int(tmdb_id)) or {}
+                        raw_status = (raw_details.get('status') or '')
+                        latest_sn_for_status = int((existing_show or {}).get('latest_season_number') or 1)
+                        try:
+                            localized_status = tmdb_service.get_localized_show_status(int(tmdb_id), latest_sn_for_status, raw_status)
+                        except Exception:
+                            localized_status = raw_status
+
+                        old_status = (existing_show or {}).get('status') or ''
+                        if localized_status and localized_status != old_status:
+                            # 仅更新 status 等必要字段，其他沿用原值
+                            db.upsert_show(
+                                tmdb_id=int(tmdb_id),
+                                name=(existing_show or {}).get('name') or '',
+                                year=(existing_show or {}).get('year') or '',
+                                status=localized_status,
+                                poster_local_path=(existing_show or {}).get('poster_local_path') or '',
+                                latest_season_number=int((existing_show or {}).get('latest_season_number') or 1),
+                                last_refreshed_at=now_ts,
+                                bound_task_names=(existing_show or {}).get('bound_task_names') or '',
+                                content_type=(existing_show or {}).get('content_type') or '',
+                                is_custom_poster=int((existing_show or {}).get('is_custom_poster') or 0),
+                            )
+                            status_changed_any = True
+                    except Exception:
+                        # 状态更新失败不影响整体刷新
+                        pass
             except Exception as e:
                 logging.warning(f"自动刷新失败 tmdb_id={tmdb_id}: {e}")
         try:
             if any_written:
                 notify_calendar_changed('auto_refresh')
+            if status_changed_any:
+                notify_calendar_changed('status_updated')
         except Exception:
             pass
     except Exception as e:
