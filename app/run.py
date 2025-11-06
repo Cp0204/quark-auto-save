@@ -16,6 +16,7 @@ from flask import (
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.date import DateTrigger
 from queue import Queue
 from sdk.cloudsaver import CloudSaver
 try:
@@ -947,6 +948,113 @@ try:
 except Exception:
     pass
 
+# ---- Aired count safeguard: 极简按需校正 ----
+def _aired_stamp_path():
+    try:
+        return os.path.abspath(os.path.join(app.root_path, '..', 'config', '.aired_done'))
+    except Exception:
+        return '.aired_done'
+
+def _read_aired_effective_stamp():
+    try:
+        p = _aired_stamp_path()
+        if os.path.exists(p):
+            with open(p, 'r', encoding='utf-8') as f:
+                return (f.read() or '').strip()
+    except Exception:
+        pass
+    return ''
+
+def _write_aired_effective_stamp(effective_date_str: str):
+    try:
+        p = _aired_stamp_path()
+        with open(p, 'w', encoding='utf-8') as f:
+            f.write(str(effective_date_str or ''))
+    except Exception:
+        pass
+
+def ensure_today_aired_done_if_due_once(trigger_reason: str = ''):
+    """仅在需要时、且至多每日一次按需补算。无定时轮询，无高频检查。"""
+    global _aired_on_demand_checked_date
+    try:
+        # 计算当前应生效的有效日期
+        current_effective = str(get_effective_date_for_aired_count())
+        # 进程内已检查过本有效期，直接跳过
+        if _aired_on_demand_checked_date == current_effective:
+            return
+        # 仅当已过刷新时间时才允许补算（避免提前）
+        from datetime import datetime as _dt
+        now = _dt.now()
+        perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
+        time_str = perf.get('aired_refresh_time', '00:00')
+        try:
+            hh, mm = [int(x) for x in time_str.split(':')]
+            allow = (now.hour > hh) or (now.hour == hh and now.minute >= mm)
+        except Exception:
+            allow = True
+        if not allow:
+            # 未到刷新点，不做任何事
+            return
+        # 已记录的上次完成日期
+        stamped = _read_aired_effective_stamp()
+        if stamped != current_effective:
+            # 需要补算一次
+            logging.debug(f"检测到当日尚未生效（触发:{trigger_reason or 'on_demand'}），执行一次补偿刷新…")
+            recompute_all_seasons_aired_daily()
+            # 成功后 recompute 内部会写 stamp；此处将进程内记为已检查，避免多次触发
+            _aired_on_demand_checked_date = current_effective
+        else:
+            # 已完成，标记今日已检查，避免重复
+            _aired_on_demand_checked_date = current_effective
+    except Exception:
+        pass
+
+
+def _is_after_refresh_time(now_dt):
+    try:
+        perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
+        time_str = perf.get('aired_refresh_time', '00:00')
+        hh, mm = [int(x) for x in time_str.split(':')]
+        return (now_dt.hour > hh) or (now_dt.hour == hh and now_dt.minute >= mm)
+    except Exception:
+        return True
+
+def _is_today_aired_done() -> bool:
+    try:
+        from datetime import datetime as _dt
+        now = _dt.now()
+        if not _is_after_refresh_time(now):
+            return False
+        current_effective = str(get_effective_date_for_aired_count())
+        stamped = _read_aired_effective_stamp()
+        return stamped == current_effective
+    except Exception:
+        return False
+
+
+def _schedule_aired_retry_in(minutes_delay: int = 10):
+    try:
+        from datetime import datetime as _dt, timedelta as _td
+        # 移除已有的重试任务，避免重复堆积
+        try:
+            scheduler.remove_job('daily_aired_retry')
+        except Exception:
+            pass
+        run_at = _dt.now() + _td(minutes=max(1, int(minutes_delay)))
+        scheduler.add_job(
+            func=lambda: recompute_all_seasons_aired_daily(),
+            trigger=DateTrigger(run_date=run_at),
+            id='daily_aired_retry',
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
+        )
+        if scheduler.state == 0:
+            scheduler.start()
+        logging.debug(f"已安排播出集数补偿重试任务，时间 {run_at.strftime('%Y-%m-%d %H:%M')}" )
+    except Exception as e:
+        logging.warning(f"安排播出集数补偿重试任务失败: {e}")
+
 # 是否为 Flask 主服务进程（仅该进程输出某些提示）
 IS_FLASK_SERVER_PROCESS = False
 
@@ -956,6 +1064,7 @@ _daily_aired_last_time_str = None
 _calendar_refresh_last_interval = None
 _last_crontab = None
 _last_crontab_delay = None
+_aired_on_demand_checked_date = None  # 本进程内，当天是否已进行过一次按需检查
 logging.basicConfig(
     level=logging.DEBUG if DEBUG else logging.INFO,
     format="[%(asctime)s][%(levelname)s] %(message)s",
@@ -1048,12 +1157,33 @@ def recompute_all_seasons_aired_daily():
                 cal_db.upsert_season_metrics(tmdb_id_i, season_no_i, None, aired_i, total_i, progress_pct, now_ts)
             except Exception:
                 continue
+        # 成功后写入当日完成标记（使用 stamp 文件，避免引入 DB 结构变更）
+        try:
+            _write_aired_effective_stamp(str(effective_date))
+        except Exception:
+            pass
         try:
             notify_calendar_changed('daily_aired_update')
         except Exception:
             pass
+        # 验证当日是否已生效，成功则清理重试任务；否则安排下一次补偿重试
+        try:
+            if _is_today_aired_done():
+                try:
+                    scheduler.remove_job('daily_aired_retry')
+                except Exception:
+                    pass
+            else:
+                _schedule_aired_retry_in(10)
+        except Exception:
+            pass
     except Exception as e:
         logging.warning(f"每日已播出集数更新异常: {e}")
+        # 发生异常也安排一次补偿重试
+        try:
+            _schedule_aired_retry_in(10)
+        except Exception:
+            pass
 
 
 def restart_daily_aired_update_job():
@@ -1083,7 +1213,15 @@ def restart_daily_aired_update_job():
         except Exception:
             trigger = CronTrigger(hour=0, minute=0)
             hour, minute = 0, 0
-        scheduler.add_job(recompute_all_seasons_aired_daily, trigger=trigger, id='daily_aired_update', replace_existing=True)
+        scheduler.add_job(
+            recompute_all_seasons_aired_daily,
+            trigger=trigger,
+            id='daily_aired_update',
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
+            misfire_grace_time=None
+        )
         if scheduler.state == 0:
             scheduler.start()
         # 友好提示：每日任务已启动（仅在时间变化时输出，且仅在 Flask 主进程中打印，避免子进程噪音）
@@ -1102,6 +1240,9 @@ def restart_daily_aired_update_job():
 # 应用启动时注册每日任务
 try:
     restart_daily_aired_update_job()
+    # 启动时做一次极简按需补偿检查（仅一次）
+    ensure_today_aired_done_if_due_once('startup')
+    # 取消低频健康检查方案，改为失败后按需重试调度
 except Exception:
     pass
 
@@ -1128,6 +1269,11 @@ def notify_calendar_changed(reason: str = ""):
 def calendar_stream():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
+    # 在首个建立 SSE 的入口处触发一次极简按需检查（无需全局每请求检查）
+    try:
+        ensure_today_aired_done_if_due_once('calendar_stream')
+    except Exception:
+        pass
 
     def event_stream():
         q = Queue()
