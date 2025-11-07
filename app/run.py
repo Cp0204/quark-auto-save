@@ -275,17 +275,21 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                         # fallback：无缓存则用即时计算（按匹配季）
                         if total_count in (None, 0):
                             total_count = sm.get('episode_count')
-                        # 若缓存存在但不是"今天"生成，且当前时间已过用户设置的刷新时间，才强制使用有效日期的即时统计覆盖
+                        # 一致性强化：在“未到刷新时间”时，始终使用按有效日期统计的值覆盖/校正缓存，
+                        # 避免出现提前计入当日集数的展示偏差
                         try:
-                            _ua_date = None
-                            if _updated_at:
-                                _ua_date = _dt.fromtimestamp(int(_updated_at)).strftime('%Y-%m-%d')
-                            # 只有在缓存日期非当日且当前时间已过刷新时间时才强制刷新
-                            # 注意：这里仍然使用 today 来判断缓存日期，但计算已播出集数时使用 effective_date
-                            if ((_ua_date is None) or (_ua_date != today)) and allow_refresh:
-                                _aired_effective = aired_by_show_season.get((int(tmdb_id), latest_sn))
-                                if _aired_effective is not None:
+                            _aired_effective = aired_by_show_season.get((int(tmdb_id), latest_sn))
+                            if _aired_effective is not None:
+                                if not allow_refresh:
+                                    # 刷新时间之前：无条件采用有效日期口径
                                     aired_count = _aired_effective
+                                else:
+                                    # 刷新时间之后：若缓存为非当日或缺失，则采用有效日期口径回填
+                                    _ua_date = None
+                                    if _updated_at:
+                                        _ua_date = _dt.fromtimestamp(int(_updated_at)).strftime('%Y-%m-%d')
+                                    if ((_ua_date is None) or (_ua_date != today)):
+                                        aired_count = _aired_effective
                         except Exception:
                             pass
                         if aired_count in (None, 0):

@@ -4496,12 +4496,12 @@ def do_save(account, tasklist=[]):
             print(f"更新目录: {task['update_subdir']}")
         if task.get("runweek") or task.get("enddate"):
             print(
-                f"运行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')}"
+                f"执行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')}"
             )
         print()
         # 判断任务周期
         if not is_time(task):
-            print(f"任务不在运行周期内，跳过")
+            print(f"任务不在执行周期内，跳过")
         else:
             # 保存之前的通知信息
             global NOTIFYS
