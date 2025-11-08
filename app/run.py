@@ -36,7 +36,7 @@ import random
 import time
 import treelib
 from functools import lru_cache
-from threading import Lock
+from threading import Lock, Thread
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
@@ -1063,6 +1063,10 @@ def _schedule_aired_retry_in(minutes_delay: int = 10):
 IS_FLASK_SERVER_PROCESS = False
 
 scheduler = BackgroundScheduler()
+
+# 定时任务进程/线程跟踪：用于检测和清理未完成的任务
+_crontab_task_process = None  # 定时运行全部任务的进程对象
+_calendar_refresh_thread = None  # 追剧日历自动刷新的线程对象
 # 记录每日任务上次生效的时间，避免重复日志
 _daily_aired_last_time_str = None
 _calendar_refresh_last_interval = None
@@ -3247,7 +3251,30 @@ def add_task():
 
 # 定时任务执行的函数
 def run_python(args):
-    logging.info(f">>> 定时运行任务")
+    global _crontab_task_process
+    
+    logging.info(f">>> 开始执行定时运行全部任务")
+    
+    # 检查上一次任务是否还在运行，如果是则强制终止
+    if _crontab_task_process is not None:
+        try:
+            # 检查进程是否还在运行（poll() 返回 None 表示还在运行，返回退出码表示已结束）
+            poll_result = _crontab_task_process.poll()
+            if poll_result is None:  # 进程还在运行
+                logging.warning(f">>> 检测到上一次定时运行全部任务仍在运行，正在强制终止...")
+                _crontab_task_process.kill()
+                _crontab_task_process.wait(timeout=10)
+                logging.warning(f">>> 已强制终止上一次定时运行全部任务")
+            else:  # 进程已结束（正常或异常退出）
+                logging.debug(f">>> 上一次定时运行全部任务已结束（退出码: {poll_result}）")
+        except ProcessLookupError:
+            # 进程不存在（可能已被系统清理）
+            logging.debug(f">>> 上一次定时运行全部任务进程已不存在/已自动清理")
+        except Exception as e:
+            logging.warning(f">>> 检查/终止上一次定时运行全部任务时出错: {e}")
+        finally:
+            # 无论什么情况，都清除进程对象，确保下次能正常运行
+            _crontab_task_process = None
 
     # 在定时任务开始前清理过期缓存
     try:
@@ -3269,7 +3296,53 @@ def run_python(args):
         except (ValueError, TypeError):
             logging.warning(f">>> 延迟执行设置无效: {delay}")
 
-    os.system(f"{PYTHON_PATH} {args}")
+    # 使用 subprocess 执行任务，记录进程对象以便下次检查
+    try:
+        process_env = os.environ.copy()
+        process_env["PYTHONIOENCODING"] = "utf-8"
+        
+        # 构建命令
+        if isinstance(args, str):
+            import shlex
+            args_list = shlex.split(args)
+            command = [PYTHON_PATH] + args_list
+        else:
+            command = [PYTHON_PATH] + list(args)
+        
+        # 启动进程并记录，实时输出日志
+        _crontab_task_process = subprocess.Popen(
+            command,
+            env=process_env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,  # 行缓冲，确保实时输出
+        )
+        
+        # 实时读取输出并写入日志，保留完整日志功能
+        try:
+            for line in iter(_crontab_task_process.stdout.readline, ""):
+                if line:  # 过滤空行
+                    logging.info(line.rstrip())  # 移除末尾换行符，logging 会自动添加
+        finally:
+            _crontab_task_process.stdout.close()
+        
+        # 等待进程完成
+        returncode = _crontab_task_process.wait()
+        
+        if returncode == 0:
+            logging.info(f">>> 定时运行全部任务执行成功")
+        else:
+            logging.warning(f">>> 定时运行全部任务执行完成但返回非零退出码: {returncode}")
+    except Exception as e:
+        logging.error(f">>> 定时运行全部任务执行异常: {str(e)}")
+        import traceback
+        logging.error(f">>> 异常堆栈: {traceback.format_exc()}")
+    finally:
+        # 任务完成，清除进程对象
+        _crontab_task_process = None
 
 
 # 重新加载任务
@@ -6379,7 +6452,7 @@ def restart_calendar_refresh_job():
             scheduler.remove_job('calendar_refresh_job')
         except Exception:
             pass
-        scheduler.add_job(run_calendar_refresh_all_internal, IntervalTrigger(seconds=interval_seconds), id='calendar_refresh_job', replace_existing=True)
+        scheduler.add_job(run_calendar_refresh_all_internal_wrapper, IntervalTrigger(seconds=interval_seconds), id='calendar_refresh_job', replace_existing=True)
         if scheduler.state == 0:
             scheduler.start()
         # 友好提示：仅在周期变化时输出日志（避免重复输出）
@@ -6392,6 +6465,48 @@ def restart_calendar_refresh_job():
             pass
     except Exception as e:
         logging.warning(f"配置自动刷新任务失败: {e}")
+
+
+def run_calendar_refresh_all_internal_wrapper():
+    """
+    追剧日历自动刷新的包装函数，用于检查上一次任务是否还在运行
+    """
+    global _calendar_refresh_thread
+    
+    logging.info(f">>> 开始执行追剧日历自动刷新")
+    
+    # 检查上一次任务是否还在运行
+    if _calendar_refresh_thread is not None:
+        try:
+            if _calendar_refresh_thread.is_alive():  # 线程还在运行
+                logging.warning(f">>> 检测到上一次追剧日历自动刷新仍在运行，将忽略并继续执行新任务")
+                # 注意：Python 线程无法强制终止，只能记录警告
+                # 但由于调度器会继续执行，不会阻塞后续任务
+            else:  # 线程已结束（正常或异常退出）
+                logging.debug(f">>> 上一次追剧日历自动刷新已结束")
+        except Exception as e:
+            logging.warning(f">>> 检查上一次追剧日历自动刷新任务状态时出错: {e}")
+        finally:
+            # 无论什么情况，都清除线程对象，确保下次能正常运行
+            _calendar_refresh_thread = None
+    
+    # 在新线程中执行任务，记录线程对象以便下次检查
+    def run_in_thread():
+        global _calendar_refresh_thread
+        try:
+            run_calendar_refresh_all_internal()
+        except Exception as e:
+            logging.error(f">>> 追剧日历自动刷新执行异常: {str(e)}")
+            import traceback
+            logging.error(f">>> 异常堆栈: {traceback.format_exc()}")
+        finally:
+            # 任务完成，清除线程对象
+            _calendar_refresh_thread = None
+    
+    _calendar_refresh_thread = Thread(target=run_in_thread, daemon=True)
+    _calendar_refresh_thread.start()
+    # 不等待线程完成，让调度器认为任务已启动
+    # 这样即使任务运行时间很长，也不会阻塞后续任务
 
 
 def run_calendar_refresh_all_internal():
