@@ -1809,6 +1809,9 @@ def run_script_now():
     )
 
     def generate_output():
+        # 全局变量：跟踪上一次输出是否是空行
+        last_was_empty = False
+        
         # 设置环境变量
         process_env = os.environ.copy()
         process_env["PYTHONIOENCODING"] = "utf-8"
@@ -1829,7 +1832,22 @@ def run_script_now():
         )
         try:
             for line in iter(process.stdout.readline, ""):
-                logging.info(line.strip())
+                stripped_line = line.strip()
+                # 检查是否是空行
+                is_empty = not stripped_line
+                
+                # 如果是空行且上一次也是空行，跳过本次输出
+                if is_empty and last_was_empty:
+                    continue
+                
+                # 输出日志（空行也输出，但避免连续空行）
+                if is_empty:
+                    logging.info("")
+                    last_was_empty = True
+                else:
+                    logging.info(stripped_line)
+                    last_was_empty = False
+                
                 yield f"data: {line}\n\n"
             yield "data: [DONE]\n\n"
         finally:
@@ -3291,7 +3309,7 @@ def run_python(args):
             if delay_seconds > 0:
                 # 在0到设定值之间随机选择一个延迟时间
                 random_delay = random.randint(0, delay_seconds)
-                logging.info(f">>> 随机延迟执行 {random_delay}秒")
+                logging.info(f">>> 随机延迟执行 {random_delay} 秒")
                 time.sleep(random_delay)
         except (ValueError, TypeError):
             logging.warning(f">>> 延迟执行设置无效: {delay}")
@@ -3322,10 +3340,26 @@ def run_python(args):
         )
         
         # 实时读取输出并写入日志，保留完整日志功能
+        # 全局变量：跟踪上一次输出是否是空行
+        last_was_empty = False
+        
         try:
             for line in iter(_crontab_task_process.stdout.readline, ""):
-                if line:  # 过滤空行
-                    logging.info(line.rstrip())  # 移除末尾换行符，logging 会自动添加
+                stripped_line = line.rstrip()
+                # 检查是否是空行（去除换行符后是否为空）
+                is_empty = not stripped_line
+                
+                # 如果是空行且上一次也是空行，跳过本次输出
+                if is_empty and last_was_empty:
+                    continue
+                
+                # 输出日志（空行也输出，但避免连续空行）
+                if is_empty:
+                    logging.info("")
+                    last_was_empty = True
+                else:
+                    logging.info(stripped_line)
+                    last_was_empty = False
         finally:
             _crontab_task_process.stdout.close()
         

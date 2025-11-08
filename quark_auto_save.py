@@ -3773,6 +3773,9 @@ class Quark:
             
             # 检查是否需要从分享链接获取数据
             if task.get("shareurl"):
+                # 如果任务已经有 shareurl_ban，说明分享已失效，不需要再尝试获取分享详情
+                if task.get("shareurl_ban"):
+                    return False, []
                 try:
                     # 提取链接参数
                     pwd_id, passcode, pdir_fid, paths = self.extract_url(task["shareurl"])
@@ -3783,13 +3786,17 @@ class Quark:
                     # 获取分享详情
                     is_sharing, stoken = self.get_stoken(pwd_id, passcode)
                     if not is_sharing:
-                        print(f"分享详情获取失败: {stoken}")
+                        # 如果任务已经有 shareurl_ban，说明已经在 do_save_task 中处理过了，不需要重复输出
+                        if not task.get("shareurl_ban"):
+                            print(f"分享详情获取失败: {stoken}")
                         return False, []
                     
                     # 获取分享文件列表
                     share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["list"]
                     if not share_file_list:
-                        print("分享为空，文件已被分享者删除")
+                        # 如果任务已经有 shareurl_ban，说明已经在 do_save_task 中处理过了，不需要重复输出
+                        if not task.get("shareurl_ban"):
+                            print("分享为空，文件已被分享者删除")
                         return False, []
 
                     # 在剧集命名模式中，需要先对文件列表进行排序，然后再应用起始文件过滤
