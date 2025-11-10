@@ -1018,10 +1018,13 @@ def add_notify(text):
     # 检查推送通知类型配置
     push_notify_type = CONFIG_DATA.get("push_notify_type", "full")
     
+    # 定义关键字（复用于过滤与分隔）
+    failure_keywords = ["❌", "❗", "失败", "失效", "错误", "异常", "无效", "登录失败"]
+    invalid_keywords = ["分享资源已失效", "分享详情获取失败", "分享为空", "文件已被分享者删除"]
+    
     # 如果设置为仅推送成功信息，则过滤掉失败和错误信息
     if push_notify_type == "success_only":
         # 检查是否包含失败或错误相关的关键词
-        failure_keywords = ["❌", "❗", "失败", "失效", "错误", "异常", "无效", "登录失败"]
         if any(keyword in text for keyword in failure_keywords):
             # 只打印到控制台，不添加到通知列表
             print(text)
@@ -1030,11 +1033,19 @@ def add_notify(text):
     # 如果设置为排除失效信息，则过滤掉资源失效信息，但保留转存失败信息
     elif push_notify_type == "exclude_invalid":
         # 检查是否包含资源失效相关的关键词（主要是分享资源失效）
-        invalid_keywords = ["分享资源已失效", "分享详情获取失败", "分享为空", "文件已被分享者删除"]
         if any(keyword in text for keyword in invalid_keywords):
             # 只打印到控制台，不添加到通知列表
             print(text)
             return text
+    
+    # 在每个任务块之间插入一个空行，增强可读性
+    # 成功块：以“✅《”开头；失败/错误块：以“❌”“❗”开头或包含失败相关关键词
+    is_success_block = text.startswith("✅《")
+    is_failure_block = text.startswith("❌") or text.startswith("❗") or any(k in text for k in failure_keywords if k not in ["✅"])
+    if is_success_block or is_failure_block:
+        if NOTIFYS and NOTIFYS[-1] != "":
+            NOTIFYS.append("")
+            # 仅在通知体中添加空行，不额外打印控制台空行
     
     NOTIFYS.append(text)
     print(text)
@@ -5648,6 +5659,14 @@ def do_save(account, tasklist=[]):
                 # 处理重命名日志，更新数据库记录
                 account.process_rename_logs(task, rename_logs)
                 
+                # 控制台视觉分隔：若前面未通过 add_notify("") 打印过空行，则补打一行空行
+                try:
+                    if not (NOTIFYS and NOTIFYS[-1] == ""):
+                        print()
+                except Exception:
+                    # 兜底：若 NOTIFYS 异常，仍保证有一行空行
+                    print()
+                
                 # 对剧集命名模式和其他模式统一处理重命名日志
                 # 按sort_file_by_name函数的多级排序逻辑排序重命名日志
                 sorted_rename_logs = []
@@ -5723,7 +5742,6 @@ def main():
     start_time = datetime.now()
     print(f"===============程序开始===============")
     print(f"⏰ 执行时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print()
     # 读取启动参数
     config_path = sys.argv[1] if len(sys.argv) > 1 else "quark_config.json"
     # 从环境变量中获取 TASKLIST
@@ -5762,6 +5780,7 @@ def main():
         return
     accounts = [Quark(cookie, index) for index, cookie in enumerate(cookies)]
     # 签到
+    print()
     print(f"===============签到任务===============")
     if tasklist_from_env:
         verify_account(accounts[0])
