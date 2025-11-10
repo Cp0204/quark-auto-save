@@ -1062,7 +1062,14 @@ def _schedule_aired_retry_in(minutes_delay: int = 10):
 # 是否为 Flask 主服务进程（仅该进程输出某些提示）
 IS_FLASK_SERVER_PROCESS = False
 
-scheduler = BackgroundScheduler()
+scheduler = BackgroundScheduler(
+    job_defaults={
+        # 允许在系统唤醒后补偿执行全部错过的任务
+        "misfire_grace_time": None,
+        # 休眠期间即便错过多次触发，也仅补偿执行一次，避免堆积
+        "coalesce": True,
+    }
+)
 
 # 定时任务进程/线程跟踪：用于检测和清理未完成的任务
 _crontab_task_process = None  # 定时运行全部任务的进程对象
@@ -3393,6 +3400,9 @@ def reload_tasks():
             trigger=trigger,
             args=[f"{SCRIPT_PATH} {CONFIG_PATH}"],
             id=SCRIPT_PATH,
+            misfire_grace_time=None,
+            coalesce=True,
+            max_instances=1,
         )
         if scheduler.state == 0:
             scheduler.start()
@@ -6486,7 +6496,15 @@ def restart_calendar_refresh_job():
             scheduler.remove_job('calendar_refresh_job')
         except Exception:
             pass
-        scheduler.add_job(run_calendar_refresh_all_internal_wrapper, IntervalTrigger(seconds=interval_seconds), id='calendar_refresh_job', replace_existing=True)
+        scheduler.add_job(
+            run_calendar_refresh_all_internal_wrapper,
+            IntervalTrigger(seconds=interval_seconds),
+            id='calendar_refresh_job',
+            replace_existing=True,
+            misfire_grace_time=None,
+            coalesce=True,
+            max_instances=1,
+        )
         if scheduler.state == 0:
             scheduler.start()
         # 友好提示：仅在周期变化时输出日志（避免重复输出）
