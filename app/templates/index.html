@@ -4193,34 +4193,7 @@
             const t = this.calendar.tasks.find(x => (x.task_name || x.taskname) === taskName);
             if (!t || !t.season_counts) return null;
             const sc = t.season_counts || {};
-            
-            // 优先使用 progressByTaskName 映射获取已转存集数（支持基于日期的集数统计）
-            let transferred = Number(sc.transferred_count || 0);
-            const byTask = this.calendar && this.calendar.progressByTaskName ? this.calendar.progressByTaskName : {};
-            if (byTask[taskName]) {
-              const prog = byTask[taskName] || {};
-              if (prog.episode_number != null) {
-                transferred = Number(prog.episode_number) || 0;
-              } else if (prog.air_date) {
-                // 仅有日期：直接在本地DB剧集里找到"该节目在该日期播出的那一集"的集号
-                const showName = (t.matched_show_name || t.show_name || '').trim();
-                if (showName && Array.isArray(this.calendar.episodes) && this.calendar.episodes.length > 0) {
-                  const date = String(prog.air_date).trim();
-                  // 找到该节目在该日期播出的所有集，取最大集号作为"已转存集数"
-                  const candidates = this.calendar.episodes.filter(e => {
-                    return e && (e.show_name || '').trim() === showName && (e.air_date || '').trim() === date;
-                  });
-                  if (candidates.length > 0) {
-                    const maxEp = candidates.reduce((m, e) => {
-                      const n = parseInt(e.episode_number);
-                      return isNaN(n) ? m : Math.max(m, n);
-                    }, 0);
-                    if (maxEp > 0) transferred = maxEp;
-                  }
-                }
-              }
-            }
-            
+            const transferred = Number(sc.transferred_count || 0);
             const aired = Number(sc.aired_count || 0);
             const total = Number(sc.total_count || 0);
             if (transferred === 0 && aired === 0 && total === 0) return null;
@@ -4292,33 +4265,7 @@
         getTaskTransferredCount(task) {
           try {
             if (!task) return 0;
-            const name = task.task_name || task.taskname || '';
-            const byTask = this.calendar && this.calendar.progressByTaskName ? this.calendar.progressByTaskName : {};
-            if (name && byTask[name]) {
-              const prog = byTask[name] || {};
-              if (prog.episode_number != null) {
-                return Number(prog.episode_number) || 0;
-              }
-              // 仅有日期：直接在本地DB剧集里找到“该节目在该日期播出的那一集”的集号
-              if (prog.air_date) {
-                const showName = (task.matched_show_name || task.show_name || '').trim();
-                if (showName && Array.isArray(this.calendar.episodes) && this.calendar.episodes.length > 0) {
-                  const date = String(prog.air_date).trim();
-                  // 找到该节目在该日期播出的所有集，取最大集号作为“已转存集数”
-                  const candidates = this.calendar.episodes.filter(e => {
-                    return e && (e.show_name || '').trim() === showName && (e.air_date || '').trim() === date;
-                  });
-                  if (candidates.length > 0) {
-                    const maxEp = candidates.reduce((m, e) => {
-                      const n = parseInt(e.episode_number);
-                      return isNaN(n) ? m : Math.max(m, n);
-                    }, 0);
-                    if (maxEp > 0) return maxEp;
-                  }
-                }
-              }
-            }
-            return Number((task.season_counts && task.season_counts.transferred_count) || 0);
+            return Number((task && task.season_counts && task.season_counts.transferred_count) || 0);
           } catch (e) { return 0; }
         },
         // 获取管理视图卡片展示用：已播出集数（直接来自任务元数据）
