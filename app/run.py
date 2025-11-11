@@ -1138,6 +1138,7 @@ for _name in ("werkzeug", "apscheduler", "gunicorn.error", "gunicorn.access"):
 
 # --------- 每日任务：在用户设置的刷新时间重算所有季的已播出集数并更新进度 ---------
 def recompute_all_seasons_aired_daily():
+    logging.info(f">>> 开始执行播出集数自动刷新")
     try:
         from datetime import datetime as _dt
         from time import time as _now
@@ -1192,8 +1193,9 @@ def recompute_all_seasons_aired_daily():
                 _schedule_aired_retry_in(10)
         except Exception:
             pass
+        logging.info(f">>> 播出集数自动刷新执行成功")
     except Exception as e:
-        logging.warning(f"每日已播出集数更新异常: {e}")
+        logging.warning(f">>> 播出集数自动刷新执行异常: {e}")
         # 发生异常也安排一次补偿重试
         try:
             _schedule_aired_retry_in(10)
@@ -6547,6 +6549,7 @@ def run_calendar_refresh_all_internal_wrapper():
         global _calendar_refresh_thread
         try:
             run_calendar_refresh_all_internal()
+            logging.info(f">>> 追剧日历自动刷新执行成功")
         except Exception as e:
             logging.error(f">>> 追剧日历自动刷新执行异常: {str(e)}")
             import traceback
