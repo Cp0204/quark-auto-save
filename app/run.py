@@ -1814,7 +1814,7 @@ def run_script_now():
     tasklist = request.json.get("tasklist", [])
     command = [PYTHON_PATH, "-u", SCRIPT_PATH, CONFIG_PATH]
     logging.info(
-        f">>> 手动运行任务 [{tasklist[0].get('taskname') if len(tasklist)>0 else 'ALL'}] 开始执行..."
+        f">>> 开始执行手动运行任务 [{tasklist[0].get('taskname') if len(tasklist)>0 else 'ALL'}]"
     )
 
     def generate_output():
@@ -1862,6 +1862,15 @@ def run_script_now():
         finally:
             process.stdout.close()
             process.wait()
+            # 结束通知：仅在正常退出时记录成功日志，非零退出码记录警告
+            try:
+                task_name = tasklist[0].get('taskname') if len(tasklist) > 0 else 'ALL'
+            except Exception:
+                task_name = 'ALL'
+            if process.returncode == 0:
+                logging.info(f">>> 手动运行任务 [{task_name}] 执行成功")
+            else:
+                logging.warning(f">>> 手动运行任务 [{task_name}] 执行完成但返回非零退出码: {process.returncode}")
 
     return Response(
         stream_with_context(generate_output()),
