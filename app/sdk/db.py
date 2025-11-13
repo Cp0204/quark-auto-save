@@ -3,6 +3,34 @@ import json
 import sqlite3
 import time
 from datetime import datetime
+from functools import wraps
+
+# 数据库操作重试装饰器
+def retry_on_locked(max_retries=3, base_delay=0.1):
+    """数据库操作重试装饰器，用于处理 database is locked 错误"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except sqlite3.OperationalError as e:
+                    if "database is locked" in str(e).lower():
+                        last_exception = e
+                        if attempt < max_retries - 1:
+                            # 指数退避：延迟时间递增
+                            delay = base_delay * (2 ** attempt)
+                            time.sleep(delay)
+                            continue
+                    raise
+                except Exception:
+                    raise
+            # 如果所有重试都失败，抛出最后一个异常
+            if last_exception:
+                raise last_exception
+        return wrapper
+    return decorator
 
 class RecordDB:
     def __init__(self, db_path="config/data.db"):
@@ -14,9 +42,18 @@ class RecordDB:
         # 确保目录存在
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         
-        # 创建数据库连接
-        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        # 创建数据库连接，设置超时时间为5秒
+        self.conn = sqlite3.connect(
+            self.db_path, 
+            check_same_thread=False,
+            timeout=5.0
+        )
         cursor = self.conn.cursor()
+        
+        # 启用 WAL 模式，提高并发性能
+        cursor.execute('PRAGMA journal_mode=WAL')
+        cursor.execute('PRAGMA synchronous=NORMAL')  # 平衡性能和安全性
+        cursor.execute('PRAGMA busy_timeout=5000')  # 设置忙等待超时为5秒
         
         # 创建表，如果不存在
         cursor.execute('''
@@ -46,8 +83,12 @@ class RecordDB:
     
     def close(self):
         if self.conn:
-            self.conn.close()
+            try:
+                self.conn.close()
+            except Exception:
+                pass
     
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def add_record(self, task_name, original_name, renamed_to, file_size, modify_date, 
                   duration="", resolution="", file_id="", file_type="", save_path="", transfer_time=None):
         """添加一条转存记录"""
@@ -62,6 +103,7 @@ class RecordDB:
         self.conn.commit()
         return cursor.lastrowid
     
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def update_renamed_to(self, file_id, original_name, renamed_to, task_name="", save_path=""):
         """更新最近一条记录的renamed_to字段
         
@@ -123,6 +165,7 @@ class RecordDB:
         
         return 0
     
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_records(self, page=1, page_size=20, sort_by="transfer_time", order="desc", 
                    task_name_filter="", keyword_filter="", exclude_task_names=None):
         """获取转存记录列表，支持分页、排序和筛选
@@ -223,6 +266,7 @@ class RecordDB:
             }
         }
     
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_record_by_id(self, record_id):
         """根据ID获取特定记录"""
         cursor = self.conn.cursor()
@@ -234,13 +278,15 @@ class RecordDB:
             return dict(zip(columns, record))
         return None
     
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def delete_record(self, record_id):
         """删除特定记录"""
         cursor = self.conn.cursor()
         cursor.execute("DELETE FROM transfer_records WHERE id = ?", (record_id,))
         self.conn.commit()
         return cursor.rowcount
-        
+    
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_records_by_save_path(self, save_path, include_subpaths=False):
         """根据保存路径查询记录
         
@@ -280,8 +326,18 @@ class CalendarDB:
 
     def init_db(self):
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        # 创建数据库连接，设置超时时间为5秒
+        self.conn = sqlite3.connect(
+            self.db_path, 
+            check_same_thread=False,
+            timeout=5.0
+        )
         cursor = self.conn.cursor()
+        
+        # 启用 WAL 模式，提高并发性能
+        cursor.execute('PRAGMA journal_mode=WAL')
+        cursor.execute('PRAGMA synchronous=NORMAL')  # 平衡性能和安全性
+        cursor.execute('PRAGMA busy_timeout=5000')  # 设置忙等待超时为5秒
 
         # shows
         cursor.execute('''
@@ -384,9 +440,13 @@ class CalendarDB:
 
     def close(self):
         if self.conn:
-            self.conn.close()
+            try:
+                self.conn.close()
+            except Exception:
+                pass
 
     # shows
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def upsert_show(self, tmdb_id:int, name:str, year:str, status:str, poster_local_path:str, latest_season_number:int, last_refreshed_at:int=0, bound_task_names:str="", content_type:str="", is_custom_poster:int=0):
         cursor = self.conn.cursor()
         cursor.execute('''
@@ -405,6 +465,7 @@ class CalendarDB:
         ''', (tmdb_id, name, year, status, poster_local_path, latest_season_number, last_refreshed_at, bound_task_names, content_type, is_custom_poster))
         self.conn.commit()
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def bind_task_to_show(self, tmdb_id:int, task_name:str):
         """绑定任务到节目，在 bound_task_names 字段中记录任务名"""
         cursor = self.conn.cursor()
@@ -425,6 +486,7 @@ class CalendarDB:
             return True
         return False
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def unbind_task_from_show(self, tmdb_id:int, task_name:str):
         """从节目解绑任务，更新 bound_task_names 列表"""
         cursor = self.conn.cursor()
@@ -442,6 +504,7 @@ class CalendarDB:
             return True
         return False
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_bound_tasks_for_show(self, tmdb_id:int):
         """获取绑定到指定节目的任务列表"""
         cursor = self.conn.cursor()
@@ -451,6 +514,7 @@ class CalendarDB:
             return []
         return row[0].split(',')
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_show_by_task_name(self, task_name:str):
         """根据任务名查找绑定的节目"""
         cursor = self.conn.cursor()
@@ -461,6 +525,7 @@ class CalendarDB:
         columns = [c[0] for c in cursor.description]
         return dict(zip(columns, row))
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_show(self, tmdb_id:int):
         cursor = self.conn.cursor()
         cursor.execute('SELECT * FROM shows WHERE tmdb_id=?', (tmdb_id,))
@@ -470,6 +535,7 @@ class CalendarDB:
         columns = [c[0] for c in cursor.description]
         return dict(zip(columns, row))
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def delete_show(self, tmdb_id:int):
         cursor = self.conn.cursor()
         cursor.execute('DELETE FROM episodes WHERE tmdb_id=?', (tmdb_id,))
@@ -478,6 +544,7 @@ class CalendarDB:
         self.conn.commit()
 
     # seasons
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def upsert_season(self, tmdb_id:int, season_number:int, episode_count:int, refresh_url:str, season_name:str=""):
         cursor = self.conn.cursor()
         # 迁移：如缺少 season_name 字段则补充
@@ -498,6 +565,7 @@ class CalendarDB:
         ''', (tmdb_id, season_number, season_name, episode_count, refresh_url))
         self.conn.commit()
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_season(self, tmdb_id:int, season_number:int):
         cursor = self.conn.cursor()
         cursor.execute('SELECT * FROM seasons WHERE tmdb_id=? AND season_number=?', (tmdb_id, season_number))
@@ -508,6 +576,7 @@ class CalendarDB:
         return dict(zip(columns, row))
 
     # episodes
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def upsert_episode(self, tmdb_id:int, season_number:int, episode_number:int, name:str, overview:str, air_date:str, runtime, ep_type:str, updated_at:int):
         cursor = self.conn.cursor()
         cursor.execute('''
@@ -523,6 +592,7 @@ class CalendarDB:
         ''', (tmdb_id, season_number, episode_number, name, overview, air_date, runtime, ep_type, updated_at))
         self.conn.commit()
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def list_latest_season_episodes(self, tmdb_id:int, latest_season:int):
         cursor = self.conn.cursor()
         cursor.execute('''
@@ -543,6 +613,7 @@ class CalendarDB:
             } for r in rows
         ]
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def list_all_latest_episodes(self):
         """返回所有已知剧目的最新季的所有集（扁平列表，供前端汇总显示）"""
         cursor = self.conn.cursor()
@@ -565,6 +636,7 @@ class CalendarDB:
         return result
 
     # --------- 孤儿数据清理（seasons / episodes / season_metrics / task_metrics） ---------
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def cleanup_orphan_data(self, valid_task_pairs, valid_task_names):
         """清理不再与任何任务对应的数据
 
@@ -647,6 +719,7 @@ class CalendarDB:
             return False
 
     # 内容类型管理方法
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def update_show_content_type(self, tmdb_id:int, content_type:str):
         """更新节目的内容类型"""
         cursor = self.conn.cursor()
@@ -654,6 +727,7 @@ class CalendarDB:
         self.conn.commit()
         return cursor.rowcount > 0
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_show_content_type(self, tmdb_id:int):
         """获取节目的内容类型"""
         cursor = self.conn.cursor()
@@ -661,6 +735,7 @@ class CalendarDB:
         row = cursor.fetchone()
         return row[0] if row else None
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_shows_by_content_type(self, content_type:str):
         """根据内容类型获取节目列表"""
         cursor = self.conn.cursor()
@@ -671,6 +746,7 @@ class CalendarDB:
         columns = [c[0] for c in cursor.description]
         return [dict(zip(columns, row)) for row in rows]
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_all_content_types(self):
         """获取所有已使用的内容类型"""
         cursor = self.conn.cursor()
@@ -686,6 +762,7 @@ class CalendarDB:
         self.update_show_content_type(tmdb_id, content_type)
 
     # --------- 统计缓存（season_metrics / task_metrics） ---------
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def upsert_season_metrics(self, tmdb_id:int, season_number:int, transferred_count, aired_count, total_count, progress_pct, updated_at:int):
         """写入/更新季级指标缓存。允许某些字段传 None，保持原值不变。"""
         cursor = self.conn.cursor()
@@ -701,6 +778,7 @@ class CalendarDB:
         ''', (tmdb_id, season_number, transferred_count, aired_count, total_count, progress_pct, updated_at))
         self.conn.commit()
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_season_metrics(self, tmdb_id:int, season_number:int):
         cursor = self.conn.cursor()
         cursor.execute('SELECT transferred_count, aired_count, total_count, progress_pct, updated_at FROM season_metrics WHERE tmdb_id=? AND season_number=?', (tmdb_id, season_number))
@@ -715,6 +793,7 @@ class CalendarDB:
             'updated_at': row[4],
         }
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def upsert_task_metrics(self, task_name:str, tmdb_id:int, season_number:int, transferred_count:int, progress_pct, updated_at:int):
         cursor = self.conn.cursor()
         cursor.execute('''
@@ -730,6 +809,7 @@ class CalendarDB:
         self.conn.commit()
 
     # --------- 扩展：管理季与集清理/更新工具方法 ---------
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def purge_other_seasons(self, tmdb_id: int, keep_season_number: int):
         """清除除指定季之外的所有季与对应集数据"""
         cursor = self.conn.cursor()
@@ -739,6 +819,7 @@ class CalendarDB:
         cursor.execute('DELETE FROM seasons WHERE tmdb_id=? AND season_number != ?', (tmdb_id, keep_season_number))
         self.conn.commit()
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def delete_season(self, tmdb_id: int, season_number: int):
         """删除指定季及其所有集数据"""
         cursor = self.conn.cursor()
@@ -746,6 +827,7 @@ class CalendarDB:
         cursor.execute('DELETE FROM seasons WHERE tmdb_id=? AND season_number=?', (tmdb_id, season_number))
         self.conn.commit()
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def prune_season_episodes_not_in(self, tmdb_id: int, season_number: int, valid_episode_numbers):
         """删除本地该季中不在 valid_episode_numbers 列表内的所有集
         
@@ -781,18 +863,21 @@ class CalendarDB:
             # 静默失败，避免影响主流程
             pass
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def update_show_latest_season_number(self, tmdb_id: int, latest_season_number: int):
         """更新 shows.latest_season_number"""
         cursor = self.conn.cursor()
         cursor.execute('UPDATE shows SET latest_season_number=? WHERE tmdb_id=?', (latest_season_number, tmdb_id))
         self.conn.commit()
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def update_show_poster(self, tmdb_id: int, poster_local_path: str, is_custom_poster: int = 0):
         """更新节目的海报路径和自定义标记"""
         cursor = self.conn.cursor()
         cursor.execute('UPDATE shows SET poster_local_path=?, is_custom_poster=? WHERE tmdb_id=?', (poster_local_path, is_custom_poster, tmdb_id))
         self.conn.commit()
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_all_shows(self):
         """获取所有节目"""
         cursor = self.conn.cursor()
