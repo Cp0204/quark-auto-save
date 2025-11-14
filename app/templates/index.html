@@ -491,8 +491,8 @@
                 </span>
               </div>
             </div>
-            <div class="row mb-2">
-              <div class="col-sm-6 pr-1">
+            <div class="row mb-2 crontab-setting-row">
+              <div class="col-lg-4 col-md-6 col-12 mb-2 mb-lg-0">
                 <div class="input-group">
                   <div class="input-group-prepend">
                     <span class="input-group-text">Crontab</span>
@@ -500,7 +500,7 @@
                   <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
                 </div>
               </div>
-              <div class="col-sm-6 pl-1">
+              <div class="col-lg-4 col-md-6 col-12 mb-2 mb-lg-0">
                 <div class="input-group" title="添加随机延迟时间：定时任务将在0到设定秒数之间随机延迟执行。建议值：0–3600，0表示不延迟">
                   <div class="input-group-prepend">
                     <span class="input-group-text">延迟执行</span>
@@ -509,6 +509,17 @@
                   <div class="input-group-append">
                     <span class="input-group-text square-append">秒</span>
                   </div>
+                </div>
+              </div>
+              <div class="col-lg-4 col-md-6 col-12 mb-2 mb-lg-0">
+                <div class="input-group" title="执行周期判断方式：按自选周期执行（自选）使用任务的执行周期和截止日期判断；按任务进度执行（自动）根据任务进度是否100%判断，100%则跳过">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">执行周期</span>
+                  </div>
+                  <select v-model="formData.execution_mode" class="form-control" @change="onExecutionModeChange">
+                    <option value="manual">按自选周期执行（自选）</option>
+                    <option value="auto">按任务进度执行（自动）</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -1233,12 +1244,16 @@
                     <label class="col-sm-2 col-form-label">执行周期</label>
                     <div class="col-sm-10 col-form-label">
                       <div class="form-check form-check-inline" title="也可用作任务总开关">
-                        <input class="form-check-input" type="checkbox" :checked="task.runweek.length === 7" @change="toggleAllWeekdays(task)" :indeterminate.prop="task.runweek.length > 0 && task.runweek.length < 7">
-                        <label class="form-check-label">全选</label>
+                        <input class="form-check-input" type="checkbox" :checked="task.runweek.length === 7" @change="toggleAllWeekdays(task)" :indeterminate.prop="task.runweek.length > 0 && task.runweek.length < 7" :disabled="(task.execution_mode || formData.execution_mode || 'manual') === 'auto'">
+                        <label class="form-check-label" :class="{'text-muted': (task.execution_mode || formData.execution_mode || 'manual') === 'auto'}">全选</label>
                       </div>
                       <div class="form-check form-check-inline" v-for="(day, index) in weekdays" :key="index">
-                        <input class="form-check-input" type="checkbox" v-model="task.runweek" :value="index+1">
-                        <label class="form-check-label" v-html="day"></label>
+                        <input class="form-check-input" type="checkbox" v-model="task.runweek" :value="index+1" :disabled="(task.execution_mode || formData.execution_mode || 'manual') === 'auto'">
+                        <label class="form-check-label" :class="{'text-muted': (task.execution_mode || formData.execution_mode || 'manual') === 'auto'}" v-html="day"></label>
+                      </div>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" :checked="(task.execution_mode || formData.execution_mode || 'manual') === 'auto'" @change="task.execution_mode = $event.target.checked ? 'auto' : 'manual'">
+                        <label class="form-check-label">自动</label>
                       </div>
                     </div>
                   </div>
@@ -2654,12 +2669,16 @@
                 <label class="col-sm-2 col-form-label">执行周期</label>
                 <div class="col-sm-10 col-form-label">
                   <div class="form-check form-check-inline" title="也可用作任务总开关">
-                    <input class="form-check-input" type="checkbox" :checked="createTask.taskData.runweek.length === 7" @change="toggleAllWeekdays(createTask.taskData)" :indeterminate.prop="createTask.taskData.runweek.length > 0 && createTask.taskData.runweek.length < 7">
-                    <label class="form-check-label">全选</label>
+                    <input class="form-check-input" type="checkbox" :checked="createTask.taskData.runweek.length === 7" @change="toggleAllWeekdays(createTask.taskData)" :indeterminate.prop="createTask.taskData.runweek.length > 0 && createTask.taskData.runweek.length < 7" :disabled="(createTask.taskData.execution_mode || formData.execution_mode || 'manual') === 'auto'">
+                    <label class="form-check-label" :class="{'text-muted': (createTask.taskData.execution_mode || formData.execution_mode || 'manual') === 'auto'}">全选</label>
                   </div>
                   <div class="form-check form-check-inline" v-for="(day, index) in weekdays" :key="index">
-                    <input class="form-check-input" type="checkbox" v-model="createTask.taskData.runweek" :value="index+1">
-                    <label class="form-check-label" v-html="day"></label>
+                    <input class="form-check-input" type="checkbox" v-model="createTask.taskData.runweek" :value="index+1" :disabled="(createTask.taskData.execution_mode || formData.execution_mode || 'manual') === 'auto'">
+                    <label class="form-check-label" :class="{'text-muted': (createTask.taskData.execution_mode || formData.execution_mode || 'manual') === 'auto'}" v-html="day"></label>
+                  </div>
+                  <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" :checked="(createTask.taskData.execution_mode || formData.execution_mode || 'manual') === 'auto'" @change="createTask.taskData.execution_mode = $event.target.checked ? 'auto' : 'manual'">
+                    <label class="form-check-label">自动</label>
                   </div>
                 </div>
               </div>
@@ -2948,7 +2967,8 @@
           sequence_naming: "",
           use_sequence_naming: false,
           episode_naming: "",
-          use_episode_naming: false
+          use_episode_naming: false,
+          execution_mode: null // 将在openCreateTaskModal中设置为formData.execution_mode
         },
         run_log: "",
         taskDirs: [""],
@@ -6876,10 +6896,14 @@
               // cookie兼容
               if (typeof config_data.cookie === 'string')
                 config_data.cookie = [config_data.cookie];
-              // 添加星期预设
+              // 添加星期预设和执行周期模式
               config_data.tasklist = config_data.tasklist.map(task => {
                 if (!task.hasOwnProperty('runweek')) {
                   task.runweek = [1, 2, 3, 4, 5, 6, 7];
+                }
+                // 确保execution_mode有默认值
+                if (!task.hasOwnProperty('execution_mode')) {
+                  task.execution_mode = config_data.execution_mode || 'manual';
                 }
                 
                 // 格式化已有的警告信息
@@ -7087,6 +7111,10 @@
                 if (config_data.performance.aired_refresh_time === undefined || config_data.performance.aired_refresh_time === null) {
                   config_data.performance.aired_refresh_time = "00:00";
                 }
+              }
+              // 确保execution_mode有默认值
+              if (!config_data.execution_mode) {
+                config_data.execution_mode = 'manual';
               }
               // 后端加载配置属于系统性赋值，不应触发未保存提示
               this.suppressConfigModifiedOnce = true;
@@ -7904,6 +7932,18 @@
             task.runweek = [];
           } else {
             task.runweek = [1, 2, 3, 4, 5, 6, 7];
+          }
+        },
+        onExecutionModeChange() {
+          // 批量更新所有任务的execution_mode
+          if (this.formData.tasklist && this.formData.tasklist.length > 0) {
+            this.formData.tasklist.forEach(task => {
+              if (!task.hasOwnProperty('execution_mode')) {
+                this.$set(task, 'execution_mode', this.formData.execution_mode);
+              } else {
+                task.execution_mode = this.formData.execution_mode;
+              }
+            });
           }
         },
         searchSuggestions(index, taskname, deep = 1) {
@@ -12024,6 +12064,8 @@
             this.createTask.error = null;
             // 使用 newTask 的完整结构初始化，再由智能填充覆盖
             this.createTask.taskData = { ...this.newTask };
+            // 应用系统配置的执行周期默认选项
+            this.createTask.taskData.execution_mode = this.formData.execution_mode || 'manual';
 
             // 存储影视作品数据，并提取年份信息
             const movieData = { ...item };
@@ -12065,6 +12107,8 @@
             
             // 重置任务数据为默认值，使用 newTask 的完整结构
             this.createTask.taskData = { ...this.newTask };
+            // 应用系统配置的执行周期默认选项
+            this.createTask.taskData.execution_mode = this.formData.execution_mode || 'manual';
             
             // 如果有上一个任务，继承保存路径和命名规则
             if (this.formData.tasklist && this.formData.tasklist.length > 0) {
@@ -12117,6 +12161,10 @@
             this.createTask.taskData.ignore_extension = task.ignore_extension || false;
             this.createTask.taskData.use_sequence_naming = task.use_sequence_naming || false;
             this.createTask.taskData.use_episode_naming = task.use_episode_naming || false;
+            // 确保execution_mode有默认值
+            if (!this.createTask.taskData.execution_mode) {
+              this.createTask.taskData.execution_mode = this.formData.execution_mode || 'manual';
+            }
             
             // 打开模态框
             $('#createTaskModal').modal('show');

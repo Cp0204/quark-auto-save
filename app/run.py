@@ -3483,6 +3483,10 @@ def init():
     # 默认延迟执行设置
     if "crontab_delay" not in config_data:
         config_data["crontab_delay"] = 0
+    
+    # 默认执行周期模式设置
+    if "execution_mode" not in config_data:
+        config_data["execution_mode"] = "manual"
 
     # 初始化插件配置
     _, plugins_config_default, task_plugins_config_default = Config.load_plugins()

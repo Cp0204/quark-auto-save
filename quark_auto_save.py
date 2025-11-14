@@ -18,12 +18,12 @@ from datetime import datetime
 
 # 添加数据库导入
 try:
-    from app.sdk.db import RecordDB
+    from app.sdk.db import RecordDB, CalendarDB
 except ImportError:
     # 如果直接运行脚本，路径可能不同
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     try:
-        from app.sdk.db import RecordDB
+        from app.sdk.db import RecordDB, CalendarDB
     except ImportError:
         # 定义一个空的RecordDB类，以防止导入失败
         class RecordDB:
@@ -35,6 +35,14 @@ except ImportError:
             
             def close(self):
                 pass
+        
+        # 定义一个空的CalendarDB类，以防止导入失败
+        class CalendarDB:
+            def __init__(self, *args, **kwargs):
+                self.enabled = False
+            
+            def get_task_metrics(self, *args, **kwargs):
+                return None
 
 def notify_calendar_changed_safe(reason):
     """安全地触发SSE通知，避免导入错误"""
@@ -4471,17 +4479,47 @@ def do_save(account, tasklist=[]):
     sent_notices = set()
 
     def is_time(task):
-        return (
-            not task.get("enddate")
-            or (
-                datetime.now().date()
-                <= datetime.strptime(task["enddate"], "%Y-%m-%d").date()
+        # 获取任务的执行周期模式，优先使用任务自身的execution_mode，否则使用系统配置的execution_mode
+        execution_mode = task.get("execution_mode") or CONFIG_DATA.get("execution_mode", "manual")
+        
+        # 按任务进度执行（自动）
+        if execution_mode == "auto":
+            try:
+                # 从task_metrics表获取任务进度
+                cal_db = CalendarDB()
+                task_name = task.get("taskname") or task.get("task_name") or ""
+                if task_name:
+                    metrics = cal_db.get_task_metrics(task_name)
+                    if metrics and metrics.get("progress_pct") is not None:
+                        progress_pct = int(metrics.get("progress_pct", 0))
+                        # 如果任务进度100%，则跳过
+                        if progress_pct >= 100:
+                            return False
+                        # 如果任务进度不是100%，则需要运行
+                        return True
+                    else:
+                        # 没有任务进度数据，退回按自选周期执行的逻辑
+                        execution_mode = "manual"
+            except Exception as e:
+                # 获取任务进度失败，退回按自选周期执行的逻辑
+                execution_mode = "manual"
+        
+        # 按自选周期执行（自选）- 原有逻辑
+        if execution_mode == "manual":
+            return (
+                not task.get("enddate")
+                or (
+                    datetime.now().date()
+                    <= datetime.strptime(task["enddate"], "%Y-%m-%d").date()
+                )
+            ) and (
+                "runweek" not in task
+                # 星期一为0，星期日为6
+                or (datetime.today().weekday() + 1 in task.get("runweek"))
             )
-        ) and (
-            "runweek" not in task
-            # 星期一为0，星期日为6
-            or (datetime.today().weekday() + 1 in task.get("runweek"))
-        )
+        
+        # 默认返回True（兼容未知模式）
+        return True
 
     # 执行任务
     for index, task in enumerate(tasklist):
@@ -4512,14 +4550,74 @@ def do_save(account, tasklist=[]):
                 print(f"正则替换: {task['replace']}")
         if task.get("update_subdir"):
             print(f"更新目录: {task['update_subdir']}")
-        if task.get("runweek") or task.get("enddate"):
-            print(
-                f"执行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')}"
-            )
+        # 获取任务的执行周期模式，优先使用任务自身的execution_mode，否则使用系统配置的execution_mode
+        execution_mode = task.get("execution_mode") or CONFIG_DATA.get("execution_mode", "manual")
+        
+        # 根据执行周期模式显示日志
+        if execution_mode == "auto":
+            # 按任务进度执行（自动）
+            try:
+                # 检查是否有任务进度数据
+                cal_db = CalendarDB()
+                task_name = task.get("taskname") or task.get("task_name") or ""
+                if task_name:
+                    metrics = cal_db.get_task_metrics(task_name)
+                    if metrics and metrics.get("progress_pct") is not None:
+                        # 有任务进度数据，显示自动模式
+                        print(f"执行周期: 自动")
+                    else:
+                        # 没有任务进度数据，退回按自选周期执行，显示自选周期信息
+                        if task.get("runweek") or task.get("enddate"):
+                            print(
+                                f"执行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')} (自动模式，无进度数据，退回自选周期)"
+                            )
+                        else:
+                            print(f"执行周期: 自动 (无进度数据，退回自选周期)")
+                else:
+                    # 没有任务名称，退回按自选周期执行
+                    if task.get("runweek") or task.get("enddate"):
+                        print(
+                            f"执行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')} (自动模式，无任务名称，退回自选周期)"
+                        )
+                    else:
+                        print(f"执行周期: 自动 (无任务名称，退回自选周期)")
+            except Exception:
+                # 获取任务进度失败，退回按自选周期执行
+                if task.get("runweek") or task.get("enddate"):
+                    print(
+                        f"执行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')} (自动模式，获取进度失败，退回自选周期)"
+                    )
+                else:
+                    print(f"执行周期: 自动 (获取进度失败，退回自选周期)")
+        else:
+            # 按自选周期执行（自选）- 原有逻辑
+            if task.get("runweek") or task.get("enddate"):
+                print(
+                    f"执行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')}"
+                )
+        
         print()
         # 判断任务周期
         if not is_time(task):
-            print(f"任务不在执行周期内，跳过")
+            if execution_mode == "auto":
+                # 按任务进度执行时的跳过提示
+                try:
+                    cal_db = CalendarDB()
+                    task_name = task.get("taskname") or task.get("task_name") or ""
+                    if task_name:
+                        metrics = cal_db.get_task_metrics(task_name)
+                        if metrics and metrics.get("progress_pct") is not None:
+                            progress_pct = int(metrics.get("progress_pct", 0))
+                            print(f"任务进度已达 {progress_pct}%，跳过")
+                        else:
+                            print(f"任务不在执行周期内，跳过")
+                    else:
+                        print(f"任务不在执行周期内，跳过")
+                except Exception:
+                    print(f"任务不在执行周期内，跳过")
+            else:
+                # 按自选周期执行时的跳过提示（原有逻辑）
+                print(f"任务不在执行周期内，跳过")
         else:
             # 保存之前的通知信息
             global NOTIFYS

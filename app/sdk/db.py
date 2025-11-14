@@ -808,6 +808,18 @@ class CalendarDB:
         ''', (task_name, tmdb_id, season_number, transferred_count, progress_pct, updated_at))
         self.conn.commit()
 
+    @retry_on_locked(max_retries=3, base_delay=0.1)
+    def get_task_metrics(self, task_name:str):
+        """获取任务的进度指标"""
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT progress_pct FROM task_metrics WHERE task_name=?', (task_name,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            'progress_pct': row[0],
+        }
+
     # --------- 扩展：管理季与集清理/更新工具方法 ---------
     @retry_on_locked(max_retries=3, base_delay=0.1)
     def purge_other_seasons(self, tmdb_id: int, keep_season_number: int):

@@ -4617,6 +4617,29 @@ table.selectable-records .expand-button:hover {
   margin-top: 12px !important; /* 从默认的20px减少到12px，上移8px */
 }
 
+/* 定时规则设置样式 */
+.crontab-setting-row > [class*='col-'] {
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
+.crontab-setting-row {
+  margin-left: -4px !important;
+  margin-right: -4px !important;
+}
+/* 修复定时规则选项下边距：当选项变为多行时，最后一个选项的mb-2不应叠加到row mb-2上 */
+.crontab-setting-row > [class*='col-']:last-child {
+  margin-bottom: 0 !important;
+}
+/* 在中等屏幕和小屏幕上，确保行与行之间的间距正确 */
+@media (max-width: 991.98px) {
+  .crontab-setting-row > [class*='col-'].mb-2 {
+    margin-bottom: 0.5rem !important;
+  }
+  .crontab-setting-row > [class*='col-']:last-child.mb-2 {
+    margin-bottom: 0 !important;
+  }
+}
+
 /* 任务单元基础样式 */
 .task {
   position: relative;
