@@ -487,7 +487,7 @@
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">定时规则</h2>
                 <span class="badge badge-pill badge-light">
-                  <a target="_blank" href="https://tool.lu/crontab/" title="Crontab执行时间计算器"><i class="bi bi-question-circle"></i></a>
+                  <a target="_blank" href="https://github.com/x1ao4/quark-auto-save-x/wiki/定时规则" title="设置任务的定时、延迟规则与执行周期模式，查阅Wiki了解详情"><i class="bi bi-question-circle"></i></a>
                 </span>
               </div>
             </div>
@@ -495,9 +495,11 @@
               <div class="col-lg-4 col-md-6 col-12 mb-2 mb-lg-0">
                 <div class="input-group">
                   <div class="input-group-prepend">
-                    <span class="input-group-text">Crontab</span>
+                    <span class="input-group-text">
+                      <a href="https://tool.lu/crontab/" target="_blank" rel="noopener noreferrer" class="crontab-link" title="点击查看Crontab执行时间计算器">Crontab</a>
+                    </span>
                   </div>
-                  <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
+                  <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填" title="支持标准Crontab表达式，例如 0 * * * * 表示在每个整点执行一次">
                 </div>
               </div>
               <div class="col-lg-4 col-md-6 col-12 mb-2 mb-lg-0">
@@ -825,11 +827,11 @@
               </div>
             </div>
 
-            <div class="row title" title="设置任务列表页面的任务信息和任务按钮的显示及排序方式，支持拖拽模块调整显示顺序，个别项目的禁用状态将被应用到所有页面">
+            <div class="row title" title="设置任务列表、追剧日历等页面的任务按钮和相关信息的显示及排序方式，支持拖拽模块调整显示顺序，个别项目的禁用状态将被应用到所有页面，查阅Wiki了解详情">
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">显示设置</h2>
                 <span class="badge badge-pill badge-light">
-                  <a href="#"><i class="bi bi-question-circle"></i></a>
+                  <a target="_blank" href="https://github.com/x1ao4/quark-auto-save-x/wiki/显示设置"><i class="bi bi-question-circle"></i></a>
                 </span>
               </div>
             </div>
@@ -868,11 +870,11 @@
             </div>
 
             <!-- 性能设置 -->
-            <div class="row title" title="调整文件整理页面的请求参数和缓存时长，可提升大文件夹的加载速度和数据刷新效率。合理配置可减少API请求次数，同时保证数据及时更新">
+            <div class="row title" title="配置文件加载、数据缓存和自动刷新的关键参数，以兼顾性能与效率，查阅Wiki了解详情">
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">性能设置</h2>
                 <span class="badge badge-pill badge-light">
-                  <a href="#"><i class="bi bi-question-circle"></i></a>
+                  <a target="_blank" href="https://github.com/x1ao4/quark-auto-save-x/wiki/性能设置"><i class="bi bi-question-circle"></i></a>
                 </span>
               </div>
             </div>
