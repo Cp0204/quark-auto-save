@@ -5761,7 +5761,7 @@
                     } catch (e) {}
 
                     // 如果是转存记录相关的通知，立即刷新今日更新数据
-                    if (changeReason === 'transfer_record_created' || changeReason === 'transfer_record_updated' || changeReason === 'batch_rename_completed') {
+                    if (changeReason === 'transfer_record_created' || changeReason === 'transfer_record_updated' || changeReason === 'batch_rename_completed' || changeReason === 'crontab_task_completed') {
                         try { await this.loadTodayUpdatesLocal(); } catch (e) {}
                     }
                     

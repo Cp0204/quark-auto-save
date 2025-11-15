@@ -582,7 +582,8 @@ def recompute_task_metrics_and_notify(task_name: str) -> bool:
             trans = int(ep_no or 0)
             denom = min(int(aired or 0), int(total or 0))
             progress_pct = (100 * min(trans, denom) // denom) if denom > 0 else 0
-            cal_db.upsert_season_metrics(tmdb_id, season_no, None, aired, total, progress_pct, now_ts)
+            # 更新 season_metrics 时，需要传入 transferred_count（已转存集数），不能传 None
+            cal_db.upsert_season_metrics(tmdb_id, season_no, trans, aired, total, progress_pct, now_ts)
             cal_db.upsert_task_metrics(task_name, tmdb_id, season_no, trans, progress_pct, now_ts)
         except Exception:
             pass
@@ -3388,6 +3389,15 @@ def run_python(args):
             logging.info(f">>> 定时运行全部任务执行成功")
         else:
             logging.warning(f">>> 定时运行全部任务执行完成但返回非零退出码: {returncode}")
+        
+        # 定时任务执行完毕后，通知前端更新（包括已转存集数和当日更新标识）
+        # 注意：每个转存成功时已经通过 /api/calendar/metrics/sync_task 更新了数据库并发送了通知
+        # 这里只需要发送一个总体的完成通知，让前端知道定时任务已完成，可以统一刷新数据
+        try:
+            notify_calendar_changed('crontab_task_completed')
+            logging.debug(f">>> 已通知前端更新已转存集数和当日更新标识（定时任务执行完毕）")
+        except Exception as e:
+            logging.warning(f">>> 通知前端更新已转存集数和当日更新标识失败: {e}")
     except Exception as e:
         logging.error(f">>> 定时运行全部任务执行异常: {str(e)}")
         import traceback
