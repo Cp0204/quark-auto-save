@@ -3360,8 +3360,11 @@ def run_python(args):
         except (ValueError, TypeError):
             logging.warning(f">>> 延迟执行设置无效: {delay}")
 
-    # 使用 subprocess 执行任务，记录进程对象以便下次检查
-    try:
+    # 内部函数：执行一次任务
+    def execute_task():
+        """执行一次定时任务，返回退出码"""
+        global _crontab_task_process
+        
         process_env = os.environ.copy()
         process_env["PYTHONIOENCODING"] = "utf-8"
         
@@ -3409,13 +3412,38 @@ def run_python(args):
         finally:
             _crontab_task_process.stdout.close()
         
-        # 等待进程完成
+        # 等待进程完成并返回退出码
         returncode = _crontab_task_process.wait()
+        return returncode
+
+    # 执行任务，支持重试机制
+    max_retries = 1  # 最多重试1次（即总共执行2次）
+    retry_count = 0
+    returncode = None
+    
+    try:
+        # 第一次执行
+        returncode = execute_task()
         
         if returncode == 0:
             logging.info(f">>> 定时运行全部任务执行成功")
         else:
             logging.warning(f">>> 定时运行全部任务执行完成但返回非零退出码: {returncode}")
+            
+            # 如果返回非零退出码，进行重试
+            if retry_count < max_retries:
+                retry_count += 1
+                logging.warning(f">>> 检测到非零退出码，将在 5 秒后自动重试一次定时运行全部任务...")
+                time.sleep(5)  # 重试前等待5秒，避免立即重试
+                logging.info(f">>> 开始重试定时运行全部任务")
+                
+                # 重试执行
+                returncode = execute_task()
+                
+                if returncode == 0:
+                    logging.info(f">>> 定时运行全部任务重试成功")
+                else:
+                    logging.warning(f">>> 定时运行全部任务重试完成但返回非零退出码: {returncode}")
         
         # 定时任务执行完毕后，通知前端更新（包括已转存集数和当日更新标识）
         # 注意：每个转存成功时已经通过 /api/calendar/metrics/sync_task 更新了数据库并发送了通知
