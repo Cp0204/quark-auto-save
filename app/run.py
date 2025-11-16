@@ -941,6 +941,10 @@ except Exception:
     pass
 app.config["SESSION_COOKIE_NAME"] = "QUARK_AUTO_SAVE_X_SESSION"
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=31)
+# 配置会话 cookie 以确保持久化
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+# SESSION_COOKIE_SECURE 将通过 before_request 钩子动态设置，以同时支持 HTTP 和 HTTPS
 app.json.ensure_ascii = False
 app.json.sort_keys = False
 app.jinja_env.variable_start_string = "[["
@@ -1397,6 +1401,29 @@ def login():
     if is_login():
         return redirect(url_for("index"))
     return render_template("login.html", error=None)
+
+
+# 确保已登录用户的会话保持永久状态，并动态设置 cookie secure 标志
+@app.before_request
+def make_session_permanent():
+    """确保已登录用户的会话保持永久状态，并根据请求协议动态设置 secure 标志"""
+    if session.get("token"):
+        session.permanent = True
+    
+    # 动态检测是否使用 HTTPS（支持反向代理场景）
+    is_secure = False
+    if request.is_secure:
+        # 直接使用 HTTPS
+        is_secure = True
+    elif request.headers.get('X-Forwarded-Proto') == 'https':
+        # 通过反向代理使用 HTTPS（如 Nginx、Apache 等）
+        is_secure = True
+    elif request.headers.get('X-Forwarded-Scheme') == 'https':
+        # 另一种常见的代理头
+        is_secure = True
+    
+    # 动态设置 SESSION_COOKIE_SECURE，让 Flask 自动处理 cookie 的 secure 标志
+    app.config["SESSION_COOKIE_SECURE"] = is_secure
 
 
 # 退出登录
