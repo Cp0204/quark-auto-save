@@ -9711,6 +9711,31 @@
                   if (ka[i] !== kb[i]) return this.fileSelect.sortOrder === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
                 }
                 return 0;
+              } else if (modalType === 'source' || modalType === 'target' || modalType === 'move') {
+                // 选择文件夹的模态框（选择需转存的文件夹、选择保存到的文件夹、选择移动到的文件夹）
+                // 文件夹排在文件前面
+                if (a.dir && !b.dir) return -1;
+                if (!a.dir && b.dir) return 1;
+                // 根据类型使用不同的排序键顺序
+                const kaRaw = sortFileByName(a), kbRaw = sortFileByName(b);
+                let ka, kb;
+                if (a.dir && b.dir) {
+                  // 文件夹：日期、上中下、拼音、更新时间（去掉期数/集数）
+                  // [date_value, episode_value, segment_value, update_time, pinyin_sort_key]
+                  // 调整为：[date_value, segment_value, pinyin_sort_key, update_time]
+                  ka = [kaRaw[0], kaRaw[2], kaRaw[4], kaRaw[3]];
+                  kb = [kbRaw[0], kbRaw[2], kbRaw[4], kbRaw[3]];
+                } else {
+                  // 文件：日期、期数、上中下、拼音、更新时间
+                  // [date_value, episode_value, segment_value, update_time, pinyin_sort_key]
+                  // 调整为：[date_value, episode_value, segment_value, pinyin_sort_key, update_time]
+                  ka = [kaRaw[0], kaRaw[1], kaRaw[2], kaRaw[4], kaRaw[3]];
+                  kb = [kbRaw[0], kbRaw[1], kbRaw[2], kbRaw[4], kbRaw[3]];
+                }
+                for (let i = 0; i < ka.length; ++i) {
+                  if (ka[i] !== kb[i]) return this.fileSelect.sortOrder === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
+                }
+                return 0;
               } else {
                 // 其他模态框：文件夹排在文件前面
                 if (a.dir && !b.dir) return -1;
@@ -9872,6 +9897,31 @@
 
                 // 使用全局文件排序函数
                 const ka = sortFileByName(a), kb = sortFileByName(b);
+                for (let i = 0; i < ka.length; ++i) {
+                  if (ka[i] !== kb[i]) return order === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
+                }
+                return 0;
+              } else if (modalType === 'source' || modalType === 'target' || modalType === 'move') {
+                // 选择文件夹的模态框（选择需转存的文件夹、选择保存到的文件夹、选择移动到的文件夹）
+                // 文件夹排在文件前面
+                if (a.dir && !b.dir) return -1;
+                if (!a.dir && b.dir) return 1;
+                // 根据类型使用不同的排序键顺序
+                const kaRaw = sortFileByName(a), kbRaw = sortFileByName(b);
+                let ka, kb;
+                if (a.dir && b.dir) {
+                  // 文件夹：日期、上中下、拼音、更新时间（去掉期数/集数）
+                  // [date_value, episode_value, segment_value, update_time, pinyin_sort_key]
+                  // 调整为：[date_value, segment_value, pinyin_sort_key, update_time]
+                  ka = [kaRaw[0], kaRaw[2], kaRaw[4], kaRaw[3]];
+                  kb = [kbRaw[0], kbRaw[2], kbRaw[4], kbRaw[3]];
+                } else {
+                  // 文件：日期、期数、上中下、拼音、更新时间
+                  // [date_value, episode_value, segment_value, update_time, pinyin_sort_key]
+                  // 调整为：[date_value, episode_value, segment_value, pinyin_sort_key, update_time]
+                  ka = [kaRaw[0], kaRaw[1], kaRaw[2], kaRaw[4], kaRaw[3]];
+                  kb = [kbRaw[0], kbRaw[1], kbRaw[2], kbRaw[4], kbRaw[3]];
+                }
                 for (let i = 0; i < ka.length; ++i) {
                   if (ka[i] !== kb[i]) return order === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
                 }
