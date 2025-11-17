@@ -18,12 +18,12 @@ from datetime import datetime
 
 # 添加数据库导入
 try:
-    from app.sdk.db import RecordDB
+    from app.sdk.db import RecordDB, CalendarDB
 except ImportError:
     # 如果直接运行脚本，路径可能不同
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     try:
-        from app.sdk.db import RecordDB
+        from app.sdk.db import RecordDB, CalendarDB
     except ImportError:
         # 定义一个空的RecordDB类，以防止导入失败
         class RecordDB:
@@ -35,6 +35,30 @@ except ImportError:
             
             def close(self):
                 pass
+        
+        # 定义一个空的CalendarDB类，以防止导入失败
+        class CalendarDB:
+            def __init__(self, *args, **kwargs):
+                self.enabled = False
+            
+            def get_task_metrics(self, *args, **kwargs):
+                return None
+
+def notify_calendar_changed_safe(reason):
+    """安全地触发SSE通知，避免导入错误"""
+    try:
+        # 尝试导入notify_calendar_changed函数
+        import sys
+        import os
+        # 添加app目录到Python路径
+        app_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app')
+        if app_dir not in sys.path:
+            sys.path.insert(0, app_dir)
+        
+        from run import notify_calendar_changed
+        notify_calendar_changed(reason)
+    except Exception as e:
+        print(f"触发SSE通知失败: {e}")
 
 def advanced_filter_files(file_list, filterwords):
     """
@@ -1002,10 +1026,13 @@ def add_notify(text):
     # 检查推送通知类型配置
     push_notify_type = CONFIG_DATA.get("push_notify_type", "full")
     
+    # 定义关键字（复用于过滤与分隔）
+    failure_keywords = ["❌", "❗", "失败", "失效", "错误", "异常", "无效", "登录失败"]
+    invalid_keywords = ["分享资源已失效", "分享详情获取失败", "分享为空", "文件已被分享者删除"]
+    
     # 如果设置为仅推送成功信息，则过滤掉失败和错误信息
     if push_notify_type == "success_only":
         # 检查是否包含失败或错误相关的关键词
-        failure_keywords = ["❌", "❗", "失败", "失效", "错误", "异常", "无效", "登录失败"]
         if any(keyword in text for keyword in failure_keywords):
             # 只打印到控制台，不添加到通知列表
             print(text)
@@ -1014,11 +1041,19 @@ def add_notify(text):
     # 如果设置为排除失效信息，则过滤掉资源失效信息，但保留转存失败信息
     elif push_notify_type == "exclude_invalid":
         # 检查是否包含资源失效相关的关键词（主要是分享资源失效）
-        invalid_keywords = ["分享资源已失效", "分享详情获取失败", "分享为空", "文件已被分享者删除"]
         if any(keyword in text for keyword in invalid_keywords):
             # 只打印到控制台，不添加到通知列表
             print(text)
             return text
+    
+    # 在每个任务块之间插入一个空行，增强可读性
+    # 成功块：以“✅《”开头；失败/错误块：以“❌”“❗”开头或包含失败相关关键词
+    is_success_block = text.startswith("✅《")
+    is_failure_block = text.startswith("❌") or text.startswith("❗") or any(k in text for k in failure_keywords if k not in ["✅"])
+    if is_success_block or is_failure_block:
+        if NOTIFYS and NOTIFYS[-1] != "":
+            NOTIFYS.append("")
+            # 仅在通知体中添加空行，不额外打印控制台空行
     
     NOTIFYS.append(text)
     print(text)
@@ -2013,9 +2048,21 @@ class Quark:
                 file_type=file_type,
                 save_path=save_path
             )
+            # 调用后端接口触发该任务的指标实时同步（进度热更新）
+            try:
+                import requests
+                _tname = task.get("taskname", "")
+                if _tname:
+                    requests.post("http://127.0.0.1:9898/api/calendar/metrics/sync_task", json={"task_name": _tname}, timeout=1)
+            except Exception:
+                pass
             
             # 关闭数据库连接
             db.close()
+            
+            # 触发SSE通知，让前端实时感知转存记录变化
+            notify_calendar_changed_safe('transfer_record_created')
+                
         except Exception as e:
             print(f"保存转存记录失败: {e}")
     
@@ -2074,6 +2121,10 @@ class Quark:
             
             # 关闭数据库连接
             db.close()
+            
+            # 如果更新成功，触发SSE通知
+            if updated > 0:
+                notify_calendar_changed_safe('transfer_record_updated')
             
             return updated > 0
         except Exception as e:
@@ -3741,6 +3792,9 @@ class Quark:
             
             # 检查是否需要从分享链接获取数据
             if task.get("shareurl"):
+                # 如果任务已经有 shareurl_ban，说明分享已失效，不需要再尝试获取分享详情
+                if task.get("shareurl_ban"):
+                    return False, []
                 try:
                     # 提取链接参数
                     pwd_id, passcode, pdir_fid, paths = self.extract_url(task["shareurl"])
@@ -3751,13 +3805,17 @@ class Quark:
                     # 获取分享详情
                     is_sharing, stoken = self.get_stoken(pwd_id, passcode)
                     if not is_sharing:
-                        print(f"分享详情获取失败: {stoken}")
+                        # 如果任务已经有 shareurl_ban，说明已经在 do_save_task 中处理过了，不需要重复输出
+                        if not task.get("shareurl_ban"):
+                            print(f"分享详情获取失败: {stoken}")
                         return False, []
                     
                     # 获取分享文件列表
                     share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["list"]
                     if not share_file_list:
-                        print("分享为空，文件已被分享者删除")
+                        # 如果任务已经有 shareurl_ban，说明已经在 do_save_task 中处理过了，不需要重复输出
+                        if not task.get("shareurl_ban"):
+                            print("分享为空，文件已被分享者删除")
                         return False, []
 
                     # 在剧集命名模式中，需要先对文件列表进行排序，然后再应用起始文件过滤
@@ -4421,17 +4479,47 @@ def do_save(account, tasklist=[]):
     sent_notices = set()
 
     def is_time(task):
-        return (
-            not task.get("enddate")
-            or (
-                datetime.now().date()
-                <= datetime.strptime(task["enddate"], "%Y-%m-%d").date()
+        # 获取任务的执行周期模式，优先使用任务自身的execution_mode，否则使用系统配置的execution_mode
+        execution_mode = task.get("execution_mode") or CONFIG_DATA.get("execution_mode", "manual")
+        
+        # 按任务进度执行（自动）
+        if execution_mode == "auto":
+            try:
+                # 从task_metrics表获取任务进度
+                cal_db = CalendarDB()
+                task_name = task.get("taskname") or task.get("task_name") or ""
+                if task_name:
+                    metrics = cal_db.get_task_metrics(task_name)
+                    if metrics and metrics.get("progress_pct") is not None:
+                        progress_pct = int(metrics.get("progress_pct", 0))
+                        # 如果任务进度100%，则跳过
+                        if progress_pct >= 100:
+                            return False
+                        # 如果任务进度不是100%，则需要运行
+                        return True
+                    else:
+                        # 没有任务进度数据，退回按自选周期执行的逻辑
+                        execution_mode = "manual"
+            except Exception as e:
+                # 获取任务进度失败，退回按自选周期执行的逻辑
+                execution_mode = "manual"
+        
+        # 按自选周期执行（自选）- 原有逻辑
+        if execution_mode == "manual":
+            return (
+                not task.get("enddate")
+                or (
+                    datetime.now().date()
+                    <= datetime.strptime(task["enddate"], "%Y-%m-%d").date()
+                )
+            ) and (
+                "runweek" not in task
+                # 星期一为0，星期日为6
+                or (datetime.today().weekday() + 1 in task.get("runweek"))
             )
-        ) and (
-            "runweek" not in task
-            # 星期一为0，星期日为6
-            or (datetime.today().weekday() + 1 in task.get("runweek"))
-        )
+        
+        # 默认返回True（兼容未知模式）
+        return True
 
     # 执行任务
     for index, task in enumerate(tasklist):
@@ -4462,14 +4550,74 @@ def do_save(account, tasklist=[]):
                 print(f"正则替换: {task['replace']}")
         if task.get("update_subdir"):
             print(f"更新目录: {task['update_subdir']}")
-        if task.get("runweek") or task.get("enddate"):
-            print(
-                f"运行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')}"
-            )
+        # 获取任务的执行周期模式，优先使用任务自身的execution_mode，否则使用系统配置的execution_mode
+        execution_mode = task.get("execution_mode") or CONFIG_DATA.get("execution_mode", "manual")
+        
+        # 根据执行周期模式显示日志
+        if execution_mode == "auto":
+            # 按任务进度执行（自动）
+            try:
+                # 检查是否有任务进度数据
+                cal_db = CalendarDB()
+                task_name = task.get("taskname") or task.get("task_name") or ""
+                if task_name:
+                    metrics = cal_db.get_task_metrics(task_name)
+                    if metrics and metrics.get("progress_pct") is not None:
+                        # 有任务进度数据，显示自动模式
+                        print(f"执行周期: 自动")
+                    else:
+                        # 没有任务进度数据，退回按自选周期执行，显示自选周期信息
+                        if task.get("runweek") or task.get("enddate"):
+                            print(
+                                f"执行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')} (自动模式，无进度数据，退回自选周期)"
+                            )
+                        else:
+                            print(f"执行周期: 自动 (无进度数据，退回自选周期)")
+                else:
+                    # 没有任务名称，退回按自选周期执行
+                    if task.get("runweek") or task.get("enddate"):
+                        print(
+                            f"执行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')} (自动模式，无任务名称，退回自选周期)"
+                        )
+                    else:
+                        print(f"执行周期: 自动 (无任务名称，退回自选周期)")
+            except Exception:
+                # 获取任务进度失败，退回按自选周期执行
+                if task.get("runweek") or task.get("enddate"):
+                    print(
+                        f"执行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')} (自动模式，获取进度失败，退回自选周期)"
+                    )
+                else:
+                    print(f"执行周期: 自动 (获取进度失败，退回自选周期)")
+        else:
+            # 按自选周期执行（自选）- 原有逻辑
+            if task.get("runweek") or task.get("enddate"):
+                print(
+                    f"执行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')}"
+                )
+        
         print()
         # 判断任务周期
         if not is_time(task):
-            print(f"任务不在运行周期内，跳过")
+            if execution_mode == "auto":
+                # 按任务进度执行时的跳过提示
+                try:
+                    cal_db = CalendarDB()
+                    task_name = task.get("taskname") or task.get("task_name") or ""
+                    if task_name:
+                        metrics = cal_db.get_task_metrics(task_name)
+                        if metrics and metrics.get("progress_pct") is not None:
+                            progress_pct = int(metrics.get("progress_pct", 0))
+                            print(f"任务进度已达 {progress_pct}%，跳过")
+                        else:
+                            print(f"任务不在执行周期内，跳过")
+                    else:
+                        print(f"任务不在执行周期内，跳过")
+                except Exception:
+                    print(f"任务不在执行周期内，跳过")
+            else:
+                # 按自选周期执行时的跳过提示（原有逻辑）
+                print(f"任务不在执行周期内，跳过")
         else:
             # 保存之前的通知信息
             global NOTIFYS
@@ -5609,6 +5757,14 @@ def do_save(account, tasklist=[]):
                 # 处理重命名日志，更新数据库记录
                 account.process_rename_logs(task, rename_logs)
                 
+                # 控制台视觉分隔：若前面未通过 add_notify("") 打印过空行，则补打一行空行
+                try:
+                    if not (NOTIFYS and NOTIFYS[-1] == ""):
+                        print()
+                except Exception:
+                    # 兜底：若 NOTIFYS 异常，仍保证有一行空行
+                    print()
+                
                 # 对剧集命名模式和其他模式统一处理重命名日志
                 # 按sort_file_by_name函数的多级排序逻辑排序重命名日志
                 sorted_rename_logs = []
@@ -5684,7 +5840,6 @@ def main():
     start_time = datetime.now()
     print(f"===============程序开始===============")
     print(f"⏰ 执行时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print()
     # 读取启动参数
     config_path = sys.argv[1] if len(sys.argv) > 1 else "quark_config.json"
     # 从环境变量中获取 TASKLIST
@@ -5723,6 +5878,7 @@ def main():
         return
     accounts = [Quark(cookie, index) for index, cookie in enumerate(cookies)]
     # 签到
+    print()
     print(f"===============签到任务===============")
     if tasklist_from_env:
         verify_account(accounts[0])

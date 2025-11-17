@@ -16,6 +16,7 @@ from flask import (
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.date import DateTrigger
 from queue import Queue
 from sdk.cloudsaver import CloudSaver
 try:
@@ -35,7 +36,7 @@ import random
 import time
 import treelib
 from functools import lru_cache
-from threading import Lock
+from threading import Lock, Thread
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
@@ -53,6 +54,45 @@ from sdk.douban_service import douban_service
 from utils.task_extractor import TaskExtractor
 from sdk.tmdb_service import TMDBService
 from sdk.db import CalendarDB
+from sdk.db import RecordDB
+from utils.task_extractor import TaskExtractor
+
+def get_effective_date_for_aired_count():
+    """
+    根据用户设置的播出集数刷新时间，返回应该用于计算已播出集数的日期。
+    如果在刷新时间之前，返回昨天的日期；如果在刷新时间之后，返回今天的日期。
+    这样可以确保在刷新时间之前，已播出集数不会被提前更新。
+    """
+    from datetime import datetime as _dt, timedelta
+    now = _dt.now()
+    today = now.strftime('%Y-%m-%d')
+    
+    # 获取用户配置的刷新时间，默认 00:00
+    perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
+    refresh_time_str = perf.get('aired_refresh_time', '00:00')
+    
+    try:
+        refresh_parts = refresh_time_str.split(':')
+        if len(refresh_parts) == 2:
+            refresh_hour = int(refresh_parts[0])
+            refresh_minute = int(refresh_parts[1])
+            current_hour = now.hour
+            current_minute = now.minute
+            
+            # 当前时间 >= 刷新时间，使用今天的日期
+            if current_hour > refresh_hour or (current_hour == refresh_hour and current_minute >= refresh_minute):
+                return today
+            else:
+                # 当前时间 < 刷新时间，使用昨天的日期
+                yesterday = (now - timedelta(days=1)).strftime('%Y-%m-%d')
+                return yesterday
+        else:
+            # 解析失败时默认使用今天的日期（向后兼容）
+            return today
+    except Exception:
+        # 解析失败时默认使用今天的日期（向后兼容）
+        return today
+
 def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
     """为任务列表注入日历相关元数据：节目状态、最新季处理后名称、已转存/已播出/本季总集数。
     返回新的任务字典列表，增加以下字段：
@@ -144,9 +184,31 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
         except Exception:
             transferred_by_task = {}
 
-        # 统计"已播出集数"：读取本地 episodes 表中有 air_date 且 <= 今天的集数
+        # 统计"已播出集数"：读取本地 episodes 表中有 air_date 且 <= 有效日期的集数
+        # 有效日期根据播出集数刷新时间确定：刷新时间之前使用昨天的日期，之后使用今天的日期
         from datetime import datetime as _dt
-        today = _dt.now().strftime('%Y-%m-%d')
+        now = _dt.now()
+        today = now.strftime('%Y-%m-%d')
+        effective_date = get_effective_date_for_aired_count()  # 获取应该用于计算已播出集数的有效日期
+        current_time_str = now.strftime('%H:%M')
+        # 获取用户配置的刷新时间，默认 00:00
+        perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
+        refresh_time_str = perf.get('aired_refresh_time', '00:00')
+        # 判断当前时间是否已经过了用户设置的刷新时间
+        allow_refresh = False
+        try:
+            refresh_parts = refresh_time_str.split(':')
+            if len(refresh_parts) == 2:
+                refresh_hour = int(refresh_parts[0])
+                refresh_minute = int(refresh_parts[1])
+                current_hour = now.hour
+                current_minute = now.minute
+                # 当前时间 >= 刷新时间，允许刷新
+                if current_hour > refresh_hour or (current_hour == refresh_hour and current_minute >= refresh_minute):
+                    allow_refresh = True
+        except Exception:
+            # 解析失败时默认允许刷新（向后兼容）
+            allow_refresh = True
         aired_by_show_season = {}
         try:
             cur.execute(
@@ -155,12 +217,26 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                 WHERE air_date IS NOT NULL AND air_date != '' AND air_date <= ?
                 GROUP BY tmdb_id, season_number
                 """,
-                (today,)
+                (effective_date,)
             )
             for tid, sn, cnt in (cur.fetchall() or []):
                 aired_by_show_season[(int(tid), int(sn))] = int(cnt or 0)
         except Exception:
             aired_by_show_season = {}
+
+        # 读取 season_metrics 缓存（优先使用缓存回填展示；若缓存日期早于今天，则强制使用今日即时统计覆盖已播出集数，并在下方写回）
+        season_metrics_map = {}
+        try:
+            cur.execute('SELECT tmdb_id, season_number, transferred_count, aired_count, total_count, updated_at FROM season_metrics')
+            for tid, sn, tc, ac, tc2, ua in (cur.fetchall() or []):
+                season_metrics_map[(int(tid), int(sn))] = {
+                    'transferred_count': 0 if tc is None else int(tc),
+                    'aired_count': 0 if ac is None else int(ac),
+                    'total_count': 0 if tc2 is None else int(tc2),
+                    'updated_at': 0 if ua is None else int(ua),
+                }
+        except Exception:
+            season_metrics_map = {}
 
         # 注入到任务
         enriched = []
@@ -178,11 +254,52 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                 if tmdb_id and int(tmdb_id) in show_meta:
                     meta = show_meta[int(tmdb_id)]
                     status = meta.get('status') or ''
-                    latest_sn = int(meta.get('latest_season_number') or 0)
-                    sm = season_meta.get((int(tmdb_id), latest_sn)) or {}
-                    latest_season_name = sm.get('season_name') or ''
-                    total_count = sm.get('episode_count')
-                    aired_count = aired_by_show_season.get((int(tmdb_id), latest_sn))
+                    # 仅使用任务匹配到的季号；无匹配则不计算该任务的季级数据
+                    season_no_to_use = None
+                    try:
+                        if t.get('matched_latest_season_number') is not None:
+                            v = int(t.get('matched_latest_season_number'))
+                            if v > 0:
+                                season_no_to_use = v
+                    except Exception:
+                        season_no_to_use = None
+                    if season_no_to_use is not None:
+                        latest_sn = season_no_to_use
+                        sm = season_meta.get((int(tmdb_id), latest_sn)) or {}
+                        latest_season_name = sm.get('season_name') or ''
+                        # 优先用 season_metrics 中缓存的 total/air（按匹配季）
+                        _metrics = season_metrics_map.get((int(tmdb_id), latest_sn)) or {}
+                        total_count = _metrics.get('total_count')
+                        aired_count = _metrics.get('aired_count')
+                        _updated_at = _metrics.get('updated_at')
+                        # fallback：无缓存则用即时计算（按匹配季）
+                        if total_count in (None, 0):
+                            total_count = sm.get('episode_count')
+                        # 一致性强化：在“未到刷新时间”时，始终使用按有效日期统计的值覆盖/校正缓存，
+                        # 避免出现提前计入当日集数的展示偏差
+                        try:
+                            _aired_effective = aired_by_show_season.get((int(tmdb_id), latest_sn))
+                            if _aired_effective is not None:
+                                if not allow_refresh:
+                                    # 刷新时间之前：无条件采用有效日期口径
+                                    aired_count = _aired_effective
+                                else:
+                                    # 刷新时间之后：若缓存为非当日或缺失，则采用有效日期口径回填
+                                    _ua_date = None
+                                    if _updated_at:
+                                        _ua_date = _dt.fromtimestamp(int(_updated_at)).strftime('%Y-%m-%d')
+                                    if ((_ua_date is None) or (_ua_date != today)):
+                                        aired_count = _aired_effective
+                        except Exception:
+                            pass
+                        if aired_count in (None, 0):
+                            aired_count = aired_by_show_season.get((int(tmdb_id), latest_sn))
+                    else:
+                        # 未匹配到季：不计算该任务的季级数据
+                        latest_sn = None
+                        latest_season_name = ''
+                        total_count = 0
+                        aired_count = 0
             except Exception:
                 pass
 
@@ -229,15 +346,267 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
 
             t['matched_status'] = status
             t['latest_season_name'] = latest_season_name
+
+            # 后端兜底：当文件名无集序号但含日期时，尝试用 tmdb_id + season + air_date 推导已转存集数
+            # 这样与前端展示口径一致，避免把 transferred_count 误写为 0
+            try:
+                _effective_transferred = int(transferred_count or 0)
+            except Exception:
+                _effective_transferred = 0
+
+            if (not _effective_transferred) and task_name and tmdb_id and latest_sn:
+                try:
+                    # 取最近一条转存记录的文件名，解析出日期
+                    rdb2 = RecordDB()
+                    cur2 = rdb2.conn.cursor()
+                    cur2.execute(
+                        """
+                        SELECT MAX(transfer_time) as latest_transfer_time
+                        FROM transfer_records
+                        WHERE task_name = ? AND task_name NOT IN ('rename', 'undo_rename')
+                        """,
+                        (task_name,)
+                    )
+                    _row = cur2.fetchone()
+                    _lt = _row[0] if _row else None
+                    _best = None
+                    if _lt:
+                        cur2.execute(
+                            """
+                            SELECT renamed_to, original_name, transfer_time, modify_date
+                            FROM transfer_records
+                            WHERE task_name = ? AND transfer_time >= ? AND transfer_time <= ?
+                            ORDER BY id DESC
+                            """,
+                            (task_name, _lt - 60000, _lt + 60000)
+                        )
+                        _files = cur2.fetchall() or []
+                        if _files:
+                            _best = _files[0][0]
+                    rdb2.close()
+
+                    if _best:
+                        _name_wo_ext = os.path.splitext(_best)[0]
+                        _processed = process_season_episode_info(_name_wo_ext, task_name)
+                        _parsed = TaskExtractor().extract_progress_from_latest_file(_processed)
+                        if _parsed and (not _parsed.get('episode_number')) and _parsed.get('air_date'):
+                            _air_date = _parsed.get('air_date')
+                            # 用 tmdb_id + season + air_date 查找当天对应的最大集号
+                            cur.execute(
+                                """
+                                SELECT MAX(CAST(episode_number AS INTEGER))
+                                FROM episodes
+                                WHERE tmdb_id = ? AND season_number = ? AND air_date = ?
+                                """,
+                                (int(tmdb_id), int(latest_sn), _air_date)
+                            )
+                            _res = cur.fetchone()
+                            if _res and _res[0] is not None:
+                                _effective_transferred = int(_res[0])
+                except Exception:
+                    pass
+
             t['season_counts'] = {
-                'transferred_count': transferred_count or 0,
+                'transferred_count': _effective_transferred,
                 'aired_count': aired_count or 0,
                 'total_count': total_count or 0,
             }
+            # 写回 season_metrics（以该任务自身匹配到的季号为键；无匹配则跳过）
+            try:
+                if tmdb_id and latest_sn:
+                    from time import time as _now
+                    # 计算进度百分比：以 min(aired, total) 为分母；分母<=0 则为 0
+                    try:
+                        _trans = int(_effective_transferred or 0)
+                        _aired = int(aired_count or 0)
+                        _total = int(total_count or 0)
+                        denom = min(_aired, _total)
+                        progress_pct = (100 * min(_trans, denom) // denom) if denom > 0 else 0
+                    except Exception:
+                        progress_pct = 0
+                    CalendarDB().upsert_season_metrics(int(tmdb_id), int(latest_sn), int(_effective_transferred or 0), int(aired_count or 0), int(total_count or 0), int(progress_pct), int(_now()))
+            except Exception:
+                pass
+            # 写回 task_metrics（以任务为键）
+            try:
+                if task_name and tmdb_id and latest_sn:
+                    from time import time as _now
+                    # 同一套百分比口径
+                    try:
+                        _trans = int(_effective_transferred or 0)
+                        _aired = int(aired_count or 0)
+                        _total = int(total_count or 0)
+                        denom = min(_aired, _total)
+                        progress_pct = (100 * min(_trans, denom) // denom) if denom > 0 else 0
+                    except Exception:
+                        progress_pct = 0
+                    CalendarDB().upsert_task_metrics(task_name, int(tmdb_id), int(latest_sn), int(_effective_transferred or 0), int(progress_pct), int(_now()))
+            except Exception:
+                pass
             enriched.append(t)
         return enriched
     except Exception:
         return tasks_info
+
+# 内部：根据 task_name 重新计算转存进度，并写回 metrics 与推送变更
+def recompute_task_metrics_and_notify(task_name: str) -> bool:
+    try:
+        if not task_name:
+            return False
+        rdb = RecordDB()
+        cursor = rdb.conn.cursor()
+        cursor.execute(
+            """
+            SELECT MAX(transfer_time) as latest_transfer_time
+            FROM transfer_records
+            WHERE task_name = ? AND task_name NOT IN ('rename', 'undo_rename')
+            """,
+            (task_name,)
+        )
+        row = cursor.fetchone()
+        latest_time = row[0] if row else None
+        latest_file = None
+        if latest_time:
+            time_window = 60000
+            cursor.execute(
+                """
+                SELECT renamed_to, original_name, transfer_time, modify_date
+                FROM transfer_records
+                WHERE task_name = ? AND transfer_time >= ? AND transfer_time <= ?
+                ORDER BY id DESC
+                """,
+                (task_name, latest_time - time_window, latest_time + time_window)
+            )
+            files = cursor.fetchall() or []
+            if files:
+                if len(files) == 1:
+                    latest_file = files[0][0]
+                else:
+                    # 退化：按 id DESC 已近似最新，取第一条 renamed_to
+                    latest_file = files[0][0]
+        rdb.close()
+
+        ep_no = None
+        parsed_air_date = None
+        if latest_file:
+            try:
+                extractor = TaskExtractor()
+                parsed = extractor.extract_progress_from_latest_file((latest_file or '').split('.')[0])
+                if parsed and parsed.get('episode_number') is not None:
+                    ep_no = int(parsed.get('episode_number'))
+                elif parsed and parsed.get('air_date'):
+                    # 暂存日期，待解析出 tmdb_id 与 season 后据此推导集号
+                    parsed_air_date = parsed.get('air_date')
+            except Exception:
+                ep_no = None
+
+        cal_db = CalendarDB()
+        cur = cal_db.conn.cursor()
+        # 仅从任务配置解析 tmdb 与季号：强制要求 matched_latest_season_number 存在，否则视为未匹配
+        tmdb_id = None
+        season_no = None
+        try:
+            tasks = (config_data or {}).get('tasklist', [])
+        except Exception:
+            tasks = []
+        try:
+            tgt = next((t for t in tasks if (t.get('taskname') or t.get('task_name') or '') == task_name), None)
+        except Exception:
+            tgt = None
+        if tgt:
+            try:
+                match = ((tgt.get('calendar_info') or {}).get('match') or {})
+            except Exception:
+                match = {}
+            # tmdb_id 必须来自匹配信息
+            try:
+                if match.get('tmdb_id'):
+                    tmdb_id = int(match.get('tmdb_id'))
+            except Exception:
+                tmdb_id = None
+            # season 仅使用 matched_latest_season_number
+            try:
+                if tgt.get('matched_latest_season_number') is not None:
+                    v = int(tgt.get('matched_latest_season_number'))
+                    if v > 0:
+                        season_no = v
+            except Exception:
+                season_no = None
+        # 未匹配则跳过
+        if tmdb_id is None or season_no is None or int(season_no) <= 0:
+            return False
+
+        from time import time as _now
+        now_ts = int(_now())
+        # 若仅有日期但无集号，尝试用 tmdb_id + season + air_date 推导集号
+        if ep_no is None and parsed_air_date:
+            try:
+                cur.execute(
+                    """
+                    SELECT MAX(CAST(episode_number AS INTEGER))
+                    FROM episodes
+                    WHERE tmdb_id = ? AND season_number = ? AND air_date = ?
+                    """,
+                    (int(tmdb_id), int(season_no), parsed_air_date)
+                )
+                _row = cur.fetchone()
+                if _row and _row[0] is not None:
+                    ep_no = int(_row[0])
+            except Exception:
+                pass
+
+        # 更新 task_metrics 的 transferred_count
+        if ep_no is not None:
+            cal_db.upsert_task_metrics(task_name, tmdb_id, season_no, ep_no, None, now_ts)
+
+        # 读取 season_metrics/或动态计算，写回 progress_pct
+        try:
+            # 获取 aired/total
+            metrics = cal_db.get_season_metrics(tmdb_id, season_no) or {}
+            aired = metrics.get('aired_count')
+            total = metrics.get('total_count')
+            if aired in (None, 0) or total in (None, 0):
+                # 动态回退：使用有效日期计算已播出集数
+                effective_date = get_effective_date_for_aired_count()
+                cur.execute(
+                    """
+                    SELECT COUNT(1) FROM episodes
+                    WHERE tmdb_id=? AND season_number=? AND air_date IS NOT NULL AND air_date != '' AND air_date <= ?
+                    """,
+                    (tmdb_id, season_no, effective_date)
+                )
+                aired = int((cur.fetchone() or [0])[0])
+                cur.execute('SELECT episode_count FROM seasons WHERE tmdb_id=? AND season_number=?', (tmdb_id, season_no))
+                row2 = cur.fetchone()
+                total = int((row2 or [0])[0]) if row2 else 0
+            trans = int(ep_no or 0)
+            denom = min(int(aired or 0), int(total or 0))
+            progress_pct = (100 * min(trans, denom) // denom) if denom > 0 else 0
+            # 更新 season_metrics 时，需要传入 transferred_count（已转存集数），不能传 None
+            cal_db.upsert_season_metrics(tmdb_id, season_no, trans, aired, total, progress_pct, now_ts)
+            cal_db.upsert_task_metrics(task_name, tmdb_id, season_no, trans, progress_pct, now_ts)
+        except Exception:
+            pass
+
+        try:
+            notify_calendar_changed('transfer_update')
+        except Exception:
+            pass
+        return True
+    except Exception:
+        return False
+
+
+def register_metrics_sync_routes(app):
+    @app.route('/api/calendar/metrics/sync_task', methods=['POST'])
+    def api_sync_task_metrics():
+        try:
+            data = request.get_json(silent=True) or {}
+            task_name = data.get('task_name') or request.args.get('task_name')
+            ok = recompute_task_metrics_and_notify(task_name)
+            return jsonify({'success': bool(ok)})
+        except Exception as e:
+            return jsonify({'success': False, 'message': str(e)})
 
 def advanced_filter_files(file_list, filterwords):
     """
@@ -566,8 +935,16 @@ def cleanup_expired_cache():
 app = Flask(__name__)
 app.config["APP_VERSION"] = get_app_ver()
 app.secret_key = "ca943f6db6dd34823d36ab08d8d6f65d"
+try:
+    register_metrics_sync_routes(app)
+except Exception:
+    pass
 app.config["SESSION_COOKIE_NAME"] = "QUARK_AUTO_SAVE_X_SESSION"
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=31)
+# 配置会话 cookie 以确保持久化
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+# SESSION_COOKIE_SECURE 将通过 before_request 钩子动态设置，以同时支持 HTTP 和 HTTPS
 app.json.ensure_ascii = False
 app.json.sort_keys = False
 app.jinja_env.variable_start_string = "[["
@@ -580,7 +957,134 @@ try:
 except Exception:
     pass
 
-scheduler = BackgroundScheduler()
+# ---- Aired count safeguard: 极简按需校正 ----
+def _aired_stamp_path():
+    try:
+        return os.path.abspath(os.path.join(app.root_path, '..', 'config', '.aired_done'))
+    except Exception:
+        return '.aired_done'
+
+def _read_aired_effective_stamp():
+    try:
+        p = _aired_stamp_path()
+        if os.path.exists(p):
+            with open(p, 'r', encoding='utf-8') as f:
+                return (f.read() or '').strip()
+    except Exception:
+        pass
+    return ''
+
+def _write_aired_effective_stamp(effective_date_str: str):
+    try:
+        p = _aired_stamp_path()
+        with open(p, 'w', encoding='utf-8') as f:
+            f.write(str(effective_date_str or ''))
+    except Exception:
+        pass
+
+def ensure_today_aired_done_if_due_once(trigger_reason: str = ''):
+    """仅在需要时、且至多每日一次按需补算。无定时轮询，无高频检查。"""
+    global _aired_on_demand_checked_date
+    try:
+        # 计算当前应生效的有效日期
+        current_effective = str(get_effective_date_for_aired_count())
+        # 进程内已检查过本有效期，直接跳过
+        if _aired_on_demand_checked_date == current_effective:
+            return
+        # 仅当已过刷新时间时才允许补算（避免提前）
+        from datetime import datetime as _dt
+        now = _dt.now()
+        perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
+        time_str = perf.get('aired_refresh_time', '00:00')
+        try:
+            hh, mm = [int(x) for x in time_str.split(':')]
+            allow = (now.hour > hh) or (now.hour == hh and now.minute >= mm)
+        except Exception:
+            allow = True
+        if not allow:
+            # 未到刷新点，不做任何事
+            return
+        # 已记录的上次完成日期
+        stamped = _read_aired_effective_stamp()
+        if stamped != current_effective:
+            # 需要补算一次
+            logging.debug(f"检测到当日尚未生效（触发:{trigger_reason or 'on_demand'}），执行一次补偿刷新…")
+            recompute_all_seasons_aired_daily()
+            # 成功后 recompute 内部会写 stamp；此处将进程内记为已检查，避免多次触发
+            _aired_on_demand_checked_date = current_effective
+        else:
+            # 已完成，标记今日已检查，避免重复
+            _aired_on_demand_checked_date = current_effective
+    except Exception:
+        pass
+
+
+def _is_after_refresh_time(now_dt):
+    try:
+        perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
+        time_str = perf.get('aired_refresh_time', '00:00')
+        hh, mm = [int(x) for x in time_str.split(':')]
+        return (now_dt.hour > hh) or (now_dt.hour == hh and now_dt.minute >= mm)
+    except Exception:
+        return True
+
+def _is_today_aired_done() -> bool:
+    try:
+        from datetime import datetime as _dt
+        now = _dt.now()
+        if not _is_after_refresh_time(now):
+            return False
+        current_effective = str(get_effective_date_for_aired_count())
+        stamped = _read_aired_effective_stamp()
+        return stamped == current_effective
+    except Exception:
+        return False
+
+
+def _schedule_aired_retry_in(minutes_delay: int = 10):
+    try:
+        from datetime import datetime as _dt, timedelta as _td
+        # 移除已有的重试任务，避免重复堆积
+        try:
+            scheduler.remove_job('daily_aired_retry')
+        except Exception:
+            pass
+        run_at = _dt.now() + _td(minutes=max(1, int(minutes_delay)))
+        scheduler.add_job(
+            func=lambda: recompute_all_seasons_aired_daily(),
+            trigger=DateTrigger(run_date=run_at),
+            id='daily_aired_retry',
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
+        )
+        if scheduler.state == 0:
+            scheduler.start()
+        logging.debug(f"已安排播出集数补偿重试任务，时间 {run_at.strftime('%Y-%m-%d %H:%M')}" )
+    except Exception as e:
+        logging.warning(f"安排播出集数补偿重试任务失败: {e}")
+
+# 是否为 Flask 主服务进程（仅该进程输出某些提示）
+IS_FLASK_SERVER_PROCESS = False
+
+scheduler = BackgroundScheduler(
+    job_defaults={
+        # 允许在系统唤醒后补偿执行全部错过的任务
+        "misfire_grace_time": None,
+        # 休眠期间即便错过多次触发，也仅补偿执行一次，避免堆积
+        "coalesce": True,
+    }
+)
+
+# 定时任务进程/线程跟踪：用于检测和清理未完成的任务
+_crontab_task_process = None  # 定时运行全部任务的进程对象
+_calendar_refresh_thread = None  # 追剧日历自动刷新的线程对象
+# 记录每日任务上次生效的时间，避免重复日志
+_daily_aired_last_time_str = None
+_calendar_refresh_last_interval = None
+_last_crontab = None
+_last_crontab_delay = None
+_aired_on_demand_checked_date = None  # 本进程内，当天是否已进行过一次按需检查
 logging.basicConfig(
     level=logging.DEBUG if DEBUG else logging.INFO,
     format="[%(asctime)s][%(levelname)s] %(message)s",
@@ -610,6 +1114,11 @@ except Exception:
 # 过滤werkzeug日志输出
 if not DEBUG:
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
+    # 静音 APScheduler 的普通信息日志，避免 "Adding job tentatively" 等噪音
+    try:
+        logging.getLogger("apscheduler").setLevel(logging.WARNING)
+    except Exception:
+        pass
 
 # 统一所有已有处理器（包括 werkzeug、apscheduler）的日志格式
 _root_logger = logging.getLogger()
@@ -631,6 +1140,133 @@ for _name in ("werkzeug", "apscheduler", "gunicorn.error", "gunicorn.access"):
         except Exception:
             pass
 
+
+# --------- 每日任务：在用户设置的刷新时间重算所有季的已播出集数并更新进度 ---------
+def recompute_all_seasons_aired_daily():
+    logging.info(f">>> 开始执行播出集数自动刷新")
+    try:
+        from datetime import datetime as _dt
+        from time import time as _now
+        now_ts = int(_now())
+        # 获取应该用于计算已播出集数的有效日期（根据播出集数刷新时间确定）
+        effective_date = get_effective_date_for_aired_count()
+        cal_db = CalendarDB()
+        cur = cal_db.conn.cursor()
+        # 遍历本地所有季
+        cur.execute('SELECT tmdb_id, season_number, episode_count FROM seasons')
+        rows = cur.fetchall() or []
+        for tmdb_id, season_no, total in rows:
+            try:
+                tmdb_id_i = int(tmdb_id)
+                season_no_i = int(season_no)
+                total_i = int(total or 0)
+                # 使用有效日期计算已播出集数
+                cur.execute(
+                    """
+                    SELECT COUNT(1) FROM episodes
+                    WHERE tmdb_id=? AND season_number=? AND air_date IS NOT NULL AND air_date != '' AND air_date <= ?
+                    """,
+                    (tmdb_id_i, season_no_i, effective_date)
+                )
+                aired_i = int((cur.fetchone() or [0])[0])
+                # 取已转存集数用于计算进度
+                metrics = cal_db.get_season_metrics(tmdb_id_i, season_no_i) or {}
+                transferred_i = int(metrics.get('transferred_count') or 0)
+                denom = min(int(aired_i or 0), int(total_i or 0))
+                progress_pct = (100 * min(transferred_i, denom) // denom) if denom > 0 else 0
+                # 写回缓存：仅更新 aired/total/progress_pct 与时间戳
+                cal_db.upsert_season_metrics(tmdb_id_i, season_no_i, None, aired_i, total_i, progress_pct, now_ts)
+            except Exception:
+                continue
+        # 成功后写入当日完成标记（使用 stamp 文件，避免引入 DB 结构变更）
+        try:
+            _write_aired_effective_stamp(str(effective_date))
+        except Exception:
+            pass
+        try:
+            notify_calendar_changed('daily_aired_update')
+        except Exception:
+            pass
+        # 验证当日是否已生效，成功则清理重试任务；否则安排下一次补偿重试
+        try:
+            if _is_today_aired_done():
+                try:
+                    scheduler.remove_job('daily_aired_retry')
+                except Exception:
+                    pass
+            else:
+                _schedule_aired_retry_in(10)
+        except Exception:
+            pass
+        logging.info(f">>> 播出集数自动刷新执行成功")
+    except Exception as e:
+        logging.warning(f">>> 播出集数自动刷新执行异常: {e}")
+        # 发生异常也安排一次补偿重试
+        try:
+            _schedule_aired_retry_in(10)
+        except Exception:
+            pass
+
+
+def restart_daily_aired_update_job():
+    try:
+        global _daily_aired_last_time_str
+        try:
+            scheduler.remove_job('daily_aired_update')
+        except Exception:
+            pass
+        # 从配置读取刷新时间，默认 00:00
+        perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
+        time_str = perf.get('aired_refresh_time', '00:00')
+        # 解析时间格式 HH:MM
+        try:
+            parts = time_str.split(':')
+            if len(parts) == 2:
+                hour = int(parts[0])
+                minute = int(parts[1])
+                if 0 <= hour <= 23 and 0 <= minute <= 59:
+                    trigger = CronTrigger(hour=hour, minute=minute)
+                else:
+                    trigger = CronTrigger(hour=0, minute=0)
+                    hour, minute = 0, 0
+            else:
+                trigger = CronTrigger(hour=0, minute=0)
+                hour, minute = 0, 0
+        except Exception:
+            trigger = CronTrigger(hour=0, minute=0)
+            hour, minute = 0, 0
+        scheduler.add_job(
+            recompute_all_seasons_aired_daily,
+            trigger=trigger,
+            id='daily_aired_update',
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
+            misfire_grace_time=None
+        )
+        if scheduler.state == 0:
+            scheduler.start()
+        # 友好提示：每日任务已启动（仅在时间变化时输出，且仅在 Flask 主进程中打印，避免子进程噪音）
+        try:
+            if IS_FLASK_SERVER_PROCESS:
+                _time_str = f"{hour:02d}:{minute:02d}"
+                if _daily_aired_last_time_str != _time_str:
+                    logging.info(f"已启动播出集数自动刷新，时间 {_time_str}")
+                    _daily_aired_last_time_str = _time_str
+        except Exception:
+            pass
+    except Exception as e:
+        logging.warning(f"启动播出集数自动刷新失败: {e}")
+
+
+# 应用启动时注册每日任务
+try:
+    restart_daily_aired_update_job()
+    # 启动时做一次极简按需补偿检查（仅一次）
+    ensure_today_aired_done_if_due_once('startup')
+    # 取消低频健康检查方案，改为失败后按需重试调度
+except Exception:
+    pass
 
 # 缓存目录：放在 /app/config/cache 下，用户无需新增映射
 CACHE_DIR = os.path.abspath(os.path.join(app.root_path, '..', 'config', 'cache'))
@@ -655,6 +1291,11 @@ def notify_calendar_changed(reason: str = ""):
 def calendar_stream():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
+    # 在首个建立 SSE 的入口处触发一次极简按需检查（无需全局每请求检查）
+    try:
+        ensure_today_aired_done_if_due_once('calendar_stream')
+    except Exception:
+        pass
 
     def event_stream():
         q = Queue()
@@ -762,6 +1403,29 @@ def login():
     return render_template("login.html", error=None)
 
 
+# 确保已登录用户的会话保持永久状态，并动态设置 cookie secure 标志
+@app.before_request
+def make_session_permanent():
+    """确保已登录用户的会话保持永久状态，并根据请求协议动态设置 secure 标志"""
+    if session.get("token"):
+        session.permanent = True
+    
+    # 动态检测是否使用 HTTPS（支持反向代理场景）
+    is_secure = False
+    if request.is_secure:
+        # 直接使用 HTTPS
+        is_secure = True
+    elif request.headers.get('X-Forwarded-Proto') == 'https':
+        # 通过反向代理使用 HTTPS（如 Nginx、Apache 等）
+        is_secure = True
+    elif request.headers.get('X-Forwarded-Scheme') == 'https':
+        # 另一种常见的代理头
+        is_secure = True
+    
+    # 动态设置 SESSION_COOKIE_SECURE，让 Flask 自动处理 cookie 的 secure 标志
+    app.config["SESSION_COOKIE_SECURE"] = is_secure
+
+
 # 退出登录
 @app.route("/logout")
 def logout():
@@ -791,10 +1455,12 @@ def get_data():
     # 确保有秒级刷新默认值（不做迁移逻辑）
     perf = data.get('performance') if isinstance(data, dict) else None
     if not isinstance(perf, dict):
-        data['performance'] = {'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS}
+        data['performance'] = {'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS, 'aired_refresh_time': '00:00'}
     else:
         if 'calendar_refresh_interval_seconds' not in perf:
             data['performance']['calendar_refresh_interval_seconds'] = DEFAULT_REFRESH_SECONDS
+        if 'aired_refresh_time' not in perf:
+            data['performance']['aired_refresh_time'] = '00:00'
     
     # 确保海报语言有默认值
     if 'poster_language' not in data:
@@ -969,6 +1635,9 @@ def update():
     
     # 记录旧的海报语言设置
     old_poster_language = config_data.get('poster_language', 'zh-CN')
+    # 记录旧的播出集数刷新时间设置
+    old_perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
+    old_aired_refresh_time = old_perf.get('aired_refresh_time', '00:00')
     dont_save_keys = ["task_plugins_config_default", "api_token"]
     for key, value in request.json.items():
         if key not in dont_save_keys:
@@ -1010,7 +1679,7 @@ def update():
         prev_tmdb, new_tmdb = '', None
 
     import threading
-    def _post_update_tasks(old_task_map_snapshot, prev_tmdb_value, new_tmdb_value, old_poster_lang):
+    def _post_update_tasks(old_task_map_snapshot, prev_tmdb_value, new_tmdb_value, old_poster_lang, old_aired_refresh_time_value):
         # 检查海报语言设置是否改变
         new_poster_language = config_data.get('poster_language', 'zh-CN')
         if old_poster_lang != new_poster_language:
@@ -1021,6 +1690,19 @@ def update():
                 redownload_all_posters()
             except Exception as e:
                 logging.error(f"重新下载海报失败: {e}")
+        
+        # 检查播出集数刷新时间是否改变
+        new_perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
+        new_aired_refresh_time = new_perf.get('aired_refresh_time', '00:00')
+        if old_aired_refresh_time_value != new_aired_refresh_time:
+            try:
+                # 立即重新计算所有已播出集数，使用新的刷新时间设置
+                recompute_all_seasons_aired_daily()
+                # 通知前端日历数据已更新
+                notify_calendar_changed('aired_refresh_time_changed')
+                logging.info(f"播出集数刷新时间已更改 ({old_aired_refresh_time_value} -> {new_aired_refresh_time})，已重新计算已播出集数")
+            except Exception as e:
+                logging.warning(f"重新计算已播出集数失败: {e}")
         
         # 在保存配置时自动进行任务信息提取与TMDB匹配（若缺失则补齐）
         try:
@@ -1068,12 +1750,44 @@ def update():
         except Exception as e:
             logging.warning(f"自动清理本地日历缓存失败: {e}")
 
+        # 基于最新任务映射清理孤儿 metrics/seasons（避免残留）
+        try:
+            tasks = config_data.get('tasklist', [])
+            valid_names = []
+            valid_pairs = []
+            for t in tasks:
+                name = t.get('taskname') or t.get('task_name') or ''
+                cal = (t.get('calendar_info') or {})
+                match = (cal.get('match') or {})
+                tid = match.get('tmdb_id') or cal.get('tmdb_id')
+                sn = match.get('latest_season_number') or cal.get('latest_season_number')
+                if name:
+                    valid_names.append(name)
+                if tid and sn:
+                    try:
+                        valid_pairs.append((int(tid), int(sn)))
+                    except Exception:
+                        pass
+            try:
+                from app.sdk.db import CalendarDB as _CalDB
+                _CalDB().cleanup_orphan_data(valid_pairs, valid_names)
+            except Exception:
+                pass
+        except Exception as e:
+            logging.warning(f"自动清理孤儿季与指标失败: {e}")
+
 
         # 根据最新性能配置重启自动刷新任务
         try:
             restart_calendar_refresh_job()
         except Exception as e:
             logging.warning(f"重启追剧日历自动刷新任务失败: {e}")
+        
+        # 根据最新性能配置重启已播出集数更新任务
+        try:
+            restart_daily_aired_update_job()
+        except Exception as e:
+            logging.warning(f"重启已播出集数更新任务失败: {e}")
 
         # 如果 TMDB API 从无到有，自动执行一次 bootstrap
         try:
@@ -1091,13 +1805,14 @@ def update():
         except Exception as e:
             logging.warning(f"自动初始化 bootstrap 失败: {e}")
 
-    threading.Thread(target=_post_update_tasks, args=(old_task_map, prev_tmdb, new_tmdb, old_poster_language), daemon=True).start()
+    threading.Thread(target=_post_update_tasks, args=(old_task_map, prev_tmdb, new_tmdb, old_poster_language, old_aired_refresh_time), daemon=True).start()
     
     # 确保性能配置包含秒级字段
     if not isinstance(config_data.get('performance'), dict):
-        config_data['performance'] = {'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS}
+        config_data['performance'] = {'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS, 'aired_refresh_time': '00:00'}
     else:
         config_data['performance'].setdefault('calendar_refresh_interval_seconds', DEFAULT_REFRESH_SECONDS)
+        config_data['performance'].setdefault('aired_refresh_time', '00:00')
     Config.write_json(CONFIG_PATH, config_data)
     # 更新session token，确保当前会话在用户名密码更改后仍然有效
     session["token"] = get_login_token()
@@ -1127,10 +1842,13 @@ def run_script_now():
     tasklist = request.json.get("tasklist", [])
     command = [PYTHON_PATH, "-u", SCRIPT_PATH, CONFIG_PATH]
     logging.info(
-        f">>> 手动运行任务 [{tasklist[0].get('taskname') if len(tasklist)>0 else 'ALL'}] 开始执行..."
+        f">>> 开始执行手动运行任务 [{tasklist[0].get('taskname') if len(tasklist)>0 else 'ALL'}]"
     )
 
     def generate_output():
+        # 全局变量：跟踪上一次输出是否是空行
+        last_was_empty = False
+        
         # 设置环境变量
         process_env = os.environ.copy()
         process_env["PYTHONIOENCODING"] = "utf-8"
@@ -1151,12 +1869,36 @@ def run_script_now():
         )
         try:
             for line in iter(process.stdout.readline, ""):
-                logging.info(line.strip())
+                stripped_line = line.strip()
+                # 检查是否是空行
+                is_empty = not stripped_line
+                
+                # 如果是空行且上一次也是空行，跳过本次输出
+                if is_empty and last_was_empty:
+                    continue
+                
+                # 输出日志（空行也输出，但避免连续空行）
+                if is_empty:
+                    logging.info("")
+                    last_was_empty = True
+                else:
+                    logging.info(stripped_line)
+                    last_was_empty = False
+                
                 yield f"data: {line}\n\n"
             yield "data: [DONE]\n\n"
         finally:
             process.stdout.close()
             process.wait()
+            # 结束通知：仅在正常退出时记录成功日志，非零退出码记录警告
+            try:
+                task_name = tasklist[0].get('taskname') if len(tasklist) > 0 else 'ALL'
+            except Exception:
+                task_name = 'ALL'
+            if process.returncode == 0:
+                logging.info(f">>> 手动运行任务 [{task_name}] 执行成功")
+            else:
+                logging.warning(f">>> 手动运行任务 [{task_name}] 执行完成但返回非零退出码: {process.returncode}")
 
     return Response(
         stream_with_context(generate_output()),
@@ -1179,7 +1921,18 @@ def purge_calendar_by_tmdb_id_internal(tmdb_id: int, force: bool = False) -> boo
                     match = (cal.get('match') or {})
                     bound = match.get('tmdb_id') or cal.get('tmdb_id')
                     if bound and int(bound) == int(tmdb_id):
-                        logging.info(f"跳过清理 tmdb_id={tmdb_id}（仍被其他任务引用）")
+                        # 获取海报文件名用于日志提示
+                        try:
+                            db = CalendarDB()
+                            show = db.get_show(int(tmdb_id))
+                            poster_path = show.get('poster_local_path', '') if show else ''
+                            if poster_path and poster_path.startswith('/cache/images/'):
+                                poster_filename = poster_path.replace('/cache/images/', '')
+                            else:
+                                poster_filename = f"poster_{tmdb_id}"
+                        except Exception:
+                            poster_filename = f"poster_{tmdb_id}"
+                        logging.debug(f"跳过清理海报文件 {poster_filename}（仍被其他任务引用）")
                         return True
             except Exception:
                 pass
@@ -1301,7 +2054,7 @@ def sync_content_type_between_config_and_database() -> bool:
                             synced_count += 1
                             logging.debug(f"建立绑定关系并同步内容类型 - 任务: '{task_name}', 类型: '{config_content_type}', tmdb_id: {tmdb_id}")
                         else:
-                            logging.debug(f"任务有 TMDB 匹配信息但数据库中无对应节目 - 任务: '{task_name}', tmdb_id: {tmdb_id}")
+                            logging.debug(f"任务配置中的 TMDB ID 在数据库中不存在 - 任务: '{task_name}', tmdb_id: {tmdb_id}")
                     else:
                         logging.debug(f"任务无 TMDB 匹配信息，无法建立绑定关系 - 任务: '{task_name}'")
         
@@ -1474,7 +2227,9 @@ def ensure_calendar_info_for_tasks() -> bool:
                     logging.debug(f"TMDB季数数据: {seasons}")
                     
                     # 选择已播出的季中最新的一季
-                    current_date = datetime.now().date()
+                    # 使用有效日期判断季是否已播出（考虑播出集数刷新时间）
+                    effective_date_str = get_effective_date_for_aired_count()
+                    effective_date = datetime.strptime(effective_date_str, '%Y-%m-%d').date()
                     latest_season_number = 0
                     latest_air_date = None
                     
@@ -1483,11 +2238,11 @@ def ensure_calendar_info_for_tasks() -> bool:
                         air_date = s.get('air_date')
                         logging.debug(f"季数: {sn}, 播出日期: {air_date}, 类型: {type(sn)}")
                         
-                        # 只考虑已播出的季（有air_date且早于或等于当前日期）
+                        # 只考虑已播出的季（有air_date且早于或等于有效日期）
                         if sn and sn > 0 and air_date:  # 排除第0季（特殊季）
                             try:
                                 season_air_date = datetime.strptime(air_date, '%Y-%m-%d').date()
-                                if season_air_date <= current_date:
+                                if season_air_date <= effective_date:
                                     # 选择播出日期最新的季
                                     if latest_air_date is None or season_air_date > latest_air_date:
                                         latest_season_number = sn
@@ -1786,6 +2541,13 @@ def get_task_suggestions():
                     Config.write_json(CONFIG_PATH, config_data)
                 search_results = cs.clean_search_results(search.get("data"))
                 if isinstance(search_results, list):
+                    # 为 CloudSaver 结果补齐来源字段
+                    for it in search_results:
+                        try:
+                            if not it.get("source"):
+                                it["source"] = "CloudSaver"
+                        except Exception:
+                            pass
                     merged.extend(search_results)
                     providers.append("CloudSaver")
 
@@ -1795,6 +2557,13 @@ def get_task_suggestions():
                 ps = PanSou(ps_data.get("server"))
                 result = ps.search(search_query)
                 if result.get("success") and isinstance(result.get("data"), list):
+                    # 为 PanSou 结果补齐来源字段
+                    for it in result.get("data"):
+                        try:
+                            if not it.get("source"):
+                                it["source"] = "PanSou"
+                        except Exception:
+                            pass
                     merged.extend(result.get("data"))
                     providers.append("PanSou")
             except Exception as e:
@@ -1806,8 +2575,8 @@ def get_task_suggestions():
         # 2) 兜底（极少）：无链接时按完整指纹（shareurl|title|date|source）归并
         # 3) 二次归并：对所有候选结果再按 标题+发布时间 做一次归并（无论 shareurl 是否相同），取最新
         # 注意：当发生归并冲突时，始终保留发布时间最新的记录
-        dedup_map = {}          # 按 shareurl 归并
-        fingerprint_map = {}    # 兜底：完整指纹归并（仅当缺失链接时）
+        dedup_map = {}          # 按 shareurl 归并，值为 {item, _sources:set}
+        fingerprint_map = {}    # 兜底：完整指纹归并（仅当缺失链接时），同上
         # 规范化工具
         def normalize_shareurl(url: str) -> str:
             try:
@@ -1886,22 +2655,37 @@ def get_task_suggestions():
             # 条件1：按 shareurl 归并，取最新
             if shareurl:
                 existed = dedup_map.get(shareurl)
-                if not existed or to_ts(existed.get("publish_date")) < timestamp:
-                    dedup_map[shareurl] = item
+                if not existed or to_ts(existed["item"].get("publish_date")) < timestamp:
+                    dedup_map[shareurl] = {"item": item, "_sources": set([src for src in [source] if src])}
+                else:
+                    # 更新时间较旧但来源需要合并
+                    try:
+                        if source:
+                            existed["_sources"].add(source)
+                    except Exception:
+                        pass
             else:
                 # 条件2（兜底）：完整指纹归并（极少发生），依然取最新
                 fingerprint = f"{shareurl}|{title}|{pubdate}|{source}"
                 existed = fingerprint_map.get(fingerprint)
-                if not existed or to_ts(existed.get("publish_date")) < timestamp:
-                    fingerprint_map[fingerprint] = item
+                if not existed or to_ts(existed["item"].get("publish_date")) < timestamp:
+                    fingerprint_map[fingerprint] = {"item": item, "_sources": set([src for src in [source] if src])}
+                else:
+                    try:
+                        if source:
+                            existed["_sources"].add(source)
+                    except Exception:
+                        pass
 
         # 第一轮：汇总归并后的候选结果
         candidates = list(dedup_map.values()) + list(fingerprint_map.values())
 
         # 第二轮：无论 shareurl 是否相同，再按 标题+发布时间 归并一次（使用时间戳作为键，兼容不同时间格式），保留最新
         final_map = {}
-        for item in candidates:
+        for pack in candidates:
             try:
+                item = pack.get("item") if isinstance(pack, dict) else pack
+                src_set = pack.get("_sources") if isinstance(pack, dict) else set([ (item.get("source") or "").strip() ])
                 t = normalize_title(item.get("taskname") or "")
                 d = normalize_date(item.get("publish_date") or "")
                 s = normalize_shareurl(item.get("shareurl") or "")
@@ -1917,27 +2701,71 @@ def get_task_suggestions():
                 existed = final_map.get(key)
                 current_ts = to_ts(item.get("publish_date"))
                 if not existed:
-                    final_map[key] = item
+                    # 初次放入时带上来源集合
+                    item_copy = dict(item)
+                    item_copy["_sources"] = set([*list(src_set)])
+                    final_map[key] = item_copy
                 else:
                     existed_ts = to_ts(existed.get("publish_date"))
                     if current_ts > existed_ts:
-                        final_map[key] = item
+                        item_copy = dict(item)
+                        # 继承旧来源并合并新来源
+                        merged_sources = set(list(existed.get("_sources") or set()))
+                        for ssrc in list(src_set):
+                            if ssrc:
+                                merged_sources.add(ssrc)
+                        item_copy["_sources"] = merged_sources
+                        final_map[key] = item_copy
                     elif current_ts == existed_ts:
                         # 时间完全相同，使用确定性优先级打破平手
                         source_priority = {"CloudSaver": 2, "PanSou": 1}
                         existed_pri = source_priority.get((existed.get("source") or "").strip(), 0)
                         current_pri = source_priority.get(src, 0)
+                        # 无论谁胜出，都要合并来源集合
                         if current_pri > existed_pri:
-                            final_map[key] = item
+                            item_copy = dict(item)
+                            merged_sources = set(list(existed.get("_sources") or set()))
+                            for ssrc in list(src_set):
+                                if ssrc:
+                                    merged_sources.add(ssrc)
+                            item_copy["_sources"] = merged_sources
+                            final_map[key] = item_copy
                         elif current_pri == existed_pri:
                             # 进一步比较信息丰富度（content 长度）
                             if len(str(item.get("content") or "")) > len(str(existed.get("content") or "")):
-                                final_map[key] = item
+                                item_copy = dict(item)
+                                # 合并来源
+                                merged_sources = set(list(existed.get("_sources") or set()))
+                                for ssrc in list(src_set):
+                                    if ssrc:
+                                        merged_sources.add(ssrc)
+                                item_copy["_sources"] = merged_sources
+                                final_map[key] = item_copy
+                            else:
+                                # 即便不替换主体，也合并来源
+                                try:
+                                    merged_sources = set(list(existed.get("_sources") or set()))
+                                    for ssrc in list(src_set):
+                                        if ssrc:
+                                            merged_sources.add(ssrc)
+                                    existed["_sources"] = merged_sources
+                                except Exception:
+                                    pass
             except Exception:
                 # 出现异常则跳过该项
                 continue
 
-        dedup = list(final_map.values())
+        # 输出前：将来源集合压缩为展示字符串
+        dedup = []
+        for v in final_map.values():
+            try:
+                srcs = sorted([s for s in list(v.get("_sources") or []) if s])
+                v.pop("_sources", None)
+                if srcs:
+                    v["source"] = " · ".join(srcs)
+                dedup.append(v)
+            except Exception:
+                dedup.append(v)
 
         # 仅在排序时对多种格式进行解析（优先解析 YYYY-MM-DD HH:mm:ss，其次 ISO）
         if dedup:
@@ -2322,6 +3150,15 @@ def delete_file():
                 deleted_count = 0
                 for record_id in record_ids:
                     deleted_count += db.delete_record(record_id)
+                # 热更新：按保存路径推断任务名集合并触发进度重算
+                try:
+                    if deleted_count > 0:
+                        cursor.execute("SELECT DISTINCT task_name FROM transfer_records WHERE save_path = ?", (save_path,))
+                        task_names = [row[0] for row in (cursor.fetchall() or []) if row and row[0]]
+                        for tn in task_names:
+                            recompute_task_metrics_and_notify(tn)
+                except Exception:
+                    pass
                 
                 # 添加删除记录的信息到响应中
                 response["deleted_records"] = deleted_count
@@ -2478,7 +3315,30 @@ def add_task():
 
 # 定时任务执行的函数
 def run_python(args):
-    logging.info(f">>> 定时运行任务")
+    global _crontab_task_process
+    
+    logging.info(f">>> 开始执行定时运行全部任务")
+    
+    # 检查上一次任务是否还在运行，如果是则强制终止
+    if _crontab_task_process is not None:
+        try:
+            # 检查进程是否还在运行（poll() 返回 None 表示还在运行，返回退出码表示已结束）
+            poll_result = _crontab_task_process.poll()
+            if poll_result is None:  # 进程还在运行
+                logging.warning(f">>> 检测到上一次定时运行全部任务仍在运行，正在强制终止...")
+                _crontab_task_process.kill()
+                _crontab_task_process.wait(timeout=10)
+                logging.warning(f">>> 已强制终止上一次定时运行全部任务")
+            else:  # 进程已结束（正常或异常退出）
+                logging.debug(f">>> 上一次定时运行全部任务已结束（退出码: {poll_result}）")
+        except ProcessLookupError:
+            # 进程不存在（可能已被系统清理）
+            logging.debug(f">>> 上一次定时运行全部任务进程已不存在/已自动清理")
+        except Exception as e:
+            logging.warning(f">>> 检查/终止上一次定时运行全部任务时出错: {e}")
+        finally:
+            # 无论什么情况，都清除进程对象，确保下次能正常运行
+            _crontab_task_process = None
 
     # 在定时任务开始前清理过期缓存
     try:
@@ -2495,16 +3355,116 @@ def run_python(args):
             if delay_seconds > 0:
                 # 在0到设定值之间随机选择一个延迟时间
                 random_delay = random.randint(0, delay_seconds)
-                logging.info(f">>> 随机延迟执行 {random_delay}秒")
+                logging.info(f">>> 随机延迟执行 {random_delay} 秒")
                 time.sleep(random_delay)
         except (ValueError, TypeError):
             logging.warning(f">>> 延迟执行设置无效: {delay}")
 
-    os.system(f"{PYTHON_PATH} {args}")
+    # 内部函数：执行一次任务
+    def execute_task():
+        """执行一次定时任务，返回退出码"""
+        global _crontab_task_process
+        
+        process_env = os.environ.copy()
+        process_env["PYTHONIOENCODING"] = "utf-8"
+        
+        # 构建命令
+        if isinstance(args, str):
+            import shlex
+            args_list = shlex.split(args)
+            command = [PYTHON_PATH] + args_list
+        else:
+            command = [PYTHON_PATH] + list(args)
+        
+        # 启动进程并记录，实时输出日志
+        _crontab_task_process = subprocess.Popen(
+            command,
+            env=process_env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,  # 行缓冲，确保实时输出
+        )
+        
+        # 实时读取输出并写入日志，保留完整日志功能
+        # 全局变量：跟踪上一次输出是否是空行
+        last_was_empty = False
+        
+        try:
+            for line in iter(_crontab_task_process.stdout.readline, ""):
+                stripped_line = line.rstrip()
+                # 检查是否是空行（去除换行符后是否为空）
+                is_empty = not stripped_line
+                
+                # 如果是空行且上一次也是空行，跳过本次输出
+                if is_empty and last_was_empty:
+                    continue
+                
+                # 输出日志（空行也输出，但避免连续空行）
+                if is_empty:
+                    logging.info("")
+                    last_was_empty = True
+                else:
+                    logging.info(stripped_line)
+                    last_was_empty = False
+        finally:
+            _crontab_task_process.stdout.close()
+        
+        # 等待进程完成并返回退出码
+        returncode = _crontab_task_process.wait()
+        return returncode
+
+    # 执行任务，支持重试机制
+    max_retries = 1  # 最多重试1次（即总共执行2次）
+    retry_count = 0
+    returncode = None
+    
+    try:
+        # 第一次执行
+        returncode = execute_task()
+        
+        if returncode == 0:
+            logging.info(f">>> 定时运行全部任务执行成功")
+        else:
+            logging.warning(f">>> 定时运行全部任务执行完成但返回非零退出码: {returncode}")
+            
+            # 如果返回非零退出码，进行重试
+            if retry_count < max_retries:
+                retry_count += 1
+                logging.warning(f">>> 检测到非零退出码，将在 5 秒后自动重试一次定时运行全部任务...")
+                time.sleep(5)  # 重试前等待5秒，避免立即重试
+                logging.info(f">>> 开始重试定时运行全部任务")
+                
+                # 重试执行
+                returncode = execute_task()
+                
+                if returncode == 0:
+                    logging.info(f">>> 定时运行全部任务重试成功")
+                else:
+                    logging.warning(f">>> 定时运行全部任务重试完成但返回非零退出码: {returncode}")
+        
+        # 定时任务执行完毕后，通知前端更新（包括已转存集数和当日更新标识）
+        # 注意：每个转存成功时已经通过 /api/calendar/metrics/sync_task 更新了数据库并发送了通知
+        # 这里只需要发送一个总体的完成通知，让前端知道定时任务已完成，可以统一刷新数据
+        try:
+            notify_calendar_changed('crontab_task_completed')
+            logging.debug(f">>> 已通知前端更新已转存集数和当日更新标识（定时任务执行完毕）")
+        except Exception as e:
+            logging.warning(f">>> 通知前端更新已转存集数和当日更新标识失败: {e}")
+    except Exception as e:
+        logging.error(f">>> 定时运行全部任务执行异常: {str(e)}")
+        import traceback
+        logging.error(f">>> 异常堆栈: {traceback.format_exc()}")
+    finally:
+        # 任务完成，清除进程对象
+        _crontab_task_process = None
 
 
 # 重新加载任务
 def reload_tasks():
+    global _last_crontab, _last_crontab_delay
     # 读取定时规则
     if crontab := config_data.get("crontab"):
         if scheduler.state == 1:
@@ -2516,22 +3476,43 @@ def reload_tasks():
             trigger=trigger,
             args=[f"{SCRIPT_PATH} {CONFIG_PATH}"],
             id=SCRIPT_PATH,
+            misfire_grace_time=None,
+            coalesce=True,
+            max_instances=1,
         )
         if scheduler.state == 0:
             scheduler.start()
         elif scheduler.state == 2:
             scheduler.resume()
-        scheduler_state_map = {0: "停止", 1: "运行", 2: "暂停"}
-        logging.info(">>> 重载调度器")
-        logging.info(f"调度状态: {scheduler_state_map[scheduler.state]}")
-        logging.info(f"定时规则: {crontab}")
-        # 记录延迟执行设置
-        if delay := config_data.get("crontab_delay"):
-            logging.info(f"延迟执行: 0-{delay}秒")
-        logging.info(f"现有任务: {scheduler.get_jobs()}")
+        
+        # 读取延迟执行设置
+        delay = config_data.get("crontab_delay")
+        delay_str = str(delay) if delay is not None else None
+        
+        # 仅在配置真正改变时输出日志（避免重复输出）
+        crontab_changed = (_last_crontab != crontab)
+        delay_changed = (_last_crontab_delay != delay_str)
+        
+        if crontab_changed or delay_changed:
+            scheduler_state_map = {0: "停止", 1: "运行", 2: "暂停"}
+            logging.info(">>> 重载调度器")
+            logging.info(f"调度状态: {scheduler_state_map[scheduler.state]}")
+            # 合并输出：定时规则 + 任务说明
+            logging.info(f"已启动定时运行全部任务，定时规则 {crontab}")
+            # 记录延迟执行设置
+            if delay:
+                logging.info(f"延迟执行: 0-{delay}秒")
+            # 更新记录的值
+            _last_crontab = crontab
+            _last_crontab_delay = delay_str
+        # 不再冗余输出现有任务列表
         return True
     else:
-        logging.info(">>> no crontab")
+        # crontab 被移除的情况
+        if _last_crontab is not None:
+            logging.info(">>> no crontab")
+            _last_crontab = None
+            _last_crontab_delay = None
         return False
 
 
@@ -2567,6 +3548,10 @@ def init():
     # 默认延迟执行设置
     if "crontab_delay" not in config_data:
         config_data["crontab_delay"] = 0
+    
+    # 默认执行周期模式设置
+    if "execution_mode" not in config_data:
+        config_data["execution_mode"] = "manual"
 
     # 初始化插件配置
     _, plugins_config_default, task_plugins_config_default = Config.load_plugins()
@@ -2708,6 +3693,19 @@ def delete_history_records():
     deleted_count = 0
     for record_id in record_ids:
         deleted_count += db.delete_record(record_id)
+
+    # 热更新：按记录 id 反查任务名并重算进度
+    try:
+        if deleted_count > 0:
+            cursor = db.conn.cursor()
+            placeholders = ','.join(['?'] * len(record_ids)) if record_ids else ''
+            if placeholders:
+                cursor.execute(f"SELECT DISTINCT task_name FROM transfer_records WHERE id IN ({placeholders})", record_ids)
+                task_names = [row[0] for row in (cursor.fetchall() or []) if row and row[0]]
+                for tn in task_names:
+                    recompute_task_metrics_and_notify(tn)
+    except Exception:
+        pass
 
     # 广播通知：有记录被删除，触发前端刷新任务/日历
     try:
@@ -2944,6 +3942,16 @@ def delete_history_record():
     
     # 删除记录
     deleted = db.delete_record(record_id)
+    # 热更新：根据记录 id 反查任务名并重算进度
+    try:
+        if deleted:
+            cursor = db.conn.cursor()
+            cursor.execute('SELECT task_name FROM transfer_records WHERE id = ?', (record_id,))
+            row = cursor.fetchone()
+            if row and row[0]:
+                recompute_task_metrics_and_notify(row[0])
+    except Exception:
+        pass
 
     # 广播通知：有记录被删除，触发前端刷新任务/日历
     try:
@@ -3171,6 +4179,15 @@ def reset_folder():
             # 删除找到的所有记录
             for record_id in record_ids:
                 deleted_records += db.delete_record(record_id)
+            # 热更新：按保存路径推断任务名集合并触发进度重算
+            try:
+                if deleted_records > 0:
+                    cursor.execute("SELECT DISTINCT task_name FROM transfer_records WHERE save_path = ?", (save_path,))
+                    task_names = [row[0] for row in (cursor.fetchall() or []) if row and row[0]]
+                    for tn in task_names:
+                        recompute_task_metrics_and_notify(tn)
+            except Exception:
+                pass
                 
         except Exception as e:
             logging.error(f">>> 删除记录时出错: {str(e)}")
@@ -3545,6 +4562,10 @@ def batch_rename():
                         "new_name": new_name,
                         "error": str(e)
                     })
+        
+        # 如果有成功重命名的文件，触发SSE通知
+        if success_count > 0:
+            notify_calendar_changed('batch_rename_completed')
         
         return jsonify({
             "success": True, 
@@ -4060,7 +5081,9 @@ def process_single_task_async(task, tmdb_service, cal_db):
                     logging.debug(f"process_single_task_async - TMDB季数数据: {seasons}")
                     
                     # 选择已播出的季中最新的一季
-                    current_date = datetime.now().date()
+                    # 使用有效日期判断季是否已播出（考虑播出集数刷新时间）
+                    effective_date_str = get_effective_date_for_aired_count()
+                    effective_date = datetime.strptime(effective_date_str, '%Y-%m-%d').date()
                     latest_season_number = 0
                     latest_air_date = None
                     
@@ -4069,11 +5092,11 @@ def process_single_task_async(task, tmdb_service, cal_db):
                         air_date = s.get('air_date')
                         logging.debug(f"process_single_task_async - 季数: {sn}, 播出日期: {air_date}, 类型: {type(sn)}")
                         
-                        # 只考虑已播出的季（有air_date且早于或等于当前日期）
+                        # 只考虑已播出的季（有air_date且早于或等于有效日期）
                         if sn and sn > 0 and air_date:  # 排除第0季（特殊季）
                             try:
                                 season_air_date = datetime.strptime(air_date, '%Y-%m-%d').date()
-                                if season_air_date <= current_date:
+                                if season_air_date <= effective_date:
                                     # 选择播出日期最新的季
                                     if latest_air_date is None or season_air_date > latest_air_date:
                                         latest_season_number = sn
@@ -4129,15 +5152,24 @@ def process_single_task_async(task, tmdb_service, cal_db):
                 latest_season_number = updated_match.get('latest_season_number') or 1
                 logging.debug(f"process_single_task_async - 最终使用的季数: {latest_season_number}")
 
-                poster_local_path = ''
-                if poster_path:
-                    poster_local_path = download_poster_local(poster_path)
-
                 # 获取现有的绑定关系和内容类型，避免被覆盖
                 existing_show = cal_db.get_show(int(tmdb_id))
                 existing_bound_tasks = existing_show.get('bound_task_names', '') if existing_show else ''
                 existing_content_type = existing_show.get('content_type', '') if existing_show else ''
+                existing_poster_path = existing_show.get('poster_local_path', '') if existing_show else ''
+                is_custom_poster = bool(existing_show.get('is_custom_poster', 0)) if existing_show else False
+                
+                poster_local_path = ''
+                if poster_path:
+                    poster_local_path = download_poster_local(poster_path, int(tmdb_id), existing_poster_path, is_custom_poster)
                 cal_db.upsert_show(int(tmdb_id), name, first_air, status, poster_local_path, int(latest_season_number), 0, existing_bound_tasks, existing_content_type)
+                
+                # 如果海报路径发生变化，触发孤立文件清理
+                if poster_local_path and poster_local_path != existing_poster_path:
+                    try:
+                        cleanup_orphaned_posters()
+                    except Exception as e:
+                        logging.warning(f"清理孤立海报失败: {e}")
                 
                 # 更新 seasons 表
                 refresh_url = f"/tv/{tmdb_id}/season/{latest_season_number}"
@@ -4167,6 +5199,19 @@ def process_single_task_async(task, tmdb_service, cal_db):
                 try:
                     season = tmdb_service.get_tv_show_episodes(int(tmdb_id), int(latest_season_number)) or {}
                     episodes = season.get('episodes', []) or []
+                    # 根因修复：清理本地该季中 TMDB 不存在的多余集
+                    try:
+                        valid_eps = []
+                        for _ep in episodes:
+                            try:
+                                n = int(_ep.get('episode_number') or 0)
+                                if n > 0:
+                                    valid_eps.append(n)
+                            except Exception:
+                                pass
+                        cal_db.prune_season_episodes_not_in(int(tmdb_id), int(latest_season_number), valid_eps)
+                    except Exception:
+                        pass
                     from time import time as _now
                     now_ts = int(_now())
                     for ep in episodes:
@@ -4243,14 +5288,16 @@ def do_calendar_bootstrap() -> tuple:
             poster_path = tmdb_service.get_poster_path_with_language(int(tmdb_id)) if tmdb_service else (details.get('poster_path') or '')
             latest_season_number = match.get('latest_season_number') or 1
 
-            poster_local_path = ''
-            if poster_path:
-                poster_local_path = download_poster_local(poster_path)
-
             # 获取现有的绑定关系和内容类型，避免被覆盖
             existing_show = cal_db.get_show(int(tmdb_id))
             existing_bound_tasks = existing_show.get('bound_task_names', '') if existing_show else ''
             existing_content_type = existing_show.get('content_type', '') if existing_show else ''
+            existing_poster_path = existing_show.get('poster_local_path', '') if existing_show else ''
+            is_custom_poster = bool(existing_show.get('is_custom_poster', 0)) if existing_show else False
+            
+            poster_local_path = ''
+            if poster_path:
+                poster_local_path = download_poster_local(poster_path, int(tmdb_id), existing_poster_path, is_custom_poster)
             cal_db.upsert_show(int(tmdb_id), name, first_air, status, poster_local_path, int(latest_season_number), 0, existing_bound_tasks, existing_content_type)
             refresh_url = f"/tv/{tmdb_id}/season/{latest_season_number}"
             # 处理季名称
@@ -4279,6 +5326,19 @@ def do_calendar_bootstrap() -> tuple:
             try:
                 season = tmdb_service.get_tv_show_episodes(int(tmdb_id), int(latest_season_number)) or {}
                 episodes = season.get('episodes', []) or []
+                # 根因修复：清理本地该季中 TMDB 不存在的多余集
+                try:
+                    valid_eps = []
+                    for _ep in episodes:
+                        try:
+                            n = int(_ep.get('episode_number') or 0)
+                            if n > 0:
+                                valid_eps.append(n)
+                        except Exception:
+                            pass
+                    cal_db.prune_season_episodes_not_in(int(tmdb_id), int(latest_season_number), valid_eps)
+                except Exception:
+                    pass
                 from time import time as _now
                 now_ts = int(_now())
                 for ep in episodes:
@@ -4338,6 +5398,49 @@ def clear_all_posters():
         logging.error(f"清空海报文件失败: {e}")
         return False
 
+def cleanup_orphaned_posters():
+    """清理孤立的旧海报文件（不在数据库中的海报文件）"""
+    try:
+        from app.sdk.db import CalendarDB
+        cal_db = CalendarDB()
+        
+        # 获取数据库中所有正在使用的海报路径
+        shows = cal_db.get_all_shows()
+        used_posters = set()
+        for show in shows:
+            poster_path = show.get('poster_local_path', '')
+            if poster_path and poster_path.startswith('/cache/images/'):
+                poster_name = poster_path.replace('/cache/images/', '')
+                used_posters.add(poster_name)
+        
+        # 扫描缓存目录中的所有文件
+        if os.path.exists(CACHE_IMAGES_DIR):
+            orphaned_files = []
+            for filename in os.listdir(CACHE_IMAGES_DIR):
+                if filename not in used_posters:
+                    file_path = os.path.join(CACHE_IMAGES_DIR, filename)
+                    if os.path.isfile(file_path):
+                        orphaned_files.append(file_path)
+            
+            # 删除孤立文件
+            deleted_count = 0
+            for file_path in orphaned_files:
+                try:
+                    os.remove(file_path)
+                    deleted_count += 1
+                except Exception as e:
+                    logging.warning(f"删除孤立海报文件失败: {e}")
+            
+            # 只在删除了文件时才输出日志
+            if deleted_count > 0:
+                logging.info(f"海报清理完成，删除了 {deleted_count} 个孤立文件")
+            return deleted_count > 0
+        
+        return False
+    except Exception as e:
+        logging.error(f"清理孤立海报失败: {e}")
+        return False
+
 def redownload_all_posters():
     """重新下载所有海报"""
     try:
@@ -4369,8 +5472,11 @@ def redownload_all_posters():
                 # 获取新的海报路径
                 new_poster_path = tmdb_service.get_poster_path_with_language(int(tmdb_id))
                 if new_poster_path:
+                    # 获取现有海报信息
+                    existing_poster_path = show.get('poster_local_path', '')
+                    is_custom_poster = bool(show.get('is_custom_poster', 0))
                     # 下载新海报
-                    poster_local_path = download_poster_local(new_poster_path)
+                    poster_local_path = download_poster_local(new_poster_path, int(tmdb_id), existing_poster_path, is_custom_poster)
                     if poster_local_path:
                         # 更新数据库中的海报路径
                         cal_db.update_show_poster(int(tmdb_id), poster_local_path)
@@ -4385,14 +5491,27 @@ def redownload_all_posters():
                 logging.error(f"重新下载海报失败 (TMDB ID: {show.get('tmdb_id')}): {e}")
                 continue
                 
+        # 重新下载完成后，清理孤立的旧海报文件
+        try:
+            cleanup_orphaned_posters()
+        except Exception as e:
+            logging.warning(f"清理孤立海报失败: {e}")
+        
         return success_count > 0
         
     except Exception as e:
         logging.error(f"重新下载所有海报失败: {e}")
         return False
 
-def download_poster_local(poster_path: str) -> str:
-    """下载 TMDB 海报到本地 static/cache/images 下，等比缩放为宽400px，返回相对路径。"""
+def download_poster_local(poster_path: str, tmdb_id: int = None, existing_poster_path: str = None, is_custom_poster: bool = False) -> str:
+    """下载 TMDB 海报到本地 static/cache/images 下，等比缩放为宽400px，返回相对路径。
+    
+    Args:
+        poster_path: TMDB海报路径
+        tmdb_id: TMDB ID，用于检查自定义海报标记
+        existing_poster_path: 现有的海报路径，用于检查是否需要更新
+        is_custom_poster: 是否为自定义海报标记
+    """
     try:
         if not poster_path:
             return ''
@@ -4405,6 +5524,25 @@ def download_poster_local(poster_path: str) -> str:
         # 检查文件是否已存在，如果存在则直接返回路径
         if os.path.exists(file_path):
             return f"/cache/images/{safe_name}"
+        
+        # 如果提供了现有海报路径，检查是否需要更新
+        if existing_poster_path and tmdb_id is not None:
+            existing_file_name = existing_poster_path.replace('/cache/images/', '')
+            new_file_name = safe_name
+            
+            # 如果文件名不同，说明TMDB海报有变更
+            if existing_file_name != new_file_name:
+                # 检查是否有自定义海报标记
+                if is_custom_poster:
+                    return existing_poster_path
+                else:
+                    # 删除旧文件
+                    try:
+                        old_file_path = os.path.join(folder, existing_file_name)
+                        if os.path.exists(old_file_path):
+                            os.remove(old_file_path)
+                    except Exception as e:
+                        logging.warning(f"删除旧海报文件失败: {e}")
         
         # 文件不存在，需要下载
         base = "https://image.tmdb.org/t/p/w400"
@@ -4570,6 +5708,19 @@ def calendar_refresh_latest_season():
         now_ts = int(_now())
 
         any_written = False
+        # 根因修复：清理本地该季中 TMDB 不存在的多余集
+        try:
+            valid_eps = []
+            for _ep in episodes:
+                try:
+                    n = int(_ep.get('episode_number') or 0)
+                    if n > 0:
+                        valid_eps.append(n)
+                except Exception:
+                    pass
+            cal_db.prune_season_episodes_not_in(int(tmdb_id), int(latest_season), valid_eps)
+        except Exception:
+            pass
         for ep in episodes:
             cal_db.upsert_episode(
                 tmdb_id=int(tmdb_id),
@@ -4598,6 +5749,21 @@ def calendar_refresh_latest_season():
                 f"/tv/{tmdb_id}/season/{latest_season}",
                 season_name_processed
             )
+            # 写回 season_metrics（air/total），transferred 留待聚合更新
+            try:
+                # 使用有效日期计算已播出集数
+                effective_date = get_effective_date_for_aired_count()
+                cur = cal_db.conn.cursor()
+                cur.execute("""
+                    SELECT COUNT(1) FROM episodes
+                    WHERE tmdb_id=? AND season_number=? AND air_date IS NOT NULL AND air_date != '' AND air_date <= ?
+                """, (int(tmdb_id), int(latest_season), effective_date))
+                aired_cnt = int((cur.fetchone() or [0])[0])
+                progress_pct = 0
+                from time import time as _now
+                cal_db.upsert_season_metrics(int(tmdb_id), int(latest_season), None, aired_cnt, int(len(episodes)), int(progress_pct), int(_now()))
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -4718,6 +5884,20 @@ def calendar_refresh_season():
         from time import time as _now
         now_ts = int(_now())
         
+        # 根因修复：清理本地该季中 TMDB 不存在的多余集
+        try:
+            valid_eps = []
+            for _ep in episodes:
+                try:
+                    n = int(_ep.get('episode_number') or 0)
+                    if n > 0:
+                        valid_eps.append(n)
+                except Exception:
+                    pass
+            cal_db.prune_season_episodes_not_in(int(tmdb_id), int(season_number), valid_eps)
+        except Exception:
+            pass
+
         updated_count = 0
         for ep in episodes:
             cal_db.upsert_episode(
@@ -4747,6 +5927,20 @@ def calendar_refresh_season():
                 f"/tv/{tmdb_id}/season/{season_number}",
                 season_name_processed
             )
+            # 写回 season_metrics（air/total），transferred 留待聚合更新
+            try:
+                # 使用有效日期计算已播出集数
+                effective_date = get_effective_date_for_aired_count()
+                cur = cal_db.conn.cursor()
+                cur.execute("""
+                    SELECT COUNT(1) FROM episodes
+                    WHERE tmdb_id=? AND season_number=? AND air_date IS NOT NULL AND air_date != '' AND air_date <= ?
+                """, (int(tmdb_id), int(season_number), effective_date))
+                aired_cnt = int((cur.fetchone() or [0])[0])
+                from time import time as _now
+                cal_db.upsert_season_metrics(int(tmdb_id), int(season_number), None, aired_cnt, int(len(episodes)), int(_now()))
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -4824,7 +6018,9 @@ def calendar_refresh_show():
         poster_local_path = ''
         try:
             if poster_path:
-                poster_local_path = download_poster_local(poster_path)
+                existing_poster_path = existing_show.get('poster_local_path', '') if existing_show else ''
+                is_custom_poster = bool(existing_show.get('is_custom_poster', 0)) if existing_show else False
+                poster_local_path = download_poster_local(poster_path, int(tmdb_id), existing_poster_path, is_custom_poster)
             elif existing_show and existing_show.get('poster_local_path'):
                 poster_local_path = existing_show.get('poster_local_path')
         except Exception:
@@ -4844,6 +6040,14 @@ def calendar_refresh_show():
             bound_task_names,
             content_type
         )
+
+        # 如果海报路径发生变化，触发孤立文件清理
+        existing_poster_path = existing_show.get('poster_local_path', '') if existing_show else ''
+        if poster_local_path and poster_local_path != existing_poster_path:
+            try:
+                cleanup_orphaned_posters()
+            except Exception as e:
+                logging.warning(f"清理孤立海报失败: {e}")
 
         try:
             notify_calendar_changed('refresh_show')
@@ -5037,6 +6241,19 @@ def calendar_edit_metadata():
                     cal_db.purge_other_seasons(int(new_tid), int(season_no))
                 except Exception:
                     pass
+                # 根因修复：清理本地该季中 TMDB 不存在的多余集
+                try:
+                    valid_eps = []
+                    for _ep in eps:
+                        try:
+                            n = int(_ep.get('episode_number') or 0)
+                            if n > 0:
+                                valid_eps.append(n)
+                        except Exception:
+                            pass
+                    cal_db.prune_season_episodes_not_in(int(new_tid), int(season_no), valid_eps)
+                except Exception:
+                    pass
                 for ep in eps:
                     cal_db.upsert_episode(
                         tmdb_id=int(new_tid),
@@ -5054,6 +6271,21 @@ def calendar_edit_metadata():
                     sname = tmdb_service.process_season_name(sname_raw) if tmdb_service else sname_raw
                     cal_db.upsert_season(int(new_tid), int(season_no), len(eps), f"/tv/{new_tid}/season/{season_no}", sname)
                     cal_db.update_show_latest_season_number(int(new_tid), int(season_no))
+                    # 写回 season_metrics（air/total），transferred 留给聚合环节补齐
+                    try:
+                        # 使用有效日期计算已播出集数
+                        effective_date = get_effective_date_for_aired_count()
+                        cur = cal_db.conn.cursor()
+                        cur.execute("""
+                            SELECT COUNT(1) FROM episodes
+                            WHERE tmdb_id=? AND season_number=? AND air_date IS NOT NULL AND air_date != '' AND air_date <= ?
+                        """, (int(new_tid), int(season_no), effective_date))
+                        aired_cnt = int((cur.fetchone() or [0])[0])
+                        progress_pct = 0  # 此处无 transferred_count，百分比暂置 0，由聚合环节补齐
+                        from time import time as _now
+                        cal_db.upsert_season_metrics(int(new_tid), int(season_no), None, aired_cnt, int(len(eps)), int(progress_pct), int(_now()))
+                    except Exception:
+                        pass
                 except Exception:
                     pass
             except Exception as e:
@@ -5067,6 +6299,27 @@ def calendar_edit_metadata():
                     purge_calendar_by_tmdb_id_internal(int(old_to_purge_tmdb_id))
                 except Exception as e:
                     logging.warning(f"清理旧 tmdb 失败: {e}")
+            # 基于最新任务映射清理孤儿季与指标
+            try:
+                _tasks = config_data.get('tasklist', [])
+                _valid_names = []
+                _valid_pairs = []
+                for _t in _tasks:
+                    _n = _t.get('taskname') or _t.get('task_name') or ''
+                    _cal = (_t.get('calendar_info') or {})
+                    _match = (_cal.get('match') or {})
+                    _tid = _match.get('tmdb_id') or _cal.get('tmdb_id')
+                    _sn = _match.get('latest_season_number') or _cal.get('latest_season_number')
+                    if _n:
+                        _valid_names.append(_n)
+                    if _tid and _sn:
+                        try:
+                            _valid_pairs.append((int(_tid), int(_sn)))
+                        except Exception:
+                            pass
+                CalendarDB().cleanup_orphan_data(_valid_pairs, _valid_names)
+            except Exception:
+                pass
         # 场景二：未提供 new_tmdb_id，但提供了 new_season_number（仅修改季数）
         elif (new_season_number is not None) and (str(new_season_number).strip() != '') and old_tmdb_id:
             try:
@@ -5098,6 +6351,19 @@ def calendar_edit_metadata():
                     # 清理除当前季外其他季，避免残留
                     try:
                         cal_db.purge_other_seasons(int(old_tmdb_id), int(season_no))
+                    except Exception:
+                        pass
+                    # 根因修复：清理本地该季中 TMDB 不存在的多余集
+                    try:
+                        valid_eps = []
+                        for _ep in eps:
+                            try:
+                                n = int(_ep.get('episode_number') or 0)
+                                if n > 0:
+                                    valid_eps.append(n)
+                            except Exception:
+                                pass
+                        cal_db.prune_season_episodes_not_in(int(old_tmdb_id), int(season_no), valid_eps)
                     except Exception:
                         pass
                     for ep in eps:
@@ -5132,6 +6398,27 @@ def calendar_edit_metadata():
                     pass
 
                 changed = True
+                # 基于最新任务映射清理孤儿季与指标
+                try:
+                    _tasks = config_data.get('tasklist', [])
+                    _valid_names = []
+                    _valid_pairs = []
+                    for _t in _tasks:
+                        _n = _t.get('taskname') or _t.get('task_name') or ''
+                        _cal = (_t.get('calendar_info') or {})
+                        _match = (_cal.get('match') or {})
+                        _tid = _match.get('tmdb_id') or _cal.get('tmdb_id')
+                        _sn = _match.get('latest_season_number') or _cal.get('latest_season_number')
+                        if _n:
+                            _valid_names.append(_n)
+                        if _tid and _sn:
+                            try:
+                                _valid_pairs.append((int(_tid), int(_sn)))
+                            except Exception:
+                                pass
+                    CalendarDB().cleanup_orphan_data(_valid_pairs, _valid_names)
+                except Exception:
+                    pass
 
         # 处理自定义海报
         if custom_poster_url:
@@ -5164,7 +6451,13 @@ def calendar_edit_metadata():
                     saved_path = download_custom_poster(custom_poster_url, current_tmdb_id, target_safe_name)
 
                     if saved_path:
-                        # 若文件名发生变化则需要同步数据库并清理旧文件
+                        # 更新数据库路径，标记为自定义海报
+                        try:
+                            cal_db.update_show_poster(int(current_tmdb_id), saved_path, is_custom_poster=1)
+                        except Exception as e:
+                            logging.warning(f"更新海报路径失败: {e}")
+                        
+                        # 若文件名发生变化则需要删除旧文件
                         try:
                             existing_path = ''
                             if show_row:
@@ -5179,14 +6472,15 @@ def calendar_edit_metadata():
                                             os.remove(old_path)
                                 except Exception as e:
                                     logging.warning(f"删除旧海报失败: {e}")
-                                # 更新数据库路径
-                                try:
-                                    cal_db.update_show_poster(int(current_tmdb_id), saved_path)
-                                except Exception as e:
-                                    logging.warning(f"更新海报路径失败: {e}")
                         except Exception:
                             # 即使对比失败也不影响功能
                             pass
+                        
+                        # 用户上传自定义海报后，总是触发孤立文件清理
+                        try:
+                            cleanup_orphaned_posters()
+                        except Exception as e:
+                            logging.warning(f"清理孤立海报失败: {e}")
 
                         # 成功更新自定义海报（静默）
                         changed = True
@@ -5261,6 +6555,7 @@ def get_calendar_show_info():
 # --------- 日历刷新调度：按性能设置的周期自动刷新最新季 ---------
 def restart_calendar_refresh_job():
     try:
+        global _calendar_refresh_last_interval
         # 读取用户配置的刷新周期（秒），默认21600秒（6小时）
         perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
         interval_seconds = int(perf.get('calendar_refresh_interval_seconds', 21600))
@@ -5270,7 +6565,10 @@ def restart_calendar_refresh_job():
                 scheduler.remove_job('calendar_refresh_job')
             except Exception:
                 pass
-            logging.info("已关闭追剧日历元数据自动刷新")
+            # 只在状态改变时输出日志
+            if _calendar_refresh_last_interval is not None:
+                logging.info("已关闭追剧日历元数据自动刷新")
+                _calendar_refresh_last_interval = None
             return
 
         # 重置任务
@@ -5278,12 +6576,70 @@ def restart_calendar_refresh_job():
             scheduler.remove_job('calendar_refresh_job')
         except Exception:
             pass
-        scheduler.add_job(run_calendar_refresh_all_internal, IntervalTrigger(seconds=interval_seconds), id='calendar_refresh_job', replace_existing=True)
+        scheduler.add_job(
+            run_calendar_refresh_all_internal_wrapper,
+            IntervalTrigger(seconds=interval_seconds),
+            id='calendar_refresh_job',
+            replace_existing=True,
+            misfire_grace_time=None,
+            coalesce=True,
+            max_instances=1,
+        )
         if scheduler.state == 0:
             scheduler.start()
-        logging.info(f"已启动追剧日历自动刷新，周期 {interval_seconds} 秒")
+        # 友好提示：仅在周期变化时输出日志（避免重复输出）
+        try:
+            if IS_FLASK_SERVER_PROCESS:
+                if _calendar_refresh_last_interval != interval_seconds:
+                    logging.info(f"已启动追剧日历自动刷新，周期 {interval_seconds} 秒")
+                    _calendar_refresh_last_interval = interval_seconds
+        except Exception:
+            pass
     except Exception as e:
         logging.warning(f"配置自动刷新任务失败: {e}")
+
+
+def run_calendar_refresh_all_internal_wrapper():
+    """
+    追剧日历自动刷新的包装函数，用于检查上一次任务是否还在运行
+    """
+    global _calendar_refresh_thread
+    
+    logging.info(f">>> 开始执行追剧日历自动刷新")
+    
+    # 检查上一次任务是否还在运行
+    if _calendar_refresh_thread is not None:
+        try:
+            if _calendar_refresh_thread.is_alive():  # 线程还在运行
+                logging.warning(f">>> 检测到上一次追剧日历自动刷新仍在运行，将忽略并继续执行新任务")
+                # 注意：Python 线程无法强制终止，只能记录警告
+                # 但由于调度器会继续执行，不会阻塞后续任务
+            else:  # 线程已结束（正常或异常退出）
+                logging.debug(f">>> 上一次追剧日历自动刷新已结束")
+        except Exception as e:
+            logging.warning(f">>> 检查上一次追剧日历自动刷新任务状态时出错: {e}")
+        finally:
+            # 无论什么情况，都清除线程对象，确保下次能正常运行
+            _calendar_refresh_thread = None
+    
+    # 在新线程中执行任务，记录线程对象以便下次检查
+    def run_in_thread():
+        global _calendar_refresh_thread
+        try:
+            run_calendar_refresh_all_internal()
+            logging.info(f">>> 追剧日历自动刷新执行成功")
+        except Exception as e:
+            logging.error(f">>> 追剧日历自动刷新执行异常: {str(e)}")
+            import traceback
+            logging.error(f">>> 异常堆栈: {traceback.format_exc()}")
+        finally:
+            # 任务完成，清除线程对象
+            _calendar_refresh_thread = None
+    
+    _calendar_refresh_thread = Thread(target=run_in_thread, daemon=True)
+    _calendar_refresh_thread.start()
+    # 不等待线程完成，让调度器认为任务已启动
+    # 这样即使任务运行时间很长，也不会阻塞后续任务
 
 
 def run_calendar_refresh_all_internal():
@@ -5303,6 +6659,7 @@ def run_calendar_refresh_all_internal():
         except Exception:
             shows = []
         any_written = False
+        status_changed_any = False
         for tmdb_id in shows:
             try:
                 # 直接重用内部逻辑
@@ -5325,11 +6682,44 @@ def run_calendar_refresh_all_internal():
                             updated_at=now_ts,
                         )
                         any_written = True
+
+                    # 新增：节目状态变更检测与更新（如 Returning → 本季终/已完结 等）
+                    try:
+                        existing_show = db.get_show(int(tmdb_id)) or {}
+                        raw_details = tmdb_service.get_tv_show_details(int(tmdb_id)) or {}
+                        raw_status = (raw_details.get('status') or '')
+                        latest_sn_for_status = int((existing_show or {}).get('latest_season_number') or 1)
+                        try:
+                            localized_status = tmdb_service.get_localized_show_status(int(tmdb_id), latest_sn_for_status, raw_status)
+                        except Exception:
+                            localized_status = raw_status
+
+                        old_status = (existing_show or {}).get('status') or ''
+                        if localized_status and localized_status != old_status:
+                            # 仅更新 status 等必要字段，其他沿用原值
+                            db.upsert_show(
+                                tmdb_id=int(tmdb_id),
+                                name=(existing_show or {}).get('name') or '',
+                                year=(existing_show or {}).get('year') or '',
+                                status=localized_status,
+                                poster_local_path=(existing_show or {}).get('poster_local_path') or '',
+                                latest_season_number=int((existing_show or {}).get('latest_season_number') or 1),
+                                last_refreshed_at=now_ts,
+                                bound_task_names=(existing_show or {}).get('bound_task_names') or '',
+                                content_type=(existing_show or {}).get('content_type') or '',
+                                is_custom_poster=int((existing_show or {}).get('is_custom_poster') or 0),
+                            )
+                            status_changed_any = True
+                    except Exception:
+                        # 状态更新失败不影响整体刷新
+                        pass
             except Exception as e:
                 logging.warning(f"自动刷新失败 tmdb_id={tmdb_id}: {e}")
         try:
             if any_written:
                 notify_calendar_changed('auto_refresh')
+            if status_changed_any:
+                notify_calendar_changed('status_updated')
         except Exception:
             pass
     except Exception as e:
@@ -5758,9 +7148,34 @@ def cleanup_episode_patterns_config(config_data):
         logging.error(f"清理剧集识别规则配置失败: {str(e)}")
         return False
 
+@app.route("/api/calendar/cleanup_orphaned_posters", methods=["POST"])
+def cleanup_orphaned_posters_api():
+    """手动清理孤立的旧海报文件"""
+    try:
+        if not is_login():
+            return jsonify({"success": False, "message": "未登录"})
+        
+        success = cleanup_orphaned_posters()
+        if success:
+            return jsonify({"success": True, "message": "孤立海报文件清理完成"})
+        else:
+            return jsonify({"success": True, "message": "没有发现需要清理的孤立文件"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"清理孤立海报失败: {str(e)}"})
+
 if __name__ == "__main__":
+    IS_FLASK_SERVER_PROCESS = True
     init()
     reload_tasks()
+    # 在 reload_tasks() 之后重新注册会被清空的后台任务（避免 remove_all_jobs 的影响）
+    try:
+        restart_calendar_refresh_job()
+    except Exception:
+        pass
+    try:
+        restart_daily_aired_update_job()
+    except Exception:
+        pass
     # 初始化全局db对象，确保所有接口可用
     record_db = RecordDB()
     app.run(debug=DEBUG, host="0.0.0.0", port=PORT)

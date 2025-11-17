@@ -487,20 +487,22 @@
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">定时规则</h2>
                 <span class="badge badge-pill badge-light">
-                  <a target="_blank" href="https://tool.lu/crontab/" title="Crontab执行时间计算器"><i class="bi bi-question-circle"></i></a>
+                  <a target="_blank" href="https://github.com/x1ao4/quark-auto-save-x/wiki/定时规则" title="设置任务的定时、延迟规则与执行周期模式，查阅Wiki了解详情"><i class="bi bi-question-circle"></i></a>
                 </span>
               </div>
             </div>
-            <div class="row mb-2">
-              <div class="col-sm-6 pr-1">
+            <div class="row mb-2 crontab-setting-row">
+              <div class="col-lg-4 col-md-6 col-12 mb-2 mb-lg-0">
                 <div class="input-group">
                   <div class="input-group-prepend">
-                    <span class="input-group-text">Crontab</span>
+                    <span class="input-group-text">
+                      <a href="https://tool.lu/crontab/" target="_blank" rel="noopener noreferrer" class="crontab-link" title="点击查看Crontab执行时间计算器">Crontab</a>
+                    </span>
                   </div>
-                  <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
+                  <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填" title="支持标准Crontab表达式，例如 0 * * * * 表示在每个整点执行一次">
                 </div>
               </div>
-              <div class="col-sm-6 pl-1">
+              <div class="col-lg-4 col-md-6 col-12 mb-2 mb-lg-0">
                 <div class="input-group" title="添加随机延迟时间：定时任务将在0到设定秒数之间随机延迟执行。建议值：0–3600，0表示不延迟">
                   <div class="input-group-prepend">
                     <span class="input-group-text">延迟执行</span>
@@ -509,6 +511,17 @@
                   <div class="input-group-append">
                     <span class="input-group-text square-append">秒</span>
                   </div>
+                </div>
+              </div>
+              <div class="col-lg-4 col-md-6 col-12 mb-2 mb-lg-0">
+                <div class="input-group" title="执行周期判断方式：按自选周期执行（自选）使用任务的执行周期和截止日期判断；按任务进度执行（自动）根据任务进度是否100%判断，100%则跳过">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">执行周期</span>
+                  </div>
+                  <select v-model="formData.execution_mode" class="form-control" @change="onExecutionModeChange">
+                    <option value="manual">按自选周期执行（自选）</option>
+                    <option value="auto">按任务进度执行（自动）</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -814,11 +827,11 @@
               </div>
             </div>
 
-            <div class="row title" title="设置任务列表页面的任务信息和任务按钮的显示及排序方式，支持拖拽模块调整显示顺序，个别项目的禁用状态将被应用到所有页面">
+            <div class="row title" title="设置任务列表、追剧日历等页面的任务按钮和相关信息的显示及排序方式，支持拖拽模块调整显示顺序，个别项目的禁用状态将被应用到所有页面，查阅Wiki了解详情">
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">显示设置</h2>
                 <span class="badge badge-pill badge-light">
-                  <a href="#"><i class="bi bi-question-circle"></i></a>
+                  <a target="_blank" href="https://github.com/x1ao4/quark-auto-save-x/wiki/显示设置"><i class="bi bi-question-circle"></i></a>
                 </span>
               </div>
             </div>
@@ -857,11 +870,11 @@
             </div>
 
             <!-- 性能设置 -->
-            <div class="row title" title="调整文件整理页面的请求参数和缓存时长，可提升大文件夹的加载速度和数据刷新效率。合理配置可减少API请求次数，同时保证数据及时更新">
+            <div class="row title" title="配置文件加载、数据缓存和自动刷新的关键参数，以兼顾性能与效率，查阅Wiki了解详情">
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">性能设置</h2>
                 <span class="badge badge-pill badge-light">
-                  <a href="#"><i class="bi bi-question-circle"></i></a>
+                  <a target="_blank" href="https://github.com/x1ao4/quark-auto-save-x/wiki/性能设置"><i class="bi bi-question-circle"></i></a>
                 </span>
               </div>
             </div>
@@ -908,6 +921,14 @@
                   <div class="input-group-append">
                     <span class="input-group-text square-append">秒</span>
                   </div>
+                </div>
+              </div>
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group" title="已播出集数（及任务进度）自动刷新时间，24小时制，格式：HH:MM。默认值：00:00（每天0点）">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">播出集数刷新时间</span>
+                  </div>
+                  <input type="text" class="form-control no-spinner" v-model="formData.performance.aired_refresh_time" placeholder="00:00">
                 </div>
               </div>
             </div>
@@ -1225,12 +1246,16 @@
                     <label class="col-sm-2 col-form-label">执行周期</label>
                     <div class="col-sm-10 col-form-label">
                       <div class="form-check form-check-inline" title="也可用作任务总开关">
-                        <input class="form-check-input" type="checkbox" :checked="task.runweek.length === 7" @change="toggleAllWeekdays(task)" :indeterminate.prop="task.runweek.length > 0 && task.runweek.length < 7">
-                        <label class="form-check-label">全选</label>
+                        <input class="form-check-input" type="checkbox" :checked="task.runweek.length === 7" @change="toggleAllWeekdays(task)" :indeterminate.prop="task.runweek.length > 0 && task.runweek.length < 7" :disabled="(task.execution_mode || formData.execution_mode || 'manual') === 'auto'">
+                        <label class="form-check-label" :class="{'text-muted': (task.execution_mode || formData.execution_mode || 'manual') === 'auto'}">全选</label>
                       </div>
                       <div class="form-check form-check-inline" v-for="(day, index) in weekdays" :key="index">
-                        <input class="form-check-input" type="checkbox" v-model="task.runweek" :value="index+1">
-                        <label class="form-check-label" v-html="day"></label>
+                        <input class="form-check-input" type="checkbox" v-model="task.runweek" :value="index+1" :disabled="(task.execution_mode || formData.execution_mode || 'manual') === 'auto'">
+                        <label class="form-check-label" :class="{'text-muted': (task.execution_mode || formData.execution_mode || 'manual') === 'auto'}" v-html="day"></label>
+                      </div>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" :checked="(task.execution_mode || formData.execution_mode || 'manual') === 'auto'" @change="task.execution_mode = $event.target.checked ? 'auto' : 'manual'">
+                        <label class="form-check-label">自动</label>
                       </div>
                     </div>
                   </div>
@@ -2646,12 +2671,16 @@
                 <label class="col-sm-2 col-form-label">执行周期</label>
                 <div class="col-sm-10 col-form-label">
                   <div class="form-check form-check-inline" title="也可用作任务总开关">
-                    <input class="form-check-input" type="checkbox" :checked="createTask.taskData.runweek.length === 7" @change="toggleAllWeekdays(createTask.taskData)" :indeterminate.prop="createTask.taskData.runweek.length > 0 && createTask.taskData.runweek.length < 7">
-                    <label class="form-check-label">全选</label>
+                    <input class="form-check-input" type="checkbox" :checked="createTask.taskData.runweek.length === 7" @change="toggleAllWeekdays(createTask.taskData)" :indeterminate.prop="createTask.taskData.runweek.length > 0 && createTask.taskData.runweek.length < 7" :disabled="(createTask.taskData.execution_mode || formData.execution_mode || 'manual') === 'auto'">
+                    <label class="form-check-label" :class="{'text-muted': (createTask.taskData.execution_mode || formData.execution_mode || 'manual') === 'auto'}">全选</label>
                   </div>
                   <div class="form-check form-check-inline" v-for="(day, index) in weekdays" :key="index">
-                    <input class="form-check-input" type="checkbox" v-model="createTask.taskData.runweek" :value="index+1">
-                    <label class="form-check-label" v-html="day"></label>
+                    <input class="form-check-input" type="checkbox" v-model="createTask.taskData.runweek" :value="index+1" :disabled="(createTask.taskData.execution_mode || formData.execution_mode || 'manual') === 'auto'">
+                    <label class="form-check-label" :class="{'text-muted': (createTask.taskData.execution_mode || formData.execution_mode || 'manual') === 'auto'}" v-html="day"></label>
+                  </div>
+                  <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" :checked="(createTask.taskData.execution_mode || formData.execution_mode || 'manual') === 'auto'" @change="createTask.taskData.execution_mode = $event.target.checked ? 'auto' : 'manual'">
+                    <label class="form-check-label">自动</label>
                   </div>
                 </div>
               </div>
@@ -2899,7 +2928,9 @@
           },
           performance: {
             // 追剧日历刷新周期（秒），默认6小时（21600秒）
-            calendar_refresh_interval_seconds: 21600
+            calendar_refresh_interval_seconds: 21600,
+            // 已播出集数刷新时间，24小时制，格式：HH:MM，默认00:00
+            aired_refresh_time: "00:00"
           },
           plugin_config_mode: {
             aria2: "independent",
@@ -2938,7 +2969,8 @@
           sequence_naming: "",
           use_sequence_naming: false,
           episode_naming: "",
-          use_episode_naming: false
+          use_episode_naming: false,
+          execution_mode: null // 将在openCreateTaskModal中设置为formData.execution_mode
         },
         run_log: "",
         taskDirs: [""],
@@ -3237,6 +3269,15 @@
         // 任务列表自动检测更新相关
         tasklistAutoWatchTimer: null,
         tasklistLatestFilesSignature: '',
+        // 全局 SSE 单例与监听标志
+        appSSE: null,
+        appSSEInitialized: false,
+        calendarSSEListenerAdded: false,
+        tasklistSSEListenerAdded: false,
+        // 存放已绑定的事件处理器，便于避免重复绑定
+        onCalendarChangedHandler: null,
+        onTasklistChangedHandler: null,
+        // 兼容旧字段（不再使用独立 SSE 实例）
         tasklistSSE: null,
         calendarSSE: null,
         // 创建任务相关数据
@@ -3576,6 +3617,8 @@
         activeTab(newValue, oldValue) {
           // 如果切换到任务列表页面，则刷新任务最新信息和元数据
           if (newValue === 'tasklist') {
+            // 确保全局 SSE 已建立
+            try { this.ensureGlobalSSE(); } catch (e) {}
             this.loadTaskLatestInfo();
             this.loadTasklistMetadata();
             // 启动任务列表的后台监听
@@ -3586,6 +3629,8 @@
           }
           // 切换到追剧日历：立刻检查一次并启动后台监听；离开则停止监听
           if (newValue === 'calendar') {
+            // 确保全局 SSE 已建立
+            try { this.ensureGlobalSSE(); } catch (e) {}
             // 立即检查一次（若已初始化过监听，直接调用tick引用）
             // 先本地读取一次，立刻应用“已转存”状态（不依赖轮询）
             try { this.loadCalendarEpisodesLocal && this.loadCalendarEpisodesLocal(); } catch (e) {}
@@ -3632,6 +3677,9 @@
         this.checkNewVersion();
         this.fetchUserInfo(); // 获取用户信息
         this.fetchAccountsDetail(); // 获取账号详细信息
+
+        // 应用级别：在挂载时确保全局 SSE 建立一次
+        try { this.ensureGlobalSSE(); } catch (e) {}
 
         // 迁移旧的localStorage数据到新格式（为每个账号单独存储目录）
         this.migrateFileManagerFolderData();
@@ -3822,6 +3870,88 @@
         this.stopCalendarAutoWatch();
       },
       methods: {
+        // 计算来源徽标 class：多来源时使用 multi-source，单来源使用小写来源名
+        getSourceBadgeClass(source) {
+          try {
+            if (!source) return '';
+            if (typeof source === 'string' && source.indexOf('·') !== -1) return 'multi-source';
+            return String(source).toLowerCase();
+          } catch (e) { return ''; }
+        },
+        // 启动任务列表轮询兜底（仅在未运行时启动）
+        startTasklistPollingFallback() {
+          try {
+            if (!this.tasklistAutoWatchTimer) {
+              this.tasklistAutoWatchTimer = setInterval(async () => {
+                try {
+                  const res = await axios.get('/task_latest_info');
+                  if (res.data && res.data.success) {
+                    const latestFiles = res.data.data.latest_files || {};
+                    const sig = this.calcLatestFilesSignature(latestFiles);
+                    if (sig && sig !== this.tasklistLatestFilesSignature) {
+                      // 更新签名，触发热更新
+                      this.tasklistLatestFilesSignature = sig;
+                      this.taskLatestFiles = latestFiles;
+                      // 重新加载任务元数据，确保海报和元数据能热更新
+                      await this.loadTasklistMetadata();
+                    }
+                  }
+                } catch (e) {
+                  console.warn('任务列表后台监听检查失败:', e);
+                }
+              }, 60000);
+            }
+          } catch (e) {}
+        },
+        // 确保全局 SSE 单例存在（仅建立一次）
+        ensureGlobalSSE() {
+          try {
+            if (this.appSSEInitialized && this.appSSE) return;
+            if (!this.appSSE) {
+              this.appSSE = new EventSource('/api/calendar/stream');
+            }
+            this.appSSEInitialized = true;
+            // 统一 onopen：SSE 成功后停止两侧轮询
+            this.appSSE.onopen = () => {
+              try {
+                if (this.calendarAutoWatchTimer) {
+                  clearInterval(this.calendarAutoWatchTimer);
+                  this.calendarAutoWatchTimer = null;
+                }
+              } catch (e) {}
+              try {
+                if (this.tasklistAutoWatchTimer) {
+                  clearInterval(this.tasklistAutoWatchTimer);
+                  this.tasklistAutoWatchTimer = null;
+                }
+              } catch (e) {}
+            };
+            // 统一 onerror：关闭SSE并回退双侧轮询
+            this.appSSE.onerror = () => {
+              try { this.appSSE.close(); } catch (e) {}
+              this.appSSE = null;
+              this.appSSEInitialized = false;
+              // 日历回退：若没有轮询定时器，则恢复轮询并立即执行一次
+              try {
+                if (!this.calendarAutoWatchTimer && this.calendarAutoWatchTickRef) {
+                  const baseIntervalMs = this.calendar && this.calendar.manageMode ? 5 * 1000 : 60 * 1000;
+                  this.calendarAutoWatchTimer = setInterval(this.calendarAutoWatchTickRef, baseIntervalMs);
+                  this.calendarAutoWatchTickRef();
+                }
+              } catch (e) {}
+              // 任务列表回退：若没有轮询定时器，则恢复轮询
+              try {
+                if (!this.tasklistAutoWatchTimer) {
+                  this.startTasklistPollingFallback();
+                }
+              } catch (e) {}
+            };
+            // ping 心跳占位
+            try { this.appSSE.addEventListener('ping', () => {}); } catch (e) {}
+          } catch (e) {
+            // 忽略失败，后续可回退轮询
+          }
+        },
         // 任务列表海报标题（悬停：#编号 任务名称 · 状态）
         getTasklistPosterTitle(task, index) {
           try {
@@ -4085,34 +4215,7 @@
             const t = this.calendar.tasks.find(x => (x.task_name || x.taskname) === taskName);
             if (!t || !t.season_counts) return null;
             const sc = t.season_counts || {};
-            
-            // 优先使用 progressByTaskName 映射获取已转存集数（支持基于日期的集数统计）
-            let transferred = Number(sc.transferred_count || 0);
-            const byTask = this.calendar && this.calendar.progressByTaskName ? this.calendar.progressByTaskName : {};
-            if (byTask[taskName]) {
-              const prog = byTask[taskName] || {};
-              if (prog.episode_number != null) {
-                transferred = Number(prog.episode_number) || 0;
-              } else if (prog.air_date) {
-                // 仅有日期：直接在本地DB剧集里找到"该节目在该日期播出的那一集"的集号
-                const showName = (t.matched_show_name || t.show_name || '').trim();
-                if (showName && Array.isArray(this.calendar.episodes) && this.calendar.episodes.length > 0) {
-                  const date = String(prog.air_date).trim();
-                  // 找到该节目在该日期播出的所有集，取最大集号作为"已转存集数"
-                  const candidates = this.calendar.episodes.filter(e => {
-                    return e && (e.show_name || '').trim() === showName && (e.air_date || '').trim() === date;
-                  });
-                  if (candidates.length > 0) {
-                    const maxEp = candidates.reduce((m, e) => {
-                      const n = parseInt(e.episode_number);
-                      return isNaN(n) ? m : Math.max(m, n);
-                    }, 0);
-                    if (maxEp > 0) transferred = maxEp;
-                  }
-                }
-              }
-            }
-            
+            const transferred = Number(sc.transferred_count || 0);
             const aired = Number(sc.aired_count || 0);
             const total = Number(sc.total_count || 0);
             if (transferred === 0 && aired === 0 && total === 0) return null;
@@ -4184,33 +4287,7 @@
         getTaskTransferredCount(task) {
           try {
             if (!task) return 0;
-            const name = task.task_name || task.taskname || '';
-            const byTask = this.calendar && this.calendar.progressByTaskName ? this.calendar.progressByTaskName : {};
-            if (name && byTask[name]) {
-              const prog = byTask[name] || {};
-              if (prog.episode_number != null) {
-                return Number(prog.episode_number) || 0;
-              }
-              // 仅有日期：直接在本地DB剧集里找到“该节目在该日期播出的那一集”的集号
-              if (prog.air_date) {
-                const showName = (task.matched_show_name || task.show_name || '').trim();
-                if (showName && Array.isArray(this.calendar.episodes) && this.calendar.episodes.length > 0) {
-                  const date = String(prog.air_date).trim();
-                  // 找到该节目在该日期播出的所有集，取最大集号作为“已转存集数”
-                  const candidates = this.calendar.episodes.filter(e => {
-                    return e && (e.show_name || '').trim() === showName && (e.air_date || '').trim() === date;
-                  });
-                  if (candidates.length > 0) {
-                    const maxEp = candidates.reduce((m, e) => {
-                      const n = parseInt(e.episode_number);
-                      return isNaN(n) ? m : Math.max(m, n);
-                    }, 0);
-                    if (maxEp > 0) return maxEp;
-                  }
-                }
-              }
-            }
-            return Number((task.season_counts && task.season_counts.transferred_count) || 0);
+            return Number((task && task.season_counts && task.season_counts.transferred_count) || 0);
           } catch (e) { return 0; }
         },
         // 获取管理视图卡片展示用：已播出集数（直接来自任务元数据）
@@ -5179,24 +5256,10 @@
               return;
             }
             
-            // 获取最新季数，优先使用任务中的 season_number，否则从数据库获取
-            let season_number = task.season_number;
+            // 获取季数：仅使用任务匹配到的季（未匹配则不继续）
+            const season_number = task.matched_latest_season_number;
             if (!season_number) {
-              // 从数据库获取最新季数
-              try {
-                const showResponse = await axios.get('/api/calendar/show_info', {
-                  params: { tmdb_id: task.match_tmdb_id }
-                });
-                if (showResponse.data.success && showResponse.data.data) {
-                  season_number = showResponse.data.data.latest_season_number;
-                }
-              } catch (e) {
-                console.warn('获取最新季数失败:', e);
-              }
-            }
-            
-            if (!season_number) {
-              this.showToast('无法获取季数信息');
+              this.showToast('该任务未匹配季信息');
               return;
             }
             
@@ -5249,7 +5312,8 @@
             const currentName = task.task_name || '';
             const currentType = this.getContentTypeCN(task.content_type) || '';
             const currentTmdbId = (task.match && task.match.tmdb_id) || task.match_tmdb_id || (task.calendar_info && task.calendar_info.match && task.calendar_info.match.tmdb_id) || '';
-            const currentSeason = task.season_number || task.matched_latest_season_number || (task.calendar_info && task.calendar_info.match && task.calendar_info.match.latest_season_number) || '';
+            // 仅使用匹配季：若未匹配则为空，由界面表现为未匹配
+            const currentSeason = task.matched_latest_season_number || '';
             const matchedName = task.matched_show_name || '';
             const matchedYear = task.matched_year || '';
 
@@ -5612,7 +5676,7 @@
                   this.calendarAutoWatchTimer = null;
                 }
               } else {
-                if (!this.calendarSSE && !this.calendarAutoWatchTimer && this.calendarAutoWatchTickRef) {
+                if (!this.appSSE && !this.calendarAutoWatchTimer && this.calendarAutoWatchTickRef) {
                   const baseIntervalMs = this.calendar && this.calendar.manageMode ? 5 * 1000 : 60 * 1000;
                   this.calendarAutoWatchTimer = setInterval(this.calendarAutoWatchTickRef, baseIntervalMs);
                   this.calendarAutoWatchTickRef();
@@ -5624,19 +5688,10 @@
             window.addEventListener('focus', this.calendarAutoWatchFocusHandler);
             document.addEventListener('visibilitychange', this.calendarAutoWatchVisibilityHandler);
 
-            // 建立 SSE 连接，实时感知日历数据库变化（成功建立后停用轮询，失败时回退轮询）
+            // 建立/复用全局 SSE 连接（成功建立后停用轮询，失败时回退轮询）
             try {
-              if (!this.calendarSSE) {
-                this.calendarSSE = new EventSource('/api/calendar/stream');
-                // SSE 打开后，停止轮询
-                this.calendarSSE.onopen = () => {
-                  try {
-                    if (this.calendarAutoWatchTimer) {
-                      clearInterval(this.calendarAutoWatchTimer);
-                      this.calendarAutoWatchTimer = null;
-                    }
-                  } catch (e) {}
-                };
+              this.ensureGlobalSSE();
+              if (this.appSSE && !this.calendarSSEListenerAdded) {
                 const onChanged = async (ev) => {
                   try {
                     // 解析变更原因（后端通过 SSE data 传递）
@@ -5705,6 +5760,11 @@
                       }
                     } catch (e) {}
 
+                    // 如果是转存记录相关的通知，立即刷新今日更新数据
+                    if (changeReason === 'transfer_record_created' || changeReason === 'transfer_record_updated' || changeReason === 'batch_rename_completed' || changeReason === 'crontab_task_completed') {
+                        try { await this.loadTodayUpdatesLocal(); } catch (e) {}
+                    }
+                    
                     // 再仅本地读取并热更新日历/海报视图
                     await this.loadCalendarEpisodesLocal();
                     this.initializeCalendarDates();
@@ -5712,21 +5772,10 @@
                     try { await this.loadTodayUpdatesLocal(); } catch (e) {}
                   } catch (e) {}
                 };
-                this.calendarSSE.addEventListener('calendar_changed', onChanged);
-                // 初次连接会收到一次 ping，不做处理即可
-                this.calendarSSE.addEventListener('ping', () => {});
-                this.calendarSSE.onerror = () => {
-                  try { this.calendarSSE.close(); } catch (e) {}
-                  this.calendarSSE = null;
-                  // 回退：若没有轮询定时器，则恢复轮询
-                  try {
-                    if (!this.calendarAutoWatchTimer && this.calendarAutoWatchTickRef) {
-                      const baseIntervalMs = this.calendar && this.calendar.manageMode ? 5 * 1000 : 60 * 1000;
-                      this.calendarAutoWatchTimer = setInterval(this.calendarAutoWatchTickRef, baseIntervalMs);
-                      this.calendarAutoWatchTickRef();
-                    }
-                  } catch (e) {}
-                };
+                this.onCalendarChangedHandler = onChanged;
+                this.appSSE.addEventListener('calendar_changed', onChanged);
+                this.calendarSSEListenerAdded = true;
+                // onopen/onerror 已集中在 ensureGlobalSSE，无需重复设置
               }
             } catch (e) {
               // 忽略 SSE 失败，继续使用轮询
@@ -5751,10 +5800,7 @@
               document.removeEventListener('visibilitychange', this.calendarAutoWatchVisibilityHandler);
               this.calendarAutoWatchVisibilityHandler = null;
             }
-            if (this.calendarSSE) {
-              try { this.calendarSSE.close(); } catch (e) {}
-              this.calendarSSE = null;
-            }
+            // 不再关闭全局 SSE；仅移除本地监听（如有需要）
           } catch (e) {
             // ignore
           }
@@ -6852,10 +6898,14 @@
               // cookie兼容
               if (typeof config_data.cookie === 'string')
                 config_data.cookie = [config_data.cookie];
-              // 添加星期预设
+              // 添加星期预设和执行周期模式
               config_data.tasklist = config_data.tasklist.map(task => {
                 if (!task.hasOwnProperty('runweek')) {
                   task.runweek = [1, 2, 3, 4, 5, 6, 7];
+                }
+                // 确保execution_mode有默认值
+                if (!task.hasOwnProperty('execution_mode')) {
+                  task.execution_mode = config_data.execution_mode || 'manual';
                 }
                 
                 // 格式化已有的警告信息
@@ -7055,11 +7105,18 @@
               }
               // 确保性能设置存在并补默认值（单位：秒）
               if (!config_data.performance) {
-                config_data.performance = { calendar_refresh_interval_seconds: 21600 };
+                config_data.performance = { calendar_refresh_interval_seconds: 21600, aired_refresh_time: "00:00" };
               } else {
                 if (config_data.performance.calendar_refresh_interval_seconds === undefined || config_data.performance.calendar_refresh_interval_seconds === null) {
                   config_data.performance.calendar_refresh_interval_seconds = 21600;
                 }
+                if (config_data.performance.aired_refresh_time === undefined || config_data.performance.aired_refresh_time === null) {
+                  config_data.performance.aired_refresh_time = "00:00";
+                }
+              }
+              // 确保execution_mode有默认值
+              if (!config_data.execution_mode) {
+                config_data.execution_mode = 'manual';
               }
               // 后端加载配置属于系统性赋值，不应触发未保存提示
               this.suppressConfigModifiedOnce = true;
@@ -7877,6 +7934,18 @@
             task.runweek = [];
           } else {
             task.runweek = [1, 2, 3, 4, 5, 6, 7];
+          }
+        },
+        onExecutionModeChange() {
+          // 批量更新所有任务的execution_mode
+          if (this.formData.tasklist && this.formData.tasklist.length > 0) {
+            this.formData.tasklist.forEach(task => {
+              if (!task.hasOwnProperty('execution_mode')) {
+                this.$set(task, 'execution_mode', this.formData.execution_mode);
+              } else {
+                task.execution_mode = this.formData.execution_mode;
+              }
+            });
           }
         },
         searchSuggestions(index, taskname, deep = 1) {
@@ -9346,17 +9415,9 @@
             
             // 建立 SSE 连接，实时感知任务列表变化（成功建立后停用轮询，失败时回退轮询）
             try {
-              if (!this.tasklistSSE) {
-                this.tasklistSSE = new EventSource('/api/calendar/stream');
-                // SSE 打开后，停止轮询
-                this.tasklistSSE.onopen = () => {
-                  try {
-                    if (this.tasklistAutoWatchTimer) {
-                      clearInterval(this.tasklistAutoWatchTimer);
-                      this.tasklistAutoWatchTimer = null;
-                    }
-                  } catch (e) {}
-                };
+              // 使用全局 SSE 单例
+              this.ensureGlobalSSE();
+              if (this.appSSE && !this.tasklistSSEListenerAdded) {
                 const onTasklistChanged = async (ev) => {
                   try {
                     // 解析变更原因（后端通过 SSE data 传递）
@@ -9401,37 +9462,10 @@
                     }
                   } catch (e) {}
                 };
-                this.tasklistSSE.addEventListener('calendar_changed', onTasklistChanged);
-                // 初次连接会收到一次 ping，不做处理即可
-                this.tasklistSSE.addEventListener('ping', () => {});
-                this.tasklistSSE.onerror = () => {
-                  try { this.tasklistSSE.close(); } catch (e) {}
-                  this.tasklistSSE = null;
-                  // 回退：若没有轮询定时器，则恢复轮询
-                  try {
-                    if (!this.tasklistAutoWatchTimer) {
-                      this.tasklistAutoWatchTimer = setInterval(async () => {
-                        try {
-                          const res = await axios.get('/task_latest_info');
-                          if (res.data && res.data.success) {
-                            const latestFiles = res.data.data.latest_files || {};
-                            const sig = this.calcLatestFilesSignature(latestFiles);
-                            if (sig && sig !== this.tasklistLatestFilesSignature) {
-                              // 更新签名，触发热更新
-                              this.tasklistLatestFilesSignature = sig;
-                              this.taskLatestFiles = latestFiles;
-                              
-                              // 重新加载任务元数据，确保海报和元数据能热更新
-                              await this.loadTasklistMetadata();
-                            }
-                          }
-                        } catch (e) {
-                          console.warn('任务列表后台监听检查失败:', e);
-                        }
-                      }, 60000);
-                    }
-                  } catch (e) {}
-                };
+                this.onTasklistChangedHandler = onTasklistChanged;
+                this.appSSE.addEventListener('calendar_changed', onTasklistChanged);
+                this.tasklistSSEListenerAdded = true;
+                // onopen/onerror 已集中在 ensureGlobalSSE，无需重复设置
               }
             } catch (e) {
               // 忽略 SSE 失败，继续使用轮询
@@ -9677,6 +9711,31 @@
                   if (ka[i] !== kb[i]) return this.fileSelect.sortOrder === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
                 }
                 return 0;
+              } else if (modalType === 'source' || modalType === 'target' || modalType === 'move') {
+                // 选择文件夹的模态框（选择需转存的文件夹、选择保存到的文件夹、选择移动到的文件夹）
+                // 文件夹排在文件前面
+                if (a.dir && !b.dir) return -1;
+                if (!a.dir && b.dir) return 1;
+                // 根据类型使用不同的排序键顺序
+                const kaRaw = sortFileByName(a), kbRaw = sortFileByName(b);
+                let ka, kb;
+                if (a.dir && b.dir) {
+                  // 文件夹：日期、上中下、拼音、更新时间（去掉期数/集数）
+                  // [date_value, episode_value, segment_value, update_time, pinyin_sort_key]
+                  // 调整为：[date_value, segment_value, pinyin_sort_key, update_time]
+                  ka = [kaRaw[0], kaRaw[2], kaRaw[4], kaRaw[3]];
+                  kb = [kbRaw[0], kbRaw[2], kbRaw[4], kbRaw[3]];
+                } else {
+                  // 文件：日期、期数、上中下、拼音、更新时间
+                  // [date_value, episode_value, segment_value, update_time, pinyin_sort_key]
+                  // 调整为：[date_value, episode_value, segment_value, pinyin_sort_key, update_time]
+                  ka = [kaRaw[0], kaRaw[1], kaRaw[2], kaRaw[4], kaRaw[3]];
+                  kb = [kbRaw[0], kbRaw[1], kbRaw[2], kbRaw[4], kbRaw[3]];
+                }
+                for (let i = 0; i < ka.length; ++i) {
+                  if (ka[i] !== kb[i]) return this.fileSelect.sortOrder === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
+                }
+                return 0;
               } else {
                 // 其他模态框：文件夹排在文件前面
                 if (a.dir && !b.dir) return -1;
@@ -9838,6 +9897,31 @@
 
                 // 使用全局文件排序函数
                 const ka = sortFileByName(a), kb = sortFileByName(b);
+                for (let i = 0; i < ka.length; ++i) {
+                  if (ka[i] !== kb[i]) return order === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
+                }
+                return 0;
+              } else if (modalType === 'source' || modalType === 'target' || modalType === 'move') {
+                // 选择文件夹的模态框（选择需转存的文件夹、选择保存到的文件夹、选择移动到的文件夹）
+                // 文件夹排在文件前面
+                if (a.dir && !b.dir) return -1;
+                if (!a.dir && b.dir) return 1;
+                // 根据类型使用不同的排序键顺序
+                const kaRaw = sortFileByName(a), kbRaw = sortFileByName(b);
+                let ka, kb;
+                if (a.dir && b.dir) {
+                  // 文件夹：日期、上中下、拼音、更新时间（去掉期数/集数）
+                  // [date_value, episode_value, segment_value, update_time, pinyin_sort_key]
+                  // 调整为：[date_value, segment_value, pinyin_sort_key, update_time]
+                  ka = [kaRaw[0], kaRaw[2], kaRaw[4], kaRaw[3]];
+                  kb = [kbRaw[0], kbRaw[2], kbRaw[4], kbRaw[3]];
+                } else {
+                  // 文件：日期、期数、上中下、拼音、更新时间
+                  // [date_value, episode_value, segment_value, update_time, pinyin_sort_key]
+                  // 调整为：[date_value, episode_value, segment_value, pinyin_sort_key, update_time]
+                  ka = [kaRaw[0], kaRaw[1], kaRaw[2], kaRaw[4], kaRaw[3]];
+                  kb = [kbRaw[0], kbRaw[1], kbRaw[2], kbRaw[4], kbRaw[3]];
+                }
                 for (let i = 0; i < ka.length; ++i) {
                   if (ka[i] !== kb[i]) return order === 'asc' ? (ka[i] > kb[i] ? 1 : -1) : (ka[i] < kb[i] ? 1 : -1);
                 }
@@ -12032,6 +12116,8 @@
             this.createTask.error = null;
             // 使用 newTask 的完整结构初始化，再由智能填充覆盖
             this.createTask.taskData = { ...this.newTask };
+            // 应用系统配置的执行周期默认选项
+            this.createTask.taskData.execution_mode = this.formData.execution_mode || 'manual';
 
             // 存储影视作品数据，并提取年份信息
             const movieData = { ...item };
@@ -12073,6 +12159,8 @@
             
             // 重置任务数据为默认值，使用 newTask 的完整结构
             this.createTask.taskData = { ...this.newTask };
+            // 应用系统配置的执行周期默认选项
+            this.createTask.taskData.execution_mode = this.formData.execution_mode || 'manual';
             
             // 如果有上一个任务，继承保存路径和命名规则
             if (this.formData.tasklist && this.formData.tasklist.length > 0) {
@@ -12125,6 +12213,10 @@
             this.createTask.taskData.ignore_extension = task.ignore_extension || false;
             this.createTask.taskData.use_sequence_naming = task.use_sequence_naming || false;
             this.createTask.taskData.use_episode_naming = task.use_episode_naming || false;
+            // 确保execution_mode有默认值
+            if (!this.createTask.taskData.execution_mode) {
+              this.createTask.taskData.execution_mode = this.formData.execution_mode || 'manual';
+            }
             
             // 打开模态框
             $('#createTaskModal').modal('show');

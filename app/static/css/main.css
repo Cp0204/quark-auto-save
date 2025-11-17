@@ -4617,6 +4617,29 @@ table.selectable-records .expand-button:hover {
   margin-top: 12px !important; /* 从默认的20px减少到12px，上移8px */
 }
 
+/* 定时规则设置样式 */
+.crontab-setting-row > [class*='col-'] {
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
+.crontab-setting-row {
+  margin-left: -4px !important;
+  margin-right: -4px !important;
+}
+/* 修复定时规则选项下边距：当选项变为多行时，最后一个选项的mb-2不应叠加到row mb-2上 */
+.crontab-setting-row > [class*='col-']:last-child {
+  margin-bottom: 0 !important;
+}
+/* 在中等屏幕和小屏幕上，确保行与行之间的间距正确 */
+@media (max-width: 991.98px) {
+  .crontab-setting-row > [class*='col-'].mb-2 {
+    margin-bottom: 0.5rem !important;
+  }
+  .crontab-setting-row > [class*='col-']:last-child.mb-2 {
+    margin-bottom: 0 !important;
+  }
+}
+
 /* 任务单元基础样式 */
 .task {
   position: relative;
@@ -6164,6 +6187,12 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 
 #createTaskModal .task-suggestions .dropdown-item.text-muted:active {
   color: #fff !important;
+}
+
+/* 调整模态框内“正在验证/搜索中”行的转圈图标左边距，仅影响图标本身 */
+#createTaskModal .task-suggestions .dropdown-item.text-muted .spinner-border-sm {
+  margin-left: 0; /* 在不改变文本左距的情况下，将图标视觉左距校正至约8px */
+  margin-right: 0; /* 图标与文字间距 */
 }
 
 /* 创建任务模态框移动端响应式样式 */
@@ -8298,4 +8327,16 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   padding-top: 0; /* 严格控制视觉高度为 32px */
   padding-bottom: 0;
   box-sizing: border-box; /* 高度包含内边距与边框，避免被额外撑高 */
+}
+
+/* 定时规则 Crontab 标题链接样式 */
+.crontab-link {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.crontab-link:hover {
+  color: var(--focus-border-color);
+  text-decoration: none;
 }
