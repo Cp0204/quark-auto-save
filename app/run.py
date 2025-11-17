@@ -1855,8 +1855,12 @@ def run_script_now():
         if tasklist:
             process_env["TASKLIST"] = json.dumps(tasklist, ensure_ascii=False)
             # 添加原始任务索引的环境变量
-            if len(tasklist) == 1 and 'original_index' in request.json:
-                process_env["ORIGINAL_TASK_INDEX"] = str(request.json['original_index'])
+            if len(tasklist) == 1:
+                # 单任务手动运行：前端传入 original_index，用于日志展示
+                if 'original_index' in request.json:
+                    process_env["ORIGINAL_TASK_INDEX"] = str(request.json['original_index'])
+                # 单任务手动运行应忽略执行周期和任务进度限制（包括自动模式下进度100%也要执行）
+                process_env["IGNORE_EXECUTION_RULES"] = "1"
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,

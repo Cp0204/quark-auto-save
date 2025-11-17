@@ -4466,7 +4466,7 @@ def do_sign(account):
     print()
 
 
-def do_save(account, tasklist=[]):
+def do_save(account, tasklist=[], ignore_execution_rules=False):
     print(f"🧩 载入插件")
     plugins, CONFIG_DATA["plugins"], task_plugins_config = Config.load_plugins(
         CONFIG_DATA.get("plugins", {})
@@ -4479,6 +4479,9 @@ def do_save(account, tasklist=[]):
     sent_notices = set()
 
     def is_time(task):
+        # 若为手动单任务运行并明确要求忽略执行周期/进度限制，则始终执行
+        if ignore_execution_rules:
+            return True
         # 获取任务的执行周期模式，优先使用任务自身的execution_mode，否则使用系统配置的execution_mode
         execution_mode = task.get("execution_mode") or CONFIG_DATA.get("execution_mode", "manual")
         
@@ -5892,9 +5895,12 @@ def main():
         print(f"===============转存任务===============")
         # 任务列表
         if tasklist_from_env:
-            do_save(accounts[0], tasklist_from_env)
+            # 若通过环境变量传入任务列表，视为手动运行，可由外层控制是否忽略执行周期/进度限制
+            ignore_execution_rules = os.environ.get("IGNORE_EXECUTION_RULES", "").lower() in ["1", "true", "yes"]
+            do_save(accounts[0], tasklist_from_env, ignore_execution_rules=ignore_execution_rules)
         else:
-            do_save(accounts[0], CONFIG_DATA.get("tasklist", []))
+            # 定时任务或命令行全量运行，始终遵循执行周期/进度规则
+            do_save(accounts[0], CONFIG_DATA.get("tasklist", []), ignore_execution_rules=False)
         print()
     # 通知
     if NOTIFYS:
