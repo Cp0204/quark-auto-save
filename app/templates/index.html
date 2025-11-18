@@ -1033,6 +1033,13 @@
                       {{ tasklistSort.order === 'asc' ? '升序排列' : '降序排列' }}
                     </span>
                   </div>
+                  <!-- 任务数量显示 -->
+                  <div
+                    class="tasklist-count-indicator ml-2"
+                    :class="{'tasklist-count-single-digit': tasklistVisibleCount < 10}"
+                    :title="`共${tasklistVisibleCount}个任务`">
+                    {{ tasklistVisibleCount }}
+                  </div>
                   <!-- 视图切换按钮：列表视图 与 海报视图 -->
                   <div class="ml-2">
                     <button type="button"
@@ -3366,6 +3373,39 @@
         // 任务列表：带排序的视图数据（使用计算属性，不修改原始数据）
         sortedTasklist() {
           return this.getSortedTasklist();
+        },
+
+        // 任务列表：可见任务集合（用于数量展示）
+        tasklistVisibleTasks() {
+          try {
+            if (!this.shouldShowTasklist) {
+              return [];
+            }
+            const keyword = this.taskNameFilter || '';
+            const selectedTaskName = this.taskDirSelected || '';
+            return (this.sortedTasklist || []).filter(task => {
+              if (!task) return false;
+              const taskName = task.taskname || '';
+              if (selectedTaskName && taskName !== selectedTaskName) {
+                return false;
+              }
+              if (keyword && !taskName.includes(keyword)) {
+                return false;
+              }
+              return this.tasklistFilterByType(task);
+            });
+          } catch (e) {
+            return [];
+          }
+        },
+
+        // 任务列表：当前可见任务数量
+        tasklistVisibleCount() {
+          try {
+            return this.tasklistVisibleTasks.length;
+          } catch (e) {
+            return 0;
+          }
         },
 
         // 判断是否应该显示任务列表（避免排序闪烁）

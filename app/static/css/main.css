@@ -8340,3 +8340,29 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   color: var(--focus-border-color);
   text-decoration: none;
 }
+
+/* 任务列表：任务数量指示器 */
+.tasklist-count-indicator {
+  min-width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--dark-text-color);
+  background-color: transparent;
+  color: var(--dark-text-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  font-size: 0.95rem;
+  line-height: 32px;
+  user-select: none;
+  cursor: default;
+  flex-shrink: 0;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.tasklist-count-single-digit {
+  width: 32px;
+  padding: 0;
+}
