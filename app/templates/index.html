@@ -1062,7 +1062,7 @@
                     class="tasklist-count-indicator ml-2"
                     :class="{'tasklist-count-single-digit': tasklistVisibleCount < 10}"
                     :title="`共${tasklistVisibleCount}个任务`">
-                    {{ tasklistVisibleCount }}
+                    <span class="tasklist-count-number">{{ tasklistVisibleCount }}</span>
                   </div>
                   <!-- 视图切换按钮：列表视图 与 海报视图 -->
                   <div class="ml-2">
@@ -1950,8 +1950,8 @@
             <!-- 追剧日历内容 -->
             <div v-else>
               <!-- 顶部筛选和导航 -->
-              <div class="row calendar-filter-row" style="margin-bottom: 20px;">
-                <div class="col-lg-6 col-md-6 mb-2 mb-md-0">
+              <div class="row tasklist-filter-row calendar-filter-row">
+                <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
                   <div class="input-group">
                     <div class="input-group-prepend">
                       <span class="input-group-text">名称筛选</span>
@@ -1962,19 +1962,43 @@
                     </div>
                   </div>
                 </div>
-                <div class="col-lg-6 col-md-6">
+                <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
                   <div class="input-group">
                     <div class="input-group-prepend">
                       <span class="input-group-text">任务筛选</span>
                     </div>
                     <div class="position-relative" style="flex: 1;">
-                      <select class="form-control task-filter-select" v-model="calendar.taskFilter" style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 24px !important;">
+                      <select class="form-control task-filter-select" v-model="calendar.taskFilter" style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 8px !important;">
                         <option value="">全部</option>
                         <option v-for="task in calendar.taskNames" :value="task" v-html="task"></option>
                       </select>
                     </div>
                     <div class="input-group-append">
                       <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearCalendarFilter('taskFilter')"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
+                  <div class="input-group">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text">状态筛选</span>
+                    </div>
+                    <div class="position-relative" style="flex: 1;">
+                      <select class="form-control task-filter-select"
+                              v-model="calendar.statusFilter"
+                              style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 8px !important;">
+                        <option value="">全部</option>
+                        <option value="incomplete">未完成</option>
+                        <option value="ongoing">进行中</option>
+                        <option value="completed">已完成</option>
+                        <option value="airing">播出中</option>
+                        <option value="finale">本季终</option>
+                        <option value="ended">已完结</option>
+                        <option value="unmatched">未匹配</option>
+                      </select>
+                    </div>
+                    <div class="input-group-append">
+                      <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearCalendarFilter('statusFilter')"><i class="bi bi-x-lg"></i></button>
                     </div>
                   </div>
                 </div>
@@ -3257,6 +3281,13 @@
           selectedType: (localStorage.getItem('calendar_selected_type') || 'all'),
           nameFilter: '',
           taskFilter: '',
+          statusFilter: (() => {
+            try {
+              return localStorage.getItem('calendar_status_filter') || '';
+            } catch (e) {
+              return '';
+            }
+          })(),
           taskNames: [],
           viewMode: (localStorage.getItem('calendar_view_mode') === 'month' || localStorage.getItem('calendar_view_mode') === 'poster')
             ? localStorage.getItem('calendar_view_mode')
@@ -3380,6 +3411,9 @@
           // 顶部筛选：任务筛选（精确任务名）
           if (this.calendar.taskFilter && this.calendar.taskFilter.trim() !== '') {
             list = list.filter(t => (t.task_name || '') === this.calendar.taskFilter);
+          }
+          if (this.calendar.statusFilter && this.calendar.statusFilter.trim() !== '') {
+            list = list.filter(t => this.filterTaskByStatus(t, this.calendar.statusFilter));
           }
           // 按匹配状态和任务名称拼音排序：匹配的项目在前，未匹配的项目在后
           try {
@@ -3649,6 +3683,14 @@
           if (this.calendar.viewMode === 'month') {
             this.initializeCalendarDates();
           }
+        },
+        'calendar.statusFilter': function(newVal, oldVal) {
+          if (this.calendar.viewMode === 'month') {
+            this.initializeCalendarDates();
+          }
+          try {
+            localStorage.setItem('calendar_status_filter', newVal || '');
+          } catch (e) {}
         },
         taskStatusFilter(newValue) {
           try {
@@ -4403,9 +4445,10 @@
             return contentType === this.tasklist.selectedType;
           } catch (e) { return true; }
         },
-        tasklistFilterByStatus(task) {
+        // 统一的状态筛选逻辑（任务列表与追剧日历共用）
+        filterTaskByStatus(task, filterValue) {
           try {
-            const filter = this.taskStatusFilter || '';
+            const filter = filterValue || '';
             if (!filter) return true;
             if (!task) return false;
             const taskName = task.taskname || task.task_name || '';
@@ -4435,6 +4478,9 @@
           } catch (e) {
             return true;
           }
+        },
+        tasklistFilterByStatus(task) {
+          return this.filterTaskByStatus(task, this.taskStatusFilter);
         },
         getTasklistFullStatus(task) {
           try {
@@ -5009,10 +5055,9 @@
           // 先进行基础筛选
           let filteredEpisodes = this.calendar.episodes.filter(episode => {
             // 根据筛选条件过滤
+            const matchedTask = this.findTaskByShowName(episode.show_name);
             if (this.calendar.selectedType !== 'all') {
-              // 通过剧集名称匹配任务，获取内容类型
-              const matchedTask = this.findTaskByShowName(episode.show_name);
-              const episodeContentType = matchedTask ? matchedTask.content_type : 'other';
+              const episodeContentType = matchedTask ? (matchedTask.content_type || 'other') : 'other';
               if (episodeContentType !== this.calendar.selectedType) {
                 return false;
               }
@@ -5029,11 +5074,15 @@
             
             // 任务筛选：检查任务名称
             if (this.calendar.taskFilter && this.calendar.taskFilter.trim() !== '') {
-              const matchedTask = this.findTaskByShowName(episode.show_name);
-              const taskName = matchedTask ? matchedTask.task_name : '';
+              const taskName = matchedTask ? (matchedTask.task_name || matchedTask.taskname || '') : '';
               if (taskName !== this.calendar.taskFilter) {
                 return false;
               }
+            }
+
+            // 状态筛选：复用任务列表逻辑
+            if (!this.filterTaskByStatus(matchedTask, this.calendar.statusFilter)) {
+              return false;
             }
             
             return episode.air_date === date;
@@ -5990,6 +6039,8 @@
             this.calendar.nameFilter = '';
           } else if (filterType === 'taskFilter') {
             this.calendar.taskFilter = '';
+          } else if (filterType === 'statusFilter') {
+            this.calendar.statusFilter = '';
           }
         },
         

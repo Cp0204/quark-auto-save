@@ -8402,7 +8402,17 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   box-sizing: border-box;
 }
 
+/* 任务数量指示器悬停时显示文本光标，和其他标题框一致 */
 .tasklist-count-single-digit {
   width: 32px;
   padding: 0;
+}
+
+.tasklist-count-number {
+  cursor: text;
+  user-select: text;
+}
+
+.calendar-filter-row {
+  margin-bottom: 20px; /* 桌面端保持与下方组件净间距 8px（抵消分类与控制按钮的 -12px 上移） */
 }
