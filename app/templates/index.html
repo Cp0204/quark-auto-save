@@ -967,8 +967,8 @@
 
           <div v-if="activeTab === 'tasklist'">
             <div style="height: 20px;"></div>
-            <div class="row" style="margin-bottom: 8px;">
-              <div class="col-lg-6 col-md-6 mb-2 mb-md-0">
+            <div class="row tasklist-filter-row" style="margin-bottom: 8px;">
+              <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
                 <div class="input-group">
                   <div class="input-group-prepend">
                     <span class="input-group-text">名称筛选</span>
@@ -979,20 +979,44 @@
                   </div>
                 </div>
               </div>
-              <div class="col-lg-6 col-md-6">
+              <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
                 <div class="input-group">
                   <div class="input-group-prepend">
                     <span class="input-group-text">任务筛选</span>
                   </div>
                   <div class="position-relative" style="flex: 1;">
-                    <select class="form-control task-filter-select" v-model="taskDirSelected" style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 24px !important;">
-                      <option value="">全部任务</option>
+                    <select class="form-control task-filter-select" v-model="taskDirSelected" style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 8px !important;">
+                      <option value="">全部</option>
                       <option v-for="task in taskNames" :value="task" v-html="task"></option>
                     </select>
                     <!-- <i class="bi bi-chevron-down select-arrow" style="position: absolute; pointer-events: none; color: var(--dark-text-color);"></i> -->
                   </div>
                   <div class="input-group-append">
                     <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearData('taskDirSelected')"><i class="bi bi-x-lg"></i></button>
+                  </div>
+                </div>
+              </div>
+              <div class="col-xl-4 col-lg-4 col-md-6">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">状态筛选</span>
+                  </div>
+                  <div class="position-relative" style="flex: 1;">
+                    <select class="form-control task-filter-select"
+                            v-model="taskStatusFilter"
+                            style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 8px !important;">
+                      <option value="">全部</option>
+                      <option value="incomplete">未完成</option>
+                      <option value="ongoing">进行中</option>
+                      <option value="completed">已完成</option>
+                      <option value="airing">播出中</option>
+                      <option value="finale">本季终</option>
+                      <option value="ended">已完结</option>
+                      <option value="unmatched">未匹配</option>
+                    </select>
+                  </div>
+                  <div class="input-group-append">
+                    <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearData('taskStatusFilter')"><i class="bi bi-x-lg"></i></button>
                   </div>
                 </div>
               </div>
@@ -1064,7 +1088,7 @@
             <!-- 任务列表：列表视图 -->
             <template v-if="tasklist.viewMode === 'list'">
             <div v-for="(task, index) in sortedTasklist" :key="'list-'+index" class="task mb-3" v-show="shouldShowTasklist">
-              <template v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task)">
+              <template v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task) && tasklistFilterByStatus(task)">
                 <hr>
                 <div class="form-group row" style="align-items:center">
                   <div class="col pl-0" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="true" :aria-controls="'collapse_'+index">
@@ -1283,7 +1307,7 @@
                 <div class="discovery-item"
                      v-for="(task, index) in sortedTasklist"
                      :key="'poster-'+(task.taskname || index)"
-                     v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task)">
+                     v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task) && tasklistFilterByStatus(task)">
                   <div class="discovery-poster" @mouseenter="handleManagementPosterHover($event, getCalendarTaskByName(task.taskname) || {})">
                     <img :src="getEpisodePosterUrl(getTasklistPosterLikeEpisode(task))"
                          :alt="task.taskname"
@@ -1420,7 +1444,7 @@
                   </div>
                   <div class="position-relative" style="flex: 1;">
                     <select class="form-control task-filter-select" v-model="historyTaskSelected" style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 24px !important;">
-                      <option value="">全部任务</option>
+                      <option value="">全部</option>
                       <option v-for="task in historyTasks" :value="task" v-html="task"></option>
                     </select>
                     <!-- <i class="bi bi-chevron-down select-arrow" style="position: absolute; pointer-events: none; color: var(--dark-text-color);"></i> -->
@@ -1945,7 +1969,7 @@
                     </div>
                     <div class="position-relative" style="flex: 1;">
                       <select class="form-control task-filter-select" v-model="calendar.taskFilter" style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 24px !important;">
-                        <option value="">全部任务</option>
+                        <option value="">全部</option>
                         <option v-for="task in calendar.taskNames" :value="task" v-html="task"></option>
                       </select>
                     </div>
@@ -2983,6 +3007,13 @@
         taskDirs: [""],
         taskDirSelected: "",
         taskNameFilter: "",
+        taskStatusFilter: (() => {
+          try {
+            return localStorage.getItem('tasklist_status_filter') || '';
+          } catch (e) {
+            return '';
+          }
+        })(),
         taskLatestRecords: {}, // 存储每个任务的最新转存记录日期
         taskLatestFiles: {}, // 存储每个任务的最近转存文件
         modalLoading: false,
@@ -3392,7 +3423,10 @@
               if (keyword && !taskName.includes(keyword)) {
                 return false;
               }
-              return this.tasklistFilterByType(task);
+              if (!this.tasklistFilterByType(task)) {
+                return false;
+              }
+              return this.tasklistFilterByStatus(task);
             });
           } catch (e) {
             return [];
@@ -3615,6 +3649,11 @@
           if (this.calendar.viewMode === 'month') {
             this.initializeCalendarDates();
           }
+        },
+        taskStatusFilter(newValue) {
+          try {
+            localStorage.setItem('tasklist_status_filter', newValue || '');
+          } catch (e) {}
         },
         // 侧边栏折叠/展开变化时，触发布局重算
         sidebarCollapsed(val) {
@@ -4363,6 +4402,93 @@
             
             return contentType === this.tasklist.selectedType;
           } catch (e) { return true; }
+        },
+        tasklistFilterByStatus(task) {
+          try {
+            const filter = this.taskStatusFilter || '';
+            if (!filter) return true;
+            if (!task) return false;
+            const taskName = task.taskname || task.task_name || '';
+            const status = this.getTasklistFullStatus(task);
+            const progress = this.getTaskProgress && taskName ? this.getTaskProgress(taskName) : null;
+            const normalizedProgress = (progress === null || progress === undefined) ? null : Number(progress);
+            const isCompleted = this.isTaskCompletedByStatusAndProgress(status, normalizedProgress);
+            const isMatched = this.isTaskMatchedWithMetadata(task);
+            switch (filter) {
+              case 'incomplete':
+                return !isCompleted;
+              case 'ongoing':
+                return normalizedProgress === null || normalizedProgress < 100;
+              case 'completed':
+                return isCompleted;
+              case 'airing':
+                return status === '播出中';
+              case 'finale':
+                return status === '本季终';
+              case 'ended':
+                return status === '已完结';
+              case 'unmatched':
+                return !isMatched;
+              default:
+                return true;
+            }
+          } catch (e) {
+            return true;
+          }
+        },
+        getTasklistFullStatus(task) {
+          try {
+            if (!task) return '';
+            const taskName = task.taskname || task.task_name || '';
+            const calTask = taskName ? this.getCalendarTaskByName(taskName) : null;
+            const candidates = [
+              calTask && calTask.matched_status,
+              calTask && calTask.status,
+              task.matched_status,
+              task.status,
+              ((task.calendar_info || {}).match || {}).status,
+              ((task.calendar_info || {}).extracted || {}).status
+            ];
+            for (const val of candidates) {
+              if (val && String(val).trim() !== '') {
+                return String(val).trim();
+              }
+            }
+            return '';
+          } catch (e) {
+            return '';
+          }
+        },
+        isTaskMatchedWithMetadata(task) {
+          try {
+            if (!task) return false;
+            const taskName = task.taskname || task.task_name || '';
+            const calTask = taskName ? this.getCalendarTaskByName(taskName) : null;
+            const candidates = [
+              calTask && (calTask.match_tmdb_id || (calTask.match && calTask.match.tmdb_id) || calTask.tmdb_id),
+              task.match_tmdb_id,
+              (task.match && task.match.tmdb_id),
+              ((task.calendar_info || {}).match || {}).tmdb_id,
+              task.tmdb_id
+            ];
+            return candidates.some(id => {
+              if (id === null || id === undefined) return false;
+              const str = String(id).trim();
+              return str !== '';
+            });
+          } catch (e) {
+            return false;
+          }
+        },
+        isTaskCompletedByStatusAndProgress(status, progressValue) {
+          try {
+            const finalStatuses = ['本季终', '已完结', '已取消'];
+            if (!finalStatuses.includes(status)) return false;
+            if (progressValue === null || progressValue === undefined) return false;
+            return Number(progressValue) >= 100;
+          } catch (e) {
+            return false;
+          }
         },
         // 获取根据当前视图筛选条件过滤后的任务中编号最大的任务
         getLastTaskByCurrentFilter() {
