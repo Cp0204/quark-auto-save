@@ -8346,8 +8346,8 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   min-width: 32px;
   height: 32px;
   border-radius: 6px;
-  border: 1px solid var(--dark-text-color);
-  background-color: transparent;
+  border: 1px solid var(--border-color);
+  background-color: var(--button-gray-background-color);
   color: var(--dark-text-color);
   display: inline-flex;
   align-items: center;
