@@ -3244,6 +3244,13 @@ div.jsoneditor-treepath * {
   height: 32px;
   display: flex;
   align-items: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pagination-settings .btn {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* 分页下拉菜单样式 */
@@ -7994,6 +8001,8 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   border-radius: 0 6px 6px 0;
   background: var(--button-gray-background-color) !important;
   font-size: 0.95rem; /* 与左侧类型按钮一致 */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* 兼容旧结构：若存在下拉菜单 DOM，最小宽度不小于 160px */
@@ -8099,6 +8108,37 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   font-size: 0.69rem;
   position: relative;
   top: 0.5px;
+}
+
+/* 任务列表：顶部筛选框列间距改为 8px */
+.tasklist-filter-row {
+  margin-left: -4px;
+  margin-right: -4px;
+  row-gap: 8px;
+}
+.tasklist-filter-row > [class*="col-"] {
+  padding-left: 4px;
+  padding-right: 4px;
+  margin-bottom: 0 !important;
+}
+
+.tasklist-filter-row > [class*="col-"]:last-child {
+  margin-bottom: 0 !important;
+}
+
+@media (min-width: 768px) {
+  .tasklist-filter-row {
+    display: flex;
+    flex-wrap: nowrap;
+  }
+  .tasklist-filter-row > [class*="col-"] {
+    flex: 1 1 0;
+    max-width: 33.3333%;
+    min-width: 0;
+  }
+  .tasklist-filter-row .input-group {
+    width: 100%;
+  }
 }
 
 /* 任务列表视图切换按钮的图标大小，统一为与追剧日历相同 */
@@ -8339,4 +8379,40 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
 .crontab-link:hover {
   color: var(--focus-border-color);
   text-decoration: none;
+}
+
+/* 任务列表：任务数量指示器 */
+.tasklist-count-indicator {
+  min-width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background-color: var(--button-gray-background-color);
+  color: var(--dark-text-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  font-size: 0.95rem;
+  line-height: 32px;
+  user-select: none;
+  cursor: default;
+  flex-shrink: 0;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+/* 任务数量指示器悬停时显示文本光标，和其他标题框一致 */
+.tasklist-count-single-digit {
+  width: 32px;
+  padding: 0;
+}
+
+.tasklist-count-number {
+  cursor: text;
+  user-select: text;
+}
+
+.calendar-filter-row {
+  margin-bottom: 20px; /* 桌面端保持与下方组件净间距 8px（抵消分类与控制按钮的 -12px 上移） */
 }

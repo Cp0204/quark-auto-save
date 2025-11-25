@@ -967,8 +967,8 @@
 
           <div v-if="activeTab === 'tasklist'">
             <div style="height: 20px;"></div>
-            <div class="row" style="margin-bottom: 8px;">
-              <div class="col-lg-6 col-md-6 mb-2 mb-md-0">
+            <div class="row tasklist-filter-row" style="margin-bottom: 8px;">
+              <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
                 <div class="input-group">
                   <div class="input-group-prepend">
                     <span class="input-group-text">名称筛选</span>
@@ -979,20 +979,44 @@
                   </div>
                 </div>
               </div>
-              <div class="col-lg-6 col-md-6">
+              <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
                 <div class="input-group">
                   <div class="input-group-prepend">
                     <span class="input-group-text">任务筛选</span>
                   </div>
                   <div class="position-relative" style="flex: 1;">
-                    <select class="form-control task-filter-select" v-model="taskDirSelected" style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 24px !important;">
-                      <option value="">全部任务</option>
+                    <select class="form-control task-filter-select" v-model="taskDirSelected" style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 8px !important;">
+                      <option value="">全部</option>
                       <option v-for="task in taskNames" :value="task" v-html="task"></option>
                     </select>
                     <!-- <i class="bi bi-chevron-down select-arrow" style="position: absolute; pointer-events: none; color: var(--dark-text-color);"></i> -->
                   </div>
                   <div class="input-group-append">
                     <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearData('taskDirSelected')"><i class="bi bi-x-lg"></i></button>
+                  </div>
+                </div>
+              </div>
+              <div class="col-xl-4 col-lg-4 col-md-6">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">状态筛选</span>
+                  </div>
+                  <div class="position-relative" style="flex: 1;">
+                    <select class="form-control task-filter-select"
+                            v-model="taskStatusFilter"
+                            style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 8px !important;">
+                      <option value="">全部</option>
+                      <option value="incomplete">未完成</option>
+                      <option value="ongoing">进行中</option>
+                      <option value="completed">已完成</option>
+                      <option value="airing">播出中</option>
+                      <option value="finale">本季终</option>
+                      <option value="ended">已完结</option>
+                      <option value="unmatched">未匹配</option>
+                    </select>
+                  </div>
+                  <div class="input-group-append">
+                    <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearData('taskStatusFilter')"><i class="bi bi-x-lg"></i></button>
                   </div>
                 </div>
               </div>
@@ -1033,6 +1057,13 @@
                       {{ tasklistSort.order === 'asc' ? '升序排列' : '降序排列' }}
                     </span>
                   </div>
+                  <!-- 任务数量显示 -->
+                  <div
+                    class="tasklist-count-indicator ml-2"
+                    :class="{'tasklist-count-single-digit': tasklistVisibleCount < 10}"
+                    :title="`共${tasklistVisibleCount}个任务`">
+                    <span class="tasklist-count-number">{{ tasklistVisibleCount }}</span>
+                  </div>
                   <!-- 视图切换按钮：列表视图 与 海报视图 -->
                   <div class="ml-2">
                     <button type="button"
@@ -1057,7 +1088,7 @@
             <!-- 任务列表：列表视图 -->
             <template v-if="tasklist.viewMode === 'list'">
             <div v-for="(task, index) in sortedTasklist" :key="'list-'+index" class="task mb-3" v-show="shouldShowTasklist">
-              <template v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task)">
+              <template v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task) && tasklistFilterByStatus(task)">
                 <hr>
                 <div class="form-group row" style="align-items:center">
                   <div class="col pl-0" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="true" :aria-controls="'collapse_'+index">
@@ -1276,7 +1307,7 @@
                 <div class="discovery-item"
                      v-for="(task, index) in sortedTasklist"
                      :key="'poster-'+(task.taskname || index)"
-                     v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task)">
+                     v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task) && tasklistFilterByStatus(task)">
                   <div class="discovery-poster" @mouseenter="handleManagementPosterHover($event, getCalendarTaskByName(task.taskname) || {})">
                     <img :src="getEpisodePosterUrl(getTasklistPosterLikeEpisode(task))"
                          :alt="task.taskname"
@@ -1394,8 +1425,8 @@
 
           <div v-if="activeTab === 'history'">
             <div style="height: 20px;"></div>
-            <div class="row" style="margin-bottom: 20px;">
-              <div class="col-lg-6 col-md-6 mb-2 mb-md-0">
+            <div class="row tasklist-filter-row" style="margin-bottom: 20px;">
+              <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
                 <div class="input-group">
                   <div class="input-group-prepend">
                     <span class="input-group-text">名称筛选</span>
@@ -1406,20 +1437,44 @@
                   </div>
                 </div>
               </div>
-              <div class="col-lg-6 col-md-6">
+              <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
                 <div class="input-group">
                   <div class="input-group-prepend">
                     <span class="input-group-text">任务筛选</span>
                   </div>
                   <div class="position-relative" style="flex: 1;">
-                    <select class="form-control task-filter-select" v-model="historyTaskSelected" style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 24px !important;">
-                      <option value="">全部任务</option>
+                    <select class="form-control task-filter-select" v-model="historyTaskSelected" style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 8px !important;">
+                      <option value="">全部</option>
                       <option v-for="task in historyTasks" :value="task" v-html="task"></option>
                     </select>
-                    <!-- <i class="bi bi-chevron-down select-arrow" style="position: absolute; pointer-events: none; color: var(--dark-text-color);"></i> -->
                   </div>
                   <div class="input-group-append">
                     <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearData('historyTaskSelected')"><i class="bi bi-x-lg"></i></button>
+                  </div>
+                </div>
+              </div>
+              <div class="col-xl-4 col-lg-4 col-md-6">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">状态筛选</span>
+                  </div>
+                  <div class="position-relative" style="flex: 1;">
+                    <select class="form-control task-filter-select"
+                            v-model="historyStatusFilter"
+                            style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 8px !important;">
+                      <option value="">全部</option>
+                      <option value="incomplete">未完成</option>
+                      <option value="ongoing">进行中</option>
+                      <option value="completed">已完成</option>
+                      <option value="airing">播出中</option>
+                      <option value="finale">本季终</option>
+                      <option value="ended">已完结</option>
+                      <option value="unmatched">未匹配</option>
+                      <option value="ended_task">已结束</option>
+                    </select>
+                  </div>
+                  <div class="input-group-append">
+                    <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearData('historyStatusFilter')"><i class="bi bi-x-lg"></i></button>
                   </div>
                 </div>
               </div>
@@ -1919,8 +1974,8 @@
             <!-- 追剧日历内容 -->
             <div v-else>
               <!-- 顶部筛选和导航 -->
-              <div class="row calendar-filter-row" style="margin-bottom: 20px;">
-                <div class="col-lg-6 col-md-6 mb-2 mb-md-0">
+              <div class="row tasklist-filter-row calendar-filter-row">
+                <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
                   <div class="input-group">
                     <div class="input-group-prepend">
                       <span class="input-group-text">名称筛选</span>
@@ -1931,19 +1986,43 @@
                     </div>
                   </div>
                 </div>
-                <div class="col-lg-6 col-md-6">
+                <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
                   <div class="input-group">
                     <div class="input-group-prepend">
                       <span class="input-group-text">任务筛选</span>
                     </div>
                     <div class="position-relative" style="flex: 1;">
-                      <select class="form-control task-filter-select" v-model="calendar.taskFilter" style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 24px !important;">
-                        <option value="">全部任务</option>
+                      <select class="form-control task-filter-select" v-model="calendar.taskFilter" style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 8px !important;">
+                        <option value="">全部</option>
                         <option v-for="task in calendar.taskNames" :value="task" v-html="task"></option>
                       </select>
                     </div>
                     <div class="input-group-append">
                       <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearCalendarFilter('taskFilter')"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
+                  <div class="input-group">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text">状态筛选</span>
+                    </div>
+                    <div class="position-relative" style="flex: 1;">
+                      <select class="form-control task-filter-select"
+                              v-model="calendar.statusFilter"
+                              style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 8px !important;">
+                        <option value="">全部</option>
+                        <option value="incomplete">未完成</option>
+                        <option value="ongoing">进行中</option>
+                        <option value="completed">已完成</option>
+                        <option value="airing">播出中</option>
+                        <option value="finale">本季终</option>
+                        <option value="ended">已完结</option>
+                        <option value="unmatched">未匹配</option>
+                      </select>
+                    </div>
+                    <div class="input-group-append">
+                      <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearCalendarFilter('statusFilter')"><i class="bi bi-x-lg"></i></button>
                     </div>
                   </div>
                 </div>
@@ -2976,6 +3055,13 @@
         taskDirs: [""],
         taskDirSelected: "",
         taskNameFilter: "",
+        taskStatusFilter: (() => {
+          try {
+            return localStorage.getItem('tasklist_status_filter') || '';
+          } catch (e) {
+            return '';
+          }
+        })(),
         taskLatestRecords: {}, // 存储每个任务的最新转存记录日期
         taskLatestFiles: {}, // 存储每个任务的最近转存文件
         modalLoading: false,
@@ -3058,6 +3144,13 @@
         },
         historyNameFilter: "",
         historyTaskSelected: "",
+        historyStatusFilter: (() => {
+          try {
+            return localStorage.getItem('history_status_filter') || '';
+          } catch (e) {
+            return '';
+          }
+        })(),
         gotoPage: 1,
         totalPages: 1,
         displayedPages: [],
@@ -3065,6 +3158,9 @@
         toastMessage: "",
         selectedRecords: [],
         lastSelectedRecordIndex: -1, // 记录最后选择的记录索引，用于Shift选择
+        _lastTaskFilter: "",
+        _lastNameFilter: "",
+        _lastStatusFilter: "",
         fileManager: {
           hasLoaded: false, // 标记是否已完成首次加载
           // 当前文件夹ID - 根据localStorage和账号索引决定初始目录
@@ -3219,6 +3315,13 @@
           selectedType: (localStorage.getItem('calendar_selected_type') || 'all'),
           nameFilter: '',
           taskFilter: '',
+          statusFilter: (() => {
+            try {
+              return localStorage.getItem('calendar_status_filter') || '';
+            } catch (e) {
+              return '';
+            }
+          })(),
           taskNames: [],
           viewMode: (localStorage.getItem('calendar_view_mode') === 'month' || localStorage.getItem('calendar_view_mode') === 'poster')
             ? localStorage.getItem('calendar_view_mode')
@@ -3343,6 +3446,9 @@
           if (this.calendar.taskFilter && this.calendar.taskFilter.trim() !== '') {
             list = list.filter(t => (t.task_name || '') === this.calendar.taskFilter);
           }
+          if (this.calendar.statusFilter && this.calendar.statusFilter.trim() !== '') {
+            list = list.filter(t => this.filterTaskByStatus(t, this.calendar.statusFilter));
+          }
           // 按匹配状态和任务名称拼音排序：匹配的项目在前，未匹配的项目在后
           try {
             list.sort((a, b) => {
@@ -3366,6 +3472,42 @@
         // 任务列表：带排序的视图数据（使用计算属性，不修改原始数据）
         sortedTasklist() {
           return this.getSortedTasklist();
+        },
+
+        // 任务列表：可见任务集合（用于数量展示）
+        tasklistVisibleTasks() {
+          try {
+            if (!this.shouldShowTasklist) {
+              return [];
+            }
+            const keyword = this.taskNameFilter || '';
+            const selectedTaskName = this.taskDirSelected || '';
+            return (this.sortedTasklist || []).filter(task => {
+              if (!task) return false;
+              const taskName = task.taskname || '';
+              if (selectedTaskName && taskName !== selectedTaskName) {
+                return false;
+              }
+              if (keyword && !taskName.includes(keyword)) {
+                return false;
+              }
+              if (!this.tasklistFilterByType(task)) {
+                return false;
+              }
+              return this.tasklistFilterByStatus(task);
+            });
+          } catch (e) {
+            return [];
+          }
+        },
+
+        // 任务列表：当前可见任务数量
+        tasklistVisibleCount() {
+          try {
+            return this.tasklistVisibleTasks.length;
+          } catch (e) {
+            return 0;
+          }
         },
 
         // 判断是否应该显示任务列表（避免排序闪烁）
@@ -3458,7 +3600,6 @@
         
         
         filteredHistoryRecords() {
-          // 直接返回服务器端已筛选的数据
           if (!this.history.records || this.history.records.length === 0) {
             return [];
           }
@@ -3576,6 +3717,19 @@
             this.initializeCalendarDates();
           }
         },
+        'calendar.statusFilter': function(newVal, oldVal) {
+          if (this.calendar.viewMode === 'month') {
+            this.initializeCalendarDates();
+          }
+          try {
+            localStorage.setItem('calendar_status_filter', newVal || '');
+          } catch (e) {}
+        },
+        taskStatusFilter(newValue) {
+          try {
+            localStorage.setItem('tasklist_status_filter', newValue || '');
+          } catch (e) {}
+        },
         // 侧边栏折叠/展开变化时，触发布局重算
         sidebarCollapsed(val) {
           if (this.activeTab === 'calendar') {
@@ -3611,6 +3765,14 @@
         historyTaskSelected: {
           handler(newVal, oldVal) {
             // 选择任务筛选条件后立即加载数据
+            this.loadHistoryRecords();
+          }
+        },
+        historyStatusFilter: {
+          handler(newVal) {
+            try {
+              localStorage.setItem('history_status_filter', newVal || '');
+            } catch (e) {}
             this.loadHistoryRecords();
           }
         },
@@ -4324,6 +4486,97 @@
             return contentType === this.tasklist.selectedType;
           } catch (e) { return true; }
         },
+        // 统一的状态筛选逻辑（任务列表与追剧日历共用）
+        filterTaskByStatus(task, filterValue) {
+          try {
+            const filter = filterValue || '';
+            if (!filter) return true;
+            if (!task) return false;
+            const taskName = task.taskname || task.task_name || '';
+            const status = this.getTasklistFullStatus(task);
+            const progress = this.getTaskProgress && taskName ? this.getTaskProgress(taskName) : null;
+            const normalizedProgress = (progress === null || progress === undefined) ? null : Number(progress);
+            const isCompleted = this.isTaskCompletedByStatusAndProgress(status, normalizedProgress);
+            const isMatched = this.isTaskMatchedWithMetadata(task);
+            switch (filter) {
+              case 'incomplete':
+                return !isCompleted;
+              case 'ongoing':
+                return normalizedProgress === null || normalizedProgress < 100;
+              case 'completed':
+                return isCompleted;
+              case 'airing':
+                return status === '播出中';
+              case 'finale':
+                return status === '本季终';
+              case 'ended':
+                return status === '已完结';
+              case 'unmatched':
+                return !isMatched;
+              default:
+                return true;
+            }
+          } catch (e) {
+            return true;
+          }
+        },
+        tasklistFilterByStatus(task) {
+          return this.filterTaskByStatus(task, this.taskStatusFilter);
+        },
+        getTasklistFullStatus(task) {
+          try {
+            if (!task) return '';
+            const taskName = task.taskname || task.task_name || '';
+            const calTask = taskName ? this.getCalendarTaskByName(taskName) : null;
+            const candidates = [
+              calTask && calTask.matched_status,
+              calTask && calTask.status,
+              task.matched_status,
+              task.status,
+              ((task.calendar_info || {}).match || {}).status,
+              ((task.calendar_info || {}).extracted || {}).status
+            ];
+            for (const val of candidates) {
+              if (val && String(val).trim() !== '') {
+                return String(val).trim();
+              }
+            }
+            return '';
+          } catch (e) {
+            return '';
+          }
+        },
+        isTaskMatchedWithMetadata(task) {
+          try {
+            if (!task) return false;
+            const taskName = task.taskname || task.task_name || '';
+            const calTask = taskName ? this.getCalendarTaskByName(taskName) : null;
+            const candidates = [
+              calTask && (calTask.match_tmdb_id || (calTask.match && calTask.match.tmdb_id) || calTask.tmdb_id),
+              task.match_tmdb_id,
+              (task.match && task.match.tmdb_id),
+              ((task.calendar_info || {}).match || {}).tmdb_id,
+              task.tmdb_id
+            ];
+            return candidates.some(id => {
+              if (id === null || id === undefined) return false;
+              const str = String(id).trim();
+              return str !== '';
+            });
+          } catch (e) {
+            return false;
+          }
+        },
+        isTaskCompletedByStatusAndProgress(status, progressValue) {
+          try {
+            const finalStatuses = ['本季终', '已完结', '已取消'];
+            if (!finalStatuses.includes(status)) return false;
+            if (progressValue === null || progressValue === undefined) return false;
+            return Number(progressValue) >= 100;
+          } catch (e) {
+            return false;
+          }
+        },
         // 获取根据当前视图筛选条件过滤后的任务中编号最大的任务
         getLastTaskByCurrentFilter() {
           try {
@@ -4843,10 +5096,9 @@
           // 先进行基础筛选
           let filteredEpisodes = this.calendar.episodes.filter(episode => {
             // 根据筛选条件过滤
+            const matchedTask = this.findTaskByShowName(episode.show_name);
             if (this.calendar.selectedType !== 'all') {
-              // 通过剧集名称匹配任务，获取内容类型
-              const matchedTask = this.findTaskByShowName(episode.show_name);
-              const episodeContentType = matchedTask ? matchedTask.content_type : 'other';
+              const episodeContentType = matchedTask ? (matchedTask.content_type || 'other') : 'other';
               if (episodeContentType !== this.calendar.selectedType) {
                 return false;
               }
@@ -4863,11 +5115,15 @@
             
             // 任务筛选：检查任务名称
             if (this.calendar.taskFilter && this.calendar.taskFilter.trim() !== '') {
-              const matchedTask = this.findTaskByShowName(episode.show_name);
-              const taskName = matchedTask ? matchedTask.task_name : '';
+              const taskName = matchedTask ? (matchedTask.task_name || matchedTask.taskname || '') : '';
               if (taskName !== this.calendar.taskFilter) {
                 return false;
               }
+            }
+
+            // 状态筛选：复用任务列表逻辑
+            if (!this.filterTaskByStatus(matchedTask, this.calendar.statusFilter)) {
+              return false;
             }
             
             return episode.air_date === date;
@@ -5824,6 +6080,8 @@
             this.calendar.nameFilter = '';
           } else if (filterType === 'taskFilter') {
             this.calendar.taskFilter = '';
+          } else if (filterType === 'statusFilter') {
+            this.calendar.statusFilter = '';
           }
         },
         
@@ -9004,10 +9262,16 @@
             params.keyword = this.historyNameFilter;
           }
           
+          // 追加状态筛选
+          if (!this.prepareStatusFilterParams(params, true)) {
+            return;
+          }
+          
           // 判断筛选条件是否变化，只有变化时才重置页码
           const isFilterChanged = 
             (this._lastTaskFilter !== this.historyTaskSelected) || 
-            (this._lastNameFilter !== this.historyNameFilter);
+            (this._lastNameFilter !== this.historyNameFilter) ||
+            (this._lastStatusFilter !== this.historyStatusFilter);
           
           if (isFilterChanged) {
             // 筛选条件变化时重置为第一页
@@ -9018,6 +9282,7 @@
           // 记录当前筛选条件
           this._lastTaskFilter = this.historyTaskSelected;
           this._lastNameFilter = this.historyNameFilter;
+          this._lastStatusFilter = this.historyStatusFilter;
           
           // 更新当前参数
           this.historyParams = { 
@@ -9046,6 +9311,74 @@
             this.history.hasLoaded = true;
           });
         },
+        prepareStatusFilterParams(params, handleEmptyResult = false) {
+          if (!this.historyStatusFilter) {
+            return true;
+          }
+          const taskNames = this.getStatusFilteredTaskNames(this.historyStatusFilter);
+          if (!taskNames || taskNames.length === 0) {
+            if (handleEmptyResult) {
+              this.handleEmptyHistoryResult(params.page_size);
+            }
+            return false;
+          }
+          params.task_names = JSON.stringify(taskNames);
+          return true;
+        },
+        getStatusFilteredTaskNames(filterValue) {
+          if (!filterValue) {
+            return [];
+          }
+          if (filterValue === 'ended_task') {
+            const allTaskNames = (this.allTaskNames && this.allTaskNames.length > 0)
+              ? this.allTaskNames
+              : this.extractTaskNamesFromHistory();
+            if (!this.allTaskNames || this.allTaskNames.length === 0) {
+              this.loadAllTaskNames();
+            }
+            const currentNames = new Set();
+            (this.formData.tasklist || []).forEach(task => {
+              if (task && task.taskname) {
+                currentNames.add(task.taskname);
+              }
+            });
+            return allTaskNames.filter(name => name && !currentNames.has(name));
+          }
+          const matchedNames = new Set();
+          (this.formData.tasklist || []).forEach(task => {
+            if (!task || !task.taskname) {
+              return;
+            }
+            if (this.filterTaskByStatus(task, filterValue)) {
+              matchedNames.add(task.taskname);
+            }
+          });
+          return Array.from(matchedNames);
+        },
+        extractTaskNamesFromHistory() {
+          const names = new Set();
+          (this.history.records || []).forEach(record => {
+            if (record && record.task_name) {
+              names.add(record.task_name);
+            }
+          });
+          return Array.from(names);
+        },
+        handleEmptyHistoryResult(pageSize) {
+          const resolvedPageSize = pageSize || parseInt(this.historyParams.page_size || 15);
+          this.history.records = [];
+          this.history.pagination = {
+            total_records: 0,
+            total_pages: 1,
+            current_page: 1,
+            page_size: resolvedPageSize
+          };
+          this.history.hasLoaded = true;
+          this.totalPages = 1;
+          this.historyParams.page = 1;
+          this.gotoPage = 1;
+          this.selectedRecords = [];
+        },
         
         sortHistory(field) {
           // 更新排序参数
@@ -9072,6 +9405,10 @@
           
           if (this.historyNameFilter) {
             params.keyword = this.historyNameFilter;
+          }
+          
+          if (!this.prepareStatusFilterParams(params, true)) {
+            return;
           }
           
           // 重新加载数据，使用当前页和当前设置的排序方式
@@ -9116,6 +9453,10 @@
             params.keyword = this.historyNameFilter;
           }
           
+          if (!this.prepareStatusFilterParams(params, true)) {
+            return;
+          }
+          
           axios.get('/history_records', { params })
             .then(response => {
               if (response.data.success) {
@@ -9155,6 +9496,10 @@
             params.keyword = this.historyNameFilter;
           }
           
+          if (!this.prepareStatusFilterParams(params, true)) {
+            return;
+          }
+          
           // 重新加载数据
           axios.get('/history_records', { params })
             .then(response => {
@@ -9182,8 +9527,8 @@
         },
         
         getVisiblePageNumbers() {
-          const current = parseInt(this.historyParams.page) || 1;
           const total = parseInt(this.totalPages) || 1;
+          const current = parseInt(this.historyParams.page) || 1;
           // 根据屏幕宽度动态调整显示的页码数：移动端显示较少页码，桌面端显示较多页码
           const isMobile = window.innerWidth <= 768;
           const delta = isMobile ? 1 : 2; // 移动端左右各显示1个页码，桌面端左右各显示2个页码

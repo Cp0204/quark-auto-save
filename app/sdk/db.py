@@ -167,7 +167,8 @@ class RecordDB:
     
     @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_records(self, page=1, page_size=20, sort_by="transfer_time", order="desc", 
-                   task_name_filter="", keyword_filter="", exclude_task_names=None):
+                   task_name_filter="", keyword_filter="", exclude_task_names=None,
+                   task_name_list=None):
         """获取转存记录列表，支持分页、排序和筛选
         
         Args:
@@ -178,6 +179,7 @@ class RecordDB:
             task_name_filter: 任务名称筛选条件（精确匹配）
             keyword_filter: 关键字筛选条件（模糊匹配任务名、转存为名称）
             exclude_task_names: 需要排除的任务名称列表
+            task_name_list: 任务名称集合（包含多个任务名时使用IN筛选）
         """
         cursor = self.conn.cursor()
         offset = (page - 1) * page_size
@@ -207,6 +209,11 @@ class RecordDB:
         if exclude_task_names:
             where_clauses.append("task_name NOT IN ({})".format(",".join(["?" for _ in exclude_task_names])))
             params.extend(exclude_task_names)
+        
+        if task_name_list:
+            placeholders = ",".join(["?" for _ in task_name_list])
+            where_clauses.append(f"task_name IN ({placeholders})")
+            params.extend(task_name_list)
         
         where_clause = " AND ".join(where_clauses)
         where_sql = f"WHERE {where_clause}" if where_clause else ""

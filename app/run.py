@@ -1855,8 +1855,12 @@ def run_script_now():
         if tasklist:
             process_env["TASKLIST"] = json.dumps(tasklist, ensure_ascii=False)
             # 添加原始任务索引的环境变量
-            if len(tasklist) == 1 and 'original_index' in request.json:
-                process_env["ORIGINAL_TASK_INDEX"] = str(request.json['original_index'])
+            if len(tasklist) == 1:
+                # 单任务手动运行：前端传入 original_index，用于日志展示
+                if 'original_index' in request.json:
+                    process_env["ORIGINAL_TASK_INDEX"] = str(request.json['original_index'])
+                # 单任务手动运行应忽略执行周期和任务进度限制（包括自动模式下进度100%也要执行）
+                process_env["IGNORE_EXECUTION_RULES"] = "1"
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
@@ -3622,6 +3626,18 @@ def get_history_records():
     # 获取筛选参数
     task_name_filter = request.args.get("task_name", "")
     keyword_filter = request.args.get("keyword", "")
+    task_names_raw = request.args.get("task_names", "")
+    task_name_list = []
+    if task_names_raw:
+        try:
+            decoded_names = json.loads(task_names_raw)
+            if isinstance(decoded_names, list):
+                task_name_list = [
+                    str(name).strip() for name in decoded_names
+                    if isinstance(name, (str, bytes)) and str(name).strip()
+                ]
+        except Exception:
+            task_name_list = []
     
     # 是否只请求所有任务名称
     get_all_task_names = request.args.get("get_all_task_names", "").lower() in ["true", "1", "yes"]
@@ -3644,6 +3660,7 @@ def get_history_records():
                 order=order,
                 task_name_filter=task_name_filter,
                 keyword_filter=keyword_filter,
+                task_name_list=task_name_list,
                 exclude_task_names=["rename", "undo_rename"]
             )
             # 添加所有任务名称到结果中
@@ -3665,6 +3682,7 @@ def get_history_records():
         order=order,
         task_name_filter=task_name_filter,
         keyword_filter=keyword_filter,
+        task_name_list=task_name_list,
         exclude_task_names=["rename", "undo_rename"]
     )
     
