@@ -967,7 +967,7 @@
 
           <div v-if="activeTab === 'tasklist'">
             <div style="height: 20px;"></div>
-            <div class="row tasklist-filter-row" style="margin-bottom: 8px;">
+            <div class="row tasklist-filter-row" style="margin-bottom: 20px;">
               <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
                 <div class="input-group">
                   <div class="input-group-prepend">
@@ -1425,8 +1425,8 @@
 
           <div v-if="activeTab === 'history'">
             <div style="height: 20px;"></div>
-            <div class="row" style="margin-bottom: 20px;">
-              <div class="col-lg-6 col-md-6 mb-2 mb-md-0">
+            <div class="row tasklist-filter-row" style="margin-bottom: 20px;">
+              <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
                 <div class="input-group">
                   <div class="input-group-prepend">
                     <span class="input-group-text">名称筛选</span>
@@ -1437,20 +1437,44 @@
                   </div>
                 </div>
               </div>
-              <div class="col-lg-6 col-md-6">
+              <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
                 <div class="input-group">
                   <div class="input-group-prepend">
                     <span class="input-group-text">任务筛选</span>
                   </div>
                   <div class="position-relative" style="flex: 1;">
-                    <select class="form-control task-filter-select" v-model="historyTaskSelected" style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 24px !important;">
+                    <select class="form-control task-filter-select" v-model="historyTaskSelected" style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 8px !important;">
                       <option value="">全部</option>
                       <option v-for="task in historyTasks" :value="task" v-html="task"></option>
                     </select>
-                    <!-- <i class="bi bi-chevron-down select-arrow" style="position: absolute; pointer-events: none; color: var(--dark-text-color);"></i> -->
                   </div>
                   <div class="input-group-append">
                     <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearData('historyTaskSelected')"><i class="bi bi-x-lg"></i></button>
+                  </div>
+                </div>
+              </div>
+              <div class="col-xl-4 col-lg-4 col-md-6">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">状态筛选</span>
+                  </div>
+                  <div class="position-relative" style="flex: 1;">
+                    <select class="form-control task-filter-select"
+                            v-model="historyStatusFilter"
+                            style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 8px !important;">
+                      <option value="">全部</option>
+                      <option value="incomplete">未完成</option>
+                      <option value="ongoing">进行中</option>
+                      <option value="completed">已完成</option>
+                      <option value="airing">播出中</option>
+                      <option value="finale">本季终</option>
+                      <option value="ended">已完结</option>
+                      <option value="unmatched">未匹配</option>
+                      <option value="ended_task">已结束</option>
+                    </select>
+                  </div>
+                  <div class="input-group-append">
+                    <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearData('historyStatusFilter')"><i class="bi bi-x-lg"></i></button>
                   </div>
                 </div>
               </div>
@@ -3120,6 +3144,13 @@
         },
         historyNameFilter: "",
         historyTaskSelected: "",
+        historyStatusFilter: (() => {
+          try {
+            return localStorage.getItem('history_status_filter') || '';
+          } catch (e) {
+            return '';
+          }
+        })(),
         gotoPage: 1,
         totalPages: 1,
         displayedPages: [],
@@ -3127,6 +3158,9 @@
         toastMessage: "",
         selectedRecords: [],
         lastSelectedRecordIndex: -1, // 记录最后选择的记录索引，用于Shift选择
+        _lastTaskFilter: "",
+        _lastNameFilter: "",
+        _lastStatusFilter: "",
         fileManager: {
           hasLoaded: false, // 标记是否已完成首次加载
           // 当前文件夹ID - 根据localStorage和账号索引决定初始目录
@@ -3566,7 +3600,6 @@
         
         
         filteredHistoryRecords() {
-          // 直接返回服务器端已筛选的数据
           if (!this.history.records || this.history.records.length === 0) {
             return [];
           }
@@ -3732,6 +3765,14 @@
         historyTaskSelected: {
           handler(newVal, oldVal) {
             // 选择任务筛选条件后立即加载数据
+            this.loadHistoryRecords();
+          }
+        },
+        historyStatusFilter: {
+          handler(newVal) {
+            try {
+              localStorage.setItem('history_status_filter', newVal || '');
+            } catch (e) {}
             this.loadHistoryRecords();
           }
         },
@@ -9221,10 +9262,16 @@
             params.keyword = this.historyNameFilter;
           }
           
+          // 追加状态筛选
+          if (!this.prepareStatusFilterParams(params, true)) {
+            return;
+          }
+          
           // 判断筛选条件是否变化，只有变化时才重置页码
           const isFilterChanged = 
             (this._lastTaskFilter !== this.historyTaskSelected) || 
-            (this._lastNameFilter !== this.historyNameFilter);
+            (this._lastNameFilter !== this.historyNameFilter) ||
+            (this._lastStatusFilter !== this.historyStatusFilter);
           
           if (isFilterChanged) {
             // 筛选条件变化时重置为第一页
@@ -9235,6 +9282,7 @@
           // 记录当前筛选条件
           this._lastTaskFilter = this.historyTaskSelected;
           this._lastNameFilter = this.historyNameFilter;
+          this._lastStatusFilter = this.historyStatusFilter;
           
           // 更新当前参数
           this.historyParams = { 
@@ -9263,6 +9311,74 @@
             this.history.hasLoaded = true;
           });
         },
+        prepareStatusFilterParams(params, handleEmptyResult = false) {
+          if (!this.historyStatusFilter) {
+            return true;
+          }
+          const taskNames = this.getStatusFilteredTaskNames(this.historyStatusFilter);
+          if (!taskNames || taskNames.length === 0) {
+            if (handleEmptyResult) {
+              this.handleEmptyHistoryResult(params.page_size);
+            }
+            return false;
+          }
+          params.task_names = JSON.stringify(taskNames);
+          return true;
+        },
+        getStatusFilteredTaskNames(filterValue) {
+          if (!filterValue) {
+            return [];
+          }
+          if (filterValue === 'ended_task') {
+            const allTaskNames = (this.allTaskNames && this.allTaskNames.length > 0)
+              ? this.allTaskNames
+              : this.extractTaskNamesFromHistory();
+            if (!this.allTaskNames || this.allTaskNames.length === 0) {
+              this.loadAllTaskNames();
+            }
+            const currentNames = new Set();
+            (this.formData.tasklist || []).forEach(task => {
+              if (task && task.taskname) {
+                currentNames.add(task.taskname);
+              }
+            });
+            return allTaskNames.filter(name => name && !currentNames.has(name));
+          }
+          const matchedNames = new Set();
+          (this.formData.tasklist || []).forEach(task => {
+            if (!task || !task.taskname) {
+              return;
+            }
+            if (this.filterTaskByStatus(task, filterValue)) {
+              matchedNames.add(task.taskname);
+            }
+          });
+          return Array.from(matchedNames);
+        },
+        extractTaskNamesFromHistory() {
+          const names = new Set();
+          (this.history.records || []).forEach(record => {
+            if (record && record.task_name) {
+              names.add(record.task_name);
+            }
+          });
+          return Array.from(names);
+        },
+        handleEmptyHistoryResult(pageSize) {
+          const resolvedPageSize = pageSize || parseInt(this.historyParams.page_size || 15);
+          this.history.records = [];
+          this.history.pagination = {
+            total_records: 0,
+            total_pages: 1,
+            current_page: 1,
+            page_size: resolvedPageSize
+          };
+          this.history.hasLoaded = true;
+          this.totalPages = 1;
+          this.historyParams.page = 1;
+          this.gotoPage = 1;
+          this.selectedRecords = [];
+        },
         
         sortHistory(field) {
           // 更新排序参数
@@ -9289,6 +9405,10 @@
           
           if (this.historyNameFilter) {
             params.keyword = this.historyNameFilter;
+          }
+          
+          if (!this.prepareStatusFilterParams(params, true)) {
+            return;
           }
           
           // 重新加载数据，使用当前页和当前设置的排序方式
@@ -9333,6 +9453,10 @@
             params.keyword = this.historyNameFilter;
           }
           
+          if (!this.prepareStatusFilterParams(params, true)) {
+            return;
+          }
+          
           axios.get('/history_records', { params })
             .then(response => {
               if (response.data.success) {
@@ -9372,6 +9496,10 @@
             params.keyword = this.historyNameFilter;
           }
           
+          if (!this.prepareStatusFilterParams(params, true)) {
+            return;
+          }
+          
           // 重新加载数据
           axios.get('/history_records', { params })
             .then(response => {
@@ -9399,8 +9527,8 @@
         },
         
         getVisiblePageNumbers() {
-          const current = parseInt(this.historyParams.page) || 1;
           const total = parseInt(this.totalPages) || 1;
+          const current = parseInt(this.historyParams.page) || 1;
           // 根据屏幕宽度动态调整显示的页码数：移动端显示较少页码，桌面端显示较多页码
           const isMobile = window.innerWidth <= 768;
           const delta = isMobile ? 1 : 2; // 移动端左右各显示1个页码，桌面端左右各显示2个页码
