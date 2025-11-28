@@ -1771,6 +1771,11 @@ def update():
             try:
                 from app.sdk.db import CalendarDB as _CalDB
                 _CalDB().cleanup_orphan_data(valid_pairs, valid_names)
+                # 清理孤立数据后，也清理可能残留的孤立海报文件
+                try:
+                    cleanup_orphaned_posters()
+                except Exception:
+                    pass
             except Exception:
                 pass
         except Exception as e:
@@ -6336,6 +6341,11 @@ def calendar_edit_metadata():
                         except Exception:
                             pass
                 CalendarDB().cleanup_orphan_data(_valid_pairs, _valid_names)
+                # 清理孤立数据后，也清理可能残留的孤立海报文件
+                try:
+                    cleanup_orphaned_posters()
+                except Exception:
+                    pass
             except Exception:
                 pass
         # 场景二：未提供 new_tmdb_id，但提供了 new_season_number（仅修改季数）
@@ -6435,6 +6445,11 @@ def calendar_edit_metadata():
                             except Exception:
                                 pass
                     CalendarDB().cleanup_orphan_data(_valid_pairs, _valid_names)
+                    # 清理孤立数据后，也清理可能残留的孤立海报文件
+                    try:
+                        cleanup_orphaned_posters()
+                    except Exception:
+                        pass
                 except Exception:
                     pass
 

@@ -642,7 +642,7 @@ class CalendarDB:
                 result.append(item)
         return result
 
-    # --------- 孤儿数据清理（seasons / episodes / season_metrics / task_metrics） ---------
+    # --------- 孤儿数据清理（seasons / episodes / season_metrics / task_metrics / shows） ---------
     @retry_on_locked(max_retries=3, base_delay=0.1)
     def cleanup_orphan_data(self, valid_task_pairs, valid_task_names):
         """清理不再与任何任务对应的数据
@@ -655,6 +655,7 @@ class CalendarDB:
         - task_metrics: 删除 task_name 不在当前任务列表中的记录
         - seasons/episodes: 仅保留出现在 valid_task_pairs 内的季与对应所有集；其余删除
         - season_metrics: 仅保留出现在 valid_task_pairs 内的记录；其余删除
+        - shows: 仅保留出现在 valid_task_pairs 内的 tmdb_id；其余删除（连带删除对应的 seasons/episodes）
         """
         try:
             cursor = self.conn.cursor()
@@ -715,6 +716,47 @@ class CalendarDB:
                         f'''DELETE FROM season_metrics
                             WHERE (tmdb_id, season_number) NOT IN ({tuple_placeholders})''',
                         flat_params
+                    )
+                except Exception:
+                    pass
+
+            # 3) 清理孤立的 shows（仅保留出现在 valid_task_pairs 中的 tmdb_id）
+            # 从 valid_task_pairs 中提取所有有效的 tmdb_id
+            valid_tmdb_ids = set()
+            for tid, sn in pairs:
+                if tid:
+                    valid_tmdb_ids.add(int(tid))
+
+            if not valid_tmdb_ids:
+                # 没有任何有效的 tmdb_id：清空所有 shows
+                # 注意：episodes 和 seasons 已经在步骤 2 中被清理了
+                try:
+                    cursor.execute('DELETE FROM shows')
+                except Exception:
+                    pass
+            else:
+                # 删除不在有效 tmdb_id 列表中的 shows
+                # 注意：对应的 episodes 和 seasons 在步骤 2 中应该已经被清理了
+                # 但为了确保没有残留数据，我们再次清理可能残留的孤立数据
+                try:
+                    placeholders = ','.join(['?'] * len(valid_tmdb_ids))
+                    # 先清理可能残留的孤立 episodes、seasons 和 season_metrics（针对被删除的 shows）
+                    cursor.execute(
+                        f'DELETE FROM episodes WHERE tmdb_id NOT IN ({placeholders})',
+                        list(valid_tmdb_ids)
+                    )
+                    cursor.execute(
+                        f'DELETE FROM seasons WHERE tmdb_id NOT IN ({placeholders})',
+                        list(valid_tmdb_ids)
+                    )
+                    cursor.execute(
+                        f'DELETE FROM season_metrics WHERE tmdb_id NOT IN ({placeholders})',
+                        list(valid_tmdb_ids)
+                    )
+                    # 最后删除孤立的 shows
+                    cursor.execute(
+                        f'DELETE FROM shows WHERE tmdb_id NOT IN ({placeholders})',
+                        list(valid_tmdb_ids)
                     )
                 except Exception:
                     pass
