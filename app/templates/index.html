@@ -5541,11 +5541,18 @@
               this.showToast(response.data.message || '季元数据刷新成功');
               
               // 刷新任务数据，确保节目状态（如 本季终/已完结/已取消）及时更新
+              // 同时更新集数数据（已转存集数/已播出集数/节目总集数）
               try {
                 const tasksResponse = await axios.get('/api/calendar/tasks');
                 if (tasksResponse.data && tasksResponse.data.success) {
                   this.calendar.tasks = tasksResponse.data.data.tasks;
                   this.calendar.taskNames = this.calendar.tasks.map(task => task.task_name);
+                  // 重新构建进度映射，确保任务列表和管理视图的集数数据正确更新
+                  this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+                  
+                  // 重新计算内容类型，确保类型按钮能热更新
+                  const rawTypes = tasksResponse.data.data.content_types || [];
+                  this.updateContentTypes(rawTypes);
                 }
               } catch (e) {}
 
