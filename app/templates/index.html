@@ -3137,6 +3137,8 @@
           level: ''
         },
         runtimeLogScrollPositionBeforeTaskFilter: null, // 保存应用任务筛选之前的滚动位置
+        runtimeLogScrollPositionBeforeLevelFilter: null, // 保存应用级别筛选之前的滚动位置
+        runtimeLogScrollPositionBeforeKeywordFilter: null, // 保存应用内容筛选之前的滚动位置
         runtimeLogLevels: ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
         runtimeLogPollingTimer: null,
         runtimeLogInitialized: false, // 跟踪运行日志是否已初始化（用于避免首次加载时的闪现）
@@ -3951,6 +3953,72 @@
                   viewport.scrollTop = Math.min(savedPosition.scrollTop, viewport.scrollHeight);
                 }
                 this.runtimeLogScrollPositionBeforeTaskFilter = null;
+              }
+            });
+          }
+        },
+        'runtimeLogFilters.level': function(newVal, oldVal) {
+          const viewport = this.$refs.runtimeLogViewport;
+          if (!viewport) return;
+          
+          // 当应用级别筛选时（从空变为有值），保存当前的滚动位置
+          if (!oldVal && newVal) {
+            this.runtimeLogScrollPositionBeforeLevelFilter = {
+              scrollTop: viewport.scrollTop,
+              scrollHeight: viewport.scrollHeight
+            };
+          }
+          // 当清空级别筛选时（从有值变为空），恢复之前保存的滚动位置
+          else if (oldVal && !newVal && this.runtimeLogScrollPositionBeforeLevelFilter) {
+            this.$nextTick(() => {
+              const savedPosition = this.runtimeLogScrollPositionBeforeLevelFilter;
+              if (savedPosition && viewport && savedPosition.scrollHeight > 0) {
+                // 计算滚动位置的相对比例，以适应内容高度可能的变化
+                const ratio = savedPosition.scrollTop / savedPosition.scrollHeight;
+                const newScrollTop = viewport.scrollHeight * ratio;
+                // 确保滚动位置在有效范围内
+                viewport.scrollTop = Math.max(0, Math.min(newScrollTop, viewport.scrollHeight - viewport.clientHeight));
+                // 清空保存的位置
+                this.runtimeLogScrollPositionBeforeLevelFilter = null;
+              } else if (savedPosition && viewport) {
+                // 如果保存的 scrollHeight 为 0，直接使用保存的 scrollTop（如果有效）
+                if (savedPosition.scrollTop >= 0) {
+                  viewport.scrollTop = Math.min(savedPosition.scrollTop, viewport.scrollHeight);
+                }
+                this.runtimeLogScrollPositionBeforeLevelFilter = null;
+              }
+            });
+          }
+        },
+        'runtimeLogFilters.keyword': function(newVal, oldVal) {
+          const viewport = this.$refs.runtimeLogViewport;
+          if (!viewport) return;
+          
+          // 当应用内容筛选时（从空变为有值），保存当前的滚动位置
+          if (!oldVal && newVal) {
+            this.runtimeLogScrollPositionBeforeKeywordFilter = {
+              scrollTop: viewport.scrollTop,
+              scrollHeight: viewport.scrollHeight
+            };
+          }
+          // 当清空内容筛选时（从有值变为空），恢复之前保存的滚动位置
+          else if (oldVal && !newVal && this.runtimeLogScrollPositionBeforeKeywordFilter) {
+            this.$nextTick(() => {
+              const savedPosition = this.runtimeLogScrollPositionBeforeKeywordFilter;
+              if (savedPosition && viewport && savedPosition.scrollHeight > 0) {
+                // 计算滚动位置的相对比例，以适应内容高度可能的变化
+                const ratio = savedPosition.scrollTop / savedPosition.scrollHeight;
+                const newScrollTop = viewport.scrollHeight * ratio;
+                // 确保滚动位置在有效范围内
+                viewport.scrollTop = Math.max(0, Math.min(newScrollTop, viewport.scrollHeight - viewport.clientHeight));
+                // 清空保存的位置
+                this.runtimeLogScrollPositionBeforeKeywordFilter = null;
+              } else if (savedPosition && viewport) {
+                // 如果保存的 scrollHeight 为 0，直接使用保存的 scrollTop（如果有效）
+                if (savedPosition.scrollTop >= 0) {
+                  viewport.scrollTop = Math.min(savedPosition.scrollTop, viewport.scrollHeight);
+                }
+                this.runtimeLogScrollPositionBeforeKeywordFilter = null;
               }
             });
           }
