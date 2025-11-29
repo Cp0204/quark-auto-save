@@ -19,7 +19,7 @@
 /* --------------- 基础样式 --------------- */
 body {
   font-size: 1rem;
-  padding-bottom: 110px;
+  padding-bottom: 15px;
   color: var(--dark-text-color);
 }
 
@@ -2394,7 +2394,7 @@ div.jsoneditor-tree button.jsoneditor-button:focus {
   transition: color 0.2s; /* 添加颜色过渡效果 */
 }
 
-/* 侧边栏菜单项图标样式 */
+/* 侧边栏菜导航图标样式 */
 .sidebar .nav-link .bi-list-ul {
   font-size: 1.1rem;
   position: relative;
@@ -2423,8 +2423,12 @@ div.jsoneditor-tree button.jsoneditor-button:focus {
   font-size: 0.94rem;
 }
 
+.sidebar .nav-link .bi-terminal {
+  font-size: 0.95rem;
+}
+
 .sidebar .nav-link .bi-power {
-  font-size: 1.27rem;
+  font-size: 1.26rem;
 }
 
 .bottom-links .nav-link .bi-book {
@@ -6791,6 +6795,12 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   }
 }
 
+/* 影视发现页面与任务列表海报视图统一底部边距 */
+/* 使用 .discovery-controls 作为标识，因为只有影视发现页面有这个class */
+.discovery-controls ~ * .discovery-grid {
+  margin-bottom: 0.5px;
+}
+
 /* 文件整理页面命名预览模式下的展开状态文本位置调整 - 最高优先级 */
 #fileSelectModal[data-modal-type="preview-filemanager"] .table td.col-rename > div[style*="white-space: normal"][style*="word-break: break-word"] {
   position: relative !important;
@@ -7897,7 +7907,7 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
 /* TMDB 说明文本样式与链接样式（继承颜色、无下划线、悬停不变） */
 .tmdb-attribution {
   margin-top: 4px;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   color: var(--light-text-color);
 }
 .tmdb-attribution a {
@@ -8413,6 +8423,71 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   user-select: text;
 }
 
+/* 运行日志页面日志行样式：与运行日志弹窗保持一致 */
+.runlog-content .runlog-line {
+  margin: 0;
+  padding: 0 0 0 1.5px; /* 桌面端日志行左边距 */
+  font-family: monospace;
+  font-size: 0.85rem; /* 与 #logModal pre 字号一致 */
+  line-height: 1.5;   /* 行高与弹窗一致 */
+  color: var(--dark-text-color);
+  /* 桌面端：超长内容不换行，直接截断显示 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 运行日志页面：级别可点击筛选样式 */
+.runlog-content .log-level-clickable {
+  cursor: pointer;
+  transition: color 0.2s ease-in-out;
+  user-select: text; /* 允许选中文本，确保复制时包含级别信息 */
+}
+
+.runlog-content .log-level-clickable:hover {
+  color: var(--focus-border-color) !important;
+}
+
+/* --------------- 页面底部元素统一间距 --------------- */
+/* 转存记录和文件整理页面：分页控制区域距离页面底部统一为 20px */
+.pagination-container {
+  margin-bottom: -90px !important;
+}
+
+/* 日历表格距离页面底部为 20px */
+/* 同时覆盖 padding-bottom，确保样式生效 */
+.calendar-month-mode {
+  margin-bottom: -86px !important;
+  padding-bottom: 20px !important;
+}
+
 .calendar-filter-row {
-  margin-bottom: 20px; /* 桌面端保持与下方组件净间距 8px（抵消分类与控制按钮的 -12px 上移） */
+  margin-bottom: 20px;
+}
+
+/* --------------- 运行日志页面 --------------- */
+.runlog-content {
+  min-height: 360px;
+  max-height: calc(100vh - 146px);
+  overflow-y: auto;
+  /* 通过负margin抵消body的padding-bottom(15px)，确保日志显示区域底部距离页面底部为20px */
+  margin-bottom: -15px !important;
+  padding: 0 0 20px 0;
+}
+
+@media (max-width: 768px) {
+  .runlog-content {
+    max-height: none;
+    min-height: 240px;
+    /* 窄屏设备：支持横向滚动，完整显示超长内容 */
+    overflow-x: auto;
+  }
+  
+  /* 窄屏设备：日志行允许横向滚动，完整显示内容 */
+  .runlog-content .runlog-line {
+    white-space: nowrap; /* 不换行，保持单行 */
+    overflow: unset; /* 移除overflow限制，允许内容溢出到父容器 */
+    text-overflow: unset; /* 移除省略号，完整显示 */
+    padding-left: 5.5px; /* 窄屏设备日志行左边距 */
+  }
 }

@@ -18,6 +18,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.date import DateTrigger
 from queue import Queue
+from collections import deque
 from sdk.cloudsaver import CloudSaver
 try:
     from sdk.pansou import PanSou
@@ -28,6 +29,7 @@ import subprocess
 import requests
 import hashlib
 import logging
+from logging.handlers import RotatingFileHandler
 import base64
 import sys
 import os
@@ -889,6 +891,13 @@ PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "")
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 # 从环境变量获取端口，默认为5005
 PORT = int(os.environ.get("PORT", "5005"))
+LOG_DIR = os.path.join(parent_dir, "config", "logs")
+LOG_FILE_PATH = os.path.join(LOG_DIR, "runtime.log")
+MAX_RUNTIME_LOG_LINES = 2000
+RUNTIME_LOG_PATTERN = re.compile(
+    r'^\[(?P<timestamp>\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\[(?P<level>[A-Z]+)\]\s?(?P<message>.*)$'
+)
+os.makedirs(LOG_DIR, exist_ok=True)
 
 config_data = {}
 task_plugins_config_default = {}
@@ -1139,6 +1148,63 @@ for _name in ("werkzeug", "apscheduler", "gunicorn.error", "gunicorn.access"):
             _handler.setFormatter(_standard_formatter)
         except Exception:
             pass
+
+# 写入运行日志文件，便于前端实时查看
+try:
+    _runtime_log_handler = RotatingFileHandler(
+        LOG_FILE_PATH,
+        maxBytes=5 * 1024 * 1024,
+        backupCount=5,
+        encoding="utf-8"
+    )
+    _runtime_log_handler.setFormatter(_standard_formatter)
+    _root_logger.addHandler(_runtime_log_handler)
+except Exception as e:
+    logging.warning(f"初始化运行日志文件处理器失败: {e}")
+
+
+def _parse_runtime_log_line(line: str) -> dict:
+    """解析单行日志文本，提取时间、级别与内容。"""
+    text = (line or "").rstrip("\n")
+    entry = {
+        "raw": text,
+        "timestamp": "",
+        "level": "INFO",
+        "message": text
+    }
+    if not text:
+        return entry
+    match = RUNTIME_LOG_PATTERN.match(text.strip())
+    if match:
+        entry["timestamp"] = match.group("timestamp")
+        entry["level"] = match.group("level")
+        entry["message"] = match.group("message")
+    return entry
+
+
+def get_recent_runtime_logs(limit: int = 600) -> list:
+    """获取最近的运行日志行，默认返回 600 条。"""
+    try:
+        limit_int = int(limit)
+    except (ValueError, TypeError):
+        limit_int = 600
+    limit_int = max(100, min(limit_int, MAX_RUNTIME_LOG_LINES))
+    if not os.path.exists(LOG_FILE_PATH):
+        return []
+    lines = deque(maxlen=limit_int)
+    try:
+        with open(LOG_FILE_PATH, "r", encoding="utf-8", errors="replace") as fp:
+            for raw_line in fp:
+                lines.append(raw_line.rstrip("\n"))
+    except Exception as exc:
+        logging.warning(f"读取运行日志失败: {exc}")
+        return []
+    logs = []
+    for idx, raw_line in enumerate(lines):
+        entry = _parse_runtime_log_line(raw_line)
+        entry["id"] = f"{idx}-{hashlib.md5((raw_line + str(idx)).encode('utf-8', 'ignore')).hexdigest()}"
+        logs.append(entry)
+    return logs
 
 
 # --------- 每日任务：在用户设置的刷新时间重算所有季的已播出集数并更新进度 ---------
@@ -1913,6 +1979,15 @@ def run_script_now():
         stream_with_context(generate_output()),
         content_type="text/event-stream;charset=utf-8",
     )
+
+
+@app.route("/api/runtime_logs")
+def api_runtime_logs():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"}), 401
+    limit = request.args.get("limit", 600)
+    logs = get_recent_runtime_logs(limit)
+    return jsonify({"success": True, "logs": logs})
 
 
 # -------------------- 追剧日历：任务提取与匹配辅助 --------------------

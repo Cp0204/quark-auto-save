@@ -390,6 +390,11 @@
               </a>
             </li>
             <li class="nav-item">
+              <a class="nav-link" href="#" :class="{active: activeTab === 'runlogs'}" @click="changeTab('runlogs')">
+                <i class="bi bi-terminal"></i> <span class="nav-text">运行日志</span>
+              </a>
+            </li>
+            <li class="nav-item">
               <a class="nav-link" href="/logout">
                 <i class="bi bi-power"></i> <span class="nav-text">退出</span>
               </a>
@@ -963,6 +968,78 @@
             </div>
             <p class="tmdb-attribution">部分功能基于 <a href="https://www.themoviedb.org/" target="_blank">TMDB</a> 提供的数据实现，本应用与 TMDB 无关。</p>
 
+          </div>
+
+          <div v-if="activeTab === 'runlogs'">
+            <div style="height: 20px;"></div>
+            <div class="row tasklist-filter-row" style="margin-bottom: 20px;">
+              <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">内容筛选</span>
+                  </div>
+                  <input type="text" class="form-control" v-model="runtimeLogFilters.keyword" placeholder="日志内容关键词">
+                  <div class="input-group-append">
+                    <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearRuntimeLogFilter('keyword')"><i class="bi bi-x-lg"></i></button>
+                  </div>
+                </div>
+              </div>
+              <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">任务筛选</span>
+                  </div>
+                  <div class="position-relative" style="flex: 1;">
+                    <select class="form-control task-filter-select" v-model="runtimeLogFilters.task" style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 8px !important;">
+                      <option value="">全部</option>
+                      <option v-for="task in taskNames" :value="task" v-html="task"></option>
+                    </select>
+                  </div>
+                  <div class="input-group-append">
+                    <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearRuntimeLogFilter('task')"><i class="bi bi-x-lg"></i></button>
+                  </div>
+                </div>
+              </div>
+              <div class="col-xl-4 col-lg-4 col-md-6">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">级别筛选</span>
+                  </div>
+                  <div class="position-relative" style="flex: 1;">
+                    <select class="form-control task-filter-select"
+                            v-model="runtimeLogFilters.level"
+                            style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 8px !important;">
+                      <option value="">全部</option>
+                      <option v-for="level in runtimeLogLevels" :value="level">{{ level }}</option>
+                    </select>
+                  </div>
+                  <div class="input-group-append">
+                    <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearRuntimeLogFilter('level')"><i class="bi bi-x-lg"></i></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="row" style="margin-bottom: 20px;">
+              <div class="col">
+                <div class="runlog-content" ref="runtimeLogViewport">
+                  <div v-if="runtimeLogLoading && runtimeLogs.length === 0" style="display: flex; align-items: center; justify-content: center; min-height: 200px; color: var(--light-text-color);">
+                    <div class="spinner-border spinner-border-sm text-secondary mr-2" role="status"></div>
+                    <span>加载日志中...</span>
+                  </div>
+                  <div v-else-if="filteredRuntimeLogs.length === 0" style="display: flex; align-items: center; justify-content: center; min-height: 200px; color: var(--light-text-color);">
+                    暂无匹配的日志
+                  </div>
+                  <div v-else :style="{ visibility: runtimeLogInitialized ? 'visible' : 'hidden' }">
+                    <div v-for="log in filteredRuntimeLogs"
+                         :key="log.id"
+                         class="runlog-line">
+                      <span style="margin-right: 8px;">[{{ log.timestamp || '--' }}][<span class="log-level-clickable" @click="filterByLogLevel(log.level || 'INFO', $event)">{{ log.level || 'INFO' }}</span>]</span>
+                      <span v-text="getRuntimeLogText(log)"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div v-if="activeTab === 'tasklist'">
@@ -3052,6 +3129,17 @@
           execution_mode: null // 将在openCreateTaskModal中设置为formData.execution_mode
         },
         run_log: "",
+        runtimeLogs: [],
+        runtimeLogLoading: false,
+        runtimeLogFilters: {
+          keyword: '',
+          task: '',
+          level: ''
+        },
+        runtimeLogScrollPositionBeforeTaskFilter: null, // 保存应用任务筛选之前的滚动位置
+        runtimeLogLevels: ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+        runtimeLogPollingTimer: null,
+        runtimeLogInitialized: false, // 跟踪运行日志是否已初始化（用于避免首次加载时的闪现）
         taskDirs: [""],
         taskDirSelected: "",
         taskNameFilter: "",
@@ -3640,6 +3728,64 @@
           
           return this.sortTaskNamesByPinyin([...taskNames]);
         },
+        filteredRuntimeLogs() {
+          try {
+            let logs = Array.isArray(this.runtimeLogs) ? this.runtimeLogs.slice() : [];
+            const keyword = (this.runtimeLogFilters.keyword || '').trim().toLowerCase();
+            const taskName = (this.runtimeLogFilters.task || '').trim();
+            const level = (this.runtimeLogFilters.level || '').trim().toUpperCase();
+            
+            // 如果指定了任务筛选，需要按任务块进行完整筛选
+            if (taskName) {
+              // 首先解析所有任务块
+              const taskBlocks = this.parseTaskBlocks(logs);
+              
+              // 找出所有匹配任务名称的任务块索引
+              const matchedBlockIndices = new Set();
+              taskBlocks.forEach((block, index) => {
+                if (block.taskName === taskName) {
+                  matchedBlockIndices.add(index);
+                }
+              });
+              
+              // 筛选出所有匹配任务块的日志行
+              const filteredLogs = [];
+              logs.forEach((log, logIndex) => {
+                const blockIndex = taskBlocks.findIndex(block => 
+                  logIndex >= block.startIndex && logIndex <= block.endIndex
+                );
+                if (blockIndex !== -1 && matchedBlockIndices.has(blockIndex)) {
+                  filteredLogs.push(log);
+                }
+              });
+              
+              logs = filteredLogs;
+            }
+            
+            // 关键词筛选（在任务块筛选之后进行）
+            if (keyword) {
+              logs = logs.filter(log => {
+                const text = this.getRuntimeLogText(log).toLowerCase();
+                return text.includes(keyword);
+              });
+            }
+            
+            // 日志级别筛选
+            if (level) {
+              logs = logs.filter(log => (log.level || '').toUpperCase() === level);
+            }
+            
+            // 移动端（窄屏设备）：倒序显示，让最新日志在顶部
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+              logs = logs.reverse();
+            }
+            return logs;
+          } catch (e) {
+            console.error('筛选运行日志时出错:', e);
+            return this.runtimeLogs || [];
+          }
+        },
         totalPages() {
           // 直接使用后端返回的total_pages
           if (this.history.pagination && this.history.pagination.total_pages) {
@@ -3776,7 +3922,58 @@
             this.loadHistoryRecords();
           }
         },
+        'runtimeLogFilters.task': function(newVal, oldVal) {
+          const viewport = this.$refs.runtimeLogViewport;
+          if (!viewport) return;
+          
+          // 当应用任务筛选时（从空变为有值），保存当前的滚动位置
+          if (!oldVal && newVal) {
+            this.runtimeLogScrollPositionBeforeTaskFilter = {
+              scrollTop: viewport.scrollTop,
+              scrollHeight: viewport.scrollHeight
+            };
+          }
+          // 当清空任务筛选时（从有值变为空），恢复之前保存的滚动位置
+          else if (oldVal && !newVal && this.runtimeLogScrollPositionBeforeTaskFilter) {
+            this.$nextTick(() => {
+              const savedPosition = this.runtimeLogScrollPositionBeforeTaskFilter;
+              if (savedPosition && viewport && savedPosition.scrollHeight > 0) {
+                // 计算滚动位置的相对比例，以适应内容高度可能的变化
+                const ratio = savedPosition.scrollTop / savedPosition.scrollHeight;
+                const newScrollTop = viewport.scrollHeight * ratio;
+                // 确保滚动位置在有效范围内
+                viewport.scrollTop = Math.max(0, Math.min(newScrollTop, viewport.scrollHeight - viewport.clientHeight));
+                // 清空保存的位置
+                this.runtimeLogScrollPositionBeforeTaskFilter = null;
+              } else if (savedPosition && viewport) {
+                // 如果保存的 scrollHeight 为 0，直接使用保存的 scrollTop（如果有效）
+                if (savedPosition.scrollTop >= 0) {
+                  viewport.scrollTop = Math.min(savedPosition.scrollTop, viewport.scrollHeight);
+                }
+                this.runtimeLogScrollPositionBeforeTaskFilter = null;
+              }
+            });
+          }
+        },
         activeTab(newValue, oldValue) {
+          if (newValue === 'runlogs') {
+            // 如果已经有日志，立即显示并滚动到底部，避免空白
+            const hasLogs = Array.isArray(this.runtimeLogs) && this.runtimeLogs.length > 0;
+            if (hasLogs && !this.runtimeLogInitialized) {
+              this.runtimeLogInitialized = true;
+              this.$nextTick(() => {
+                const viewport = this.$refs.runtimeLogViewport;
+                if (viewport) {
+                  viewport.scrollTop = viewport.scrollHeight;
+                }
+              });
+            }
+            this.startRuntimeLogPolling();
+          } else if (oldValue === 'runlogs') {
+            this.stopRuntimeLogPolling();
+            // 离开运行日志页面时重置初始化标志，下次进入时会重新初始化
+            this.runtimeLogInitialized = false;
+          }
           // 如果切换到任务列表页面，则刷新任务最新信息和元数据
           if (newValue === 'tasklist') {
             // 确保全局 SSE 已建立
@@ -4014,6 +4211,9 @@
           // 添加移动端任务列表展开/收起状态监听
           this.setupMobileTaskListToggle();
         }, 500);
+      if (this.activeTab === 'runlogs') {
+        this.startRuntimeLogPolling();
+      }
       },
       beforeDestroy() {
         window.removeEventListener('beforeunload', this.handleBeforeUnload);
@@ -4030,6 +4230,7 @@
         document.removeEventListener('click', this.handleOutsideClick);
         // 清理日历后台监听
         this.stopCalendarAutoWatch();
+        this.stopRuntimeLogPolling();
       },
       methods: {
         // 计算来源徽标 class：多来源时使用 multi-source，单来源使用小写来源名
@@ -8103,6 +8304,201 @@
         },
         clearData(target) {
           this[target] = "";
+        },
+        clearRuntimeLogFilter(field) {
+          if (!this.runtimeLogFilters) return;
+          if (Object.prototype.hasOwnProperty.call(this.runtimeLogFilters, field)) {
+            this.$set(this.runtimeLogFilters, field, '');
+          }
+        },
+        filterByLogLevel(level, event) {
+          // 防止事件冒泡
+          if (event) {
+            event.stopPropagation();
+          }
+          
+          // 如果当前已经筛选了该级别，则取消筛选
+          if (this.runtimeLogFilters.level === level) {
+            this.$set(this.runtimeLogFilters, 'level', '');
+          } else {
+            // 设置级别筛选值
+            this.$set(this.runtimeLogFilters, 'level', level);
+          }
+        },
+        getRuntimeLogText(log) {
+          // 统一获取日志展示文本，避免空字符串被误判为无内容
+          if (!log) {
+            return '';
+          }
+          if (Object.prototype.hasOwnProperty.call(log, 'message')) {
+            const message = log.message;
+            if (message !== undefined && message !== null) {
+              return String(message);
+            }
+          }
+          return log.raw ? String(log.raw) : '';
+        },
+        parseTaskBlocks(logs) {
+          // 解析日志中的任务块，返回任务块数组
+          // 每个任务块包含：startIndex, endIndex, taskName, taskNumber
+          const blocks = [];
+          let currentBlock = null;
+          
+          for (let i = 0; i < logs.length; i++) {
+            const log = logs[i];
+            const text = this.getRuntimeLogText(log);
+            
+            // 检查是否是任务块开始标记：格式为 #数字------------------
+            const taskStartMatch = text.match(/^#(\d+)------------------/);
+            if (taskStartMatch) {
+              // 如果之前有未完成的任务块，先结束它（结束于上一个日志行）
+              if (currentBlock && currentBlock.endIndex === -1) {
+                currentBlock.endIndex = Math.max(i - 1, currentBlock.startIndex);
+              }
+              
+              // 开始新的任务块
+              const taskNumber = taskStartMatch[1];
+              currentBlock = {
+                startIndex: i,
+                endIndex: -1, // 暂时设为-1，表示未结束
+                taskName: '',
+                taskNumber: taskNumber
+              };
+              blocks.push(currentBlock);
+              continue;
+            }
+            
+            // 如果当前在任务块中，检查是否是任务名称行
+            if (currentBlock && currentBlock.taskName === '') {
+              const taskNameMatch = text.match(/^任务名称:\s*(.+)$/);
+              if (taskNameMatch) {
+                currentBlock.taskName = taskNameMatch[1].trim();
+              }
+            }
+            
+            // 检查是否是任务块结束标记
+            if (currentBlock && currentBlock.endIndex === -1) {
+              // 检查是否是程序结束相关标记（这些标记表示任务块应该结束）
+              // 任务块应该在推送通知之前结束，包括推送通知之前的空行
+              if (text.includes('===============推送通知===============') ||
+                  text.includes('===============程序结束===============')) {
+                // 任务块结束于推送通知之前的最后一行（包括空行）
+                // 如果上一行是空行，则包含它；否则结束于上一行
+                currentBlock.endIndex = i - 1;
+                currentBlock = null;
+                continue;
+              }
+              
+              // 检查是否是程序执行成功标记（这些标记不属于任务块）
+              if (text.match(/^>>>\s+(定时运行全部任务|手动运行任务\s+\[.+\])\s+执行成功$/)) {
+                // 执行成功标记不属于任务块，所以任务块结束于上一行
+                currentBlock.endIndex = Math.max(i - 1, currentBlock.startIndex);
+                currentBlock = null;
+                continue;
+              }
+            }
+          }
+          
+          // 处理最后一个未结束的任务块
+          if (currentBlock && currentBlock.endIndex === -1) {
+            currentBlock.endIndex = logs.length - 1;
+          }
+          
+          return blocks;
+        },
+        fetchRuntimeLogs(force = false) {
+          const hasLogs = Array.isArray(this.runtimeLogs) && this.runtimeLogs.length > 0;
+          const shouldShowLoading = force || (!hasLogs && !this.runtimeLogLoading);
+          const isInitialLoad = force && !hasLogs; // 判断是否是首次加载（强制刷新且没有现有日志）
+          
+          // 首次加载时先隐藏内容，避免闪现
+          if (isInitialLoad) {
+            this.runtimeLogInitialized = false;
+          } else if (!this.runtimeLogInitialized && hasLogs) {
+            // 如果不是首次加载但日志被隐藏了（比如从其他页面切换回来），立即显示
+            this.runtimeLogInitialized = true;
+          }
+          
+          if (shouldShowLoading) {
+            this.runtimeLogLoading = true;
+          }
+          
+          // 记录刷新前的滚动位置和内容高度
+          const viewport = this.$refs.runtimeLogViewport;
+          let previousScrollTop = 0;
+          let previousScrollHeight = 0;
+          let wasNearBottom = false;
+          
+          if (viewport) {
+            previousScrollTop = viewport.scrollTop;
+            previousScrollHeight = viewport.scrollHeight;
+            // 判断用户是否接近底部（距离底部小于50像素视为接近底部）
+            const distanceFromBottom = previousScrollHeight - previousScrollTop - viewport.clientHeight;
+            wasNearBottom = distanceFromBottom < 50;
+          }
+          
+          axios.get('/api/runtime_logs', { params: { limit: 800 } })
+            .then(res => {
+              if (res.data && res.data.success) {
+                this.runtimeLogs = res.data.logs || [];
+                this.$nextTick(() => {
+                  const viewport = this.$refs.runtimeLogViewport;
+                  if (viewport) {
+                    if (isInitialLoad || wasNearBottom) {
+                      // 首次加载或用户接近底部时，滚动到底部（保持自动跟随最新日志）
+                      viewport.scrollTop = viewport.scrollHeight;
+                      // 首次加载时，滚动完成后再显示内容，避免闪现
+                      if (isInitialLoad) {
+                        // 使用 requestAnimationFrame 确保滚动完成后再显示
+                        requestAnimationFrame(() => {
+                          requestAnimationFrame(() => {
+                            this.runtimeLogInitialized = true;
+                          });
+                        });
+                      }
+                    } else {
+                      // 否则保持用户的滚动位置
+                      const newScrollHeight = viewport.scrollHeight;
+                      const heightDiff = newScrollHeight - previousScrollHeight;
+                      viewport.scrollTop = previousScrollTop + heightDiff;
+                    }
+                    // 确保如果不是首次加载，日志是显示的
+                    if (!isInitialLoad && !this.runtimeLogInitialized) {
+                      this.runtimeLogInitialized = true;
+                    }
+                  }
+                });
+              }
+            })
+            .catch(error => {
+              console.error('获取运行日志失败:', error);
+              // 出错时也要显示内容
+              if (isInitialLoad) {
+                this.runtimeLogInitialized = true;
+              } else if (!this.runtimeLogInitialized) {
+                this.runtimeLogInitialized = true;
+              }
+            })
+            .finally(() => {
+              if (shouldShowLoading) {
+                this.runtimeLogLoading = false;
+              }
+            });
+        },
+        startRuntimeLogPolling() {
+          if (this.runtimeLogPollingTimer) {
+            return;
+          }
+          this.fetchRuntimeLogs(true);
+          this.runtimeLogPollingTimer = setInterval(() => {
+            this.fetchRuntimeLogs(false);
+          }, 5000);
+        },
+        stopRuntimeLogPolling() {
+          if (this.runtimeLogPollingTimer) {
+            clearInterval(this.runtimeLogPollingTimer);
+            this.runtimeLogPollingTimer = null;
+          }
         },
         async runScriptNow(task_index = null) {
           body = {};
