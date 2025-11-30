@@ -1154,7 +1154,7 @@ try:
     _runtime_log_handler = RotatingFileHandler(
         LOG_FILE_PATH,
         maxBytes=5 * 1024 * 1024,
-        backupCount=5,
+        backupCount=2,
         encoding="utf-8"
     )
     _runtime_log_handler.setFormatter(_standard_formatter)
