@@ -1022,14 +1022,10 @@
             <div class="row" style="margin-bottom: 20px;">
               <div class="col">
                 <div class="runlog-content" ref="runtimeLogViewport">
-                  <div v-if="runtimeLogLoading && runtimeLogs.length === 0" style="display: flex; align-items: center; justify-content: center; min-height: 200px; color: var(--light-text-color);">
-                    <div class="spinner-border spinner-border-sm text-secondary mr-2" role="status"></div>
-                    <span>加载日志中...</span>
-                  </div>
-                  <div v-else-if="filteredRuntimeLogs.length === 0" style="display: flex; align-items: center; justify-content: center; min-height: 200px; color: var(--light-text-color);">
+                  <div v-if="!runtimeLogLoading && filteredRuntimeLogs.length === 0" style="display: flex; align-items: center; justify-content: center; min-height: 200px; color: var(--light-text-color);">
                     暂无匹配的日志
                   </div>
-                  <div v-else :style="{ visibility: runtimeLogInitialized ? 'visible' : 'hidden' }">
+                  <div v-else-if="filteredRuntimeLogs.length > 0" :style="{ visibility: runtimeLogInitialized ? 'visible' : 'hidden' }">
                     <div v-for="log in filteredRuntimeLogs"
                          :key="log.id"
                          class="runlog-line">
