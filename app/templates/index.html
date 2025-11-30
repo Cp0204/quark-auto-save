@@ -918,7 +918,7 @@
                 </div>
               </div>
               <div class="col-lg-3 col-md-6 mb-2">
-                <div class="input-group" title="追剧日历最新季元数据自动刷新周期，单位秒。设置为0或负数可关闭自动刷新。默认值：21600（6小时）">
+                <div class="input-group" title="追剧日历最新季元数据自动刷新周期，设置为0或负数可关闭自动刷新。默认值：21600（6小时）">
                   <div class="input-group-prepend">
                     <span class="input-group-text">追剧日历刷新周期</span>
                   </div>
@@ -934,6 +934,17 @@
                     <span class="input-group-text">播出集数刷新时间</span>
                   </div>
                   <input type="text" class="form-control no-spinner" v-model="formData.performance.aired_refresh_time" placeholder="00:00">
+                </div>
+              </div>
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group" title="运行日志页面显示的日志时间范围，默认值：3（最近72小时）">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">运行日志显示范围</span>
+                  </div>
+                  <input type="text" class="form-control no-spinner" v-model="formData.performance.runtime_log_display_days" placeholder="3">
+                  <div class="input-group-append">
+                    <span class="input-group-text square-append">天</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -3082,7 +3093,9 @@
             // 追剧日历刷新周期（秒），默认6小时（21600秒）
             calendar_refresh_interval_seconds: 21600,
             // 已播出集数刷新时间，24小时制，格式：HH:MM，默认00:00
-            aired_refresh_time: "00:00"
+            aired_refresh_time: "00:00",
+            // 运行日志显示范围（天），默认3天
+            runtime_log_display_days: 3
           },
           plugin_config_mode: {
             aria2: "independent",
@@ -7635,13 +7648,16 @@
               }
               // 确保性能设置存在并补默认值（单位：秒）
               if (!config_data.performance) {
-                config_data.performance = { calendar_refresh_interval_seconds: 21600, aired_refresh_time: "00:00" };
+                config_data.performance = { calendar_refresh_interval_seconds: 21600, aired_refresh_time: "00:00", runtime_log_display_days: 3 };
               } else {
                 if (config_data.performance.calendar_refresh_interval_seconds === undefined || config_data.performance.calendar_refresh_interval_seconds === null) {
                   config_data.performance.calendar_refresh_interval_seconds = 21600;
                 }
                 if (config_data.performance.aired_refresh_time === undefined || config_data.performance.aired_refresh_time === null) {
                   config_data.performance.aired_refresh_time = "00:00";
+                }
+                if (config_data.performance.runtime_log_display_days === undefined || config_data.performance.runtime_log_display_days === null) {
+                  config_data.performance.runtime_log_display_days = 3;
                 }
               }
               // 确保execution_mode有默认值
@@ -8501,7 +8517,11 @@
             wasNearBottom = distanceFromBottom < 50;
           }
           
-          axios.get('/api/runtime_logs', { params: { limit: 800 } })
+          // 获取运行日志显示范围配置（天数），默认3天
+          const displayDays = this.formData.performance && this.formData.performance.runtime_log_display_days 
+            ? parseFloat(this.formData.performance.runtime_log_display_days) || 3 
+            : 3;
+          axios.get('/api/runtime_logs', { params: { days: displayDays } })
             .then(res => {
               if (res.data && res.data.success) {
                 this.runtimeLogs = res.data.logs || [];

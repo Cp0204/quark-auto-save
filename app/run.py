@@ -1182,28 +1182,111 @@ def _parse_runtime_log_line(line: str) -> dict:
     return entry
 
 
-def get_recent_runtime_logs(limit: int = 600) -> list:
-    """获取最近的运行日志行，默认返回 600 条。"""
-    try:
-        limit_int = int(limit)
-    except (ValueError, TypeError):
-        limit_int = 600
-    limit_int = max(100, min(limit_int, MAX_RUNTIME_LOG_LINES))
+def get_recent_runtime_logs(limit: int = None, days: float = None) -> list:
+    """获取最近的运行日志行。
+    
+    Args:
+        limit: 按条数限制，默认 None（不使用条数限制）
+        days: 按时间范围限制（天数），默认 None（不使用时间限制）
+              如果同时指定 limit 和 days，优先使用 days 参数
+    
+    Returns:
+        日志条目列表
+    """
     if not os.path.exists(LOG_FILE_PATH):
         return []
-    lines = deque(maxlen=limit_int)
+    
+    # 如果指定了 days 参数，按时间范围筛选
+    if days is not None:
+        try:
+            days_float = float(days)
+            if days_float <= 0:
+                days_float = 1.0  # 默认1天
+        except (ValueError, TypeError):
+            days_float = 1.0
+        
+        # 计算时间阈值（当前时间往前推指定天数）
+        time_threshold = datetime.now() - timedelta(days=days_float)
+        current_year = datetime.now().year
+        
+        logs = []
+        try:
+            with open(LOG_FILE_PATH, "r", encoding="utf-8", errors="replace") as fp:
+                for raw_line in fp:
+                    line = raw_line.rstrip("\n")
+                    if not line:
+                        continue
+                    
+                    entry = _parse_runtime_log_line(line)
+                    timestamp_str = entry.get("timestamp", "")
+                    
+                    # 解析时间戳（格式：MM-DD HH:MM:SS）
+                    if timestamp_str:
+                        try:
+                            # 尝试解析时间戳，需要加上当前年份
+                            log_time = datetime.strptime(f"{current_year}-{timestamp_str}", "%Y-%m-%d %H:%M:%S")
+                            
+                            # 如果解析出的时间比当前时间还晚（跨年情况），则减一年
+                            if log_time > datetime.now():
+                                log_time = datetime.strptime(f"{current_year - 1}-{timestamp_str}", "%Y-%m-%d %H:%M:%S")
+                            
+                            # 只保留在时间范围内的日志
+                            if log_time >= time_threshold:
+                                entry["id"] = f"{len(logs)}-{hashlib.md5((line + str(len(logs))).encode('utf-8', 'ignore')).hexdigest()}"
+                                logs.append(entry)
+                        except (ValueError, TypeError):
+                            # 如果时间戳解析失败，保留该日志（兼容没有时间戳的日志）
+                            entry["id"] = f"{len(logs)}-{hashlib.md5((line + str(len(logs))).encode('utf-8', 'ignore')).hexdigest()}"
+                            logs.append(entry)
+                    else:
+                        # 没有时间戳的日志也保留
+                        entry["id"] = f"{len(logs)}-{hashlib.md5((line + str(len(logs))).encode('utf-8', 'ignore')).hexdigest()}"
+                        logs.append(entry)
+        except Exception as exc:
+            logging.warning(f"读取运行日志失败: {exc}")
+            return []
+        
+        return logs
+    
+    # 如果指定了 limit 参数，按条数限制（保持向后兼容）
+    if limit is not None:
+        try:
+            limit_int = int(limit)
+        except (ValueError, TypeError):
+            limit_int = 600
+        limit_int = max(100, min(limit_int, MAX_RUNTIME_LOG_LINES))
+        
+        lines = deque(maxlen=limit_int)
+        try:
+            with open(LOG_FILE_PATH, "r", encoding="utf-8", errors="replace") as fp:
+                for raw_line in fp:
+                    lines.append(raw_line.rstrip("\n"))
+        except Exception as exc:
+            logging.warning(f"读取运行日志失败: {exc}")
+            return []
+        
+        logs = []
+        for idx, raw_line in enumerate(lines):
+            entry = _parse_runtime_log_line(raw_line)
+            entry["id"] = f"{idx}-{hashlib.md5((raw_line + str(idx)).encode('utf-8', 'ignore')).hexdigest()}"
+            logs.append(entry)
+        return logs
+    
+    # 如果两个参数都没有指定，返回所有日志（不推荐，但保持兼容性）
+    logs = []
     try:
         with open(LOG_FILE_PATH, "r", encoding="utf-8", errors="replace") as fp:
             for raw_line in fp:
-                lines.append(raw_line.rstrip("\n"))
+                line = raw_line.rstrip("\n")
+                if not line:
+                    continue
+                entry = _parse_runtime_log_line(line)
+                entry["id"] = f"{len(logs)}-{hashlib.md5((line + str(len(logs))).encode('utf-8', 'ignore')).hexdigest()}"
+                logs.append(entry)
     except Exception as exc:
         logging.warning(f"读取运行日志失败: {exc}")
         return []
-    logs = []
-    for idx, raw_line in enumerate(lines):
-        entry = _parse_runtime_log_line(raw_line)
-        entry["id"] = f"{idx}-{hashlib.md5((raw_line + str(idx)).encode('utf-8', 'ignore')).hexdigest()}"
-        logs.append(entry)
+    
     return logs
 
 
@@ -1985,8 +2068,23 @@ def run_script_now():
 def api_runtime_logs():
     if not is_login():
         return jsonify({"success": False, "message": "未登录"}), 401
-    limit = request.args.get("limit", 600)
-    logs = get_recent_runtime_logs(limit)
+    # 优先使用 days 参数（按时间范围），如果没有则使用 limit 参数（按条数，保持向后兼容）
+    days = request.args.get("days")
+    limit = request.args.get("limit")
+    
+    if days is not None:
+        try:
+            days_float = float(days)
+            logs = get_recent_runtime_logs(days=days_float)
+        except (ValueError, TypeError):
+            # 如果 days 参数无效，回退到 limit 参数
+            limit = limit or 600
+            logs = get_recent_runtime_logs(limit=limit)
+    else:
+        # 如果没有 days 参数，使用 limit 参数（保持向后兼容）
+        limit = limit or 600
+        logs = get_recent_runtime_logs(limit=limit)
+    
     return jsonify({"success": True, "logs": logs})
 
 
