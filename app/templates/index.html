@@ -1031,7 +1031,7 @@
               </div>
             </div>
             <div class="row" style="margin-bottom: 20px;">
-              <div class="col">
+                  <div class="col">
                 <div class="runlog-content" ref="runtimeLogViewport">
                   <div v-if="!runtimeLogLoading && filteredRuntimeLogs.length === 0" style="display: flex; align-items: center; justify-content: center; min-height: 200px; color: var(--light-text-color);">
                     暂无匹配的日志
@@ -1039,9 +1039,10 @@
                   <div v-else-if="filteredRuntimeLogs.length > 0" :style="{ visibility: runtimeLogInitialized ? 'visible' : 'hidden' }">
                     <div v-for="log in filteredRuntimeLogs"
                          :key="log.id"
-                         class="runlog-line">
+                         class="runlog-line"
+                         @click="handleRuntimeLogClick(log, $event)">
                       <span style="margin-right: 8px;">[{{ log.timestamp || '--' }}][<span class="log-level-clickable" @click="filterByLogLevel(log.level || 'INFO', $event)">{{ log.level || 'INFO' }}</span>]</span>
-                      <span v-text="getRuntimeLogText(log)"></span>
+                      <span v-html="getRuntimeLogDisplayHtml(log)"></span>
                     </div>
                   </div>
                 </div>
@@ -8391,6 +8392,7 @@
             this.$set(this.runtimeLogFilters, field, '');
           }
         },
+        // 运行日志：日志级别点击筛选
         filterByLogLevel(level, event) {
           // 防止事件冒泡
           if (event) {
@@ -8405,6 +8407,7 @@
             this.$set(this.runtimeLogFilters, 'level', level);
           }
         },
+        // 运行日志：统一获取日志原始文本
         getRuntimeLogText(log) {
           // 统一获取日志展示文本，避免空字符串被误判为无内容
           if (!log) {
@@ -8417,6 +8420,83 @@
             }
           }
           return log.raw ? String(log.raw) : '';
+        },
+        // 运行日志：将日志文本转换为带可点击区域的 HTML
+        getRuntimeLogDisplayHtml(log) {
+          // 使用 v-html 时，先对原始文本进行转义，再插入自定义的可点击 span
+          const text = this.getRuntimeLogText(log) || '';
+          const escapeHtml = (str) => {
+            return String(str)
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+          };
+          const escapeAttr = (str) => {
+            // 属性用的简单转义，避免引号破坏属性
+            return String(str)
+              .replace(/&/g, '&amp;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;');
+          };
+
+          let html = escapeHtml(text);
+
+          // 1. 任务名称: xxxx 中的 xxxx 可点击 —— 只处理首个“任务名称:”匹配，避免误伤其他内容
+          html = html.replace(/(任务名称:\s*)(.+)/, (match, prefix, name) => {
+            const trimmedName = name.trim();
+            if (!trimmedName) return match;
+            const safeName = escapeHtml(trimmedName);
+            const safeAttr = escapeAttr(trimmedName);
+            return `${prefix}<span class="runtime-log-taskname-clickable" data-taskname="${safeAttr}">${safeName}</span>`;
+          });
+
+          // 2. 将所有 >>> 替换为可点击的 span（在转义后的文本中是 &gt;&gt;&gt;）
+          html = html.replace(/&gt;&gt;&gt;/g, '<span class="runtime-log-arrow-clickable" data-keyword="&gt;&gt;&gt;">&gt;&gt;&gt;</span>');
+
+          return html;
+        },
+        // 运行日志：统一处理内容区域点击（事件委托，避免影响复制）
+        handleRuntimeLogClick(log, event) {
+          if (!event || !event.target) return;
+          const target = event.target;
+
+          // 点击 >>> 触发内容关键词快速筛选（再次点击则清空）
+          if (target.classList && target.classList.contains('runtime-log-arrow-clickable')) {
+            event.stopPropagation();
+            this.toggleRuntimeLogKeywordFilter('>>>');
+            return;
+          }
+
+          // 点击任务名称触发任务筛选（再次点击则清空）
+          if (target.classList && target.classList.contains('runtime-log-taskname-clickable')) {
+            event.stopPropagation();
+            const taskName = (target.getAttribute('data-taskname') || target.textContent || '').trim();
+            if (taskName) {
+              this.toggleRuntimeLogTaskFilter(taskName);
+            }
+          }
+        },
+        // 运行日志：基于固定关键词（例如 >>>）的内容筛选开关
+        toggleRuntimeLogKeywordFilter(keyword) {
+          const current = (this.runtimeLogFilters.keyword || '').trim();
+          if (current === keyword) {
+            this.$set(this.runtimeLogFilters, 'keyword', '');
+          } else {
+            this.$set(this.runtimeLogFilters, 'keyword', keyword);
+          }
+        },
+        // 运行日志：基于任务名称的任务筛选开关（与任务下拉保持一致）
+        toggleRuntimeLogTaskFilter(taskName) {
+          const current = (this.runtimeLogFilters.task || '').trim();
+          if (current === taskName) {
+            this.$set(this.runtimeLogFilters, 'task', '');
+          } else {
+            this.$set(this.runtimeLogFilters, 'task', taskName);
+          }
         },
         parseTaskBlocks(logs) {
           // 解析日志中的任务块，返回任务块数组

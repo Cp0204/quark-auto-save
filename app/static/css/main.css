@@ -8448,6 +8448,18 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   color: var(--focus-border-color) !important;
 }
 
+/* 运行日志页面：内容中可点击的快速筛选元素样式（>>> 和任务名称） */
+.runlog-content .runtime-log-arrow-clickable,
+.runlog-content .runtime-log-taskname-clickable {
+  cursor: pointer;
+  user-select: text; /* 允许正常选中复制文本 */
+}
+
+.runlog-content .runtime-log-arrow-clickable:hover,
+.runlog-content .runtime-log-taskname-clickable:hover {
+  color: var(--focus-border-color);
+}
+
 /* --------------- 页面底部元素统一间距 --------------- */
 /* 转存记录和文件整理页面：分页控制区域距离页面底部统一为 20px */
 .pagination-container {
