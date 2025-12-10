@@ -619,6 +619,8 @@ class Quark:
                 "__t": datetime.now().timestamp(),
             }
             response = self._send_request("GET", url, params=querystring).json()
+            if response["status"] != 200:
+                return response
             if response["data"]["status"] == 2:
                 if retry_index > 0:
                     print()
@@ -995,21 +997,22 @@ class Quark:
                 if err_msg:
                     add_notify(f"❌《{task['taskname']}》转存失败：{err_msg}\n")
         # 建立目录树
-        for index, item in enumerate(need_save_list):
-            icon = self._get_file_icon(item)
-            tree.create_node(
-                f"{icon}{item['file_name_re']}",
-                item["fid"],
-                parent=pdir_fid,
-                data={
-                    "file_name": item["file_name"],
-                    "file_name_re": item["file_name_re"],
-                    "fid": f"{save_as_top_fids[index]}",
-                    "path": f"{savepath}/{item['file_name_re']}",
-                    "is_dir": item["dir"],
-                    "obj_category": item.get("obj_category", ""),
-                },
-            )
+        if len(need_save_list) == len(save_as_top_fids):
+            for index, item in enumerate(need_save_list):
+                icon = self._get_file_icon(item)
+                tree.create_node(
+                    f"{icon}{item['file_name_re']}",
+                    item["fid"],
+                    parent=pdir_fid,
+                    data={
+                        "file_name": item["file_name"],
+                        "file_name_re": item["file_name_re"],
+                        "fid": f"{save_as_top_fids[index]}",
+                        "path": f"{savepath}/{item['file_name_re']}",
+                        "is_dir": item["dir"],
+                        "obj_category": item.get("obj_category", ""),
+                    },
+                )
         return tree
 
     def do_rename(self, tree, node_id=None):
