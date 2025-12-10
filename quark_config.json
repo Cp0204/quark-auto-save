@@ -26,7 +26,7 @@
       "replace": "{TASKNAME}.{SXX}E{II}.第{E}期{PART}.{EXT}"
     },
     "$TV_MAGIC": {
-      "pattern": "",
+      "pattern": ".*\\.(mp4|mkv|mov|m4v|avi|mpeg|ts)$",
       "replace": "{TASKNAME}.{SXX}E{E}.{EXT}"
     }
   },
