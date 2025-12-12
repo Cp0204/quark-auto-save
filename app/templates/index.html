@@ -960,51 +960,37 @@
                 </div>
               </div>
             </div>
-            <div class="row title" title="QASX API 支持第三方添加任务、开发插件及自动化操作，查阅Wiki了解详情">
+            <div class="row title" title="配置与任务处理、节目元数据获取及外部服务交互相关的API访问凭证，查阅Wiki了解详情">
               <div class="col">
-                <h2 style="display: inline-block; font-size: 1.5rem;">QASX API</h2>
+                <h2 style="display: inline-block; font-size: 1.5rem;">API</h2>
                 <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/API" target="_blank"><i class="bi bi-question-circle"></i></a>
+                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/API" target="_blank" title="配置与任务处理、节目元数据获取及外部服务交互相关的API访问凭证，查阅Wiki了解详情"><i class="bi bi-question-circle"></i></a>
                 </span>
               </div>
             </div>
-            <div class="input-group">
+            <div class="input-group api-config-group">
               <div class="input-group-prepend">
-                <span class="input-group-text">Token</span>
+                <span class="input-group-text" title="QASX Token，用于授权第三方访问系统的API接口并执行受控操作">QASX Token</span>
               </div>
-              <input type="text" v-model="formData.api_token" class="form-control token-display" disabled>
+              <input type="text" v-model="formData.api_token" class="form-control token-display" disabled title="QASX Token，用于授权第三方访问系统的API接口并执行受控操作">
             </div>
-
-            <div class="row title" title="TMDB API密钥，用于追剧日历功能获取电视节目信息和播出时间表，点击获取TMDB API密钥">
-              <div class="col">
-                <h2 style="display: inline-block; font-size: 1.5rem;">TMDB API</h2>
-                <span class="badge badge-pill badge-light">
-                  <a href="https://www.themoviedb.org/settings/api" target="_blank" title="TMDB API密钥，用于获取电视节目信息和播出时间表，点击获取TMDB API密钥"><i class="bi bi-question-circle"></i></a>
+            <div class="input-group api-config-group">
+              <div class="input-group-prepend">
+                <span class="input-group-text">
+                  <a href="https://www.themoviedb.org/settings/api" target="_blank" class="api-label-link" title="前往TMDB设置页面获取API密钥">TMDB API 密钥</a>
                 </span>
               </div>
+              <input type="text" v-model="formData.tmdb_api_key" class="form-control" placeholder="输入 TMDB API 密钥，用于获取电视节目的元数据" title="TMDB API密钥，用于获取电视节目的元数据">
             </div>
-            <div class="input-group">
+            <div class="input-group api-config-group">
               <div class="input-group-prepend">
-                <span class="input-group-text">API 密钥</span>
+                <span class="input-group-text">
+                  <a href="https://trakt.tv/oauth/applications" target="_blank" class="api-label-link" title="前往Trakt应用管理页面获取Client ID">Trakt Client ID</a>
+                </span>
               </div>
-              <input type="text" v-model="formData.tmdb_api_key" class="form-control" placeholder="请输入 TMDB API 密钥，用于追剧日历功能">
+              <input type="text" v-model="formData.trakt.client_id" class="form-control" placeholder="输入 Trakt Client ID，用于获取电视节目的播出时间" title="Trakt Client ID，用于获取电视节目的播出时间">
             </div>
             <p class="tmdb-attribution">部分功能基于 <a href="https://www.themoviedb.org/" target="_blank">TMDB</a> 提供的数据实现，本应用与 TMDB 无关。</p>
-
-            <div class="row title" title="Trakt Client ID，用于根据 TMDB ID 从 Trakt 获取节目的精确播出时间（含时区），以便按本地真实播出时间刷新已播出集数。">
-              <div class="col">
-                <h2 style="display: inline-block; font-size: 1.5rem;">Trakt 配置</h2>
-                <span class="badge badge-pill badge-light">
-                  <a href="https://trakt.tv/oauth/applications" target="_blank" title="前往 Trakt 应用管理页面获取 Client ID"><i class="bi bi-question-circle"></i></a>
-                </span>
-              </div>
-            </div>
-            <div class="input-group">
-              <div class="input-group-prepend">
-                <span class="input-group-text">Client ID</span>
-              </div>
-              <input type="text" v-model="formData.trakt.client_id" class="form-control" placeholder="请输入 Trakt Client ID，用于获取节目播出时间">
-            </div>
 
           </div>
 
@@ -2080,7 +2066,7 @@
             
             <!-- TMDB API未配置提示 -->
             <div v-if="configHasLoaded && !formData.tmdb_api_key" class="alert alert-warning" role="alert">
-              追剧日历需要配置 TMDB API 密钥后才能使用，请在<a href="#" class="link-focus" @click.prevent="changeTab('config')">系统配置</a>页面的 TMDB API 部分进行配置
+              追剧日历需要配置 TMDB API 密钥后才能使用，请在<a href="#" class="link-focus" @click.prevent="changeTab('config')">系统配置</a>页面的 API 部分进行配置
             </div>
             
             <!-- 追剧日历内容 -->

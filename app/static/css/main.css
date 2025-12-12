@@ -188,8 +188,13 @@ main .row.title {
   margin-left: -15px; /* 添加负边距向左移动2px */
 }
 
-/* 精准调整：QASX API 模块与上方模块的垂直间距减小 8px */
-main .row.title[title^="QASX API"] {
+/* 精准调整：性能设置模块与上方模块的垂直间距减小 8px */
+main .row.title[title*="配置文件加载、数据缓存和自动刷新的关键参数"] {
+  margin-top: 12px;
+}
+
+/* 精准调整：API 模块与上方模块的垂直间距减小 8px */
+main .row.title[title*="配置与任务处理、节目元数据获取及外部服务交互相关的API访问凭证"] {
   margin-top: 12px;
 }
 
@@ -7917,7 +7922,7 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
 .tmdb-attribution a:hover,
 .tmdb-attribution a:focus {
   text-decoration: none;
-  color: inherit;
+  color: var(--focus-border-color);
 }
 
 /* 任务列表：类型筛选按钮与上方名称筛选区域的间距 */
@@ -8502,4 +8507,21 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
     text-overflow: unset; /* 移除省略号，完整显示 */
     padding-left: 5.5px; /* 窄屏设备日志行左边距 */
   }
+}
+
+/* API 配置模块样式 */
+.api-config-group + .api-config-group {
+  margin-top: 8px;
+}
+
+.api-label-link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.api-label-link:hover,
+.api-label-link:focus {
+  color: var(--focus-border-color);
+  text-decoration: none;
 }

@@ -2294,6 +2294,13 @@ def update():
     # 记录旧的播出集数刷新时间设置
     old_perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
     old_aired_refresh_time = old_perf.get('aired_refresh_time', '00:00')
+    # 记录旧的 Trakt Client ID，用于判断是否首次配置
+    old_trakt_client_id = ''
+    try:
+        old_trakt_client_id = (config_data.get("trakt", {}) or {}).get("client_id", "") or ""
+        old_trakt_client_id = str(old_trakt_client_id).strip()
+    except Exception:
+        old_trakt_client_id = ''
     dont_save_keys = ["task_plugins_config_default", "api_token"]
     for key, value in request.json.items():
         if key not in dont_save_keys:
@@ -2330,6 +2337,13 @@ def update():
     # 同步更新任务的插件配置
     sync_task_plugins_config()
     
+    # 记录新的 Trakt Client ID
+    try:
+        new_trakt_client_id = (config_data.get("trakt", {}) or {}).get("client_id", "") or ""
+        new_trakt_client_id = str(new_trakt_client_id).strip()
+    except Exception:
+        new_trakt_client_id = ''
+    
     # 保存配置的执行步骤，异步执行
     try:
         prev_tmdb = (config_data.get('tmdb_api_key') or '').strip()
@@ -2342,7 +2356,7 @@ def update():
         prev_tmdb, new_tmdb = '', None
 
     import threading
-    def _post_update_tasks(old_task_map_snapshot, prev_tmdb_value, new_tmdb_value, old_poster_lang, old_aired_refresh_time_value):
+    def _post_update_tasks(old_task_map_snapshot, prev_tmdb_value, new_tmdb_value, old_poster_lang, old_aired_refresh_time_value, prev_trakt_client_id_value, new_trakt_client_id_value):
         # 检查海报语言设置是否改变
         new_poster_language = config_data.get('poster_language', 'zh-CN')
         if old_poster_lang != new_poster_language:
@@ -2457,6 +2471,14 @@ def update():
         except Exception as e:
             logging.warning(f"重启已播出集数更新任务失败: {e}")
 
+        # 若首次配置 Trakt Client ID，则为所有节目补齐播出时间
+        try:
+            if (not prev_trakt_client_id_value) and new_trakt_client_id_value:
+                logging.info("首次配置 Trakt Client ID，开始全量同步节目播出时间")
+                sync_trakt_airtime_for_all_shows()
+        except Exception as e:
+            logging.warning(f"首次配置 Trakt 播出时间同步失败: {e}")
+
         # 如果 TMDB API 从无到有，自动执行一次 bootstrap
         try:
             if (prev_tmdb_value == '' or prev_tmdb_value is None) and new_tmdb_value and new_tmdb_value != '':
@@ -2473,7 +2495,7 @@ def update():
         except Exception as e:
             logging.warning(f"自动初始化 bootstrap 失败: {e}")
 
-    threading.Thread(target=_post_update_tasks, args=(old_task_map, prev_tmdb, new_tmdb, old_poster_language, old_aired_refresh_time), daemon=True).start()
+    threading.Thread(target=_post_update_tasks, args=(old_task_map, prev_tmdb, new_tmdb, old_poster_language, old_aired_refresh_time, old_trakt_client_id, new_trakt_client_id), daemon=True).start()
     
     # 确保性能配置包含秒级字段
     if not isinstance(config_data.get('performance'), dict):
@@ -6357,6 +6379,101 @@ def update_episodes_air_date_local(cal_db: CalendarDB, tmdb_id: int, season_numb
             logging.debug(f"批量更新本地播出日期失败 tmdb_id={tmdb_id}, season={season_number}: {_e_batch}")
     except Exception as _e:
         logging.debug(f"更新本地播出日期失败 tmdb_id={tmdb_id}: {_e}")
+
+
+def sync_trakt_airtime_for_all_shows():
+    """为所有已有节目同步一次 Trakt 播出时间（首次配置 Client ID 时使用）"""
+    try:
+        trakt_cfg = config_data.get("trakt", {}) if isinstance(config_data, dict) else {}
+        client_id = (trakt_cfg.get("client_id") or "").strip()
+        if not client_id:
+            logging.debug("Trakt Client ID 未配置，跳过全量播出时间同步")
+            return
+        local_tz = config_data.get("local_timezone", "Asia/Shanghai")
+        tsvc = TraktService(client_id=client_id)
+        if not tsvc.is_configured():
+            logging.debug("TraktService 未配置，跳过全量播出时间同步")
+            return
+
+        cal_db = CalendarDB()
+        shows = cal_db.get_all_shows() or []
+        if not shows:
+            logging.debug("当前无节目可同步 Trakt 播出时间")
+            return
+
+        total = len(shows)
+        synced = 0
+        for show in shows:
+            tmdb_id = show.get("tmdb_id")
+            if tmdb_id is None or tmdb_id == "":
+                continue
+            try:
+                tmdb_id_int = int(tmdb_id)
+            except Exception:
+                continue
+
+            try:
+                show_info = tsvc.get_show_by_tmdb_id(tmdb_id_int)
+                if not show_info or not show_info.get("trakt_id"):
+                    logging.debug(f"未找到 Trakt 节目映射 tmdb_id={tmdb_id_int}")
+                    continue
+                trakt_id = show_info.get("trakt_id")
+                airtime = tsvc.get_show_airtime(trakt_id)
+                if not airtime or not airtime.get("aired_time") or not airtime.get("timezone"):
+                    logging.debug(f"Trakt 未返回播出时间 tmdb_id={tmdb_id_int}")
+                    continue
+
+                local_air_time = tsvc.convert_show_airtime_to_local(
+                    airtime.get("aired_time"), airtime.get("timezone"), local_tz
+                ) or airtime.get("aired_time")
+
+                cal_db.update_show_air_schedule(
+                    tmdb_id_int,
+                    local_air_time=local_air_time or "",
+                    air_time_source=airtime.get("aired_time") or "",
+                    air_timezone=airtime.get("timezone") or "",
+                )
+
+                # 同步已有集的本地播出日期
+                try:
+                    cursor = cal_db.conn.cursor()
+                    cursor.execute(
+                        "SELECT season_number, episode_number, air_date FROM episodes WHERE tmdb_id=?",
+                        (tmdb_id_int,),
+                    )
+                    rows = cursor.fetchall()
+                    episodes_by_season = {}
+                    for season_number, ep_number, air_date in rows:
+                        episodes_by_season.setdefault(season_number, []).append(
+                            {"episode_number": ep_number, "air_date": air_date}
+                        )
+                    for season_number, eps in episodes_by_season.items():
+                        update_episodes_air_date_local(cal_db, tmdb_id_int, int(season_number), eps)
+                except Exception as _ep_err:
+                    logging.debug(f"同步本地播出日期失败 tmdb_id={tmdb_id_int}: {_ep_err}")
+
+                synced += 1
+            except Exception as _single_err:
+                logging.debug(f"同步单个节目 Trakt 播出时间失败 tmdb_id={tmdb_id_int}: {_single_err}")
+
+        if synced > 0:
+            try:
+                notify_calendar_changed('trakt_airtime_synced')
+            except Exception:
+                pass
+            try:
+                _trigger_airtime_reschedule('trakt_airtime_synced')
+            except Exception:
+                pass
+            # 首次全量同步后立即重算播出/转存进度并热更新
+            try:
+                recompute_all_seasons_aired_daily()
+            except Exception as _recalc_err:
+                logging.debug(f"Trakt 全量同步后重算进度失败: {_recalc_err}")
+
+        logging.info(f"Trakt 播出时间全量同步完成，成功 {synced}/{total}")
+    except Exception as e:
+        logging.warning(f"Trakt 播出时间全量同步失败: {e}")
 
 
 def get_poster_language_setting():
