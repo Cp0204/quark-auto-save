@@ -872,6 +872,18 @@
                   </select>
                 </div>
               </div>
+              <!-- 追剧日历时区设置 -->
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text" title="控制追剧日历中集数播出日期的时区口径：原始时区与 TMDB 保持一致，本地时区则按 Trakt 播出时间换算到本地真实播出日期显示。">追剧日历时区</span>
+                  </div>
+                  <select class="form-control" v-model="formData.calendar_timezone_mode" title="原始时区：追剧日历日期与 TMDB 完全一致；本地时区：按本地真实播出日期显示，可能与 TMDB 相差 1 天。">
+                    <option value="original">原始时区</option>
+                    <option value="local">本地时区</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             <!-- 性能设置 -->
@@ -978,6 +990,21 @@
               <input type="text" v-model="formData.tmdb_api_key" class="form-control" placeholder="请输入 TMDB API 密钥，用于追剧日历功能">
             </div>
             <p class="tmdb-attribution">部分功能基于 <a href="https://www.themoviedb.org/" target="_blank">TMDB</a> 提供的数据实现，本应用与 TMDB 无关。</p>
+
+            <div class="row title" title="Trakt Client ID，用于根据 TMDB ID 从 Trakt 获取节目的精确播出时间（含时区），以便按本地真实播出时间刷新已播出集数。">
+              <div class="col">
+                <h2 style="display: inline-block; font-size: 1.5rem;">Trakt 配置</h2>
+                <span class="badge badge-pill badge-light">
+                  <a href="https://trakt.tv/oauth/applications" target="_blank" title="前往 Trakt 应用管理页面获取 Client ID"><i class="bi bi-question-circle"></i></a>
+                </span>
+              </div>
+            </div>
+            <div class="input-group">
+              <div class="input-group-prepend">
+                <span class="input-group-text">Client ID</span>
+              </div>
+              <input type="text" v-model="formData.trakt.client_id" class="form-control" placeholder="请输入 Trakt Client ID，用于获取节目播出时间">
+            </div>
 
           </div>
 
@@ -1342,7 +1369,7 @@
                   <div class="form-group row" title="匹配成功的文件夹的所有嵌套目录都会被更新，并且会应用与根目录相同的正则命名和过滤规则。注意：原理是逐级索引，深层嵌套目录的场景下效率非常低，慎用.*">
                     <label class="col-sm-2 col-form-label">更新目录</label>
                     <div class="col-sm-10">
-                      <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如：4K|1080P">
+                      <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如 4K|1080P">
                     </div>
                   </div>
                   <div class="form-group row">
@@ -1464,8 +1491,8 @@
                       <div class="info-line" v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).latest_season_name && getCalendarTaskByName(task.taskname).latest_season_name.trim() !== ''">
                         {{ getCalendarTaskByName(task.taskname).latest_season_name }}
                       </div>
-                      <!-- 最近转存文件 -->
-                      <div class="info-line" v-if="taskLatestFiles[task.taskname]">{{ taskLatestFiles[task.taskname] }}</div>
+                      <!-- 播出时间 -->
+                      <div class="info-line" v-if="getTaskAirTimeDisplay(task.taskname)">{{ getTaskAirTimeDisplay(task.taskname) }}</div>
                       <!-- 最近更新日期 -->
                       <div class="info-line" v-if="taskLatestRecords[task.taskname]">{{ getTaskLatestRecordDisplay(task.taskname) }}</div>
                     </div>
@@ -2182,7 +2209,7 @@
                     <!-- 刷新按钮 -->
                     <button type="button" 
                             class="btn btn-outline-primary batch-rename-btn"
-                            @click="refreshCalendarData"
+                            @click="refreshCalendarData(null, true, false, true)"
                             title="刷新追剧日历数据">
                       <i class="bi bi-arrow-clockwise"></i>
                     </button>
@@ -2248,7 +2275,7 @@
                         <div class="info-line" v-if="task.matched_show_name && task.season_counts"
                              v-html="`${getTaskTransferredCount(task)} <span class='count-slash'>/</span> ${getTaskAiredCount(task)} <span class='count-slash'>/</span> ${getTaskTotalCount(task)}`">
                         </div>
-                        <div class="info-line" v-if="task.matched_status && task.matched_status.trim() !== ''">{{ task.matched_status }}</div>
+                        <div class="info-line" v-if="getTaskAirTimeDisplay(task)">{{ getTaskAirTimeDisplay(task) }}</div>
                       </div>
                     </div>
                     <div class="discovery-info">
@@ -2815,7 +2842,7 @@
               <div class="form-group row" title="匹配成功的文件夹的所有嵌套目录都会被更新，并且会应用与根目录相同的正则命名和过滤规则。注意：原理是逐级索引，深层嵌套目录的场景下效率非常低，慎用.*">
                 <label class="col-sm-2 col-form-label">更新目录</label>
                 <div class="col-sm-10">
-                  <input type="text" name="update_subdir[]" class="form-control" v-model="createTask.taskData.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如：4K|1080P">
+                  <input type="text" name="update_subdir[]" class="form-control" v-model="createTask.taskData.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如 4K|1080P">
                 </div>
               </div>
               <div class="form-group row">
@@ -2974,7 +3001,15 @@
 
               <!-- 更换海报 -->
               <div class="row">
-                <div class="col-12 mb-2">
+                <div class="col-md-6 mb-2">
+                  <div class="input-group">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text" style="background-color: var(--button-gray-background-color);" title="节目在本地时区的播出时间，用于精确判断单集是否已播出，24小时制，格式：HH:MM，留空则使用系统配置的播出集数刷新时间">播出时间</span>
+                    </div>
+                    <input type="text" class="form-control no-spinner" v-model="editMetadata.form.local_air_time" :placeholder="editMetadata.form.local_air_time ? '' : '输入节目的播出时间，格式为 HH:MM，如 20:00'" title="节目在本地时区的播出时间，用于精确判断单集是否已播出，24小时制，格式：HH:MM，留空则使用系统配置的播出集数刷新时间">
+                  </div>
+                </div>
+                <div class="col-md-6 mb-2">
                   <div class="input-group">
                     <div class="input-group-prepend">
                       <span class="input-group-text" style="background-color: var(--button-gray-background-color);">更换海报</span>
@@ -3072,6 +3107,10 @@
             today_update_indicator: "always"
           },
           poster_language: "zh-CN",
+          trakt: {
+            client_id: ""
+          },
+          calendar_timezone_mode: "original",
           // 显示顺序（可拖拽修改）：按钮 + 信息
           button_display_order: [
             "refresh_plex",
@@ -4073,14 +4112,17 @@
             try { this.loadCalendarEpisodesLocal && this.loadCalendarEpisodesLocal(); } catch (e) {}
             // 先启动监听以确保 tickRef 已就绪
             this.startCalendarAutoWatch();
-            // 重置签名，确保本次切换能触发一次增量检查
-            this.calendarLatestFilesSignature = '';
+            // 初始化签名（如果还没有），但不重置已有签名，避免触发不必要的刷新
+            if (!this.calendarLatestFilesSignature) {
+              this.calendarLatestFilesSignature = this.calcLatestFilesSignature(this.taskLatestFiles || {});
+            }
             // 进入页面即刻用现有的最近文件重建一次进度映射，避免UI滞后
             try {
               this.calendar.progressByTaskName = this.buildProgressByTaskNameFromLatestFiles(this.taskLatestFiles || {});
               this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
             } catch (e) {}
-            // 立刻触发一次增量检查与热更新（无需等待下一轮定时器）
+            // 立刻触发一次增量检查（但不应该触发刷新，因为只是切换标签页，没有文件变化）
+            // 注意：tick 函数会检查签名变化，如果签名没有变化，不会触发刷新
             if (this.calendarAutoWatchTickRef) {
               this.calendarAutoWatchTickRef();
             }
@@ -4714,6 +4756,28 @@
             return task.task_name || task.taskname || '';
           }
         },
+        // 获取节目本地播出时间的展示文本
+        getTaskAirTimeDisplay(taskNameOrTask) {
+          try {
+            let t = taskNameOrTask;
+            if (typeof taskNameOrTask === 'string') {
+              const name = taskNameOrTask;
+              t = (this.calendar.tasks || []).find(x => (x.task_name || x.taskname) === name);
+              if (!t && Array.isArray(this.formData.tasklist)) {
+                t = this.formData.tasklist.find(x => (x.taskname || x.task_name) === name);
+              }
+            }
+            if (!t) return '';
+            const val = (t.local_air_time) 
+              || (t.calendar_info && t.calendar_info.local_air_time)
+              || '';
+            const norm = String(val || '').trim();
+            if (!norm) return '';
+            return norm;
+          } catch (e) {
+            return '';
+          }
+        },
         seasonInputComputedWidth() {
           try {
             const val = String(this.editMetadata && this.editMetadata.form ? (this.editMetadata.form.season_number ?? '') : '');
@@ -5063,7 +5127,7 @@
               try { await this.loadTodayUpdatesLocal(); } catch (e) {}
               // 背景增量刷新（带节流），完成后热更新
               if (this.shouldAutoRefreshCalendar()) {
-                this.refreshCalendarData().catch(() => {});
+                this.refreshCalendarData(null, true, true).catch(() => {}); // isAutoRefresh=true
               }
               // 启动后台轻量监听，近实时发现“最近转存文件”变化
               this.startCalendarAutoWatch();
@@ -5405,7 +5469,9 @@
               return false;
             }
             
-            return episode.air_date === date;
+            // 优先使用 display_air_date（根据 calendar_timezone_mode 设置），否则使用 air_date
+            const episodeDate = episode.display_air_date || episode.air_date || '';
+            return episodeDate === date;
           });
           
           // 如果启用了合并集功能，则进行合并处理
@@ -5632,21 +5698,102 @@
         
         
         
-        // 增量刷新追剧日历数据：仅对最新季执行增量拉取，然后本地读取
-        async refreshCalendarData() {
+        // 增量刷新追剧日历数据：只刷新当前匹配季的元数据（不刷新 TMDB 最新季）
+        // 可选传入限定 tmdb_id 列表，仅刷新指定节目
+        // onlyTmdbIds: 指定节目，allowFullRefresh: 仅显式同意时才全量刷新，isAutoRefresh: 是否为自动刷新（影响日志级别），isBatchRefresh: 是否为批量刷新（影响日志输出）
+        async refreshCalendarData(onlyTmdbIds = null, allowFullRefresh = false, isAutoRefresh = false, isBatchRefresh = false, isEditMetadataRefresh = false) {
           try {
+            if (this.calendar.refreshing) {
+              // 如果正在刷新中，给用户提示（仅手动刷新时）
+              if (!isAutoRefresh) {
+                this.showToast('刷新正在进行中，请稍候');
+              }
+              return;
+            }
+            this.calendar.refreshing = true;
             const tasklist = (this.formData && this.formData.tasklist) ? this.formData.tasklist : [];
-            const tmdbIds = [];
+            // 收集 tmdb_id -> 匹配季号映射
+            const tmdbToSeason = {};
+            // 优先使用日历任务最新数据
+            try {
+              (this.calendar.tasks || []).forEach(t => {
+                const tid = t.match_tmdb_id;
+                const sn = t.matched_latest_season_number;
+                if (tid && sn) tmdbToSeason[tid] = sn;
+              });
+            } catch (e) {}
+            // 回退表单任务里的匹配季
             tasklist.forEach(t => {
-              const cal = (t && t.calendar_info) ? t.calendar_info : {};
-              const match = cal.match || {};
-              if (match.tmdb_id) tmdbIds.push(match.tmdb_id);
-            });
-            for (const id of tmdbIds) {
               try {
-                await axios.get('/api/calendar/refresh_latest_season', { params: { tmdb_id: id } });
+                const cal = (t && t.calendar_info) ? t.calendar_info : {};
+                const match = cal.match || {};
+                const tid = match.tmdb_id;
+                const sn = match.latest_season_number;
+                if (tid && sn && !tmdbToSeason[tid]) tmdbToSeason[tid] = sn;
+              } catch (e) {}
+            });
+
+            const tmdbIds = Object.keys(tmdbToSeason).map(v => Number(v)).filter(Boolean);
+            const idsToRefresh = Array.isArray(onlyTmdbIds) && onlyTmdbIds.length
+              ? onlyTmdbIds
+              : (allowFullRefresh ? tmdbIds : []);
+
+            if (!idsToRefresh || idsToRefresh.length === 0) {
+              // 未授权全量且未指定节目，直接跳过
+              if (!isAutoRefresh) {
+                this.showToast('没有可刷新的节目数据');
+              }
+              // 提前返回时也要重置刷新状态
+              this.calendar.refreshing = false;
+              return;
+            }
+
+            // 如果不是自动刷新，显示开始提示
+            if (!isAutoRefresh) {
+              this.showToast(`正在刷新追剧日历，共 ${idsToRefresh.length} 个节目`);
+            }
+
+            // 批量刷新时输出整体开始日志
+            if (isBatchRefresh) {
+              try {
+                await axios.post('/api/calendar/log_batch_refresh_start');
               } catch (e) {
-                console.warn('refresh 失败:', id, e);
+                // 忽略日志记录失败
+              }
+            }
+
+            let successCount = 0;
+            let failCount = 0;
+            for (const id of idsToRefresh) {
+              const sn = tmdbToSeason[id];
+              if (!sn) {
+                console.warn('缺少匹配季，跳过刷新', id);
+                failCount++;
+                continue;
+              }
+              try {
+                await axios.get('/api/calendar/refresh_season', { 
+                  params: { 
+                    tmdb_id: id, 
+                    season_number: sn,
+                    is_auto_refresh: isAutoRefresh ? 'true' : 'false',
+                    is_batch_refresh: isBatchRefresh ? 'true' : 'false',
+                    is_edit_metadata_refresh: isEditMetadataRefresh ? 'true' : 'false'
+                  } 
+                });
+                successCount++;
+              } catch (e) {
+                console.warn('refresh season 失败:', id, sn, e);
+                failCount++;
+              }
+            }
+            
+            // 批量刷新时输出整体结束日志
+            if (isBatchRefresh) {
+              try {
+                await axios.post('/api/calendar/log_batch_refresh_end');
+              } catch (e) {
+                // 忽略日志记录失败
               }
             }
             
@@ -5673,8 +5820,25 @@
             try { await this.loadTodayUpdatesLocal(); } catch (e) {}
             // 记录自动刷新时间戳，用于节流
             try { localStorage.setItem('calendar_last_auto_refresh', String(Date.now())); } catch (e) {}
+            
+            // 如果不是自动刷新，显示完成提示
+            if (!isAutoRefresh) {
+              if (failCount === 0) {
+                this.showToast(`追剧日历刷新成功，共 ${successCount} 个节目`);
+              } else if (successCount > 0) {
+                this.showToast(`追剧日历刷新完成，${successCount} 个节目成功，${failCount} 个节目失败`);
+              } else {
+                this.showToast(`追剧日历刷新失败，共 ${failCount} 个节目`);
+              }
+            }
           } catch (error) {
             console.warn('增量刷新失败:', error);
+            // 如果不是自动刷新，显示错误提示
+            if (!isAutoRefresh) {
+              this.showToast('追剧日历刷新失败：' + (error.response?.data?.message || error.message || '未知错误'));
+            }
+          } finally {
+            this.calendar.refreshing = false;
           }
         },
         
@@ -5688,67 +5852,24 @@
             
             // 检查是否为合并集
             if (episode.is_merged && episode.original_episodes && episode.original_episodes.length > 0) {
-              // 合并集：刷新所有原始集
-              console.log('检测到合并集，将刷新所有原始集:', episode.original_episodes.length, '集');
-              
-              let successCount = 0;
-              let failCount = 0;
-              const successEpisodes = [];
-              const failEpisodes = [];
-              const errors = [];
-              
-              // 并行刷新所有原始集
-              const refreshPromises = episode.original_episodes.map(async (originalEpisode) => {
-                try {
-                  const response = await axios.get('/api/calendar/refresh_episode', {
-                    params: {
-                      tmdb_id: episode.tmdb_id,
-                      season_number: episode.season_number,
-                      episode_number: originalEpisode.episode_number
-                    }
-                  });
-                  
-                  if (response.data.success) {
-                    successCount++;
-                    successEpisodes.push(originalEpisode.episode_number);
-                    return { success: true, episode: originalEpisode.episode_number };
-                  } else {
-                    failCount++;
-                    failEpisodes.push(originalEpisode.episode_number);
-                    errors.push(`第${originalEpisode.episode_number}集: ${response.data.message}`);
-                    return { success: false, episode: originalEpisode.episode_number, error: response.data.message };
-                  }
-                } catch (error) {
-                  failCount++;
-                  failEpisodes.push(originalEpisode.episode_number);
-                  const errorMsg = error.response?.data?.message || error.message;
-                  errors.push(`第${originalEpisode.episode_number}集: ${errorMsg}`);
-                  return { success: false, episode: originalEpisode.episode_number, error: errorMsg };
+              // 合并集：使用批量接口，一次刷新所有原始集
+              const episodeNumbers = (episode.original_episodes || []).map(ep => ep.episode_number).filter(Boolean);
+              const response = await axios.get('/api/calendar/refresh_episodes_batch', {
+                params: {
+                  tmdb_id: episode.tmdb_id,
+                  season_number: episode.season_number,
+                  episode_numbers: episodeNumbers.join(',')
                 }
               });
               
-              // 等待所有刷新完成
-              await Promise.all(refreshPromises);
-              
-              // 显示结果提示
               const showName = episode.show_name || '未知剧集';
               const seasonNumber = episode.season_number;
+              const episodeRange = this.formatEpisodeRange(episodeNumbers);
               
-              if (successCount > 0 && failCount === 0) {
-                // 全部成功
-                const episodeRange = this.formatEpisodeRange(successEpisodes);
-                this.showToast(`《${showName}》第 ${seasonNumber} 季 · ${episodeRange}刷新成功`);
-              } else if (successCount > 0 && failCount > 0) {
-                // 部分成功：使用顿号明确区分成功和失败的集数
-                const successRange = this.formatEpisodeRange(successEpisodes, true);
-                const failRange = this.formatEpisodeRange(failEpisodes, true);
-                this.showToast(`《${showName}》第 ${seasonNumber} 季 · ${successRange}刷新成功，${failRange}刷新失败`);
-                console.warn('部分刷新失败:', errors);
+              if (response.data.success) {
+                this.showToast(response.data.message || `《${showName}》第 ${seasonNumber} 季 · ${episodeRange}刷新成功`);
               } else {
-                // 全部失败
-                const episodeRange = this.formatEpisodeRange(failEpisodes);
-                this.showToast(`《${showName}》第 ${seasonNumber} 季 · ${episodeRange}刷新失败`);
-                console.error('集刷新失败:', errors);
+                this.showToast(response.data.message || `《${showName}》第 ${seasonNumber} 季 · ${episodeRange}刷新失败`);
               }
               
             } else {
@@ -5774,8 +5895,9 @@
               }
             }
             
-            // 热更新数据
-            await this.refreshCalendarData();
+            // 仅刷新任务与本地剧集数据缓存，不触发季级刷新
+            try { await this.loadTasklistMetadata(); } catch (e) {}
+            try { await this.loadCalendarEpisodesLocal(); } catch (e) {}
             
           } catch (error) {
             console.error('刷新单集元数据失败:', error);
@@ -5797,17 +5919,16 @@
               this.showToast('该任务未匹配季信息');
               return;
             }
-            
-            // 先刷新剧级别详情（更新节目状态/最新季/海报等）
+
+            // 先刷新剧级别详情（状态/海报等），失败不阻塞季刷新
             try {
               await axios.get('/api/calendar/refresh_show', {
                 params: { tmdb_id: task.match_tmdb_id }
               });
             } catch (e) {
-              // 忽略失败，继续刷新季
-              console.warn('刷新剧详情失败（忽略继续）:', e);
+              console.warn('刷新剧详情失败（忽略继续季刷新）:', e);
             }
-
+            
             const response = await axios.get('/api/calendar/refresh_season', {
               params: {
                 tmdb_id: task.match_tmdb_id,
@@ -5819,24 +5940,18 @@
               // 显示成功提示
               this.showToast(response.data.message || '季元数据刷新成功');
               
-              // 刷新任务数据，确保节目状态（如 本季终/已完结/已取消）及时更新
-              // 同时更新集数数据（已转存集数/已播出集数/节目总集数）
+              // 刷新任务与本地剧集数据（不再触发季级刷新，避免重复日志/全量刷新）
               try {
                 const tasksResponse = await axios.get('/api/calendar/tasks');
                 if (tasksResponse.data && tasksResponse.data.success) {
                   this.calendar.tasks = tasksResponse.data.data.tasks;
                   this.calendar.taskNames = this.calendar.tasks.map(task => task.task_name);
-                  // 重新构建进度映射，确保任务列表和管理视图的集数数据正确更新
                   this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
-                  
-                  // 重新计算内容类型，确保类型按钮能热更新
                   const rawTypes = tasksResponse.data.data.content_types || [];
                   this.updateContentTypes(rawTypes);
                 }
               } catch (e) {}
-
-              // 热更新日历与本地剧集数据
-              await this.refreshCalendarData();
+              try { await this.loadCalendarEpisodesLocal(); } catch (e) {}
             } else {
               this.showToast(response.data.message || '季元数据刷新失败');
             }
@@ -5865,14 +5980,16 @@
                 task_name: currentName,
                 content_type: task.content_type || '',
                 tmdb_id: currentTmdbId || '',
-                season_number: currentSeason || ''
+                season_number: currentSeason || '',
+                local_air_time: (task.calendar_info && task.calendar_info.local_air_time) || ''
               },
               form: {
                 task_name: currentName,
                 content_type: task.content_type || '',
                 tmdb_id: '',
                 season_number: currentSeason || 1,
-                custom_poster_url: ''
+                custom_poster_url: '',
+                local_air_time: (task.calendar_info && task.calendar_info.local_air_time) || ''
               },
               display: {
                 matched_label: matchedName ? `${matchedName}${matchedYear ? ' (' + matchedYear + ')' : ''}` : '未匹配',
@@ -5937,15 +6054,47 @@
               new_content_type: this.editMetadata.form.content_type,
               new_tmdb_id: this.editMetadata.form.tmdb_id,
               new_season_number: this.editMetadata.form.season_number,
-              custom_poster_url: this.editMetadata.form.custom_poster_url
+              custom_poster_url: this.editMetadata.form.custom_poster_url,
+              local_air_time: this.editMetadata.form.local_air_time
             };
+
+            // 验证播出时间格式（如果填写了的话）
+            const airTimeStr = String(payload.local_air_time || '').trim();
+            if (airTimeStr) {
+              // 验证格式是否为 HH:MM（24小时制，00:00 到 23:59）
+              const timePattern = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
+              if (!timePattern.test(airTimeStr)) {
+                // 停止加载动画
+                this.editMetadata.loading = false;
+                // 手动隐藏 spinner，确保动画停止
+                try {
+                  var __sp = document.querySelector('#editMetadataModal .modal-title .spinner-border');
+                  if (__sp) {
+                    __sp.style.display = 'none';
+                  }
+                } catch (e) {}
+                // 等待视图更新后再显示提示
+                await this.$nextTick();
+                this.showToast('播出时间格式不正确，请输入 HH:MM 格式，如 20:00');
+                return;
+              }
+            }
 
             // 如果没有任何变化则直接关闭
             const noNameChange = (payload.new_task_name || '') === (this.editMetadata.original.task_name || '');
             const noTypeChange = (payload.new_content_type || '') === (this.editMetadata.original.content_type || '');
             const noRematch = !(payload.new_tmdb_id && String(payload.new_tmdb_id).trim()) && !(payload.new_season_number && String(payload.new_season_number).trim());
             const noPosterChange = !(payload.custom_poster_url && String(payload.custom_poster_url).trim());
-            if (noNameChange && noTypeChange && noRematch && noPosterChange) {
+            const noAirTimeChange = (String(payload.local_air_time || '') === String(this.editMetadata.original.local_air_time || ''));
+            if (noNameChange && noTypeChange && noRematch && noPosterChange && noAirTimeChange) {
+              // 重置加载状态
+              this.editMetadata.loading = false;
+              try {
+                var __sp = document.querySelector('#editMetadataModal .modal-title .spinner-border');
+                if (__sp) {
+                  __sp.style.display = 'none';
+                }
+              } catch (e) {}
               $('#editMetadataModal').modal('hide');
               return;
             }
@@ -5955,7 +6104,7 @@
               this.showToast(res.data.message || '保存成功');
               $('#editMetadataModal').modal('hide');
               // 热更新任务与日历
-              // 避免触发“未保存修改”提示：本次更新由后端变更引发
+              // 避免触发"未保存修改"提示：本次更新由后端变更引发
               this.suppressConfigModifiedOnce = true;
               // 本次操作来自编辑元数据，不应提示未保存
               this.configModified = false;
@@ -5990,8 +6139,26 @@
               // 并行刷新：优先尽快更新任务列表的类型按钮与映射
               try {
                 const tasksPromise = axios.get('/api/calendar/tasks');
-                // 同时后台刷新日历数据（不阻塞UI）
-                const refreshPromise = this.refreshCalendarData().catch(() => {});
+                // 根据后端返回的信息，决定是否刷新以及刷新哪个节目
+                // 只有在确实有修改（changed=true）且有有效的 tmdb_id 和 season_number 时才刷新
+                let refreshPromise = Promise.resolve();
+                if (res.data.changed && res.data.tmdb_id && res.data.season_number) {
+                  // 只刷新被编辑的单个节目，使用 DEBUG 级别日志
+                  const tmdbIdToRefresh = parseInt(res.data.tmdb_id);
+                  const seasonNumberToRefresh = parseInt(res.data.season_number);
+                  if (tmdbIdToRefresh && seasonNumberToRefresh) {
+                    // 直接调用 refresh_season API，使用 DEBUG 级别日志
+                    refreshPromise = axios.get('/api/calendar/refresh_season', {
+                      params: {
+                        tmdb_id: tmdbIdToRefresh,
+                        season_number: seasonNumberToRefresh,
+                        is_auto_refresh: 'false',
+                        is_batch_refresh: 'false',
+                        is_edit_metadata_refresh: 'true'
+                      }
+                    }).catch(() => {});
+                  }
+                }
                 const tasksResponse = await tasksPromise;
                 if (tasksResponse.data && tasksResponse.data.success) {
                   this.calendar.tasks = tasksResponse.data.data.tasks || [];
@@ -6026,9 +6193,10 @@
                 }
                 await refreshPromise;
                 // 再次触发缓存穿透，保证刷新后的数据也使用新时间戳
+                // 使用后端返回的最新 tmdb_id（如果有）
                 try {
                   const nowTick = Date.now();
-                  const eid = (this.editMetadata.display && this.editMetadata.display.matched_tmdb_id) || (this.editMetadata.original && this.editMetadata.original.tmdb_id);
+                  const eid = res.data.tmdb_id || (this.editMetadata.display && this.editMetadata.display.matched_tmdb_id) || (this.editMetadata.original && this.editMetadata.original.tmdb_id);
                   const taskName = (this.editMetadata.original && this.editMetadata.original.task_name) || '';
                   const matchedLabel = (this.editMetadata.display && this.editMetadata.display.matched_label) || '';
                   const normalizeMatchedName = (label) => {
@@ -6181,21 +6349,31 @@
                 if (res.data && res.data.success) {
                   const latestFiles = res.data.data.latest_files || {};
                   const sig = this.calcLatestFilesSignature(latestFiles);
+                  // 如果签名发生变化，说明有文件变化
                   if (sig && sig !== this.calendarLatestFilesSignature) {
-                    // 更新签名，触发热更新
+                    // 如果当前签名为空，说明是首次初始化，只更新签名，不触发刷新
+                    const isFirstInit = !this.calendarLatestFilesSignature;
+                    // 更新签名
                     this.calendarLatestFilesSignature = sig;
                     // 先更新任务面板数据（若有显示）
                     this.taskLatestFiles = latestFiles;
                     this.taskLatestRecords = res.data.data.latest_records || {};
-                    // 同步重建“已转存”判定所需的进度映射，确保UI立即反映
+                    // 同步重建"已转存"判定所需的进度映射，确保UI立即反映
                     try {
                       this.calendar.progressByTaskName = this.buildProgressByTaskNameFromLatestFiles(latestFiles);
                       this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
                     } catch (e) {}
-                    // 拉取并热更新日历
-                    await this.refreshCalendarData();
-                    // 同步“今日更新”
-                    try { await this.loadTodayUpdatesLocal(); } catch (e) {}
+                    // 如果不是首次初始化，且确实有文件变化，则触发刷新（遵守30分钟节流）
+                    if (!isFirstInit && this.shouldAutoRefreshCalendar()) {
+                      await this.refreshCalendarData(null, true, true); // isAutoRefresh=true
+                      // 同步"今日更新"
+                      try { await this.loadTodayUpdatesLocal(); } catch (e) {}
+                    } else if (!isFirstInit) {
+                      // 即使不刷新元数据（节流中），也要更新本地视图以反映文件变化
+                      try { await this.loadCalendarEpisodesLocal(); } catch (e) {}
+                      try { await this.loadTodayUpdatesLocal(); } catch (e) {}
+                    }
+                    // 首次初始化时，只更新签名，不触发任何刷新
                   }
                 }
               } catch (e) {
@@ -10313,7 +10491,7 @@
             
             // 如果当前是追剧日历页面，也刷新日历数据
             if (this.activeTab === 'calendar') {
-              await this.refreshCalendarData();
+              await this.refreshCalendarData(null, true);
             }
           } catch (error) {
             console.warn('触发热更新失败:', error);

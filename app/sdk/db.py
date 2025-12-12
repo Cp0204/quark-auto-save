@@ -361,15 +361,28 @@ class CalendarDB:
         )
         ''')
         
-        # 检查 content_type 字段是否存在，如果不存在则添加
+        # 检查 shows 表的新增字段（兼容旧版本）
         cursor.execute("PRAGMA table_info(shows)")
         columns = [column[1] for column in cursor.fetchall()]
+        # 内容类型
         if 'content_type' not in columns:
             cursor.execute('ALTER TABLE shows ADD COLUMN content_type TEXT')
-        
-        # 检查 is_custom_poster 字段是否存在，如果不存在则添加
+            columns.append('content_type')
+        # 自定义海报标记
         if 'is_custom_poster' not in columns:
             cursor.execute('ALTER TABLE shows ADD COLUMN is_custom_poster INTEGER DEFAULT 0')
+            columns.append('is_custom_poster')
+        # 本地播出时间（Trakt + 时区转换后的节目级播出时间，格式 HH:MM）
+        if 'local_air_time' not in columns:
+            cursor.execute('ALTER TABLE shows ADD COLUMN local_air_time TEXT')
+            columns.append('local_air_time')
+        # 节目级原始播出时间（Trakt airs.time，源时区下的 HH:MM）
+        if 'air_time_source' not in columns:
+            cursor.execute('ALTER TABLE shows ADD COLUMN air_time_source TEXT')
+            columns.append('air_time_source')
+        # 节目级播出地时区（Trakt airs.timezone，例如 America/New_York）
+        if 'air_timezone' not in columns:
+            cursor.execute('ALTER TABLE shows ADD COLUMN air_timezone TEXT')
 
         # seasons
         cursor.execute('''
@@ -400,6 +413,21 @@ class CalendarDB:
             UNIQUE (tmdb_id, season_number, episode_number)
         )
         ''')
+        # 迁移：为 episodes 表新增 Trakt 播出时间相关字段（兼容旧版本）
+        try:
+            cursor.execute('PRAGMA table_info(episodes)')
+            ep_columns = [column[1] for column in cursor.fetchall()]
+            if 'air_datetime_utc' not in ep_columns:
+                cursor.execute('ALTER TABLE episodes ADD COLUMN air_datetime_utc TEXT')
+                ep_columns.append('air_datetime_utc')
+            if 'air_datetime_local' not in ep_columns:
+                cursor.execute('ALTER TABLE episodes ADD COLUMN air_datetime_local TEXT')
+                ep_columns.append('air_datetime_local')
+            if 'air_date_local' not in ep_columns:
+                cursor.execute('ALTER TABLE episodes ADD COLUMN air_date_local TEXT')
+        except Exception:
+            # 迁移失败不影响主流程，后续逻辑会根据列是否存在做兼容处理
+            pass
 
         # season_metrics（缓存：每季的三项计数）
         cursor.execute('''
@@ -600,10 +628,21 @@ class CalendarDB:
         self.conn.commit()
 
     @retry_on_locked(max_retries=3, base_delay=0.1)
+    def update_episode_air_date_local(self, tmdb_id: int, season_number: int, episode_number: int, air_date_local: str):
+        """更新单集的本地播出日期"""
+        cursor = self.conn.cursor()
+        cursor.execute('''
+        UPDATE episodes
+        SET air_date_local = ?
+        WHERE tmdb_id = ? AND season_number = ? AND episode_number = ?
+        ''', (air_date_local, tmdb_id, season_number, episode_number))
+        self.conn.commit()
+
+    @retry_on_locked(max_retries=3, base_delay=0.1)
     def list_latest_season_episodes(self, tmdb_id:int, latest_season:int):
         cursor = self.conn.cursor()
         cursor.execute('''
-        SELECT episode_number, name, overview, air_date, runtime, type
+        SELECT episode_number, name, overview, air_date, runtime, type, air_date_local
         FROM episodes
         WHERE tmdb_id=? AND season_number=?
         ORDER BY episode_number ASC
@@ -617,6 +656,7 @@ class CalendarDB:
                 'air_date': r[3],
                 'runtime': r[4],
                 'type': r[5],
+                'air_date_local': r[6] if len(r) > 6 else None,
             } for r in rows
         ]
 
@@ -783,6 +823,90 @@ class CalendarDB:
         cursor.execute('SELECT content_type FROM shows WHERE tmdb_id=?', (tmdb_id,))
         row = cursor.fetchone()
         return row[0] if row else None
+
+    # 节目本地播出时间管理（基于 Trakt 节目级 aired_time + 时区转换）
+    @retry_on_locked(max_retries=3, base_delay=0.1)
+    def update_show_local_air_time(self, tmdb_id: int, local_air_time: str):
+        """
+        更新节目在本地时区的统一播出时间（格式：HH:MM）。
+        若传入空字符串或 None，则清空该字段，回退到全局播出集数刷新时间。
+        """
+        cursor = self.conn.cursor()
+        value = (local_air_time or '').strip()
+        cursor.execute('UPDATE shows SET local_air_time=? WHERE tmdb_id=?', (value, tmdb_id))
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    @retry_on_locked(max_retries=3, base_delay=0.1)
+    def get_show_local_air_time(self, tmdb_id: int):
+        """获取节目在本地时区的统一播出时间（HH:MM），无则返回 None。"""
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute('SELECT local_air_time FROM shows WHERE tmdb_id=?', (tmdb_id,))
+        except Exception:
+            # 旧版本可能没有该字段，直接返回 None
+            return None
+        row = cursor.fetchone()
+        if not row:
+            return None
+        value = row[0]
+        if value is None:
+            return None
+        value = str(value).strip()
+        return value or None
+
+    @retry_on_locked(max_retries=3, base_delay=0.1)
+    def update_show_air_schedule(self, tmdb_id: int, local_air_time=None, air_time_source=None, air_timezone=None):
+        """
+        批量更新节目的播出时间相关字段：
+        - local_air_time: 本地时区统一播出时间（HH:MM）
+        - air_time_source: 源时区播出时间（Trakt airs.time，HH:MM）
+        - air_timezone: 源时区名称（Trakt airs.timezone，例如 America/New_York）
+        传入 None 表示不更新该字段；传入空字符串表示清空。
+        """
+        fields = []
+        params = []
+        if local_air_time is not None:
+            fields.append("local_air_time=?")
+            params.append((local_air_time or "").strip())
+        if air_time_source is not None:
+            fields.append("air_time_source=?")
+            params.append((air_time_source or "").strip())
+        if air_timezone is not None:
+            fields.append("air_timezone=?")
+            params.append((air_timezone or "").strip())
+        if not fields:
+            return False
+        cursor = self.conn.cursor()
+        params.append(tmdb_id)
+        cursor.execute(f'UPDATE shows SET {", ".join(fields)} WHERE tmdb_id=?', params)
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    @retry_on_locked(max_retries=3, base_delay=0.1)
+    def get_show_air_schedule(self, tmdb_id: int):
+        """
+        获取节目播出时间相关配置：
+        - local_air_time: 本地统一播出时间（HH:MM）
+        - air_time_source: 源时区播出时间（HH:MM）
+        - air_timezone: 源时区名称
+        """
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute(
+                'SELECT local_air_time, air_time_source, air_timezone FROM shows WHERE tmdb_id=?',
+                (tmdb_id,),
+            )
+        except Exception:
+            return None
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "local_air_time": (row[0] or "").strip() if row[0] is not None else "",
+            "air_time_source": (row[1] or "").strip() if row[1] is not None else "",
+            "air_timezone": (row[2] or "").strip() if row[2] is not None else "",
+        }
 
     @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_shows_by_content_type(self, content_type:str):
