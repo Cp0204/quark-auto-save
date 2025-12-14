@@ -876,9 +876,9 @@
               <div class="col-lg-3 col-md-6 mb-2">
                 <div class="input-group">
                   <div class="input-group-prepend">
-                    <span class="input-group-text" title="控制追剧日历中集数播出日期的时区口径：原始时区与 TMDB 保持一致，本地时区则按 Trakt 播出时间换算到本地真实播出日期显示。">追剧日历时区</span>
+                    <span class="input-group-text" title="追剧日历中剧集播出日期的显示时区：选择原始时区时，按节目原始发行地的播出日期显示；选择本地时区时，按节目在本地（北京时间）的实际播出日期显示">追剧日历时区</span>
                   </div>
-                  <select class="form-control" v-model="formData.calendar_timezone_mode" title="原始时区：追剧日历日期与 TMDB 完全一致；本地时区：按本地真实播出日期显示，可能与 TMDB 相差 1 天。">
+                  <select class="form-control" v-model="formData.calendar_timezone_mode" title="原始时区：节目原始发行地时区，播出日期与TMDB一致；本地时区：东八时区（北京时间），跨时区换算后播出日期可能发生变化（最多相差1天）">
                     <option value="original">原始时区</option>
                     <option value="local">本地时区</option>
                   </select>
@@ -941,7 +941,7 @@
                 </div>
               </div>
               <div class="col-lg-3 col-md-6 mb-2">
-                <div class="input-group" title="已播出集数（及任务进度）自动刷新时间，24小时制，格式：HH:MM。默认值：00:00（每天0点）">
+                <div class="input-group" title="已播出集数（及任务进度）自动刷新时间，24小时制，格式：HH:MM；无播出时间的节目将使用该值作为默认播出时间。默认值：00:00（每天0点）">
                   <div class="input-group-prepend">
                     <span class="input-group-text">播出集数刷新时间</span>
                   </div>

@@ -7909,6 +7909,12 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   cursor: text;
 }
 
+/* QASX API Token 显示框背景色：与普通输入框保持一致，覆盖 disabled 状态的灰色背景 */
+.form-control.token-display:disabled,
+.form-control.token-display[readonly] {
+  background-color: #fff !important; /* 与普通输入框背景色保持一致 */
+}
+
 /* TMDB 说明文本样式与链接样式（继承颜色、无下划线、悬停不变） */
 .tmdb-attribution {
   margin-top: 4px;
