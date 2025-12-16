@@ -1477,8 +1477,8 @@
                       <div class="info-line" v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).latest_season_name && getCalendarTaskByName(task.taskname).latest_season_name.trim() !== ''">
                         {{ getCalendarTaskByName(task.taskname).latest_season_name }}
                       </div>
-                      <!-- 播出时间 -->
-                      <div class="info-line" v-if="getTaskAirTimeDisplay(task.taskname)">{{ getTaskAirTimeDisplay(task.taskname) }}</div>
+                      <!-- 下一集播出日期 + 时间（基于已转存集数推算） -->
+                      <div class="info-line" v-if="getTaskNextAirDateTimeDisplay(task.taskname)">{{ getTaskNextAirDateTimeDisplay(task.taskname) }}</div>
                       <!-- 最近更新日期 -->
                       <div class="info-line" v-if="taskLatestRecords[task.taskname]">{{ getTaskLatestRecordDisplay(task.taskname) }}</div>
                     </div>
@@ -4762,6 +4762,91 @@
             return norm;
           } catch (e) {
             return '';
+          }
+        },
+        // 获取“已转存集数下一集”的本地播出日期 + 时间展示文本（任务列表海报视图使用）
+        getTaskNextAirDateTimeDisplay(taskNameOrTask) {
+          try {
+            // 先获取原有的播出时间展示（例如 19:40 或 19:40 +1d），作为回退
+            const airTime = this.getTaskAirTimeDisplay(taskNameOrTask);
+
+            // 规范化任务名称
+            const taskName = (typeof taskNameOrTask === 'string')
+              ? taskNameOrTask
+              : (taskNameOrTask && (taskNameOrTask.task_name || taskNameOrTask.taskname)) || '';
+            if (!taskName) return airTime;
+
+            // 需要日历任务和本地剧集数据，否则回退为仅显示时间
+            const calendarTask = this.getCalendarTaskByName(taskName);
+            if (!calendarTask || !this.calendar || !Array.isArray(this.calendar.episodes) || this.calendar.episodes.length === 0) {
+              return airTime;
+            }
+
+            // 节目名称：优先使用 show_name，其次 matched_show_name
+            const showName = (calendarTask.show_name || calendarTask.matched_show_name || '').trim();
+            if (!showName) return airTime;
+
+            // 当前匹配季号：参考 getTaskSeasonNumber 的逻辑
+            const seasonNumber =
+              (calendarTask.match && calendarTask.match.latest_season_number) ||
+              calendarTask.matched_latest_season_number ||
+              calendarTask.season_number ||
+              null;
+
+            // 已转存集数：来自 season_counts.transferred_count，下一集 = 已转存 + 1
+            const transferred = Number((calendarTask.season_counts && calendarTask.season_counts.transferred_count) || 0);
+            const nextEpNumber = transferred > 0 ? transferred + 1 : 1;
+
+            // 在本地剧集列表中查找对应节目的下一集
+            const candidates = this.calendar.episodes
+              .filter(ep => {
+                if (!ep) return false;
+                if ((ep.show_name || '').trim() !== showName) return false;
+                if (seasonNumber != null && ep.season_number != null && ep.season_number !== seasonNumber) return false;
+                if (ep.episode_number == null) return false;
+                const n = parseInt(ep.episode_number);
+                if (isNaN(n)) return false;
+                return n >= nextEpNumber;
+              })
+              .sort((a, b) => {
+                // 先按集数升序
+                const an = parseInt(a.episode_number);
+                const bn = parseInt(b.episode_number);
+                if (!isNaN(an) && !isNaN(bn) && an !== bn) {
+                  return an - bn;
+                }
+                // 再按日期升序（YYYY-MM-DD）
+                const ad = (a.air_date_local || a.display_air_date || a.air_date || '') || '';
+                const bd = (b.air_date_local || b.display_air_date || b.air_date || '') || '';
+                if (ad === bd) return 0;
+                return ad > bd ? 1 : -1;
+              });
+
+            const nextEp = candidates[0];
+            if (!nextEp) return airTime;
+
+            // 优先使用 air_date_local；若无则回退到 display_air_date / air_date
+            const rawDate = (nextEp.air_date_local || nextEp.display_air_date || nextEp.air_date || '') || '';
+            if (!rawDate) return airTime;
+
+            // 日期格式统一为 MM-DD
+            let mmdd = rawDate;
+            const m = String(rawDate).match(/^\d{4}-(\d{2})-(\d{2})/);
+            if (m) {
+              mmdd = `${m[1]}-${m[2]}`;
+            } else if (rawDate.length >= 5) {
+              // 简单兜底：截取最后 5 位，兼容已有本地格式
+              mmdd = rawDate.slice(-5);
+            }
+
+            // 组合“日期 + 播出时间”，若没有时间则仅显示日期
+            if (airTime) {
+              return `${mmdd} ${airTime}`;
+            }
+            return mmdd;
+          } catch (e) {
+            // 任意异常都回退为原有的时间展示，保证不影响原功能
+            return this.getTaskAirTimeDisplay(taskNameOrTask);
           }
         },
         seasonInputComputedWidth() {
