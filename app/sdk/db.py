@@ -383,6 +383,15 @@ class CalendarDB:
         # 节目级播出地时区（Trakt airs.timezone，例如 America/New_York）
         if 'air_timezone' not in columns:
             cursor.execute('ALTER TABLE shows ADD COLUMN air_timezone TEXT')
+            columns.append('air_timezone')
+        # 日期偏移（air_date 转换为 air_date_local 时的日期偏移天数，+1表示延后一天，-1表示提前一天，0表示无偏移）
+        if 'air_date_offset' not in columns:
+            cursor.execute('ALTER TABLE shows ADD COLUMN air_date_offset INTEGER DEFAULT 0')
+            columns.append('air_date_offset')
+        # 标记 air_date_offset 是否由用户手动设置（通过 WebUI 编辑元数据页面）
+        if 'air_date_offset_manually_set' not in columns:
+            cursor.execute('ALTER TABLE shows ADD COLUMN air_date_offset_manually_set INTEGER DEFAULT 0')
+            columns.append('air_date_offset_manually_set')
 
         # seasons
         cursor.execute('''
@@ -856,12 +865,14 @@ class CalendarDB:
         return value or None
 
     @retry_on_locked(max_retries=3, base_delay=0.1)
-    def update_show_air_schedule(self, tmdb_id: int, local_air_time=None, air_time_source=None, air_timezone=None):
+    def update_show_air_schedule(self, tmdb_id: int, local_air_time=None, air_time_source=None, air_timezone=None, air_date_offset=None, air_date_offset_manually_set=None):
         """
         批量更新节目的播出时间相关字段：
         - local_air_time: 本地时区统一播出时间（HH:MM）
         - air_time_source: 源时区播出时间（Trakt airs.time，HH:MM）
         - air_timezone: 源时区名称（Trakt airs.timezone，例如 America/New_York）
+        - air_date_offset: 日期偏移天数（+1表示延后一天，-1表示提前一天，0表示无偏移）
+        - air_date_offset_manually_set: 标记 air_date_offset 是否由用户手动设置（1表示手动设置，0表示自动计算）
         传入 None 表示不更新该字段；传入空字符串表示清空。
         """
         fields = []
@@ -875,13 +886,21 @@ class CalendarDB:
         if air_timezone is not None:
             fields.append("air_timezone=?")
             params.append((air_timezone or "").strip())
+        if air_date_offset is not None:
+            fields.append("air_date_offset=?")
+            params.append(int(air_date_offset) if air_date_offset is not None else 0)
+        if air_date_offset_manually_set is not None:
+            fields.append("air_date_offset_manually_set=?")
+            params.append(1 if air_date_offset_manually_set else 0)
         if not fields:
             return False
         cursor = self.conn.cursor()
         params.append(tmdb_id)
-        cursor.execute(f'UPDATE shows SET {", ".join(fields)} WHERE tmdb_id=?', params)
+        sql = f'UPDATE shows SET {", ".join(fields)} WHERE tmdb_id=?'
+        cursor.execute(sql, params)
+        rowcount = cursor.rowcount
         self.conn.commit()
-        return cursor.rowcount > 0
+        return rowcount > 0
 
     @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_show_air_schedule(self, tmdb_id: int):
@@ -890,23 +909,137 @@ class CalendarDB:
         - local_air_time: 本地统一播出时间（HH:MM）
         - air_time_source: 源时区播出时间（HH:MM）
         - air_timezone: 源时区名称
+        - air_date_offset: 日期偏移天数（+1表示延后一天，-1表示提前一天，0表示无偏移）
+        
+        如果发现没有 air_date_offset 但有时区信息，会自动从已有集数据计算并补上偏移值
         """
         cursor = self.conn.cursor()
         try:
             cursor.execute(
-                'SELECT local_air_time, air_time_source, air_timezone FROM shows WHERE tmdb_id=?',
+                'SELECT local_air_time, air_time_source, air_timezone, air_date_offset, air_date_offset_manually_set FROM shows WHERE tmdb_id=?',
                 (tmdb_id,),
             )
         except Exception:
-            return None
+            # 兼容旧版本数据库（可能没有 air_date_offset 或 air_date_offset_manually_set 字段）
+            try:
+                # 先尝试查询包含 air_date_offset 但不包含 air_date_offset_manually_set 的情况
+                try:
+                    cursor.execute(
+                        'SELECT local_air_time, air_time_source, air_timezone, air_date_offset FROM shows WHERE tmdb_id=?',
+                        (tmdb_id,),
+                    )
+                    row = cursor.fetchone()
+                    if not row:
+                        return None
+                    air_time_source = (row[1] or "").strip() if row[1] is not None else ""
+                    air_timezone = (row[2] or "").strip() if row[2] is not None else ""
+                    air_date_offset = int(row[3]) if row[3] is not None else 0
+                    air_date_offset_manually_set = 0  # 旧数据默认为未手动设置
+                    return {
+                        "local_air_time": (row[0] or "").strip() if row[0] is not None else "",
+                        "air_time_source": air_time_source,
+                        "air_timezone": air_timezone,
+                        "air_date_offset": air_date_offset,
+                        "air_date_offset_manually_set": bool(air_date_offset_manually_set),
+                    }
+                except Exception:
+                    # 如果连 air_date_offset 字段都没有，使用最旧的查询方式
+                    cursor.execute(
+                        'SELECT local_air_time, air_time_source, air_timezone FROM shows WHERE tmdb_id=?',
+                        (tmdb_id,),
+                    )
+                    row = cursor.fetchone()
+                    if not row:
+                        return None
+                    air_time_source = (row[1] or "").strip() if row[1] is not None else ""
+                    air_timezone = (row[2] or "").strip() if row[2] is not None else ""
+                    air_date_offset = 0
+                    air_date_offset_manually_set = 0
+                    return {
+                        "local_air_time": (row[0] or "").strip() if row[0] is not None else "",
+                        "air_time_source": air_time_source,
+                        "air_timezone": air_timezone,
+                        "air_date_offset": air_date_offset,
+                        "air_date_offset_manually_set": bool(air_date_offset_manually_set),
+                    }
+            except Exception:
+                return None
         row = cursor.fetchone()
         if not row:
             return None
-        return {
+        air_time_source = (row[1] or "").strip() if row[1] is not None else ""
+        air_timezone = (row[2] or "").strip() if row[2] is not None else ""
+        air_date_offset = int(row[3]) if row[3] is not None else 0
+        air_date_offset_manually_set = int(row[4]) if row[4] is not None else 0
+        
+        # 重要：不要自动计算并覆盖偏移值！
+        # 如果用户手动设置了偏移值（即使为0），应该保持原值
+        # 只有在确实没有偏移值（NULL）且有时区信息时，才尝试自动计算
+        # 但这里我们不再自动计算，因为可能会覆盖用户手动设置的值
+        # 如果需要自动计算，应该在初始同步时进行，而不是在读取时
+        
+        result = {
             "local_air_time": (row[0] or "").strip() if row[0] is not None else "",
-            "air_time_source": (row[1] or "").strip() if row[1] is not None else "",
-            "air_timezone": (row[2] or "").strip() if row[2] is not None else "",
+            "air_time_source": air_time_source,
+            "air_timezone": air_timezone,
+            "air_date_offset": air_date_offset,
+            "air_date_offset_manually_set": bool(air_date_offset_manually_set),
         }
+        return result
+    
+    def _calculate_date_offset_from_existing_episodes(self, tmdb_id: int) -> int:
+        """
+        从已有集数据计算日期偏移（用于自动补上旧数据的偏移值）
+        """
+        try:
+            cursor = self.conn.cursor()
+            # 获取最新季的前几集，比较 air_date 和 air_date_local
+            cursor.execute(
+                """
+                SELECT e.air_date, e.air_date_local
+                FROM episodes e
+                INNER JOIN shows s ON e.tmdb_id = s.tmdb_id
+                WHERE e.tmdb_id=? AND e.season_number=?
+                  AND e.air_date IS NOT NULL AND e.air_date != ''
+                  AND e.air_date_local IS NOT NULL AND e.air_date_local != ''
+                ORDER BY e.episode_number ASC
+                LIMIT 5
+                """,
+                (int(tmdb_id), self.get_show(int(tmdb_id)).get('latest_season_number') or 1)
+            )
+            rows = cursor.fetchall()
+            
+            if not rows:
+                return 0
+            
+            # 计算每集的日期差异，取最常见的偏移值
+            offsets = []
+            from datetime import datetime as _dt
+            for air_date, air_date_local in rows:
+                try:
+                    date_orig = _dt.strptime(str(air_date), "%Y-%m-%d").date()
+                    date_local = _dt.strptime(str(air_date_local), "%Y-%m-%d").date()
+                    offset = (date_local - date_orig).days
+                    offsets.append(offset)
+                except Exception:
+                    continue
+            
+            if not offsets:
+                return 0
+            
+            # 返回最常见的偏移值（如果所有集的偏移都相同，则使用该值）
+            if len(set(offsets)) == 1:
+                return offsets[0]
+            
+            # 如果偏移不一致，返回最常见的偏移值
+            from collections import Counter
+            most_common = Counter(offsets).most_common(1)
+            if most_common:
+                return most_common[0][0]
+            
+            return 0
+        except Exception:
+            return 0
 
     @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_shows_by_content_type(self, content_type:str):

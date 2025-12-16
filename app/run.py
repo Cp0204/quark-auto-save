@@ -73,12 +73,12 @@ def _get_local_timezone() -> str:
         pass
     return "Asia/Shanghai"
 
-
 def is_episode_aired(tmdb_id: int, season_number: int, episode_number: int, now_local_dt) -> bool:
     """
-    通用“单集是否已播出”判定：
-    优先使用 Trakt 写入的本地播出时间，其次使用本地日期 + 节目级/全局播出时间，
-    最后退回原有的“TMDB 日期 + 播出集数刷新时间”口径。
+    单集是否已播出判定：
+    1. 始终使用 air_date_local（已考虑 air_date_offset）作为日期判断
+    2. 如果 air_date_local 不存在，说明播出时间未知，返回 False
+    3. 始终使用 local_air_time 作为时间判断，如果不存在则使用播出集数刷新时间
     """
     try:
         tmdb_id = int(tmdb_id)
@@ -87,12 +87,13 @@ def is_episode_aired(tmdb_id: int, season_number: int, episode_number: int, now_
     except Exception:
         return False
 
+    # 从数据库获取集的播出时间信息
     try:
         cal_db = CalendarDB()
         cur = cal_db.conn.cursor()
         cur.execute(
             """
-            SELECT air_datetime_utc, air_datetime_local, air_date_local, air_date
+            SELECT air_date_local
             FROM episodes
             WHERE tmdb_id=? AND season_number=? AND episode_number=?
             """,
@@ -101,155 +102,88 @@ def is_episode_aired(tmdb_id: int, season_number: int, episode_number: int, now_
         row = cur.fetchone()
         if not row:
             return False
-        air_datetime_utc, air_datetime_local, air_date_local, air_date = row
+        air_date_local = row[0]
     except Exception:
         return False
 
-    # 1) 优先使用本地时区精确时间（来自 Trakt first_aired 转换）
-    try:
-        if air_datetime_local:
-            dt_local = datetime.fromisoformat(str(air_datetime_local))
-            try:
-                return dt_local.timestamp() <= now_local_dt.timestamp()
-            except Exception:
-                # 若 now_local_dt 非 datetime，退化为直接比较字符串（保底，精度较差）
-                return str(air_datetime_local) <= str(now_local_dt)
-    except Exception:
-        pass
+    # 如果 air_date_local 不存在，说明播出时间未知，返回 False
+    if not air_date_local:
+        return False
 
-    # 获取节目级播出时间配置：
-    # - local_air_time: 本地播出时间（HH:MM）
-    # - air_time_source: 源时区播出时间（HH:MM）
-    # - air_timezone: 源时区名称（例如 America/New_York）
+    # 获取节目级播出时间配置
     schedule = {}
     try:
         schedule = CalendarDB().get_show_air_schedule(tmdb_id) or {}
     except Exception:
         schedule = {}
+    
+    # 优先使用 local_air_time，如果不存在（为空或 None）则使用全局播出集数刷新时间
     local_air_time = (schedule.get("local_air_time") or "").strip() or None
-    air_time_source = (schedule.get("air_time_source") or "").strip() or None
-    air_timezone = (schedule.get("air_timezone") or "").strip() or None
-
-    # 全局播出集数刷新时间作为兜底
     perf = config_data.get("performance", {}) if isinstance(config_data, dict) else {}
     refresh_time_str = perf.get("aired_refresh_time", "00:00")
-    time_fallback = local_air_time or refresh_time_str or "00:00"
-
-    # 2) 若有 Trakt 节目级源时区播出时间：使用“源时区日期 + 源时区时间”做完整时区转换
-    #    这一步会自然包含日期的前后偏移（例如美东周日 21:00 -> 北京时间周一 10:00）
+    
+    # 始终使用 local_air_time（如果存在），否则使用播出集数刷新时间
+    time_to_use = local_air_time if local_air_time else refresh_time_str
+    
+    # 解析时间（HH:MM）
+    hh, mm = 0, 0
     try:
-        if air_date and air_time_source and air_timezone:
-            try:
-                from zoneinfo import ZoneInfo as _ZoneInfo
-            except Exception:
-                _ZoneInfo = None  # type: ignore
-            if _ZoneInfo is not None:
-                # air_date 视为源时区日期，air_time_source 视为源时区时间
-                try:
-                    src_date = datetime.strptime(str(air_date), "%Y-%m-%d").date()
-                except Exception:
-                    src_date = None
-                if src_date is not None:
-                    try:
-                        hh_s, mm_s = [int(x) for x in str(air_time_source).split(":")]
-                    except Exception:
-                        hh_s, mm_s = 0, 0
-                    try:
-                        from datetime import time as _dtime
-                        src_time = _dtime(hour=hh_s, minute=mm_s)
-                        src_dt_naive = datetime.combine(src_date, src_time)
-                        src_dt = src_dt_naive.replace(tzinfo=_ZoneInfo(air_timezone))
-                        local_tz = _get_local_timezone()
-                        local_dt = src_dt.astimezone(_ZoneInfo(local_tz))
-                        return local_dt.timestamp() <= now_local_dt.timestamp()
-                    except Exception as _e:
-                        # 源时区无效或转换失败，继续走后续兜底逻辑
-                        logging.debug(f"时区转换失败 tmdb_id={tmdb_id}, season={season_number}, ep={episode_number}: {_e}")
-                        import traceback
-                        logging.debug(f"时区转换异常堆栈: {traceback.format_exc()}")
-                        pass
+        parts = str(time_to_use).split(":")
+        if len(parts) == 2:
+            hh = int(parts[0])
+            mm = int(parts[1])
     except Exception:
-        pass
-
-    # 3) 退回到“本地日期 + 节目级/全局播出时间”（若已有本地日期字段，则继续利用）
-    try:
-        if air_date_local:
-            hh, mm = 0, 0
-            try:
-                parts = str(time_fallback).split(":")
-                if len(parts) == 2:
-                    hh = int(parts[0])
-                    mm = int(parts[1])
-            except Exception:
-                hh, mm = 0, 0
-            dt_str = f"{air_date_local} {hh:02d}:{mm:02d}:00"
-            try:
-                dt_ep_local = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
-                if getattr(now_local_dt, "tzinfo", None) is not None:
-                    dt_ep_local = dt_ep_local.replace(tzinfo=now_local_dt.tzinfo)
-                return dt_ep_local.timestamp() <= now_local_dt.timestamp()
-            except Exception as _e:
-                logging.debug(f"is_episode_aired 本地日期+播出时间判定异常: tmdb_id={tmdb_id}, season={season_number}, ep={episode_number}, error={_e}")
-                import traceback
-                logging.debug(f"本地日期+播出时间判定异常堆栈: {traceback.format_exc()}")
-                pass
-    except Exception:
-        pass
-
-    # 3.1) 若只有 air_date 但存在节目级/全局播出时间，也按时间维度判定
-    try:
-        if air_date and time_fallback:
-            hh, mm = 0, 0
-            try:
-                parts = str(time_fallback).split(":")
-                if len(parts) == 2:
-                    hh = int(parts[0])
-                    mm = int(parts[1])
-            except Exception:
-                hh, mm = 0, 0
-            dt_str = f"{air_date} {hh:02d}:{mm:02d}:00"
-            try:
-                dt_ep_local = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
-                if getattr(now_local_dt, "tzinfo", None) is not None:
-                    dt_ep_local = dt_ep_local.replace(tzinfo=now_local_dt.tzinfo)
-                return dt_ep_local.timestamp() <= now_local_dt.timestamp()
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-    # 4) 最后一层兜底：优先使用 air_date_local（如果存在），否则使用 TMDB 原始日期
-    #    注意：现在集的播出日期已经是本地日期，需要结合播出时间来判断是否已播出
-    #    time_fallback 已经包含了节目级播出时间或全局播出集数刷新时间，应该总是使用它来判断
-    try:
-        # 优先使用 air_date_local（已考虑时区转换的本地日期）
-        date_to_compare = air_date_local if air_date_local else air_date
-        if not date_to_compare:
-            return False
-        
-        # 总是使用 time_fallback（节目级播出时间或全局播出集数刷新时间）来判断
-        # time_fallback 已经在前面定义为：local_air_time or refresh_time_str or "00:00"
         hh, mm = 0, 0
-        try:
-            parts = str(time_fallback).split(":")
-            if len(parts) == 2:
-                hh = int(parts[0])
-                mm = int(parts[1])
-        except Exception:
-            hh, mm = 0, 0
-        dt_str = f"{date_to_compare} {hh:02d}:{mm:02d}:00"
-        try:
-            dt_ep_local = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
-            if getattr(now_local_dt, "tzinfo", None) is not None:
-                dt_ep_local = dt_ep_local.replace(tzinfo=now_local_dt.tzinfo)
-            return dt_ep_local.timestamp() <= now_local_dt.timestamp()
-        except Exception:
-            # 如果时间构建失败，退化为只比较日期（保底逻辑）
-            from datetime import datetime as _dt
-            today = _dt.now().strftime('%Y-%m-%d')
-            return str(date_to_compare) <= today
-    except Exception:
+
+    # 组合日期和时间
+    try:
+        dt_str = f"{air_date_local} {hh:02d}:{mm:02d}:00"
+        dt_ep_local = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+        # 如果 now_local_dt 有时区信息，为 dt_ep_local 也添加相同的时区信息
+        if getattr(now_local_dt, "tzinfo", None) is not None:
+            dt_ep_local = dt_ep_local.replace(tzinfo=now_local_dt.tzinfo)
+        result = dt_ep_local.timestamp() <= now_local_dt.timestamp()
+        return result
+    except Exception as _e:
+        logging.debug(f"is_episode_aired 日期+时间判定异常: tmdb_id={tmdb_id}, season={season_number}, ep={episode_number}, error={_e}")
+        import traceback
+        logging.debug(f"异常堆栈: {traceback.format_exc()}")
         return False
+
+def compute_aired_count_by_episode_check(tmdb_id: int, season_number: int, now_local_dt=None) -> int:
+    """
+    通过逐集调用 is_episode_aired 计算已播出集数（考虑播出时间）
+    这是正确的计算方式，应该替代所有简单的日期比较逻辑
+    """
+    try:
+        from zoneinfo import ZoneInfo as _ZoneInfo
+        local_tz = _ZoneInfo(_get_local_timezone())
+        if now_local_dt is None:
+            now_local_dt = datetime.now(local_tz)
+    except Exception:
+        if now_local_dt is None:
+            now_local_dt = datetime.now()
+    
+    try:
+        cal_db = CalendarDB()
+        cur = cal_db.conn.cursor()
+        cur.execute(
+            """
+            SELECT episode_number FROM episodes
+            WHERE tmdb_id=? AND season_number=?
+            """,
+            (int(tmdb_id), int(season_number)),
+        )
+        aired_count = 0
+        for (ep_no,) in cur.fetchall() or []:
+            try:
+                if is_episode_aired(int(tmdb_id), int(season_number), int(ep_no), now_local_dt):
+                    aired_count += 1
+            except Exception:
+                continue
+        return aired_count
+    except Exception:
+        return 0
 
 def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
     """为任务列表注入日历相关元数据：节目状态、最新季处理后名称、已转存/已播出/本季总集数。
@@ -342,26 +276,31 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
         except Exception:
             transferred_by_task = {}
 
-        # 统计"已播出集数"：读取本地 episodes 表中有 air_date 且 <= 今天的集数
-        # 注意：现在集的播出日期已经是本地日期，不需要通过播出集数刷新时间限制，直接使用今天的日期比较即可
+        # 统计"已播出集数"：使用 is_episode_aired 逐集判断（考虑播出时间）
+        # 修复：不再使用简单的日期比较，而是逐集调用 is_episode_aired 判断是否已播出
         from datetime import datetime as _dt
-        now = _dt.now()
-        today = now.strftime('%Y-%m-%d')
+        try:
+            from zoneinfo import ZoneInfo as _ZoneInfo
+            local_tz = _ZoneInfo(_get_local_timezone())
+            now_local_dt = datetime.now(local_tz)
+        except Exception:
+            now_local_dt = datetime.now()
+        
         aired_by_show_season = {}
         try:
-            # 优先使用 air_date_local（已考虑时区转换的本地日期），如果为空则使用 air_date
-            # 直接使用今天的日期进行比较，不再通过播出集数刷新时间限制
+            # 获取所有有剧集的节目和季
             cur.execute(
                 """
-                SELECT tmdb_id, season_number, COUNT(1) FROM episodes
-                WHERE (air_date_local IS NOT NULL AND air_date_local != '' AND air_date_local <= ?)
-                   OR (air_date_local IS NULL OR air_date_local = '') AND (air_date IS NOT NULL AND air_date != '' AND air_date <= ?)
-                GROUP BY tmdb_id, season_number
-                """,
-                (today, today)
+                SELECT DISTINCT tmdb_id, season_number FROM episodes
+                WHERE tmdb_id IS NOT NULL AND season_number IS NOT NULL
+                """
             )
-            for tid, sn, cnt in (cur.fetchall() or []):
-                aired_by_show_season[(int(tid), int(sn))] = int(cnt or 0)
+            for tid, sn in (cur.fetchall() or []):
+                try:
+                    aired_count = compute_aired_count_by_episode_check(int(tid), int(sn), now_local_dt)
+                    aired_by_show_season[(int(tid), int(sn))] = aired_count
+                except Exception:
+                    continue
         except Exception:
             aired_by_show_season = {}
 
@@ -707,20 +646,15 @@ def recompute_task_metrics_and_notify(task_name: str) -> bool:
             aired = metrics.get('aired_count')
             total = metrics.get('total_count')
             if aired in (None, 0) or total in (None, 0):
-                # 动态回退：使用今天的日期计算已播出集数，优先使用 air_date_local（已考虑时区转换）
-                # 注意：现在集的播出日期已经是本地日期，不需要通过播出集数刷新时间限制，直接使用今天的日期比较即可
-                from datetime import datetime as _dt
-                today = _dt.now().strftime('%Y-%m-%d')
-                cur.execute(
-                    """
-                    SELECT COUNT(1) FROM episodes
-                    WHERE tmdb_id=? AND season_number=? 
-                      AND ((air_date_local IS NOT NULL AND air_date_local != '' AND air_date_local <= ?)
-                       OR (air_date_local IS NULL OR air_date_local = '') AND (air_date IS NOT NULL AND air_date != '' AND air_date <= ?))
-                    """,
-                    (tmdb_id, season_no, today, today)
-                )
-                aired = int((cur.fetchone() or [0])[0])
+                # 动态回退：使用 is_episode_aired 逐集判断计算已播出集数（考虑播出时间）
+                # 修复：不再使用简单的日期比较，而是逐集调用 is_episode_aired 判断是否已播出
+                try:
+                    from zoneinfo import ZoneInfo as _ZoneInfo
+                    local_tz = _ZoneInfo(_get_local_timezone())
+                    now_local_dt = datetime.now(local_tz)
+                except Exception:
+                    now_local_dt = datetime.now()
+                aired = compute_aired_count_by_episode_check(tmdb_id, season_no, now_local_dt)
                 cur.execute('SELECT episode_count FROM seasons WHERE tmdb_id=? AND season_number=?', (tmdb_id, season_no))
                 row2 = cur.fetchone()
                 total = int((row2 or [0])[0]) if row2 else 0
@@ -1586,6 +1520,15 @@ def recompute_show_aired_progress(tmdb_id: int, now_local_dt=None):
 
         cal_db = CalendarDB()
         cur = cal_db.conn.cursor()
+        # 获取节目名称（用于日志，仅影响可读性）
+        show_name = str(tmdb_id)
+        try:
+            cur.execute("SELECT name FROM shows WHERE tmdb_id=? LIMIT 1", (int(tmdb_id),))
+            row = cur.fetchone()
+            if row and row[0]:
+                show_name = str(row[0])
+        except Exception:
+            pass
         cur.execute(
             "SELECT season_number, episode_count FROM seasons WHERE tmdb_id=?",
             (int(tmdb_id),),
@@ -1595,6 +1538,10 @@ def recompute_show_aired_progress(tmdb_id: int, now_local_dt=None):
             try:
                 season_no_i = int(season_no)
                 total_i = int(total or 0)
+                try:
+                    logging.info(f">>> 开始执行 [{show_name} · 第 {season_no_i} 季] 播出状态刷新任务")
+                except Exception:
+                    pass
                 aired_i = 0
                 cur.execute(
                     """
@@ -1614,6 +1561,10 @@ def recompute_show_aired_progress(tmdb_id: int, now_local_dt=None):
                 denom = min(int(aired_i or 0), int(total_i or 0))
                 progress_pct = (100 * min(transferred_i, denom) // denom) if denom > 0 else 0
                 cal_db.upsert_season_metrics(int(tmdb_id), season_no_i, None, aired_i, total_i, progress_pct, now_ts)
+                try:
+                    logging.info(f">>> [{show_name} · 第 {season_no_i} 季] 播出状态刷新任务执行成功")
+                except Exception:
+                    pass
             except Exception:
                 continue
         try:
@@ -1627,7 +1578,7 @@ def recompute_show_aired_progress(tmdb_id: int, now_local_dt=None):
         except Exception:
             pass
     except Exception as e:
-        logging.warning(f">>> 节目播出进度刷新执行异常 tmdb_id={tmdb_id}: {e}")
+        logging.warning(f">>> 剧集播出状态刷新执行异常 tmdb_id={tmdb_id}: {e}")
         # 发生异常也安排一次补偿重试
         try:
             _schedule_show_retry_in(int(tmdb_id), minutes_delay=10)
@@ -1733,9 +1684,9 @@ def schedule_airtime_based_refresh_jobs(days_back: int = 2, days_forward: int = 
                     continue
             if _removed > 0:
                 if tmdb_id is None:
-                    logging.debug(f"已清理 {_removed} 个旧节目播出集数刷新任务")
+                    logging.debug(f"已清理 {_removed} 个过期的剧集播出状态刷新任务")
                 else:
-                    logging.debug(f"已清理 {_removed} 个旧节目播出集数刷新任务 (tmdb_id={int(tmdb_id)})")
+                    logging.debug(f"已清理 {_removed} 个过期的剧集播出状态刷新任务 (tmdb_id={int(tmdb_id)})")
         except Exception:
             pass
 
@@ -1745,14 +1696,14 @@ def schedule_airtime_based_refresh_jobs(days_back: int = 2, days_forward: int = 
         shows_need_catch = {}
         scheduled = 0
         
-        # 预加载所有季的刷新时间戳，用于检查是否已经刷新过
+        # 预加载所有季的刷新时间戳与当前已播集数，用于检查是否已经刷新过
         season_refresh_times = {}
         try:
-            cur.execute('SELECT tmdb_id, season_number, updated_at FROM season_metrics')
-            for tid, sn, ua in (cur.fetchall() or []):
+            cur.execute('SELECT tmdb_id, season_number, updated_at, aired_count FROM season_metrics')
+            for tid, sn, ua, ac in (cur.fetchall() or []):
                 key = (int(tid), int(sn))
                 if ua:
-                    season_refresh_times[key] = int(ua)
+                    season_refresh_times[key] = {"updated_at": int(ua), "aired_count": 0 if ac is None else int(ac)}
         except Exception:
             pass
         
@@ -1774,22 +1725,28 @@ def schedule_airtime_based_refresh_jobs(days_back: int = 2, days_forward: int = 
                 pass
 
             job_id = f"aired_refresh_{tmdb_id}_{season_number}_{episode_number}_{target_dt.strftime('%Y%m%d%H%M')}"
-            
+
             # 对于已过期的播出时间，检查是否需要补偿刷新
             if target_dt <= now_local:
                 tmdb_id_i = int(tmdb_id)
                 season_no_i = int(season_number)
                 
-                # 检查该季是否已经刷新过（通过 season_metrics 的 updated_at）
+                # 检查该季是否已经刷新过（通过 season_metrics 的 updated_at 和已播集数）
                 need_refresh = True
                 try:
-                    refresh_ts = season_refresh_times.get((tmdb_id_i, season_no_i))
+                    refresh_info = season_refresh_times.get((tmdb_id_i, season_no_i)) or {}
+                    refresh_ts = refresh_info.get("updated_at")
+                    aired_cached = refresh_info.get("aired_count")
+                    # 将播出时间转换为时间戳进行比较
+                    target_ts = int(target_dt.timestamp())
                     if refresh_ts:
-                        # 将播出时间转换为时间戳进行比较
-                        target_ts = int(target_dt.timestamp())
-                        # 如果刷新时间晚于播出时间，说明已经刷新过，不需要补偿
-                        if refresh_ts >= target_ts:
-                            need_refresh = False
+                        # 如果刷新时间晚于播出时间，且已播集数已覆盖该集，则视为已刷新
+                        if refresh_ts >= target_ts and aired_cached is not None:
+                            try:
+                                if int(aired_cached) >= int(episode_number):
+                                    need_refresh = False
+                            except Exception:
+                                need_refresh = False
                 except Exception:
                     # 检查失败，保守处理：执行补偿刷新
                     pass
@@ -1815,7 +1772,7 @@ def schedule_airtime_based_refresh_jobs(days_back: int = 2, days_forward: int = 
                 )
                 scheduled += 1
             except Exception as _e:
-                logging.debug(f"安排节目播出集数刷新失败 tmdb_id={tmdb_id}: {_e}")
+                logging.debug(f"安排剧集播出状态刷新失败 tmdb_id={tmdb_id}: {_e}")
                 continue
 
         # 执行补偿刷新：对于需要补偿的节目，立即刷新
@@ -1830,7 +1787,7 @@ def schedule_airtime_based_refresh_jobs(days_back: int = 2, days_forward: int = 
         if scheduler.state == 0:
             scheduler.start()
         if scheduled > 0:
-            logging.debug(f"已更新 {scheduled} 个节目播出集数刷新任务")
+            logging.debug(f"已更新 {scheduled} 个剧集播出状态刷新任务")
     except Exception as e:
         logging.warning(f"按播出时间调度刷新失败: {e}")
 
@@ -1841,11 +1798,11 @@ def _trigger_airtime_reschedule(reason: str = "", tmdb_id: int = None):
         schedule_airtime_based_refresh_jobs(tmdb_id=tmdb_id)
         if reason:
             if tmdb_id is None:
-                logging.debug(f"已重新安排节目播出集数刷新任务，原因: {reason}")
+                logging.debug(f"已重新安排剧集播出状态刷新任务，原因: {reason}")
             else:
-                logging.debug(f"已重新安排节目播出集数刷新任务，原因: {reason}, tmdb_id={int(tmdb_id)}")
+                logging.debug(f"已重新安排剧集播出状态刷新任务，原因: {reason}, tmdb_id={int(tmdb_id)}")
     except Exception as e:
-        logging.debug(f"重新安排节目播出集数刷新任务失败({reason}): {e}")
+        logging.debug(f"重新安排剧集播出状态刷新任务失败({reason}): {e}")
 
 
 def restart_daily_aired_update_job():
@@ -4222,6 +4179,23 @@ def reload_tasks():
             # 更新记录的值
             _last_crontab = crontab
             _last_crontab_delay = delay_str
+
+        # 每次 reload_tasks() 会调用 scheduler.remove_all_jobs()，会把“按播出时间”的 DateTrigger 一起清掉。
+        # 这里参考 __main__ 中的启动流程，在重载后立即重新注册：
+        try:
+            restart_calendar_refresh_job()
+        except Exception:
+            pass
+        try:
+            restart_daily_aired_update_job()
+        except Exception:
+            pass
+        try:
+            # 重新计算并注册所有节目/指定节目的“播出状态刷新任务”
+            _trigger_airtime_reschedule('startup')
+        except Exception:
+            pass
+
         # 不再冗余输出现有任务列表
         return True
     else:
@@ -5624,12 +5598,15 @@ def get_calendar_tasks():
                     if not (config_ct and str(config_ct).strip()):
                         if t.get('matched_content_type'):
                             t['content_type'] = t['matched_content_type']
-                    # 从数据库获取 local_air_time 并添加到 calendar_info 中供前端读取
+                    # 从数据库获取 local_air_time 和 air_date_offset 并添加到 calendar_info 中供前端读取
                     try:
-                        local_air_time = matched_show.get('local_air_time') or ''
+                        schedule = cal_db.get_show_air_schedule(int(matched_show.get('tmdb_id'))) or {}
+                        local_air_time = schedule.get('local_air_time') or ''
+                        air_date_offset = schedule.get('air_date_offset') or 0
                         if not t.get('calendar_info'):
                             t['calendar_info'] = {}
                         t['calendar_info']['local_air_time'] = local_air_time
+                        t['calendar_info']['air_date_offset'] = air_date_offset
                     except Exception:
                         pass
                 else:
@@ -5662,11 +5639,14 @@ def get_calendar_tasks():
                                         )
                                         if effective_latest:
                                             t['matched_latest_season_number'] = effective_latest
-                                    # 从完整信息中获取 local_air_time
-                                    local_air_time = full_show.get('local_air_time') or ''
+                                    # 从完整信息中获取 local_air_time 和 air_date_offset
+                                    schedule = cal_db.get_show_air_schedule(int(bound_show[0])) or {}
+                                    local_air_time = schedule.get('local_air_time') or ''
+                                    air_date_offset = schedule.get('air_date_offset') or 0
                                     if not t.get('calendar_info'):
                                         t['calendar_info'] = {}
                                     t['calendar_info']['local_air_time'] = local_air_time
+                                    t['calendar_info']['air_date_offset'] = air_date_offset
                             except Exception:
                                 pass
                             # 从数据库获取实际的内容类型（如果已设置）
@@ -6312,6 +6292,7 @@ def details_of_season_episode_count(tmdb_service: TMDBService, tmdb_id: int, sea
 def update_episodes_air_date_local(cal_db: CalendarDB, tmdb_id: int, season_number: int, episodes: list):
     """
     辅助函数：如果有 Trakt 的源时间/时区，计算每集的本地播出日期并更新 air_date_local
+    如果用户手动设置了 air_date_offset，优先使用该偏移值而不是重新计算
     
     Args:
         cal_db: CalendarDB 实例
@@ -6320,36 +6301,75 @@ def update_episodes_air_date_local(cal_db: CalendarDB, tmdb_id: int, season_numb
         episodes: 集列表（包含 air_date 字段）
     """
     try:
-        # 从 shows 表读取 Trakt 的源时间/时区
+        # 从 shows 表读取 Trakt 的源时间/时区和用户手动设置的偏移值
         show = cal_db.get_show(int(tmdb_id))
         if not show:
             return
         air_time_source = show.get('air_time_source') or ''
         air_timezone = show.get('air_timezone') or ''
+        # 获取用户手动设置的日期偏移值（如果存在）
+        schedule = cal_db.get_show_air_schedule(int(tmdb_id)) or {}
+        manual_air_date_offset = schedule.get('air_date_offset')
+        local_air_time = schedule.get('local_air_time') or ''
+        # 获取是否手动设置的标记（只有用户在 WebUI 编辑元数据页面修改并保存后才为 True）
+        air_date_offset_manually_set = schedule.get('air_date_offset_manually_set', False)
+        
+        # 重要：判断是否应该自动计算 air_date_offset
+        # 判断标准：
+        # 1. 默认 is_manually_set 为 False
+        # 2. 只有当 air_date_offset_manually_set 为 True 时（用户在 WebUI 编辑元数据页面修改并保存过），才认为是手动设置的
+        # 3. 这样初始化时即使 air_date_offset 是 0，也会自动计算正确的偏移值
+        is_manually_set = bool(air_date_offset_manually_set)
+        
+        # 如果 manual_air_date_offset 是 None，设置为 0 用于计算
+        if manual_air_date_offset is None:
+            manual_air_date_offset = 0
+        
+        # 如果用户手动设置了偏移值（且没有时区信息），直接使用偏移值计算
         if not air_time_source or not air_timezone:
-            # 修复：当没有 Trakt 时区信息时，将 air_date_local 设置为与 air_date 相同的值
-            # 这样可以确保前端显示正确的日期（当 calendar_timezone_mode='local' 时）
-            for ep in episodes:
-                ep_air_date = ep.get('air_date') or ''
-                ep_number = ep.get('episode_number') or 0
-                if ep_air_date and ep_number:
-                    try:
-                        cal_db.update_episode_air_date_local(
-                            int(tmdb_id),
-                            int(season_number),
-                            int(ep_number),
-                            ep_air_date
-                        )
-                    except Exception as _e_sync:
-                        logging.debug(f"同步 air_date 到 air_date_local 失败 tmdb_id={tmdb_id}, season={season_number}, ep={ep_number}: {_e_sync}")
-            return
+            if is_manually_set:
+                # 用户手动设置了偏移值，使用偏移值计算 air_date_local
+                for ep in episodes:
+                    ep_air_date = ep.get('air_date') or ''
+                    ep_number = ep.get('episode_number') or 0
+                    if ep_air_date and ep_number:
+                        try:
+                            from datetime import datetime as _dt, timedelta as _td
+                            src_date = _dt.strptime(ep_air_date, '%Y-%m-%d').date()
+                            adjusted_date = src_date + _td(days=manual_air_date_offset)
+                            cal_db.update_episode_air_date_local(
+                                int(tmdb_id),
+                                int(season_number),
+                                int(ep_number),
+                                adjusted_date.strftime('%Y-%m-%d')
+                            )
+                        except Exception as _e_sync:
+                            logging.debug(f"使用手动偏移值更新 air_date_local 失败 tmdb_id={tmdb_id}, season={season_number}, ep={ep_number}: {_e_sync}")
+                return
+            else:
+                # 没有时区信息且没有手动偏移值，将 air_date_local 设置为与 air_date 相同的值
+                for ep in episodes:
+                    ep_air_date = ep.get('air_date') or ''
+                    ep_number = ep.get('episode_number') or 0
+                    if ep_air_date and ep_number:
+                        try:
+                            cal_db.update_episode_air_date_local(
+                                int(tmdb_id),
+                                int(season_number),
+                                int(ep_number),
+                                ep_air_date
+                            )
+                        except Exception as _e_sync:
+                            logging.debug(f"同步 air_date 到 air_date_local 失败 tmdb_id={tmdb_id}, season={season_number}, ep={ep_number}: {_e_sync}")
+                return
         
         # 获取本地时区配置
         local_tz = config_data.get("local_timezone", "Asia/Shanghai")
         
         try:
             from zoneinfo import ZoneInfo as _ZoneInfo
-            from datetime import datetime as _dt, time as _dtime
+            from datetime import datetime as _dt, time as _dtime, timedelta as _td
+            date_offset = None  # 用于存储计算出的日期偏移
             for ep in episodes:
                 ep_air_date = ep.get('air_date') or ''
                 ep_number = ep.get('episode_number') or 0
@@ -6357,15 +6377,28 @@ def update_episodes_air_date_local(cal_db: CalendarDB, tmdb_id: int, season_numb
                     try:
                         # 解析 TMDB air_date 作为源时区日期
                         src_date = _dt.strptime(ep_air_date, '%Y-%m-%d').date()
-                        # 解析源时区时间
-                        hh, mm = [int(x) for x in air_time_source.split(':')]
-                        src_time = _dtime(hour=hh, minute=mm)
-                        # 组合成源时区 datetime
-                        src_dt = _dt.combine(src_date, src_time)
-                        src_dt = src_dt.replace(tzinfo=_ZoneInfo(air_timezone))
-                        # 转换到本地时区
-                        local_dt = src_dt.astimezone(_ZoneInfo(local_tz))
-                        air_date_local = local_dt.strftime('%Y-%m-%d')
+                        
+                        # 如果用户手动设置了偏移值（包括手动设置为0），优先使用手动偏移值
+                        if is_manually_set:
+                            adjusted_date = src_date + _td(days=manual_air_date_offset)
+                            air_date_local = adjusted_date.strftime('%Y-%m-%d')
+                            date_offset = manual_air_date_offset
+                        else:
+                            # 否则通过时区转换计算
+                            # 解析源时区时间
+                            hh, mm = [int(x) for x in air_time_source.split(':')]
+                            src_time = _dtime(hour=hh, minute=mm)
+                            # 组合成源时区 datetime
+                            src_dt = _dt.combine(src_date, src_time)
+                            src_dt = src_dt.replace(tzinfo=_ZoneInfo(air_timezone))
+                            # 转换到本地时区
+                            local_dt = src_dt.astimezone(_ZoneInfo(local_tz))
+                            air_date_local = local_dt.strftime('%Y-%m-%d')
+                            # 计算日期偏移（如果还未计算）
+                            if date_offset is None:
+                                local_date = _dt.strptime(air_date_local, '%Y-%m-%d').date()
+                                date_offset = (local_date - src_date).days
+                        
                         # 更新数据库
                         cal_db.update_episode_air_date_local(
                             int(tmdb_id),
@@ -6375,6 +6408,17 @@ def update_episodes_air_date_local(cal_db: CalendarDB, tmdb_id: int, season_numb
                         )
                     except Exception as _e_local:
                         logging.debug(f"计算本地播出日期失败 tmdb_id={tmdb_id}, season={season_number}, ep={ep_number}: {_e_local}")
+            
+            # 如果计算出了日期偏移且用户没有手动设置，存储到数据库
+            # 这里的 date_offset 是通过时区转换计算出的偏移值（例如：美东周日 21:00 -> 北京时间周一 10:00，偏移 +1）
+            if date_offset is not None and not is_manually_set:
+                try:
+                    cal_db.update_show_air_schedule(
+                        int(tmdb_id),
+                        air_date_offset=date_offset
+                    )
+                except Exception as _offset_err:
+                    logging.debug(f"存储日期偏移失败 tmdb_id={tmdb_id}: {_offset_err}")
         except Exception as _e_batch:
             logging.debug(f"批量更新本地播出日期失败 tmdb_id={tmdb_id}, season={season_number}: {_e_batch}")
     except Exception as _e:
@@ -6853,16 +6897,15 @@ def calendar_refresh_latest_season():
             )
             # 写回 season_metrics（air/total），transferred 留待聚合更新
             try:
-                # 使用今天的日期计算已播出集数
-                # 注意：现在集的播出日期已经是本地日期，不需要通过播出集数刷新时间限制，直接使用今天的日期比较即可
-                from datetime import datetime as _dt
-                today = _dt.now().strftime('%Y-%m-%d')
-                cur = cal_db.conn.cursor()
-                cur.execute("""
-                    SELECT COUNT(1) FROM episodes
-                    WHERE tmdb_id=? AND season_number=? AND air_date IS NOT NULL AND air_date != '' AND air_date <= ?
-                """, (int(tmdb_id), int(latest_season), today))
-                aired_cnt = int((cur.fetchone() or [0])[0])
+                # 使用 is_episode_aired 逐集判断计算已播出集数（考虑播出时间）
+                # 修复：不再使用简单的日期比较，而是逐集调用 is_episode_aired 判断是否已播出
+                try:
+                    from zoneinfo import ZoneInfo as _ZoneInfo
+                    local_tz = _ZoneInfo(_get_local_timezone())
+                    now_local_dt = datetime.now(local_tz)
+                except Exception:
+                    now_local_dt = datetime.now()
+                aired_cnt = compute_aired_count_by_episode_check(int(tmdb_id), int(latest_season), now_local_dt)
                 progress_pct = 0
                 from time import time as _now
                 cal_db.upsert_season_metrics(int(tmdb_id), int(latest_season), None, aired_cnt, int(len(episodes)), int(progress_pct), int(_now()))
@@ -7432,10 +7475,44 @@ def calendar_edit_metadata():
             target['calendar_info'] = {}
         if local_air_time or cal.get('local_air_time'):
             # 允许用户清空播出时间（回退到 Trakt 自动推断或全局刷新时间）
-            norm_old = str(cal.get('local_air_time') or '').strip()
+            # 从数据库获取当前的播出时间和偏移值，而不是从 cal 中获取（可能不准确）
+            old_offset = 0
+            old_air_time_only = ''
+            if old_tmdb_id:
+                try:
+                    cal_db_for_offset = CalendarDB()
+                    schedule_for_offset = cal_db_for_offset.get_show_air_schedule(int(old_tmdb_id)) or {}
+                    old_air_time_only = schedule_for_offset.get('local_air_time') or ''
+                    old_offset = schedule_for_offset.get('air_date_offset') or 0
+                except Exception:
+                    old_air_time_only = str(cal.get('local_air_time') or '').strip()
+                    old_offset = cal.get('air_date_offset') or 0
+            else:
+                old_air_time_only = str(cal.get('local_air_time') or '').strip()
+                old_offset = cal.get('air_date_offset') or 0
+            
+            norm_old = old_air_time_only  # 只使用时间部分，不包含偏移值
             norm_new = str(local_air_time or '').strip()
-            if norm_new != norm_old:
-                target['calendar_info']['local_air_time'] = norm_new
+            
+            # 解析新的播出时间字符串，提取时间和日期偏移
+            air_time_only_new = norm_new
+            air_date_offset_new = 0
+            offset_match = re.match(r'^([01]?[0-9]|2[0-3]):([0-5][0-9])\s+([+-])(\d+)d$', norm_new)
+            if offset_match:
+                air_time_only_new = offset_match.group(1) + ':' + offset_match.group(2)
+                sign = offset_match.group(3)
+                days = int(offset_match.group(4))
+                air_date_offset_new = days if sign == '+' else -days
+            
+            # 比较时间部分和偏移值，只要有一个不同就需要更新
+            time_changed = (air_time_only_new != norm_old) or (air_date_offset_new != old_offset)
+            if time_changed:
+                # 使用已解析的值
+                air_time_only = air_time_only_new
+                air_date_offset = air_date_offset_new
+                
+                target['calendar_info']['local_air_time'] = air_time_only
+                target['calendar_info']['air_date_offset'] = air_date_offset
                 changed = True
                 local_air_time_changed = True
                 # 用户手动设置播出时间：仅以本地时间为准，同时清空节目级源时区设置，
@@ -7443,12 +7520,51 @@ def calendar_edit_metadata():
                 try:
                     if old_tmdb_id:
                         cal_db_for_air = CalendarDB()
+                        # 保留原有的 air_time_source 和 air_timezone（不清空），但使用手动设置的偏移值
+                        # 这样 update_episodes_air_date_local 可以优先使用手动偏移值
+                        # 如果日期偏移发生变化，或者时间部分发生变化，都标记为手动设置
+                        # 因为用户通过 WebUI 编辑元数据页面修改了播出时间，无论是否改变了偏移值，都应该标记为手动设置
+                        should_mark_manually_set = (air_date_offset != old_offset) or (air_time_only_new != norm_old)
+                        
                         cal_db_for_air.update_show_air_schedule(
                             int(old_tmdb_id),
-                            local_air_time=norm_new,
-                            air_time_source="",
-                            air_timezone="",
+                            local_air_time=air_time_only,
+                            air_date_offset=air_date_offset,
+                            air_date_offset_manually_set=True if should_mark_manually_set else None,
                         )
+                        # 如果日期偏移发生变化，重新计算所有集的 air_date_local
+                        if air_date_offset != old_offset:
+                            try:
+                                cursor = cal_db_for_air.conn.cursor()
+                                cursor.execute(
+                                    "SELECT season_number, episode_number, air_date FROM episodes WHERE tmdb_id=? AND air_date IS NOT NULL AND air_date != ''",
+                                    (int(old_tmdb_id),),
+                                )
+                                rows = cursor.fetchall()
+                                episodes_by_season = {}
+                                for season_number, ep_number, air_date in rows:
+                                    episodes_by_season.setdefault(season_number, []).append(
+                                        {"episode_number": ep_number, "air_date": air_date}
+                                    )
+                                updated_count = 0
+                                for season_number, eps in episodes_by_season.items():
+                                    # 使用新的偏移值重新计算 air_date_local
+                                    for ep in eps:
+                                        try:
+                                            from datetime import datetime as _dt, timedelta as _td
+                                            src_date = _dt.strptime(ep['air_date'], '%Y-%m-%d').date()
+                                            adjusted_date = src_date + _td(days=air_date_offset)
+                                            cal_db_for_air.update_episode_air_date_local(
+                                                int(old_tmdb_id),
+                                                int(season_number),
+                                                int(ep['episode_number']),
+                                                adjusted_date.strftime('%Y-%m-%d')
+                                            )
+                                            updated_count += 1
+                                        except Exception as _ep_err:
+                                            logging.debug(f"更新集日期失败 tmdb_id={old_tmdb_id}, season={season_number}, ep={ep['episode_number']}: {_ep_err}")
+                            except Exception as _recalc_date_err:
+                                logging.debug(f"重新计算集日期失败 tmdb_id={old_tmdb_id}: {_recalc_date_err}")
                         # 变更播出时间后，立即重算该节目的已播/进度并通知前端，确保热更新
                         try:
                             recompute_show_aired_progress(int(old_tmdb_id))
@@ -7638,16 +7754,15 @@ def calendar_edit_metadata():
                     cal_db.update_show_latest_season_number(int(new_tid), int(season_no))
                     # 写回 season_metrics（air/total），transferred 留给聚合环节补齐
                     try:
-                        # 使用今天的日期计算已播出集数
-                        # 注意：现在集的播出日期已经是本地日期，不需要通过播出集数刷新时间限制，直接使用今天的日期比较即可
-                        from datetime import datetime as _dt
-                        today = _dt.now().strftime('%Y-%m-%d')
-                        cur = cal_db.conn.cursor()
-                        cur.execute("""
-                            SELECT COUNT(1) FROM episodes
-                            WHERE tmdb_id=? AND season_number=? AND air_date IS NOT NULL AND air_date != '' AND air_date <= ?
-                        """, (int(new_tid), int(season_no), today))
-                        aired_cnt = int((cur.fetchone() or [0])[0])
+                        # 使用 is_episode_aired 逐集判断计算已播出集数（考虑播出时间）
+                        # 修复：不再使用简单的日期比较，而是逐集调用 is_episode_aired 判断是否已播出
+                        try:
+                            from zoneinfo import ZoneInfo as _ZoneInfo
+                            local_tz = _ZoneInfo(_get_local_timezone())
+                            now_local_dt = datetime.now(local_tz)
+                        except Exception:
+                            now_local_dt = datetime.now()
+                        aired_cnt = compute_aired_count_by_episode_check(int(new_tid), int(season_no), now_local_dt)
                         progress_pct = 0  # 此处无 transferred_count，百分比暂置 0，由聚合环节补齐
                         from time import time as _now
                         cal_db.upsert_season_metrics(int(new_tid), int(season_no), None, aired_cnt, int(len(eps)), int(progress_pct), int(_now()))
@@ -8260,6 +8375,7 @@ def get_calendar_episodes_local():
                 return jsonify({'success': True, 'data': {'episodes': [], 'total': 0}})
             eps = db.list_latest_season_episodes(int(tmdb_id), int(show['latest_season_number']))
             # 根据 calendar_timezone_mode 选择使用 air_date 还是 air_date_local
+            # air_date_local 应该已经包含了偏移值，直接使用即可
             for e in eps:
                 if calendar_timezone_mode == 'local' and e.get('air_date_local'):
                     e['display_air_date'] = e['air_date_local']
@@ -8280,6 +8396,7 @@ def get_calendar_episodes_local():
             # 返回全部最新季汇总（供周视图合并展示）
             eps = db.list_all_latest_episodes()
             # 根据 calendar_timezone_mode 选择使用 air_date 还是 air_date_local
+            # air_date_local 应该已经包含了偏移值，直接使用即可
             for e in eps:
                 if calendar_timezone_mode == 'local' and e.get('air_date_local'):
                     e['display_air_date'] = e['air_date_local']

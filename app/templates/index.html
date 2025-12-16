@@ -2990,9 +2990,9 @@
                 <div class="col-md-6 mb-2">
                   <div class="input-group">
                     <div class="input-group-prepend">
-                      <span class="input-group-text" style="background-color: var(--button-gray-background-color);" title="节目在本地时区的播出时间，用于精确判断单集是否已播出，24小时制，格式：HH:MM，留空则使用系统配置的播出集数刷新时间">播出时间</span>
+                      <span class="input-group-text" style="background-color: var(--button-gray-background-color);" title="节目在本地时区的播出时间，用于精确判断剧集是否已播出，24小时制，格式为HH:MM ±Nd（N为天数），其中+Nd表示相对原始播出日期延后、-Nd表示提前，不填写±Nd表示播出日期不偏移，若整体留空则使用节目原始播出日期并以系统配置的播出集数刷新时间作为判断依据">播出时间</span>
                     </div>
-                    <input type="text" class="form-control no-spinner" v-model="editMetadata.form.local_air_time" :placeholder="editMetadata.form.local_air_time ? '' : '输入节目的播出时间，格式为 HH:MM，如 20:00'" title="节目在本地时区的播出时间，用于精确判断单集是否已播出，24小时制，格式：HH:MM，留空则使用系统配置的播出集数刷新时间">
+                    <input type="text" class="form-control no-spinner" v-model="editMetadata.form.local_air_time" :placeholder="editMetadata.form.local_air_time ? '' : '输入节目的播出时间，格式为 HH:MM，如 20:00'" title="节目在本地时区的播出时间，用于精确判断剧集是否已播出，24小时制，格式为HH:MM ±Nd（N为天数），其中+Nd表示相对原始播出日期延后、-Nd表示提前，不填写±Nd表示播出日期不偏移，若整体留空则使用节目原始播出日期并以系统配置的播出集数刷新时间作为判断依据">
                   </div>
                 </div>
                 <div class="col-md-6 mb-2">
@@ -5960,6 +5960,14 @@
             const matchedName = task.matched_show_name || '';
             const matchedYear = task.matched_year || '';
 
+            // 构建播出时间显示字符串（包含日期偏移）
+            const airTime = (task.calendar_info && task.calendar_info.local_air_time) || '';
+            const airDateOffset = (task.calendar_info && task.calendar_info.air_date_offset) || 0;
+            let airTimeDisplay = airTime;
+            if (airTime && airDateOffset !== 0) {
+              airTimeDisplay = airTime + (airDateOffset > 0 ? ` +${airDateOffset}d` : ` ${airDateOffset}d`);
+            }
+            
             this.editMetadata = {
               visible: true,
               original: {
@@ -5967,7 +5975,7 @@
                 content_type: task.content_type || '',
                 tmdb_id: currentTmdbId || '',
                 season_number: currentSeason || '',
-                local_air_time: (task.calendar_info && task.calendar_info.local_air_time) || ''
+                local_air_time: airTimeDisplay
               },
               form: {
                 task_name: currentName,
@@ -5975,7 +5983,7 @@
                 tmdb_id: '',
                 season_number: currentSeason || 1,
                 custom_poster_url: '',
-                local_air_time: (task.calendar_info && task.calendar_info.local_air_time) || ''
+                local_air_time: airTimeDisplay
               },
               display: {
                 matched_label: matchedName ? `${matchedName}${matchedYear ? ' (' + matchedYear + ')' : ''}` : '未匹配',
@@ -6047,9 +6055,10 @@
             // 验证播出时间格式（如果填写了的话）
             const airTimeStr = String(payload.local_air_time || '').trim();
             if (airTimeStr) {
-              // 验证格式是否为 HH:MM（24小时制，00:00 到 23:59）
+              // 验证格式是否为 HH:MM（24小时制，00:00 到 23:59），可选附加日期偏移：+Nd 或 -Nd（N 为天数）
               const timePattern = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
-              if (!timePattern.test(airTimeStr)) {
+              const timeWithOffsetPattern = /^([01]?[0-9]|2[0-3]):([0-5][0-9])\s+([+-])(\d+)d$/;
+              if (!timePattern.test(airTimeStr) && !timeWithOffsetPattern.test(airTimeStr)) {
                 // 停止加载动画
                 this.editMetadata.loading = false;
                 // 手动隐藏 spinner，确保动画停止
@@ -6061,7 +6070,7 @@
                 } catch (e) {}
                 // 等待视图更新后再显示提示
                 await this.$nextTick();
-                this.showToast('播出时间格式不正确，请输入 HH:MM 格式，如 20:00');
+                this.showToast('播出时间格式不正确，请输入 HH:MM 格式，如 20:00，或带日期偏移如 19:30 +1d 或 19:30 -1d');
                 return;
               }
             }
