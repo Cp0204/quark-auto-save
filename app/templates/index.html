@@ -4782,47 +4782,38 @@
               return airTime;
             }
 
-            // 节目名称：优先使用 show_name，其次 matched_show_name
-            const showName = (calendarTask.show_name || calendarTask.matched_show_name || '').trim();
-            if (!showName) return airTime;
+            // 当前匹配季号：参考后端/前端统一口径：仅使用 matched_latest_season_number
+            const seasonNumber = (calendarTask.matched_latest_season_number != null)
+              ? Number(calendarTask.matched_latest_season_number)
+              : null;
+            if (!seasonNumber || Number.isNaN(seasonNumber) || seasonNumber <= 0) {
+              return airTime;
+            }
 
-            // 当前匹配季号：参考 getTaskSeasonNumber 的逻辑
-            const seasonNumber =
-              (calendarTask.match && calendarTask.match.latest_season_number) ||
-              calendarTask.matched_latest_season_number ||
-              calendarTask.season_number ||
-              null;
-
-            // 已转存集数：来自 season_counts.transferred_count，下一集 = 已转存 + 1
+            // 已转存集数：来自 season_counts.transferred_count（与后端 task_metrics/season_metrics 同步）
             const transferred = Number((calendarTask.season_counts && calendarTask.season_counts.transferred_count) || 0);
+            // 下一集集号：transferred_count + 1，若为 0 则从第 1 集开始
             const nextEpNumber = transferred > 0 ? transferred + 1 : 1;
 
-            // 在本地剧集列表中查找对应节目的下一集
-            const candidates = this.calendar.episodes
-              .filter(ep => {
-                if (!ep) return false;
-                if ((ep.show_name || '').trim() !== showName) return false;
-                if (seasonNumber != null && ep.season_number != null && ep.season_number !== seasonNumber) return false;
-                if (ep.episode_number == null) return false;
-                const n = parseInt(ep.episode_number);
-                if (isNaN(n)) return false;
-                return n >= nextEpNumber;
-              })
-              .sort((a, b) => {
-                // 先按集数升序
-                const an = parseInt(a.episode_number);
-                const bn = parseInt(b.episode_number);
-                if (!isNaN(an) && !isNaN(bn) && an !== bn) {
-                  return an - bn;
-                }
-                // 再按日期升序（YYYY-MM-DD）
-                const ad = (a.air_date_local || a.display_air_date || a.air_date || '') || '';
-                const bd = (b.air_date_local || b.display_air_date || b.air_date || '') || '';
-                if (ad === bd) return 0;
-                return ad > bd ? 1 : -1;
-              });
+            // 在本地剧集列表中查找对应 tmdb_id + season_number 的下一集
+            const tmdbId = (calendarTask.match_tmdb_id)
+              || (calendarTask.match && calendarTask.match.tmdb_id)
+              || calendarTask.tmdb_id
+              || null;
+            if (!tmdbId) {
+              return airTime;
+            }
 
-            const nextEp = candidates[0];
+            // 精准匹配下一集：tmdb_id + season_number + episode_number == nextEpNumber
+            const nextEp = this.calendar.episodes.find(ep => {
+              if (!ep) return false;
+              if (!ep.tmdb_id || Number(ep.tmdb_id) !== Number(tmdbId)) return false;
+              if (ep.season_number == null || Number(ep.season_number) !== Number(seasonNumber)) return false;
+              if (ep.episode_number == null) return false;
+              const n = parseInt(ep.episode_number);
+              if (Number.isNaN(n)) return false;
+              return n === nextEpNumber;
+            });
             if (!nextEp) return airTime;
 
             // 优先使用 air_date_local；若无则回退到 display_air_date / air_date
