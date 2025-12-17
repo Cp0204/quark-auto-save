@@ -6920,23 +6920,41 @@
         
         // 获取剧集提示信息
         getEpisodeTooltip(episode) {
-          // 规范：集数悬停显示对应集在TMDB上的单集标题
+          // 规范：集数悬停显示对应集在 TMDB 上的单集标题
           // 普通：SxxExx 标题
           // 合并：逐行列出每一集：SxxExx 标题
+          // 扩展：若存在节目级播出时间（local_air_time），则在前面追加时间，例如：
+          //       18:00 S01E17 标题
+          //       18:00 S01E18 标题
           const pad2 = n => String(n).padStart(2, '0');
+          // 仅使用节目级播出时间（local_air_time），不使用全局刷新时间；
+          // 未配置 local_air_time 时保持原有行为（不显示时间）
+          let timePrefix = '';
+          try {
+            const raw = (episode && episode.local_air_time) ? String(episode.local_air_time).trim() : '';
+            if (raw) {
+              // 只取 HH:MM 部分，忽略可选的日期偏移（例如 "+1d"）
+              const m = raw.match(/^([0-2]?\d:[0-5]\d)/);
+              const hhmm = m ? m[1] : raw;
+              timePrefix = hhmm ? (hhmm + ' ') : '';
+            }
+          } catch (e) {
+            timePrefix = '';
+          }
+
           if (episode.is_merged && Array.isArray(episode.original_episodes) && episode.original_episodes.length) {
             const lines = episode.original_episodes.map(ep => {
               const s = ep.season_number ? pad2(ep.season_number) : pad2(episode.season_number || 1);
               const e = ep.episode_number ? pad2(ep.episode_number) : '';
               const title = ep.name || '';
-              return `S${s}E${e} ${title}`.trim();
+              return `${timePrefix}S${s}E${e} ${title}`.trim();
             });
             return lines.join('\n');
           }
           const s = episode.season_number ? pad2(episode.season_number) : '01';
           const e = episode.episode_number ? pad2(episode.episode_number) : '01';
           const title = episode.name || '';
-          return `S${s}E${e} ${title}`.trim();
+          return `${timePrefix}S${s}E${e} ${title}`.trim();
         },
 
         // 打开剧的TMDB页面

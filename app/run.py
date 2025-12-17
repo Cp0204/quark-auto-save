@@ -8475,7 +8475,7 @@ def get_calendar_episodes_local():
                 perf = config_data.get("performance", {}) if isinstance(config_data, dict) else {}
                 refresh_time_str = perf.get("aired_refresh_time", "00:00")
                 
-                # 在内存中批量计算 is_aired
+                # 在内存中批量计算 is_aired，并同时为前端注入节目级播出时间（local_air_time）
                 for tmdb_id_i, season_no_i, ep_no, episode_obj in episode_keys:
                     try:
                         air_date_local = air_dates_map.get((tmdb_id_i, season_no_i, ep_no))
@@ -8485,6 +8485,10 @@ def get_calendar_episodes_local():
                         
                         # 获取节目级播出时间
                         local_air_time = schedules_map.get(tmdb_id_i)
+                        # 将节目级播出时间原样注入到每一集对象中，供前端悬停提示展示
+                        # 仅在存在节目级配置时注入；若配置为空则保持该字段缺失，前端仍按原逻辑不显示时间
+                        if local_air_time:
+                            episode_obj['local_air_time'] = local_air_time
                         time_to_use = local_air_time if local_air_time else refresh_time_str
                         
                         # 解析时间（HH:MM）
