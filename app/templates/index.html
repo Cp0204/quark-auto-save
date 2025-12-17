@@ -2318,9 +2318,14 @@
                           <i class="bi bi-arrow-clockwise"></i>
                         </div>
                         
-                        <!-- 已转存标识（与影视发现评分标识风格一致） -->
-                        <div class="discovery-rating calendar-transferred-badge" v-if="isEpisodeReachedProgress(episode)" title="已转存">
-                          <i class="bi bi-check2"></i>
+                        <!-- 集状态标识：已转存 / 已播出 -->
+                        <div
+                          class="discovery-rating calendar-transferred-badge"
+                          :class="isEpisodeReachedProgress(episode) ? 'calendar-transferred-badge-transferred' : 'calendar-transferred-badge-aired'"
+                          v-if="isEpisodeReachedProgress(episode) || isEpisodeAiredForDisplay(episode)"
+                          :title="isEpisodeReachedProgress(episode) ? '已转存' : '已播出'"
+                        >
+                          <i :class="isEpisodeReachedProgress(episode) ? 'bi bi-check2-all' : 'bi bi-check2'"></i>
                         </div>
                         
                         <!-- 海报悬停效果 -->
@@ -2397,7 +2402,7 @@
                                 <i class="bi bi-stars"></i>
                               </span>
                             </span>
-                            <span :class="['episode-number', { 'episode-number-reached': isEpisodeReachedProgress(episode) }]"
+                            <span :class="['episode-number', { 'episode-number-reached': isEpisodeReachedProgress(episode), 'episode-number-aired': !isEpisodeReachedProgress(episode) && isEpisodeAiredForDisplay(episode) }]"
                                   :title="getEpisodeTooltip(episode)"
                                   :data-full="getEpisodeDisplayNumber(episode)"
                                   :data-episode-only="getEpisodeOnlyNumber(episode)"
@@ -2427,7 +2432,7 @@
                             <i class="bi bi-stars"></i>
                           </span>
                         </span>
-                        <span :class="['episode-number', { 'episode-number-reached': isEpisodeReachedProgress(episode) }]"
+                        <span :class="['episode-number', { 'episode-number-reached': isEpisodeReachedProgress(episode), 'episode-number-aired': !isEpisodeReachedProgress(episode) && isEpisodeAiredForDisplay(episode) }]"
                               :title="getEpisodeTooltip(episode)"
                               :data-full="getEpisodeDisplayNumber(episode)"
                               :data-episode-only="getEpisodeOnlyNumber(episode)"
@@ -6854,6 +6859,28 @@
             return episode.air_date <= prog.air_date;
           }
           return false;
+        },
+
+        // 判断剧集是否“已播出”（用于前端样式展示）
+        // 说明：
+        // - 优先使用 display_air_date（已按配置时区处理），否则回退到 air_date
+        // - 若后端提供 is_aired，则以该布尔值为准，保证前后端一致
+        // - 否则仅按日期与本地“今天”比较：日期早于或等于今天视为已播出（兼容旧版本）
+        // - 合并集场景下，使用合并集自身日期（同一天的多集会同时视为已播出或未播出，仅在缺少 is_aired 时生效）
+        isEpisodeAiredForDisplay(episode) {
+          try {
+            if (!episode) return false;
+            // 优先使用后端返回的 is_aired，保证与后端统计逻辑一致
+            if (Object.prototype.hasOwnProperty.call(episode, 'is_aired')) {
+              return !!episode.is_aired;
+            }
+            const dateStr = String(episode.display_air_date || episode.air_date || '').trim();
+            if (!dateStr) return false;
+            const todayStr = this.formatDateToYYYYMMDD(new Date());
+            return dateStr <= todayStr;
+          } catch (e) {
+            return false;
+          }
         },
 
         

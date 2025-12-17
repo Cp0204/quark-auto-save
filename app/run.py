@@ -8368,6 +8368,153 @@ def get_calendar_episodes_local():
 
         # 获取日历时区模式配置
         calendar_timezone_mode = config_data.get('calendar_timezone_mode', 'original')
+
+        # 统一获取当前本地时间，用于批量计算 is_aired 保持与后端统计逻辑一致
+        try:
+            from zoneinfo import ZoneInfo as _ZoneInfo
+            local_tz = _ZoneInfo(_get_local_timezone())
+            now_local_dt = datetime.now(local_tz)
+        except Exception:
+            now_local_dt = datetime.now()
+        
+        # 批量计算 is_aired 的辅助函数（避免重复数据库查询）
+        def batch_compute_is_aired(episodes_list, db_instance):
+            """批量计算所有集的 is_aired，复用数据库连接和批量查询优化性能"""
+            if not episodes_list:
+                return
+            try:
+                # 收集所有需要查询的 (tmdb_id, season_number, episode_number) 三元组
+                episode_keys = []
+                for e in episodes_list:
+                    try:
+                        tmdb_id_i = int(e.get('tmdb_id'))
+                        season_no_i = int(e.get('season_number'))
+                        ep_no = int(e.get('episode_number'))
+                        episode_keys.append((tmdb_id_i, season_no_i, ep_no, e))
+                    except Exception:
+                        continue
+                
+                if not episode_keys:
+                    return
+                
+                # 批量查询所有集的 air_date_local（一次性查询）
+                cur = db_instance.conn.cursor()
+                air_dates_map = {}
+                try:
+                    # SQLite 不支持元组 IN，使用 OR 条件组合（性能仍然比逐集查询好很多）
+                    if len(episode_keys) <= 500:  # 限制批量大小，避免 SQL 过长
+                        conditions = []
+                        params = []
+                        for tmdb_id_i, season_no_i, ep_no, _ in episode_keys:
+                            conditions.append("(tmdb_id=? AND season_number=? AND episode_number=?)")
+                            params.extend([tmdb_id_i, season_no_i, ep_no])
+                        sql = f"""
+                            SELECT tmdb_id, season_number, episode_number, air_date_local
+                            FROM episodes
+                            WHERE {' OR '.join(conditions)}
+                        """
+                        cur.execute(sql, params)
+                        for row in cur.fetchall():
+                            tmdb_id_i, season_no_i, ep_no, air_date_local = row
+                            air_dates_map[(int(tmdb_id_i), int(season_no_i), int(ep_no))] = air_date_local
+                    else:
+                        # 如果集数太多，分批查询（每批500个）
+                        batch_size = 500
+                        for i in range(0, len(episode_keys), batch_size):
+                            batch = episode_keys[i:i + batch_size]
+                            conditions = []
+                            params = []
+                            for tmdb_id_i, season_no_i, ep_no, _ in batch:
+                                conditions.append("(tmdb_id=? AND season_number=? AND episode_number=?)")
+                                params.extend([tmdb_id_i, season_no_i, ep_no])
+                            sql = f"""
+                                SELECT tmdb_id, season_number, episode_number, air_date_local
+                                FROM episodes
+                                WHERE {' OR '.join(conditions)}
+                            """
+                            cur.execute(sql, params)
+                            for row in cur.fetchall():
+                                tmdb_id_i, season_no_i, ep_no, air_date_local = row
+                                air_dates_map[(int(tmdb_id_i), int(season_no_i), int(ep_no))] = air_date_local
+                except Exception:
+                    # 如果批量查询失败，回退到逐集查询（兼容性）
+                    for tmdb_id_i, season_no_i, ep_no, _ in episode_keys:
+                        try:
+                            cur.execute(
+                                "SELECT air_date_local FROM episodes WHERE tmdb_id=? AND season_number=? AND episode_number=?",
+                                (tmdb_id_i, season_no_i, ep_no)
+                            )
+                            row = cur.fetchone()
+                            if row:
+                                air_dates_map[(tmdb_id_i, season_no_i, ep_no)] = row[0]
+                        except Exception:
+                            pass
+                
+                # 批量查询所有节目的播出时间配置（一次性查询，避免重复）
+                unique_tmdb_ids = list(set([k[0] for k in episode_keys]))
+                schedules_map = {}
+                try:
+                    if unique_tmdb_ids:
+                        placeholders = ','.join(['?' for _ in unique_tmdb_ids])
+                        cur.execute(
+                            f"SELECT tmdb_id, local_air_time FROM shows WHERE tmdb_id IN ({placeholders})",
+                            unique_tmdb_ids
+                        )
+                        for row in cur.fetchall():
+                            schedules_map[int(row[0])] = (row[1] or '').strip() or None
+                except Exception:
+                    # 回退到逐节目查询（使用 get_show_air_schedule 获取完整配置）
+                    for tmdb_id_i in unique_tmdb_ids:
+                        try:
+                            schedule = db_instance.get_show_air_schedule(tmdb_id_i) or {}
+                            schedules_map[tmdb_id_i] = (schedule.get('local_air_time') or '').strip() or None
+                        except Exception:
+                            schedules_map[tmdb_id_i] = None
+                
+                # 获取全局播出集数刷新时间（只需获取一次）
+                perf = config_data.get("performance", {}) if isinstance(config_data, dict) else {}
+                refresh_time_str = perf.get("aired_refresh_time", "00:00")
+                
+                # 在内存中批量计算 is_aired
+                for tmdb_id_i, season_no_i, ep_no, episode_obj in episode_keys:
+                    try:
+                        air_date_local = air_dates_map.get((tmdb_id_i, season_no_i, ep_no))
+                        if not air_date_local:
+                            episode_obj['is_aired'] = False
+                            continue
+                        
+                        # 获取节目级播出时间
+                        local_air_time = schedules_map.get(tmdb_id_i)
+                        time_to_use = local_air_time if local_air_time else refresh_time_str
+                        
+                        # 解析时间（HH:MM）
+                        hh, mm = 0, 0
+                        try:
+                            parts = str(time_to_use).split(":")
+                            if len(parts) == 2:
+                                hh = int(parts[0])
+                                mm = int(parts[1])
+                        except Exception:
+                            hh, mm = 0, 0
+                        
+                        # 组合日期和时间，与当前时间比较
+                        dt_str = f"{air_date_local} {hh:02d}:{mm:02d}:00"
+                        dt_ep_local = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+                        if getattr(now_local_dt, "tzinfo", None) is not None:
+                            dt_ep_local = dt_ep_local.replace(tzinfo=now_local_dt.tzinfo)
+                        episode_obj['is_aired'] = dt_ep_local.timestamp() <= now_local_dt.timestamp()
+                    except Exception:
+                        episode_obj['is_aired'] = False
+            except Exception:
+                # 如果批量计算失败，回退到逐集调用 is_episode_aired（兼容性保证）
+                for e in episodes_list:
+                    try:
+                        tmdb_id_i = int(e.get('tmdb_id'))
+                        season_no_i = int(e.get('season_number'))
+                        ep_no = int(e.get('episode_number'))
+                        e['is_aired'] = bool(is_episode_aired(tmdb_id_i, season_no_i, ep_no, now_local_dt))
+                    except Exception:
+                        e['is_aired'] = False
         
         if tmdb_id:
             show = db.get_show(int(tmdb_id))
@@ -8381,6 +8528,11 @@ def get_calendar_episodes_local():
                     e['display_air_date'] = e['air_date_local']
                 else:
                     e['display_air_date'] = e.get('air_date') or ''
+                # 补充 tmdb_id 和 season_number（批量计算需要）
+                e['tmdb_id'] = int(tmdb_id)
+                e['season_number'] = int(show['latest_season_number'])
+            # 批量计算 is_aired（优化性能）
+            batch_compute_is_aired(eps, db)
             # 注入任务信息与标准化进度
             info = tmdb_to_taskinfo.get(int(tmdb_id))
             if info:
@@ -8402,6 +8554,8 @@ def get_calendar_episodes_local():
                     e['display_air_date'] = e['air_date_local']
                 else:
                     e['display_air_date'] = e.get('air_date') or ''
+            # 批量计算 is_aired（优化性能）
+            batch_compute_is_aired(eps, db)
             for e in eps:
                 info = tmdb_to_taskinfo.get(int(e.get('tmdb_id')))
                 if info:

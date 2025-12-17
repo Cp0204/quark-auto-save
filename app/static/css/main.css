@@ -6530,8 +6530,24 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 .discovery-rating.status-ended { color: #ff4d4f; }  /* 红色 */
 .discovery-rating.status-other { color: #00C853; }  /* 绿色 */
 
-/* 追剧日历 - 已转存标识 */
-.calendar-transferred-badge { color: #00C853; padding: 2px 8px 2px 7.5px; }
+/* 追剧日历 - 已转存/已播出标识 */
+.calendar-transferred-badge { 
+  color: #00C853; 
+  padding: 2px 0; /* 基础上下 padding，左右 padding 由子类设置 */
+}
+
+/* 已转存集 */
+.calendar-transferred-badge-transferred {
+  padding-left: 9px;
+  padding-right: 10px;
+}
+
+/* 已播出未转存集 */
+.calendar-transferred-badge-aired {
+  padding-left: 7.5px;
+  padding-right: 8px;
+}
+
 .calendar-transferred-badge i {
   line-height: 1;
   display: inline-block;
@@ -6539,10 +6555,10 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   /* 使用多向阴影模拟加粗（图标为字体，font-weight不生效） */
   text-shadow:
     0 0 0 currentColor,
-    0 0.45px 0 currentColor,
-    0 -0.45px 0 currentColor,
-    0.45px 0 0 currentColor,
-    -0.45px 0 0 currentColor;
+    0 0.3px 0 currentColor,
+    0 -0.3px 0 currentColor,
+    0.3px 0 0 currentColor,
+    -0.3px 0 0 currentColor;
 }
 
 .discovery-create-task {
@@ -7317,7 +7333,7 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   font-size: 0.95rem;
   color: var(--dark-text-color);
   border-right: 1px solid var(--border-color); /* 显示内部分割线 */
-  background-color: #f7f7f9;
+  background-color: var(--button-gray-background-color);
   /* 防止文本被挤压成竖排 */
   min-width: 100px;
   white-space: nowrap;
@@ -7417,7 +7433,7 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   font-size: 0.85rem;
   padding: 6px; /* 等距6px */
   line-height: 1; /* 统一行高，消除上下视觉不等距 */
-  /* 日历视图：默认保持原按钮灰背景 */
+  /* 日历视图：默认保持原按钮灰背景（未转存且未播出） */
   background-color: #f7f7f9;
   border-radius: 6px; /* 圆角6px */
   display: flex;
@@ -7425,9 +7441,14 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   gap: 4px;
 }
 
-/* 日历视图：仅当该集已达转存进度时，卡片背景改为导航悬停浅蓝色 */
+/* 日历视图：当该集已达转存进度时，卡片背景改为导航悬停浅蓝色 */
 .calendar-month-episode:has(.episode-number.episode-number-reached) {
   background-color: #e6f1ff;
+}
+
+/* 日历视图：未转存但已播出的集，卡片背景为浅绿色 */
+.calendar-month-episode:has(.episode-number.episode-number-aired):not(:has(.episode-number.episode-number-reached)) {
+  background-color: #E6F7EE;
 }
 
 .episode-title {
@@ -7599,10 +7620,13 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   }
   /* 超小模式：表格内部的卡片背景色覆盖（仅表格体内紧凑卡片） */
   .calendar-month-body .calendar-month-episode {
-    background-color: var(--border-color) !important; /* 普通状态背景色 */
+    background-color: var(--border-color) !important; /* 普通状态背景色（未转存且未播出） */
   }
   .calendar-month-body .calendar-month-episode:has(.episode-number.episode-number-reached) {
     background-color: var(--focus-border-color) !important; /* 已转存背景色 */
+  }
+  .calendar-month-body .calendar-month-episode:has(.episode-number.episode-number-aired):not(:has(.episode-number.episode-number-reached)) {
+    background-color: #28a745 !important; /* 已播出但未转存背景色 */
   }
 
 }
@@ -7618,11 +7642,14 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
     padding: 6px;
     line-height: 1;
     transform: none; /* 还原不上移 */
-    background-color: #f7f7f9; /* 桌面端默认背景 */
+    background-color: #f7f7f9; /* 桌面端默认背景：未转存且未播出 */
     border-radius: 6px;
   }
   .calendar-selected-episodes .calendar-month-episode:has(.episode-number.episode-number-reached) {
     background-color: #e6f1ff; /* 桌面端已转存背景 */
+  }
+  .calendar-selected-episodes .calendar-month-episode:has(.episode-number.episode-number-aired):not(:has(.episode-number.episode-number-reached)) {
+    background-color: #E6F7EE; /* 桌面端已播出但未转存背景 */
   }
 
   /* 移动端：下方列表的集号样式与桌面端一致（显示完整 SxxExx） */
