@@ -1150,6 +1150,7 @@
                       <option value="name">任务名称</option>
                       <option v-if="formData.tmdb_api_key" value="progress">任务进度</option>
                       <option value="update_time">更新时间</option>
+                      <option value="airtime">播出时间</option>
                     </select>
                     <span class="tasklist-sort-pill tasklist-sort-order" @click="toggleTasklistSortOrder" title="切换升降序">
                       {{ tasklistSort.order === 'asc' ? '升序排列' : '降序排列' }}
@@ -3483,7 +3484,7 @@
         tasklistSort: (() => {
           try {
             const saved = JSON.parse(localStorage.getItem('tasklist_sort_options') || '{}');
-            let by = ['index','name','progress','update_time'].includes(saved.by) ? saved.by : 'index';
+            let by = ['index','name','progress','update_time','airtime'].includes(saved.by) ? saved.by : 'index';
             const order = (saved.order === 'asc' || saved.order === 'desc') ? saved.order : 'asc';
             // 注意：这里无法检查 TMDB API 配置，会在 mounted 中处理
             return { by, order };
@@ -4465,6 +4466,7 @@
           if (key === 'name') return '任务名称';
           if (key === 'progress') return '任务进度';
           if (key === 'update_time') return '更新时间';
+          if (key === 'airtime') return '播出时间';
           return '任务编号';
         },
         // 任务列表排序：保存到localStorage
@@ -4476,7 +4478,7 @@
         // 任务列表排序：切换排序字段
         // 仅切换排序字段，不改变当前升降序
         changeTasklistSortBy(by) {
-          if (!['index','name','progress','update_time'].includes(by)) return;
+          if (!['index','name','progress','update_time','airtime'].includes(by)) return;
           if (this.tasklistSort.by !== by) {
             this.tasklistSort.by = by;
             // 不重置、不切换 order，保持现状
@@ -4507,6 +4509,90 @@
                   const bk = pinyinPro.pinyin(bn, { toneType: 'none', type: 'string' }).toLowerCase();
                   if (ak < bk) cmp = -1; else if (ak > bk) cmp = 1; else cmp = 0;
                 } catch (e) { cmp = an.localeCompare(bn); }
+              } else if (by === 'airtime') {
+                // 按“已转存集数下一集”的播出日期 + 播出时间排序
+                // 1) 有播出日期的任务永远排在无播出日期的任务前面（与升降序无关）
+                // 2) 主排序：播出日期（升/降）
+                // 3) 次排序：播出时间（同一天或都无日期时；缺少时间的排在当日末尾）
+                // 4) 若既无日期也无时间，则回退为任务名称拼音排序
+                const getNameKey = (task) => {
+                  const name = (task && (task.taskname || task.task_name) || '').toString();
+                  try {
+                    return pinyinPro.pinyin(name, { toneType: 'none', type: 'string' }).toLowerCase() || name.toLowerCase();
+                  } catch (e) {
+                    return name.toLowerCase();
+                  }
+                };
+                const parseDateKey = (raw) => {
+                  if (!raw) return null;
+                  const s = String(raw).trim();
+                  // 优先解析 YYYY-MM-DD
+                  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                  if (m) {
+                    return parseInt(`${m[1]}${m[2]}${m[3]}`, 10);
+                  }
+                  // 简单兜底：解析 MM-DD 或 MM/DD
+                  m = s.match(/(\d{1,2})[-/](\d{1,2})/);
+                  if (m) {
+                    const mm = m[1].padStart(2, '0');
+                    const dd = m[2].padStart(2, '0');
+                    return parseInt(`9999${mm}${dd}`, 10); // 年份未知，使用固定年保证相对顺序
+                  }
+                  return null;
+                };
+                const parseTimeMinutes = (raw) => {
+                  if (!raw) return null;
+                  const s = String(raw).trim();
+                  const m = s.match(/([0-2]?\d):([0-5]\d)/);
+                  if (!m) return null;
+                  const h = parseInt(m[1], 10);
+                  const min = parseInt(m[2], 10);
+                  if (Number.isNaN(h) || Number.isNaN(min)) return null;
+                  const hh = Math.max(0, Math.min(23, h));
+                  const mm = Math.max(0, Math.min(59, min));
+                  return hh * 60 + mm;
+                };
+                const aInfo = this.getTaskNextAirRaw(a.t.taskname || a.t.task_name || '');
+                const bInfo = this.getTaskNextAirRaw(b.t.taskname || b.t.task_name || '');
+                const aHasDate = !!(aInfo && aInfo.date && String(aInfo.date).trim() !== '');
+                const bHasDate = !!(bInfo && bInfo.date && String(bInfo.date).trim() !== '');
+                // 1) 有日期的排在前面，无日期的排在后面（不受 asc/desc 影响）
+                if (aHasDate !== bHasDate) {
+                  cmp = aHasDate ? -1 : 1;
+                } else {
+                  const aDateKey = aHasDate ? (parseDateKey(aInfo.date) ?? 0) : 0;
+                  const bDateKey = bHasDate ? (parseDateKey(bInfo.date) ?? 0) : 0;
+                  // 2) 主排序：日期（同为“无日期”时视为相等，进入时间排序）
+                  if (aHasDate && bHasDate && aDateKey !== bDateKey) {
+                    cmp = aDateKey - bDateKey;
+                  } else {
+                    // 3) 次排序：时间（同一天或都无日期时）
+                    const aMinutes = parseTimeMinutes(aInfo.time);
+                    const bMinutes = parseTimeMinutes(bInfo.time);
+                    const aHasTime = aMinutes != null;
+                    const bHasTime = bMinutes != null;
+                    if (aHasTime || bHasTime) {
+                      // 缺少时间的任务排在当日末尾
+                      const sentinel = 24 * 60 + 1;
+                      const aVal = aHasTime ? aMinutes : sentinel;
+                      const bVal = bHasTime ? bMinutes : sentinel;
+                      const diff = aVal - bVal;
+                      if (diff !== 0) {
+                        cmp = diff;
+                      } else {
+                        // 时间也相同时回退到任务名称
+                        const ak = getNameKey(a.t);
+                        const bk = getNameKey(b.t);
+                        if (ak < bk) cmp = -1; else if (ak > bk) cmp = 1; else cmp = 0;
+                      }
+                    } else {
+                      // 4) 既无日期也无时间：完全回退到任务名称排序（仍受升降序影响）
+                      const ak = getNameKey(a.t);
+                      const bk = getNameKey(b.t);
+                      if (ak < bk) cmp = -1; else if (ak > bk) cmp = 1; else cmp = 0;
+                    }
+                  }
+                }
               } else if (by === 'progress') {
                 const ap = (this.getTaskProgress && this.getTaskProgress(a.t.taskname) != null) ? Number(this.getTaskProgress(a.t.taskname)) : -1;
                 const bp = (this.getTaskProgress && this.getTaskProgress(b.t.taskname) != null) ? Number(this.getTaskProgress(b.t.taskname)) : -1;
@@ -4769,8 +4855,11 @@
             return '';
           }
         },
-        // 获取“已转存集数下一集”的本地播出日期 + 时间展示文本（任务列表海报视图使用）
-        getTaskNextAirDateTimeDisplay(taskNameOrTask) {
+        // 内部工具：获取“已转存集数下一集”的原始播出日期和播出时间
+        // 返回值格式：{ date: string, time: string }
+        // - date：优先 air_date_local，其次 display_air_date / air_date，可能为 YYYY-MM-DD 或其他兼容格式；若无则为 ''
+        // - time：任务的本地播出时间展示（如 '19:40' 或 '19:40 +1d'），可能为空字符串
+        getTaskNextAirRaw(taskNameOrTask) {
           try {
             // 先获取原有的播出时间展示（例如 19:40 或 19:40 +1d），作为回退
             const airTime = this.getTaskAirTimeDisplay(taskNameOrTask);
@@ -4779,25 +4868,26 @@
             const taskName = (typeof taskNameOrTask === 'string')
               ? taskNameOrTask
               : (taskNameOrTask && (taskNameOrTask.task_name || taskNameOrTask.taskname)) || '';
-            if (!taskName) return airTime;
-
-            // 需要日历任务和本地剧集数据，否则回退为仅显示时间
-            const calendarTask = this.getCalendarTaskByName(taskName);
-            if (!calendarTask || !this.calendar || !Array.isArray(this.calendar.episodes) || this.calendar.episodes.length === 0) {
-              return airTime;
+            if (!taskName) {
+              return { date: '', time: airTime };
             }
 
-            // 当前匹配季号：参考后端/前端统一口径：仅使用 matched_latest_season_number
+            // 需要日历任务和本地剧集数据，否则回退为仅时间
+            const calendarTask = this.getCalendarTaskByName(taskName);
+            if (!calendarTask || !this.calendar || !Array.isArray(this.calendar.episodes) || this.calendar.episodes.length === 0) {
+              return { date: '', time: airTime };
+            }
+
+            // 当前匹配季号：仅使用 matched_latest_season_number
             const seasonNumber = (calendarTask.matched_latest_season_number != null)
               ? Number(calendarTask.matched_latest_season_number)
               : null;
             if (!seasonNumber || Number.isNaN(seasonNumber) || seasonNumber <= 0) {
-              return airTime;
+              return { date: '', time: airTime };
             }
 
-            // 已转存集数：来自 season_counts.transferred_count（与后端 task_metrics/season_metrics 同步）
+            // 已转存集数：来自 season_counts.transferred_count
             const transferred = Number((calendarTask.season_counts && calendarTask.season_counts.transferred_count) || 0);
-            // 下一集集号：transferred_count + 1，若为 0 则从第 1 集开始
             const nextEpNumber = transferred > 0 ? transferred + 1 : 1;
 
             // 在本地剧集列表中查找对应 tmdb_id + season_number 的下一集
@@ -4806,10 +4896,9 @@
               || calendarTask.tmdb_id
               || null;
             if (!tmdbId) {
-              return airTime;
+              return { date: '', time: airTime };
             }
 
-            // 精准匹配下一集：tmdb_id + season_number + episode_number == nextEpNumber
             const nextEp = this.calendar.episodes.find(ep => {
               if (!ep) return false;
               if (!ep.tmdb_id || Number(ep.tmdb_id) !== Number(tmdbId)) return false;
@@ -4819,10 +4908,27 @@
               if (Number.isNaN(n)) return false;
               return n === nextEpNumber;
             });
-            if (!nextEp) return airTime;
+            if (!nextEp) {
+              return { date: '', time: airTime };
+            }
 
             // 优先使用 air_date_local；若无则回退到 display_air_date / air_date
             const rawDate = (nextEp.air_date_local || nextEp.display_air_date || nextEp.air_date || '') || '';
+            if (!rawDate) {
+              return { date: '', time: airTime };
+            }
+
+            return { date: rawDate, time: airTime };
+          } catch (e) {
+            // 任意异常都回退为原有的时间展示，保证不影响原功能
+            return { date: '', time: this.getTaskAirTimeDisplay(taskNameOrTask) };
+          }
+        },
+        // 获取“已转存集数下一集”的本地播出日期 + 时间展示文本（任务列表海报视图使用）
+        getTaskNextAirDateTimeDisplay(taskNameOrTask) {
+          try {
+            const { date: rawDate, time: airTime } = this.getTaskNextAirRaw(taskNameOrTask);
+            if (!rawDate && !airTime) return '';
             if (!rawDate) return airTime;
 
             // 日期格式统一为 MM-DD
