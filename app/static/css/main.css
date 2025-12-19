@@ -7056,6 +7056,11 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   .calendar-controls .btn-group {
     margin: 0; /* 由 gap 控制间距 */
   }
+  
+  /* 追剧日历页面的排序组件：覆盖任务列表的 -4px 偏移，保持与其他按钮对齐 */
+  .calendar-controls .tasklist-sort-controls {
+    margin-top: 0 !important;
+  }
 }
 
 /* 统一日历控制按钮的样式 */
