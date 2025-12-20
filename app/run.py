@@ -507,7 +507,6 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                     CalendarDB().upsert_season_metrics(int(tmdb_id), int(latest_sn), int(_effective_transferred or 0), int(aired_count or 0), int(total_count or 0), int(progress_pct), int(_now()))
             except Exception:
                 pass
-            # 写回 task_metrics（以任务为键）
             try:
                 if task_name and tmdb_id and latest_sn:
                     from time import time as _now
@@ -523,6 +522,11 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                     CalendarDB().upsert_task_metrics(task_name, int(tmdb_id), int(latest_sn), int(_effective_transferred or 0), int(progress_pct), int(_now()))
             except Exception:
                 pass
+            
+            # 补充最新季号给前端（用于下一集查找逻辑）
+            if latest_sn:
+                t['latest_season_number'] = int(latest_sn)
+                
             enriched.append(t)
         return enriched
     except Exception:
