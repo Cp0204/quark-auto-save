@@ -4262,8 +4262,14 @@
           }
           // 切换到追剧日历：立刻检查一次并启动后台监听；离开则停止监听
           if (newValue === 'calendar') {
-            // 确保全局 SSE 已建立
-            try { this.ensureGlobalSSE(); } catch (e) {}
+            // 确保全局 SSE 已建立（如果连接断开，尝试重连）
+            try {
+              if (!this.appSSE || !this.appSSEInitialized) {
+                // 重置标志，允许重连（服务器休眠后唤醒时特别有用）
+                this.appSSEInitialized = false;
+              }
+              this.ensureGlobalSSE();
+            } catch (e) {}
             // 立即检查一次（若已初始化过监听，直接调用tick引用）
             // 先本地读取一次，立刻应用“已转存”状态（不依赖轮询）
             try { this.loadCalendarEpisodesLocal && this.loadCalendarEpisodesLocal(); } catch (e) {}
@@ -4566,12 +4572,10 @@
                 }
               } catch (e) {}
             };
-            // 统一 onerror：关闭SSE并回退双侧轮询
+            // 统一 onerror：回退到轮询，但不关闭连接，让 EventSource 自动重连
+            // 注意：不在 onerror 中调用 close()，这样 EventSource 会自动尝试重连
             this.appSSE.onerror = () => {
-              try { this.appSSE.close(); } catch (e) {}
-              this.appSSE = null;
-              this.appSSEInitialized = false;
-              // 日历回退：若没有轮询定时器，则恢复轮询并立即执行一次
+              // 回退到轮询，确保即使 SSE 断开也能继续工作
               try {
                 if (!this.calendarAutoWatchTimer && this.calendarAutoWatchTickRef) {
                   const baseIntervalMs = this.calendar && this.calendar.manageMode ? 5 * 1000 : 60 * 1000;
@@ -4579,12 +4583,14 @@
                   this.calendarAutoWatchTickRef();
                 }
               } catch (e) {}
-              // 任务列表回退：若没有轮询定时器，则恢复轮询
               try {
                 if (!this.tasklistAutoWatchTimer) {
                   this.startTasklistPollingFallback();
                 }
               } catch (e) {}
+              // 不调用 close()，让 EventSource 自动重连
+              // 如果连接长时间无法恢复，EventSource 会继续尝试重连
+              // 重连成功后，onopen 会被触发，轮询会被停止
             };
             // ping 心跳占位
             try { this.appSSE.addEventListener('ping', () => {}); } catch (e) {}
@@ -6950,6 +6956,15 @@
                   this.calendarAutoWatchTimer = null;
                 }
               } else {
+                // 页面从隐藏变为可见时，尝试重连 SSE（服务器休眠后唤醒时特别有用）
+                if (!this.appSSE || !this.appSSEInitialized) {
+                  try {
+                    // 重置标志，允许重连
+                    this.appSSEInitialized = false;
+                    this.ensureGlobalSSE();
+                  } catch (e) {}
+                }
+                // 如果 SSE 连接失败，回退到轮询
                 if (!this.appSSE && !this.calendarAutoWatchTimer && this.calendarAutoWatchTickRef) {
                   const baseIntervalMs = this.calendar && this.calendar.manageMode ? 5 * 1000 : 60 * 1000;
                   this.calendarAutoWatchTimer = setInterval(this.calendarAutoWatchTickRef, baseIntervalMs);
