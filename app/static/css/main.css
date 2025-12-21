@@ -8563,3 +8563,25 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   color: var(--focus-border-color);
   text-decoration: none;
 }
+
+/* 海报悬停信息行数限制样式 */
+/* 单行限制：最多显示一行，超长部分截断显示省略号 */
+.discovery-poster-overlay .info-line-single,
+.calendar-poster-overlay .info-line-single {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+/* 双行限制：最多显示两行，如果两行还不能显示完整，超长部分截断显示省略号 */
+.discovery-poster-overlay .info-line-double,
+.calendar-poster-overlay .info-line-double {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  word-wrap: break-word;
+}

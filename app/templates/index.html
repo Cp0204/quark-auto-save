@@ -1466,7 +1466,7 @@
                       <!-- 任务编号 -->
                       <div class="info-line">#{{ String((task.__originalIndex !== undefined ? task.__originalIndex : index) + 1).padStart(2, '0') }}</div>
                       <!-- 匹配的剧名 -->
-                      <div class="info-line">
+                      <div class="info-line info-line-single">
                         <template v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name">
                           {{ getCalendarTaskByName(task.taskname).matched_show_name }}
                         </template>
@@ -1475,7 +1475,7 @@
                         </template>
                       </div>
                       <!-- 季名称 -->
-                      <div class="info-line" v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).latest_season_name && getCalendarTaskByName(task.taskname).latest_season_name.trim() !== ''">
+                      <div class="info-line info-line-single" v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).latest_season_name && getCalendarTaskByName(task.taskname).latest_season_name.trim() !== ''">
                         {{ getCalendarTaskByName(task.taskname).latest_season_name }}
                       </div>
                       <!-- 下一集播出日期 + 时间（基于已转存集数推算） -->
@@ -2040,8 +2040,14 @@
                       <i class="bi bi-plus-lg"></i>
                     </div>
                     <div class="discovery-poster-overlay">
-                      <div class="info-line" v-for="(detail, index) in getMovieDetails(item)" :key="index">
-                        {{ detail }}
+                      <div class="info-line" 
+                           :class="{ 
+                             'info-line-single': detail.type === 'region' || detail.type === 'director',
+                             'info-line-double': detail.type === 'genre' || detail.type === 'cast'
+                           }" 
+                           v-for="(detail, index) in getMovieDetails(item)" 
+                           :key="index">
+                        {{ detail.text }}
                       </div>
                     </div>
                   </div>
@@ -2263,7 +2269,7 @@
                         {{ getTransferProgress(task) }}%
                       </div>
                       <div class="discovery-poster-overlay">
-                        <div class="info-line">
+                        <div class="info-line info-line-double">
                           <template v-if="task.matched_show_name">
                             {{ task.matched_show_name }}
                           </template>
@@ -2272,7 +2278,7 @@
                           </template>
                         </div>
                         <div class="info-line" v-if="task.matched_year && String(task.matched_year).trim() !== ''">{{ task.matched_year }}</div>
-                        <div class="info-line" v-if="task.latest_season_name && task.latest_season_name.trim() !== ''">{{ task.latest_season_name }}</div>
+                        <div class="info-line info-line-single" v-if="task.latest_season_name && task.latest_season_name.trim() !== ''">{{ task.latest_season_name }}</div>
                         <div class="info-line" v-if="getTaskNextAirDateTimeDisplayForCalendar(task)">{{ getTaskNextAirDateTimeDisplayForCalendar(task) }}</div>
                         <div class="info-line" v-if="task.matched_show_name && task.season_counts"
                              v-html="`${getTaskTransferredCount(task)} <span class='count-slash'>/</span> ${getTaskAiredCount(task)} <span class='count-slash'>/</span> ${getTaskTotalCount(task)}`">
@@ -2345,7 +2351,7 @@
                         
                         <!-- 海报悬停效果 -->
                         <div class="calendar-poster-overlay">
-                          <div class="info-line">{{ episode.name || episode.show_name }}</div>
+                          <div class="info-line info-line-double">{{ episode.name || episode.show_name }}</div>
                           <div class="info-line overview" v-if="episode.overview" :title="episode.overview" :data-fulltext="episode.overview">{{ episode.overview }}</div>
                         </div>
                         
@@ -13667,36 +13673,29 @@
         },
         getMovieDetails(item) {
           // 处理card_subtitle信息用于海报悬停显示
+          // 格式: 年份 / 地区 / 类型 / 导演 / 主演
           if (item.card_subtitle) {
             const parts = item.card_subtitle.split(' / ');
             const details = [];
 
             if (parts.length >= 1 && parts[0]) {
-              details.push(parts[0]); // 年份
+              details.push({ text: parts[0], type: 'year' }); // 年份
             }
             if (parts.length >= 2 && parts[1]) {
-              details.push(parts[1]); // 地区
+              details.push({ text: parts[1], type: 'region' }); // 地区
             }
             if (parts.length >= 3 && parts[2]) {
-              details.push(parts[2]); // 类型
+              details.push({ text: parts[2], type: 'genre' }); // 类型
             }
             if (parts.length >= 4 && parts[3]) {
-              // 处理导演信息，最多显示两个导演
+              // 处理导演信息，不限制数量，通过CSS限制显示行数
               const directors = parts[3].trim();
               if (directors) {
-                const directorList = directors.split(/\s+/); // 按空格分割导演名字
-                if (directorList.length > 2) {
-                  // 如果导演超过2个，只取前两个
-                  const limitedDirectors = directorList.slice(0, 2).join(' ');
-                  details.push(limitedDirectors);
-                } else {
-                  // 导演不超过2个，直接显示
-                  details.push(directors);
-                }
+                details.push({ text: directors, type: 'director' });
               }
             }
             if (parts.length >= 5 && parts[4]) {
-              details.push(parts[4]); // 主演
+              details.push({ text: parts[4], type: 'cast' }); // 主演
             }
 
             return details;
