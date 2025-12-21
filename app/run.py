@@ -1508,8 +1508,15 @@ def recompute_all_seasons_aired_daily():
             pass
 
 
-def recompute_show_aired_progress(tmdb_id: int, now_local_dt=None):
-    """按节目维度重算播出/进度，供按播出时间触发与补偿使用"""
+def recompute_show_aired_progress(tmdb_id: int, now_local_dt=None, season_number: int = None, episode_number: int = None):
+    """按节目维度重算播出/进度，供按播出时间触发与补偿使用
+    
+    Args:
+        tmdb_id: 节目ID
+        now_local_dt: 当前本地时间，可选
+        season_number: 季号，可选。如果提供，只刷新指定的季
+        episode_number: 集号，可选。如果提供，日志中会显示集号信息
+    """
     try:
         from time import time as _now
         now_ts = int(_now())
@@ -1533,17 +1540,31 @@ def recompute_show_aired_progress(tmdb_id: int, now_local_dt=None):
                 show_name = str(row[0])
         except Exception:
             pass
-        cur.execute(
-            "SELECT season_number, episode_count FROM seasons WHERE tmdb_id=?",
-            (int(tmdb_id),),
-        )
+        
+        # 如果指定了季号，只处理该季；否则处理所有季
+        if season_number is not None:
+            cur.execute(
+                "SELECT season_number, episode_count FROM seasons WHERE tmdb_id=? AND season_number=?",
+                (int(tmdb_id), int(season_number)),
+            )
+        else:
+            cur.execute(
+                "SELECT season_number, episode_count FROM seasons WHERE tmdb_id=?",
+                (int(tmdb_id),),
+            )
         rows = cur.fetchall() or []
         for season_no, total in rows:
             try:
                 season_no_i = int(season_no)
                 total_i = int(total or 0)
+                
+                # 构建日志显示名称：如果提供了集号，在日志中显示集号
+                log_name = f"{show_name} · 第 {season_no_i} 季"
+                if episode_number is not None:
+                    log_name = f"{show_name} · 第 {season_no_i} 季 · 第 {int(episode_number)} 集"
+                
                 try:
-                    logging.info(f">>> 开始执行 [{show_name} · 第 {season_no_i} 季] 播出状态刷新任务")
+                    logging.info(f">>> 开始执行 [{log_name}] 播出状态刷新任务")
                 except Exception:
                     pass
                 aired_i = 0
@@ -1566,7 +1587,7 @@ def recompute_show_aired_progress(tmdb_id: int, now_local_dt=None):
                 progress_pct = (100 * min(transferred_i, denom) // denom) if denom > 0 else 0
                 cal_db.upsert_season_metrics(int(tmdb_id), season_no_i, None, aired_i, total_i, progress_pct, now_ts)
                 try:
-                    logging.info(f">>> [{show_name} · 第 {season_no_i} 季] 播出状态刷新任务执行成功")
+                    logging.info(f">>> [{log_name}] 播出状态刷新任务执行成功")
                 except Exception:
                     pass
             except Exception:
@@ -1765,8 +1786,11 @@ def schedule_airtime_based_refresh_jobs(days_back: int = 2, days_forward: int = 
 
             # 未来的播出时间：注册 DateTrigger
             try:
+                _tmdb_id = int(tmdb_id)
+                _season_no = int(season_number)
+                _ep_no = int(episode_number)
                 scheduler.add_job(
-                    func=lambda _tmdb_id=int(tmdb_id): recompute_show_aired_progress(_tmdb_id),
+                    func=lambda _tid=_tmdb_id, _sn=_season_no, _ep=_ep_no: recompute_show_aired_progress(_tid, season_number=_sn, episode_number=_ep),
                     trigger=DateTrigger(run_date=target_dt),
                     id=job_id,
                     replace_existing=True,
