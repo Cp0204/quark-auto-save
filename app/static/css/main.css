@@ -14,6 +14,7 @@
   --focus-border-color: #0D53FF; /* 输入框聚焦时的边框颜色 */
   --shadow-spread: 0; /* 统一阴影扩散距离设为0 */
   --button-gray-background-color: #ededf0; /* 按钮灰色背景颜色 */
+  --modal-border-radius: 12px; /* 模态框弹窗和登录模块的统一圆角 */
 }
 
 /* --------------- 基础样式 --------------- */
@@ -1462,7 +1463,7 @@ button.close:focus,
 }
 
 #logModal .modal-content {
-  border-radius: 6px;
+  border-radius: var(--modal-border-radius);
   border: 1px solid var(--border-color);
   box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
 }
@@ -1472,8 +1473,8 @@ button.close:focus,
   background-color: #fff;
   border-bottom: 1px solid var(--border-color);
   padding: 11px 16px;
-  border-top-left-radius: 6px;
-  border-top-right-radius: 6px;
+  border-top-left-radius: var(--modal-border-radius);
+  border-top-right-radius: var(--modal-border-radius);
 }
 
 #logModal .modal-title {
@@ -1551,7 +1552,7 @@ button.close:focus,
 #fileSelectModal .modal-content,
 #createTaskModal .modal-content,
 #editMetadataModal .modal-content {
-  border-radius: 6px;
+  border-radius: var(--modal-border-radius);
   border: 1px solid var(--border-color);
   box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
 }
@@ -1563,8 +1564,8 @@ button.close:focus,
   background-color: #fff;
   border-bottom: 1px solid var(--border-color);
   padding: 11px 16px;
-  border-top-left-radius: 6px;
-  border-top-right-radius: 6px;
+  border-top-left-radius: var(--modal-border-radius);
+  border-top-right-radius: var(--modal-border-radius);
 }
 
 #fileSelectModal .modal-title,
@@ -2258,7 +2259,7 @@ div.jsoneditor-tree button.jsoneditor-button:focus {
 .login-card {
   width: 340px;
   background-color: white;
-  border-radius: 10px;
+  border-radius: var(--modal-border-radius);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   padding: 0;
   text-align: center;
@@ -4920,6 +4921,17 @@ select.task-filter-select,
 /* 批量重命名模态框样式 */
 #batchRenameModal .modal-dialog {
   max-width: 80%;
+}
+
+#batchRenameModal .modal-content {
+  border-radius: var(--modal-border-radius);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
+}
+
+#batchRenameModal .modal-header {
+  border-top-left-radius: var(--modal-border-radius);
+  border-top-right-radius: var(--modal-border-radius);
 }
 
 #batchRenameModal .table {
