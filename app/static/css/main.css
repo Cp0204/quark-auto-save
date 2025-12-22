@@ -7165,10 +7165,17 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   height: 32px;
   font-size: 0.95rem;
   color: var(--dark-text-color);
-  cursor: default;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
 }
 
-.calendar-date-item.today {
+.calendar-date-item:hover:not(.selected) {
+  background-color: var(--dark-text-color);
+  border-color: var(--dark-text-color);
+  color: white;
+}
+
+.calendar-date-item.selected {
   background-color: var(--focus-border-color);
   border-color: var(--focus-border-color);
   color: white;

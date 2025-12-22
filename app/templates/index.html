@@ -2308,7 +2308,8 @@
                   <div class="calendar-date-item" 
                        v-for="(date, index) in calendar.weekDates" 
                        :key="index"
-                       :class="{ 'today': date.isToday }">
+                       :class="{ 'selected': date.date === calendar.selectedDate }"
+                       @click="selectPosterDate(date.date)">
                     <div class="calendar-date-weekday">{{ date.weekday }}</div>
                     <div class="calendar-date-day">{{ date.day }}</div>
                   </div>
@@ -4890,6 +4891,13 @@
             this.calendar.selectedDate = day.date;
           } catch (e) {}
         },
+        // 选择海报视图日期
+        selectPosterDate(dateStr) {
+          try {
+            if (!dateStr) return;
+            this.calendar.selectedDate = dateStr;
+          } catch (e) {}
+        },
         // 根据日期字符串获取当日剧集数组
         getEpisodesByDate(dateStr) {
           if (!dateStr) return [];
@@ -7163,36 +7171,171 @@
         
         // 更改日期
         changeCalendarDate(action) {
-          const currentDate = new Date(this.calendar.currentDate);
-          
-          switch (action) {
-            case 'prevDay':
-              currentDate.setDate(currentDate.getDate() - 1);
-              break;
-            case 'nextDay':
-              currentDate.setDate(currentDate.getDate() + 1);
-              break;
-            case 'prevWeek':
-              currentDate.setDate(currentDate.getDate() - 7);
-              break;
-            case 'nextWeek':
-              currentDate.setDate(currentDate.getDate() + 7);
-              break;
-            case 'prevMonth':
-              currentDate.setMonth(currentDate.getMonth() - 1);
-              break;
-            case 'nextMonth':
-              currentDate.setMonth(currentDate.getMonth() + 1);
-              break;
+          // 海报视图模式下，以选中的日期为基准进行偏移
+          if (this.calendar.viewMode === 'poster') {
+            // 解析选中的日期
+            const selectedDateStr = this.calendar.selectedDate;
+            if (!selectedDateStr) {
+              // 如果没有选中日期，使用当前日期
+              const currentDate = new Date(this.calendar.currentDate);
+              switch (action) {
+                case 'prevDay':
+                  currentDate.setDate(currentDate.getDate() - 1);
+                  break;
+                case 'nextDay':
+                  currentDate.setDate(currentDate.getDate() + 1);
+                  break;
+                case 'prevWeek':
+                  currentDate.setDate(currentDate.getDate() - 7);
+                  break;
+                case 'nextWeek':
+                  currentDate.setDate(currentDate.getDate() + 7);
+                  break;
+                case 'prevMonth':
+                  currentDate.setMonth(currentDate.getMonth() - 1);
+                  break;
+                case 'nextMonth':
+                  currentDate.setMonth(currentDate.getMonth() + 1);
+                  break;
+              }
+              this.calendar.currentDate = currentDate;
+              this.calendar.selectedDate = this.formatDateToYYYYMMDD(currentDate);
+              this.initializeCalendarDates();
+              return;
+            }
+            
+            // 解析选中日期
+            let selectedDate;
+            try {
+              const selectedDateParts = selectedDateStr.split('-');
+              if (selectedDateParts.length !== 3) {
+                // 日期格式不正确，回退到使用当前日期
+                const currentDate = new Date(this.calendar.currentDate);
+                switch (action) {
+                  case 'prevDay': currentDate.setDate(currentDate.getDate() - 1); break;
+                  case 'nextDay': currentDate.setDate(currentDate.getDate() + 1); break;
+                  case 'prevWeek': currentDate.setDate(currentDate.getDate() - 7); break;
+                  case 'nextWeek': currentDate.setDate(currentDate.getDate() + 7); break;
+                  case 'prevMonth': currentDate.setMonth(currentDate.getMonth() - 1); break;
+                  case 'nextMonth': currentDate.setMonth(currentDate.getMonth() + 1); break;
+                }
+                this.calendar.currentDate = currentDate;
+                this.calendar.selectedDate = this.formatDateToYYYYMMDD(currentDate);
+                this.initializeCalendarDates();
+                return;
+              }
+              selectedDate = new Date(
+                parseInt(selectedDateParts[0], 10),
+                parseInt(selectedDateParts[1], 10) - 1,
+                parseInt(selectedDateParts[2], 10)
+              );
+              // 验证日期是否有效
+              if (isNaN(selectedDate.getTime())) {
+                throw new Error('Invalid date');
+              }
+            } catch (e) {
+              // 日期解析失败，回退到使用当前日期
+              const currentDate = new Date(this.calendar.currentDate);
+              switch (action) {
+                case 'prevDay': currentDate.setDate(currentDate.getDate() - 1); break;
+                case 'nextDay': currentDate.setDate(currentDate.getDate() + 1); break;
+                case 'prevWeek': currentDate.setDate(currentDate.getDate() - 7); break;
+                case 'nextWeek': currentDate.setDate(currentDate.getDate() + 7); break;
+                case 'prevMonth': currentDate.setMonth(currentDate.getMonth() - 1); break;
+                case 'nextMonth': currentDate.setMonth(currentDate.getMonth() + 1); break;
+              }
+              this.calendar.currentDate = currentDate;
+              this.calendar.selectedDate = this.formatDateToYYYYMMDD(currentDate);
+              this.initializeCalendarDates();
+              return;
+            }
+            
+            // 计算新日期
+            const newDate = new Date(selectedDate);
+            switch (action) {
+              case 'prevDay':
+                newDate.setDate(newDate.getDate() - 1);
+                break;
+              case 'nextDay':
+                newDate.setDate(newDate.getDate() + 1);
+                break;
+              case 'prevWeek':
+                newDate.setDate(newDate.getDate() - 7);
+                break;
+              case 'nextWeek':
+                newDate.setDate(newDate.getDate() + 7);
+                break;
+              case 'prevMonth':
+                newDate.setMonth(newDate.getMonth() - 1);
+                break;
+              case 'nextMonth':
+                newDate.setMonth(newDate.getMonth() + 1);
+                break;
+            }
+            
+            const newDateStr = this.formatDateToYYYYMMDD(newDate);
+            
+            // 检查新日期是否在当前视图范围内
+            const currentViewStart = new Date(this.calendar.currentDate);
+            const availableWidth = this.getCalendarAvailableWidth();
+            const minColumnWidth = 140;
+            const columnGap = 20;
+            const eps = 0.1;
+            const maxColumns = Math.max(2, Math.floor((availableWidth + columnGap - eps) / (minColumnWidth + columnGap)));
+            const currentViewEnd = new Date(currentViewStart);
+            currentViewEnd.setDate(currentViewStart.getDate() + maxColumns - 1);
+            
+            // 比较日期（只比较年月日，忽略时间）
+            const newDateOnly = new Date(newDate.getFullYear(), newDate.getMonth(), newDate.getDate());
+            const viewStartOnly = new Date(currentViewStart.getFullYear(), currentViewStart.getMonth(), currentViewStart.getDate());
+            const viewEndOnly = new Date(currentViewEnd.getFullYear(), currentViewEnd.getMonth(), currentViewEnd.getDate());
+            
+            // 如果新日期在视图范围内，只更新选中日期，不改变视图
+            if (newDateOnly >= viewStartOnly && newDateOnly <= viewEndOnly) {
+              this.calendar.selectedDate = newDateStr;
+            } else {
+              // 如果新日期不在视图范围内，调整视图使新日期在范围内
+              // 将新日期设置为视图的起始日期
+              this.calendar.currentDate = newDate;
+              this.calendar.selectedDate = newDateStr;
+              this.initializeCalendarDates();
+            }
+          } else {
+            // 日历视图模式，保持原有逻辑
+            const currentDate = new Date(this.calendar.currentDate);
+            
+            switch (action) {
+              case 'prevDay':
+                currentDate.setDate(currentDate.getDate() - 1);
+                break;
+              case 'nextDay':
+                currentDate.setDate(currentDate.getDate() + 1);
+                break;
+              case 'prevWeek':
+                currentDate.setDate(currentDate.getDate() - 7);
+                break;
+              case 'nextWeek':
+                currentDate.setDate(currentDate.getDate() + 7);
+                break;
+              case 'prevMonth':
+                currentDate.setMonth(currentDate.getMonth() - 1);
+                break;
+              case 'nextMonth':
+                currentDate.setMonth(currentDate.getMonth() + 1);
+                break;
+            }
+            
+            this.calendar.currentDate = currentDate;
+            this.initializeCalendarDates();
           }
-          
-          this.calendar.currentDate = currentDate;
-          this.initializeCalendarDates();
         },
         
         // 回到今天
         goToToday() {
-          this.calendar.currentDate = new Date();
+          const today = new Date();
+          this.calendar.currentDate = today;
+          // 更新selectedDate为今天的日期
+          this.calendar.selectedDate = this.formatDateToYYYYMMDD(today);
           this.initializeCalendarDates();
         },
         
