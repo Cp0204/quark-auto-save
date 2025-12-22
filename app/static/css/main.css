@@ -208,6 +208,7 @@ main .row.title h2 {
   margin-top: 0;
   line-height: 1.5;
   padding-left: 0px; /* 标题文字左内边距 */
+  cursor: default; /* 不可操作的模块大标题使用普通指针 */
 }
 
 /* 标题旁边的问号图标容器样式 */
@@ -1110,6 +1111,7 @@ select.form-control {
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer; /* 可点击的图标按钮使用指针 */
 }
 
 .input-group-text:has(.bi-google):hover,
@@ -1172,6 +1174,7 @@ textarea.form-control {
   border-color: var(--border-color) !important; /* 使用变量替代硬编码颜色 */
   background-color: #ededf0!important; /* 修改背景色为更浅的灰色 */
   border-width: 1px !important; /* 确保边框宽度为1px */
+  cursor: default; /* 不可操作的配置选项标题使用普通指针 */
 }
 
 .input-group-prepend .input-group-text {
@@ -1259,6 +1262,7 @@ table.table thead th {
   height: 40px !important; /* 确保表头高度为40px */
   line-height: 24px !important; /* 设置行高以确保文字垂直居中 */
   box-sizing: border-box !important; /* 确保边框包含在总高度内 */
+  cursor: default; /* 不可操作的表头使用普通指针 */
 }
 
 /* 表头悬停样式 */
@@ -1483,6 +1487,7 @@ button.close:focus,
   color: var(--dark-text-color);
   display: flex;
   align-items: center;
+  cursor: default; /* 不可操作的模态框标题使用普通指针 */
 }
 
 #logModal .modal-title b {
@@ -1576,6 +1581,7 @@ button.close:focus,
   color: var(--dark-text-color);
   display: flex;
   align-items: center;
+  cursor: default; /* 不可操作的模态框标题使用普通指针 */
 }
 
 #fileSelectModal .modal-title b,
@@ -1669,6 +1675,7 @@ button.close:focus,
 /* 编辑元数据模态框：输入前标题灰底，统一输入高度与字体，与创建任务保持一致 */
 #editMetadataModal .input-group-prepend .input-group-text {
   background-color: var(--button-gray-background-color) !important;
+  cursor: default; /* 不可操作的前缀文本使用普通指针 */
 }
 #editMetadataModal .form-control,
 #editMetadataModal .input-group-text,
@@ -1845,6 +1852,7 @@ button.close:focus,
   z-index: 5;
   vertical-align: middle; /* 添加：垂直居中对齐 */
   height: 40px !important; /* 添加：自动高度，确保与内容一致 */
+  cursor: default; /* 不可操作的表头使用普通指针 */
 }
 
 /* 模态框表格列宽设置 - 基于内容类型 */
@@ -2732,6 +2740,11 @@ body {
 .small,
 .col-form-label {
   color: var(--dark-text-color);
+}
+
+/* 所有模态框标题使用普通指针 */
+.modal-title {
+  cursor: default; /* 不可操作的模态框标题使用普通指针 */
 }
 
 /* 设置输入框占位符的颜色 */
@@ -5248,6 +5261,7 @@ table.selectable-files th {
   height: 40px !important; /* 确保表头高度为40px */
   line-height: 24px !important; /* 设置行高以确保文字垂直居中 */
   box-sizing: border-box !important; /* 确保边框包含在总高度内 */
+  cursor: default; /* 不可操作的表头使用普通指针 */
 }
 
 /* 文件整理页面表格单元格样式，与转存记录页面保持一致 */
@@ -6028,6 +6042,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   justify-content: center;
   padding: 0 8px;
   transition: all 0.2s ease;
+  cursor: pointer; /* 可点击的按钮使用指针 */
 }
 
 #createTaskModal .input-group-text:hover {
@@ -6041,12 +6056,14 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   background-color: var(--button-gray-background-color) !important;
   border-color: var(--border-color) !important;
   color: var(--dark-text-color) !important;
+  cursor: default; /* 不可操作的后缀文本使用普通指针 */
 }
 
 #createTaskModal .input-group-text:has(input[type="checkbox"]):hover {
   background-color: var(--button-gray-background-color) !important;
   border-color: var(--border-color) !important;
   color: var(--dark-text-color) !important;
+  cursor: default; /* 悬停时也保持普通指针 */
 }
 
 /* 创建任务模态框中的按钮样式 - 完全复制任务列表样式 */
@@ -6781,6 +6798,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: default; /* 不可操作的类型/集数信息使用普通指针 */
 }
 
 .genre-slash {
@@ -7363,6 +7381,7 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: default; /* 不可操作的星期表头使用普通指针 */
 }
 
 /* 移除星期导航最后一列的右侧分割线，避免溢出 */
@@ -7948,9 +7967,14 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   border-color: #0A42CC !important;
 }
 
-/* 显示设置：拖拽时显示“移动”而非“添加”视觉提示 */
+/* 显示设置：拖拽时显示"移动"而非"添加"视觉提示 */
 .draggable-item {
   cursor: move; /* 显示移动光标 */
+}
+
+/* 显示设置可拖动配置项的标题也使用拖拽指针 */
+.draggable-item .input-group-text {
+  cursor: move !important; /* 可拖动配置项的标题使用拖拽指针 */
 }
 
 .draggable-item:active {
@@ -8020,7 +8044,7 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   font-size: 0.95rem; /* 与左侧类型按钮一致 */
 }
 
-/* 左侧“按”按钮：保留边框，去右边框，与中间边框重叠 */
+/* 左侧"按"按钮：保留边框，去右边框，与中间边框重叠 */
 .tasklist-sort-pill-icon {
   width: 31px;
   min-width: 31px;
@@ -8029,6 +8053,7 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   border-right: none !important;
   border-radius: 6px 0 0 6px;
   background-color: var(--button-gray-background-color);
+  cursor: default; /* 不可操作的"按"按钮使用普通指针 */
 }
 
 /* 中间下拉：白底，负责显示唯一可见边框（上下左右均有） */
@@ -8488,7 +8513,7 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
 }
 
 .tasklist-count-number {
-  cursor: text;
+  cursor: default;
   user-select: text;
 }
 
