@@ -8040,7 +8040,7 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   -webkit-appearance: none;
   -moz-appearance: none;
   background: #fff !important;
-  cursor: pointer;
+  cursor: default;
   background-image: none;
   height: 32px;
   line-height: 30px;
