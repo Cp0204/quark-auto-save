@@ -7441,6 +7441,13 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   display: none; /* 隐藏蓝色圆形背景 */
 }
 
+/* 桌面端：选中日期的号数高亮显示（使用 focus-border-color） */
+@media (min-width: 577px) {
+  .calendar-month-cell.selected .calendar-month-date {
+    color: var(--focus-border-color);
+  }
+}
+
 .calendar-month-cell.has-episodes {
   background-color: transparent !important; /* 去除有播出集背景色 */
 }
