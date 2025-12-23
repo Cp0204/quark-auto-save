@@ -5946,6 +5946,19 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   color: var(--dark-text-color) !important;
 }
 
+/* 文件选择模态框的取消按钮样式（通用样式，覆盖所有情况） */
+#fileSelectModal .modal-footer .btn-cancel {
+  background-color: var(--button-gray-background-color) !important;
+  border-color: var(--button-gray-background-color) !important;
+  color: var(--dark-text-color) !important;
+}
+
+#fileSelectModal .modal-footer .btn-cancel:hover {
+  background-color: #e0e2e6 !important;
+  border-color: #e0e2e6 !important;
+  color: var(--dark-text-color) !important;
+}
+
 /* --------------- 模态框层级管理 --------------- */
 /* 当从创建任务模态框中打开文件选择模态框时，确保文件选择模态框显示在上层 */
 #createTaskModal.show ~ #fileSelectModal {

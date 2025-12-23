@@ -2701,6 +2701,7 @@
               </span>
               共 {{ fileSelect.fileList.length }} 个项目<span v-if="fileSelect.selectedFiles.length > 0">，已选中 {{ fileSelect.selectedFiles.length }} 个项目</span>
             </div>
+            <button type="button" class="btn btn-primary btn-cancel" @click="$('#fileSelectModal').modal('hide')"><span class="btn-text">取消</span></button>
             <!-- 连续浏览按钮组（仅在资源搜索模式下且当前资源在搜索结果中时显示） -->
             <div v-if="fileSelect.selectShare && smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length > 1 && isCurrentResourceInSearchResults()" class="resource-navigation-buttons">
               <button type="button" class="btn btn-primary btn-sm" 
@@ -2716,7 +2717,6 @@
                 下一个
               </button>
             </div>
-            <button type="button" class="btn btn-primary btn-cancel" @click="$('#fileSelectModal').modal('hide')" v-if="fileSelect.moveMode">取消</button>
             <button type="button" class="btn btn-primary btn-sm" @click="selectCurrentFolder()">
               <span v-if="fileSelect.moveMode">移动到当前文件夹</span>
               <span v-else>{{fileSelect.selectShare ? '转存当前文件夹' : '保存到当前文件夹'}}</span>
@@ -2724,11 +2724,29 @@
             <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && fileSelect.index === -1 && createTask.taskData.taskname" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="generateCustomFolderPath(createTask.taskData)"></span>」文件夹</button>
             <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && fileSelect.index !== null && fileSelect.index >= 0 && formData.tasklist[fileSelect.index]" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="formData.tasklist[fileSelect.index].taskname"></span>」文件夹</button>
           </div>
+          <div class="modal-footer" v-if="!fileSelect.selectDir && !fileSelect.previewRegex">
+            <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+              共 {{ fileSelect.fileList.length }} 个项目
+            </div>
+            <button type="button" class="btn btn-primary btn-cancel" @click="$('#fileSelectModal').modal('hide')"><span class="btn-text">取消</span></button>
+          </div>
+          <div class="modal-footer" v-if="fileSelect.previewRegex && fileSelect.index === -1 && document.getElementById('fileSelectModal').getAttribute('data-modal-type') === 'preview'">
+            <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+              共 {{ fileSelect.fileList.filter(f => f.file_name_re && f.file_name_re !== '×' && !f.file_name_re.startsWith('×')).length }} 个项目可重命名
+            </div>
+            <button type="button" class="btn btn-primary btn-cancel" @click="$('#fileSelectModal').modal('hide')"><span class="btn-text">取消</span></button>
+          </div>
+          <div class="modal-footer" v-if="fileSelect.previewRegex && fileSelect.index >= 0 && formData.tasklist[fileSelect.index]">
+            <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+              共 {{ fileSelect.fileList.filter(f => f.file_name_re && f.file_name_re !== '×' && !f.file_name_re.startsWith('×')).length }} 个项目可重命名
+            </div>
+            <button type="button" class="btn btn-primary btn-cancel" @click="$('#fileSelectModal').modal('hide')"><span class="btn-text">取消</span></button>
+          </div>
           <div class="modal-footer" v-if="fileSelect.previewRegex && fileSelect.index === -1 && document.getElementById('fileSelectModal').getAttribute('data-modal-type') === 'preview-filemanager'">
             <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
               共 {{ fileSelect.fileList.filter(f => f.file_name_re && f.file_name_re !== '×' && !f.file_name_re.startsWith('×')).length }} 个项目可重命名
             </div>
-            <button type="button" class="btn btn-primary btn-cancel" @click="cancelPreviewRename">取消</button>
+            <button type="button" class="btn btn-primary btn-cancel" @click="cancelPreviewRename"><span class="btn-text">取消</span></button>
             <button type="button" class="btn btn-primary" :disabled="!fileSelect.canUndoRename || modalLoading" @click="undoPreviewRename">撤销</button>
             <button type="button" class="btn btn-primary" :disabled="modalLoading || !fileSelect.fileList.some(f => f.file_name_re && f.file_name_re !== '×' && !f.file_name_re.startsWith('×'))" @click="applyPreviewRename">
               重命名
