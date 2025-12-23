@@ -2649,8 +2649,8 @@
                            v-check-modal-overflow="key + '|file_name'">
                         <i class="bi" :class="getFileIconClass(file.file_name, file.dir)"></i> {{file.file_name}}
                       </div>
-                      <div class="expand-button" v-if="isModalTextTruncated(file.file_name, key, 'file_name')" @click.stop="toggleModalExpand(key, 'file_name')">
-                        <i :class="file._expandedFields && file._expandedFields.includes('file_name') ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
+                      <div class="expand-button" v-if="isModalTextTruncated(file.file_name, key, 'file_name')" @click.stop="toggleModalExpand(key, 'file_name', $event)">
+                        <i :class="file._expandedFields && file._expandedFields.length > 0 ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
                       </div>
                       <div v-if="file._expandedFields && file._expandedFields.includes('file_name')" style="white-space: normal; word-break: break-word; padding-right: 25px; display: block; width: 100%; position: relative;">
                         <i class="bi" :class="getFileIconClass(file.file_name, file.dir)"></i> {{file.file_name}}
@@ -2668,8 +2668,8 @@
                           <span class="episode-x">{{file.file_name_re || '×'}}</span>
                         </template>
                       </div>
-                      <div class="expand-button" v-if="isModalTextTruncated(file.file_name_re || '×', key, 'file_name_re')" @click.stop="toggleModalExpand(key, 'file_name_re')">
-                        <i :class="file._expandedFields && file._expandedFields.includes('file_name_re') ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
+                      <div class="expand-button" v-if="isModalTextTruncated(file.file_name_re || '×', key, 'file_name_re')" @click.stop="toggleModalExpand(key, 'file_name_re', $event)">
+                        <i :class="file._expandedFields && file._expandedFields.length > 0 ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
                       </div>
                       <div v-if="file._expandedFields && file._expandedFields.includes('file_name_re')" style="white-space: normal; word-break: break-word; padding-right: 25px; display: block; width: 100%; position: relative; color: inherit;">
                         <template v-if="file.file_name_re && file.file_name_re.startsWith('× ')">
@@ -11809,7 +11809,12 @@
           
           return file._isOverflowing && file._isOverflowing[field];
         },
-        toggleModalExpand(index, field) {
+        toggleModalExpand(index, field, event) {
+          // 阻止事件冒泡，避免触发行选择
+          if (event) {
+            event.stopPropagation();
+          }
+          
           // 获取当前文件
           const file = this.fileSelect.fileList[index];
           // 初始化_expandedFields属性（如果不存在）
@@ -11821,12 +11826,21 @@
           const fieldIndex = file._expandedFields.indexOf(field);
           const isExpanding = fieldIndex === -1;
           
+          // 所有可能需要展开的字段
+          const allFields = ['file_name', 'file_name_re'];
+          
           if (isExpanding) {
-            // 如果是展开操作，添加字段到展开列表
-            file._expandedFields.push(field);
+            // 如果是展开操作，展开该行所有超长字段
+            allFields.forEach(fieldName => {
+              // 只有超长的字段才需要展开
+              if (this.isModalTextTruncated(file[fieldName] || (fieldName === 'file_name_re' ? '×' : ''), index, fieldName) && 
+                  !file._expandedFields.includes(fieldName)) {
+                file._expandedFields.push(fieldName);
+              }
+            });
           } else {
-            // 如果是收起操作，从展开列表中移除字段
-            file._expandedFields.splice(fieldIndex, 1);
+            // 如果是收起操作，收起该行所有字段
+            file._expandedFields = [];
           }
           
           // 在下一个DOM更新周期中强制重新检测溢出状态
@@ -11837,16 +11851,15 @@
             }
             
             // 在收起状态下，通过设置为true确保展开按钮依然可见
-            if (!isExpanding) {
-              this.$set(file._isOverflowing, field, true);
-            }
+            allFields.forEach(fieldName => {
+              if (!isExpanding) {
+                this.$set(file._isOverflowing, fieldName, true);
+              }
+            });
             
             // 强制更新视图
             this.$forceUpdate();
           });
-          
-          // 阻止事件冒泡，避免触发行点击事件
-          event.stopPropagation();
         },
         // 文件选择模态框的排序方法
         sortFileList(field) {
