@@ -2421,7 +2421,7 @@
                              :title="getDateCountInfo(day.date)"
                              style="cursor: default;">
                           <span v-if="day.dayNumber === 1">
-                            {{ day.isCurrentMonth ? (calendar.currentDate.getMonth() + 1) : (calendar.currentDate.getMonth() + 2) }}/1
+                            {{ getDateMonthFromString(day.date) }}/1
                           </span>
                           <span v-else>
                             {{ day.dayNumber }}
@@ -4668,6 +4668,19 @@
         this.stopRuntimeLogPolling();
       },
       methods: {
+        // 从日期字符串（YYYY-MM-DD）中提取月份
+        getDateMonthFromString(dateStr) {
+          try {
+            if (!dateStr) return '';
+            const parts = dateStr.split('-');
+            if (parts.length >= 2) {
+              return parseInt(parts[1], 10);
+            }
+            return '';
+          } catch (e) {
+            return '';
+          }
+        },
         // 追剧日历：获取指定日期的计数信息（用于悬停提示）
         getDateCountInfo(date) {
           try {
@@ -5072,13 +5085,33 @@
         selectCalendarDate(day) {
           try {
             if (!day || !day.date) return;
-            // 如果点击的日期已经是选中日期，则取消选择，恢复为今天
-            if (this.calendar.selectedDate === day.date) {
-              const today = new Date();
-              this.calendar.selectedDate = this.formatDateToYYYYMMDD(today);
-            } else {
-              // 否则选中点击的日期
+            
+            // 解析点击的日期
+            const dateParts = day.date.split('-');
+            if (dateParts.length !== 3) return;
+            
+            const clickedYear = parseInt(dateParts[0], 10);
+            const clickedMonth = parseInt(dateParts[1], 10) - 1; // 月份从0开始
+            const clickedDay = parseInt(dateParts[2], 10);
+            
+            // 获取当前视图的年份和月份
+            const currentYear = this.calendar.currentDate.getFullYear();
+            const currentMonth = this.calendar.currentDate.getMonth();
+            
+            // 如果点击的日期不在当前月份，切换到对应月份
+            if (clickedYear !== currentYear || clickedMonth !== currentMonth) {
+              this.calendar.currentDate = new Date(clickedYear, clickedMonth, clickedDay);
               this.calendar.selectedDate = day.date;
+              this.initializeCalendarDates();
+            } else {
+              // 如果点击的日期已经是选中日期，则取消选择，恢复为今天
+              if (this.calendar.selectedDate === day.date) {
+                const today = new Date();
+                this.calendar.selectedDate = this.formatDateToYYYYMMDD(today);
+              } else {
+                // 否则选中点击的日期
+                this.calendar.selectedDate = day.date;
+              }
             }
           } catch (e) {}
         },
