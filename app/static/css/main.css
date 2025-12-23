@@ -8517,6 +8517,11 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   user-select: text;
 }
 
+/* 追剧日历计数模块：减少左侧与排序组件的间距8px（ml-2是8px，减少8px后为0） */
+.calendar-count-indicator {
+  margin-left: 0 !important;
+}
+
 /* 运行日志页面日志行样式：与运行日志弹窗保持一致 */
 .runlog-content .runlog-line {
   margin: 0;

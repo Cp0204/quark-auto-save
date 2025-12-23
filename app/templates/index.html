@@ -2170,6 +2170,13 @@
                         </span>
                       </div>
                     </div>
+                    <!-- 计数模块 -->
+                    <div
+                      class="tasklist-count-indicator calendar-count-indicator"
+                      :class="{'tasklist-count-single-digit': calendarCountValue < 10}"
+                      :title="calendarCountTooltip">
+                      <span class="tasklist-count-number">{{ calendarCountValue }}</span>
+                    </div>
                     
                     <!-- 日期切换按钮 -->
                     <div class="btn-group" v-if="calendar.viewMode === 'poster'">
@@ -2315,6 +2322,7 @@
                        v-for="(date, index) in calendar.weekDates" 
                        :key="index"
                        :class="{ 'selected': date.date === calendar.selectedDate }"
+                       :title="getDateCountInfo(date.date)"
                        @click="selectPosterDate(date.date)">
                     <div class="calendar-date-weekday">{{ date.weekday }}</div>
                     <div class="calendar-date-day">{{ date.day }}</div>
@@ -2409,7 +2417,9 @@
                              'selected': day.date === calendar.selectedDate
                            }"
                            @click="selectCalendarDate(day)">
-                        <div class="calendar-month-date">
+                        <div class="calendar-month-date" 
+                             :title="getDateCountInfo(day.date)"
+                             style="cursor: default;">
                           <span v-if="day.dayNumber === 1">
                             {{ day.isCurrentMonth ? (calendar.currentDate.getMonth() + 1) : (calendar.currentDate.getMonth() + 2) }}/1
                           </span>
@@ -3808,6 +3818,135 @@
           }
         },
 
+        // 追剧日历：选中日期当天的节目数（去重后的节目名称数量）
+        calendarSelectedDateShowCount() {
+          try {
+            if (this.calendar.manageMode) return 0;
+            if (!this.calendar.selectedDate) return 0;
+            const episodes = this.getEpisodesByDate(this.calendar.selectedDate);
+            if (!episodes || episodes.length === 0) return 0;
+            const showNames = new Set();
+            episodes.forEach(episode => {
+              if (episode && episode.show_name) {
+                showNames.add(episode.show_name);
+              }
+            });
+            return showNames.size;
+          } catch (e) {
+            return 0;
+          }
+        },
+
+        // 追剧日历：选中日期当天的集数（始终按实际分集数计算，不考虑合并集）
+        calendarSelectedDateEpisodeCount() {
+          try {
+            if (this.calendar.manageMode) return 0;
+            if (!this.calendar.selectedDate) return 0;
+            const episodes = this.getEpisodesByDate(this.calendar.selectedDate);
+            if (!episodes || episodes.length === 0) return 0;
+            
+            // 始终按实际分集数计算，合并集需要展开计算
+            let totalCount = 0;
+            episodes.forEach(episode => {
+              if (episode && episode.is_merged && episode.original_episodes && episode.original_episodes.length > 0) {
+                // 合并集：使用原始集数
+                totalCount += episode.original_episodes.length;
+              } else {
+                // 单集：计为1
+                totalCount += 1;
+              }
+            });
+            return totalCount;
+          } catch (e) {
+            return 0;
+          }
+        },
+
+        // 追剧日历：内容管理模式下的已匹配节目数
+        calendarMatchedShowCount() {
+          try {
+            if (!this.calendar.manageMode) return 0;
+            const tasks = this.managementTasksFiltered || [];
+            return tasks.filter(task => {
+              return task && (task.match_tmdb_id || (task.matched_show_name && task.matched_show_name.trim() !== ''));
+            }).length;
+          } catch (e) {
+            return 0;
+          }
+        },
+
+        // 追剧日历：内容管理模式下的未匹配任务数
+        calendarUnmatchedTaskCount() {
+          try {
+            if (!this.calendar.manageMode) return 0;
+            const tasks = this.managementTasksFiltered || [];
+            return tasks.filter(task => {
+              return !task || (!task.match_tmdb_id && (!task.matched_show_name || task.matched_show_name.trim() === ''));
+            }).length;
+          } catch (e) {
+            return 0;
+          }
+        },
+
+        // 追剧日历：计数模块显示的值
+        calendarCountValue() {
+          try {
+            if (this.calendar.manageMode) {
+              // 内容管理模式：显示匹配和未匹配的总数
+              const matched = this.calendarMatchedShowCount;
+              const unmatched = this.calendarUnmatchedTaskCount;
+              return matched + unmatched;
+            } else {
+              // 海报视图和日历视图：显示选中日期当天的集数
+              return this.calendarSelectedDateEpisodeCount;
+            }
+          } catch (e) {
+            return 0;
+          }
+        },
+
+        // 追剧日历：计数模块的悬停信息
+        calendarCountTooltip() {
+          try {
+            if (this.calendar.manageMode) {
+              // 内容管理模式
+              const matched = this.calendarMatchedShowCount;
+              const unmatched = this.calendarUnmatchedTaskCount;
+              
+              // 全部匹配的情况
+              if (matched > 0 && unmatched === 0) {
+                return `共${matched}个节目`;
+              }
+              
+              // 全部未匹配的情况
+              if (matched === 0 && unmatched > 0) {
+                return `共${unmatched}个未匹配任务`;
+              }
+              
+              // 部分匹配的情况
+              if (matched > 0 && unmatched > 0) {
+                return `共${matched}个节目，${unmatched}个未匹配任务`;
+              }
+              
+              // 匹配和未匹配的数量全都是0的情况（参考总集数为0的处理）
+              return '暂无数据';
+            } else {
+              // 海报视图和日历视图
+              const showCount = this.calendarSelectedDateShowCount;
+              const episodeCount = this.calendarSelectedDateEpisodeCount;
+              
+              if (showCount > 0 && episodeCount > 0) {
+                return `当日播出${showCount}个节目，共${episodeCount}集`;
+              }
+              
+              // 如果节目数和集数都为0，参考总集数为0的处理
+              return '暂无数据';
+            }
+          } catch (e) {
+            return '暂无数据';
+          }
+        },
+
         // 判断是否应该显示任务列表（避免排序闪烁）
         shouldShowTasklist() {
           const { by } = this.tasklistSort || { by: 'index' };
@@ -4529,6 +4668,45 @@
         this.stopRuntimeLogPolling();
       },
       methods: {
+        // 追剧日历：获取指定日期的计数信息（用于悬停提示）
+        getDateCountInfo(date) {
+          try {
+            if (!date) return '暂无数据';
+            if (this.calendar.manageMode) return '暂无数据';
+            
+            const episodes = this.getEpisodesByDate(date);
+            if (!episodes || episodes.length === 0) return '暂无数据';
+            
+            // 计算节目数（去重）
+            const showNames = new Set();
+            episodes.forEach(episode => {
+              if (episode && episode.show_name) {
+                showNames.add(episode.show_name);
+              }
+            });
+            const showCount = showNames.size;
+            
+            // 计算集数（始终按实际分集数计算，不考虑合并集）
+            let episodeCount = 0;
+            episodes.forEach(episode => {
+              if (episode && episode.is_merged && episode.original_episodes && episode.original_episodes.length > 0) {
+                // 合并集：使用原始集数
+                episodeCount += episode.original_episodes.length;
+              } else {
+                // 单集：计为1
+                episodeCount += 1;
+              }
+            });
+            
+            if (showCount > 0 && episodeCount > 0) {
+              return `当日播出${showCount}个节目，共${episodeCount}集`;
+            }
+            
+            return '暂无数据';
+          } catch (e) {
+            return '暂无数据';
+          }
+        },
         // 计算来源徽标 class：多来源时使用 multi-source，单来源使用小写来源名
         getSourceBadgeClass(source) {
           try {
