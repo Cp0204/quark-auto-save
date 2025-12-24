@@ -14,12 +14,13 @@
   --focus-border-color: #0D53FF; /* 输入框聚焦时的边框颜色 */
   --shadow-spread: 0; /* 统一阴影扩散距离设为0 */
   --button-gray-background-color: #ededf0; /* 按钮灰色背景颜色 */
+  --modal-border-radius: 12px; /* 模态框弹窗和登录模块的统一圆角 */
 }
 
 /* --------------- 基础样式 --------------- */
 body {
   font-size: 1rem;
-  padding-bottom: 110px;
+  padding-bottom: 15px;
   color: var(--dark-text-color);
 }
 
@@ -188,8 +189,13 @@ main .row.title {
   margin-left: -15px; /* 添加负边距向左移动2px */
 }
 
-/* 精准调整：QASX API 模块与上方模块的垂直间距减小 8px */
-main .row.title[title^="QASX API"] {
+/* 精准调整：性能设置模块与上方模块的垂直间距减小 8px */
+main .row.title[title*="配置文件加载、数据缓存和自动刷新的关键参数"] {
+  margin-top: 12px;
+}
+
+/* 精准调整：API 模块与上方模块的垂直间距减小 8px */
+main .row.title[title*="配置与任务处理、节目元数据获取及外部服务交互相关的API访问凭证"] {
   margin-top: 12px;
 }
 
@@ -202,6 +208,7 @@ main .row.title h2 {
   margin-top: 0;
   line-height: 1.5;
   padding-left: 0px; /* 标题文字左内边距 */
+  cursor: default; /* 不可操作的模块大标题使用普通指针 */
 }
 
 /* 标题旁边的问号图标容器样式 */
@@ -1104,6 +1111,7 @@ select.form-control {
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer; /* 可点击的图标按钮使用指针 */
 }
 
 .input-group-text:has(.bi-google):hover,
@@ -1166,6 +1174,7 @@ textarea.form-control {
   border-color: var(--border-color) !important; /* 使用变量替代硬编码颜色 */
   background-color: #ededf0!important; /* 修改背景色为更浅的灰色 */
   border-width: 1px !important; /* 确保边框宽度为1px */
+  cursor: default; /* 不可操作的配置选项标题使用普通指针 */
 }
 
 .input-group-prepend .input-group-text {
@@ -1253,6 +1262,7 @@ table.table thead th {
   height: 40px !important; /* 确保表头高度为40px */
   line-height: 24px !important; /* 设置行高以确保文字垂直居中 */
   box-sizing: border-box !important; /* 确保边框包含在总高度内 */
+  cursor: default; /* 不可操作的表头使用普通指针 */
 }
 
 /* 表头悬停样式 */
@@ -1457,7 +1467,7 @@ button.close:focus,
 }
 
 #logModal .modal-content {
-  border-radius: 6px;
+  border-radius: var(--modal-border-radius);
   border: 1px solid var(--border-color);
   box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
 }
@@ -1467,8 +1477,8 @@ button.close:focus,
   background-color: #fff;
   border-bottom: 1px solid var(--border-color);
   padding: 11px 16px;
-  border-top-left-radius: 6px;
-  border-top-right-radius: 6px;
+  border-top-left-radius: var(--modal-border-radius);
+  border-top-right-radius: var(--modal-border-radius);
 }
 
 #logModal .modal-title {
@@ -1477,6 +1487,7 @@ button.close:focus,
   color: var(--dark-text-color);
   display: flex;
   align-items: center;
+  cursor: default; /* 不可操作的模态框标题使用普通指针 */
 }
 
 #logModal .modal-title b {
@@ -1546,7 +1557,7 @@ button.close:focus,
 #fileSelectModal .modal-content,
 #createTaskModal .modal-content,
 #editMetadataModal .modal-content {
-  border-radius: 6px;
+  border-radius: var(--modal-border-radius);
   border: 1px solid var(--border-color);
   box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
 }
@@ -1558,8 +1569,8 @@ button.close:focus,
   background-color: #fff;
   border-bottom: 1px solid var(--border-color);
   padding: 11px 16px;
-  border-top-left-radius: 6px;
-  border-top-right-radius: 6px;
+  border-top-left-radius: var(--modal-border-radius);
+  border-top-right-radius: var(--modal-border-radius);
 }
 
 #fileSelectModal .modal-title,
@@ -1570,6 +1581,7 @@ button.close:focus,
   color: var(--dark-text-color);
   display: flex;
   align-items: center;
+  cursor: default; /* 不可操作的模态框标题使用普通指针 */
 }
 
 #fileSelectModal .modal-title b,
@@ -1663,6 +1675,7 @@ button.close:focus,
 /* 编辑元数据模态框：输入前标题灰底，统一输入高度与字体，与创建任务保持一致 */
 #editMetadataModal .input-group-prepend .input-group-text {
   background-color: var(--button-gray-background-color) !important;
+  cursor: default; /* 不可操作的前缀文本使用普通指针 */
 }
 #editMetadataModal .form-control,
 #editMetadataModal .input-group-text,
@@ -1839,6 +1852,7 @@ button.close:focus,
   z-index: 5;
   vertical-align: middle; /* 添加：垂直居中对齐 */
   height: 40px !important; /* 添加：自动高度，确保与内容一致 */
+  cursor: default; /* 不可操作的表头使用普通指针 */
 }
 
 /* 模态框表格列宽设置 - 基于内容类型 */
@@ -2253,7 +2267,7 @@ div.jsoneditor-tree button.jsoneditor-button:focus {
 .login-card {
   width: 340px;
   background-color: white;
-  border-radius: 10px;
+  border-radius: var(--modal-border-radius);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   padding: 0;
   text-align: center;
@@ -2394,7 +2408,7 @@ div.jsoneditor-tree button.jsoneditor-button:focus {
   transition: color 0.2s; /* 添加颜色过渡效果 */
 }
 
-/* 侧边栏菜单项图标样式 */
+/* 侧边栏菜导航图标样式 */
 .sidebar .nav-link .bi-list-ul {
   font-size: 1.1rem;
   position: relative;
@@ -2423,8 +2437,12 @@ div.jsoneditor-tree button.jsoneditor-button:focus {
   font-size: 0.94rem;
 }
 
+.sidebar .nav-link .bi-terminal {
+  font-size: 0.95rem;
+}
+
 .sidebar .nav-link .bi-power {
-  font-size: 1.27rem;
+  font-size: 1.26rem;
 }
 
 .bottom-links .nav-link .bi-book {
@@ -2722,6 +2740,11 @@ body {
 .small,
 .col-form-label {
   color: var(--dark-text-color);
+}
+
+/* 所有模态框标题使用普通指针 */
+.modal-title {
+  cursor: default; /* 不可操作的模态框标题使用普通指针 */
 }
 
 /* 设置输入框占位符的颜色 */
@@ -4913,6 +4936,17 @@ select.task-filter-select,
   max-width: 80%;
 }
 
+#batchRenameModal .modal-content {
+  border-radius: var(--modal-border-radius);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
+}
+
+#batchRenameModal .modal-header {
+  border-top-left-radius: var(--modal-border-radius);
+  border-top-right-radius: var(--modal-border-radius);
+}
+
 #batchRenameModal .table {
   margin-bottom: 0;
 }
@@ -5227,6 +5261,7 @@ table.selectable-files th {
   height: 40px !important; /* 确保表头高度为40px */
   line-height: 24px !important; /* 设置行高以确保文字垂直居中 */
   box-sizing: border-box !important; /* 确保边框包含在总高度内 */
+  cursor: default; /* 不可操作的表头使用普通指针 */
 }
 
 /* 文件整理页面表格单元格样式，与转存记录页面保持一致 */
@@ -5911,6 +5946,19 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   color: var(--dark-text-color) !important;
 }
 
+/* 文件选择模态框的取消按钮样式（通用样式，覆盖所有情况） */
+#fileSelectModal .modal-footer .btn-cancel {
+  background-color: var(--button-gray-background-color) !important;
+  border-color: var(--button-gray-background-color) !important;
+  color: var(--dark-text-color) !important;
+}
+
+#fileSelectModal .modal-footer .btn-cancel:hover {
+  background-color: #e0e2e6 !important;
+  border-color: #e0e2e6 !important;
+  color: var(--dark-text-color) !important;
+}
+
 /* --------------- 模态框层级管理 --------------- */
 /* 当从创建任务模态框中打开文件选择模态框时，确保文件选择模态框显示在上层 */
 #createTaskModal.show ~ #fileSelectModal {
@@ -6007,6 +6055,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   justify-content: center;
   padding: 0 8px;
   transition: all 0.2s ease;
+  cursor: pointer; /* 可点击的按钮使用指针 */
 }
 
 #createTaskModal .input-group-text:hover {
@@ -6020,12 +6069,14 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   background-color: var(--button-gray-background-color) !important;
   border-color: var(--border-color) !important;
   color: var(--dark-text-color) !important;
+  cursor: default; /* 不可操作的后缀文本使用普通指针 */
 }
 
 #createTaskModal .input-group-text:has(input[type="checkbox"]):hover {
   background-color: var(--button-gray-background-color) !important;
   border-color: var(--border-color) !important;
   color: var(--dark-text-color) !important;
+  cursor: default; /* 悬停时也保持普通指针 */
 }
 
 /* 创建任务模态框中的按钮样式 - 完全复制任务列表样式 */
@@ -6521,8 +6572,24 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 .discovery-rating.status-ended { color: #ff4d4f; }  /* 红色 */
 .discovery-rating.status-other { color: #00C853; }  /* 绿色 */
 
-/* 追剧日历 - 已转存标识 */
-.calendar-transferred-badge { color: #00C853; padding: 2px 8px 2px 7.5px; }
+/* 追剧日历 - 已转存/已播出标识 */
+.calendar-transferred-badge { 
+  color: #00C853; 
+  padding: 2px 0; /* 基础上下 padding，左右 padding 由子类设置 */
+}
+
+/* 已转存集 */
+.calendar-transferred-badge-transferred {
+  padding-left: 9px;
+  padding-right: 10px;
+}
+
+/* 已播出未转存集 */
+.calendar-transferred-badge-aired {
+  padding-left: 7.5px;
+  padding-right: 8px;
+}
+
 .calendar-transferred-badge i {
   line-height: 1;
   display: inline-block;
@@ -6530,10 +6597,10 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   /* 使用多向阴影模拟加粗（图标为字体，font-weight不生效） */
   text-shadow:
     0 0 0 currentColor,
-    0 0.45px 0 currentColor,
-    0 -0.45px 0 currentColor,
-    0.45px 0 0 currentColor,
-    -0.45px 0 0 currentColor;
+    0 0.3px 0 currentColor,
+    0 -0.3px 0 currentColor,
+    0.3px 0 0 currentColor,
+    -0.3px 0 0 currentColor;
 }
 
 .discovery-create-task {
@@ -6744,6 +6811,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: default; /* 不可操作的类型/集数信息使用普通指针 */
 }
 
 .genre-slash {
@@ -6789,6 +6857,12 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   .discovery-grid {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   }
+}
+
+/* 影视发现页面与任务列表海报视图统一底部边距 */
+/* 使用 .discovery-controls 作为标识，因为只有影视发现页面有这个class */
+.discovery-controls ~ * .discovery-grid {
+  margin-bottom: 0.5px;
 }
 
 /* 文件整理页面命名预览模式下的展开状态文本位置调整 - 最高优先级 */
@@ -7025,6 +7099,11 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   .calendar-controls .btn-group {
     margin: 0; /* 由 gap 控制间距 */
   }
+  
+  /* 追剧日历页面的排序组件：覆盖任务列表的 -4px 偏移，保持与其他按钮对齐 */
+  .calendar-controls .tasklist-sort-controls {
+    margin-top: 0 !important;
+  }
 }
 
 /* 统一日历控制按钮的样式 */
@@ -7117,10 +7196,17 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   height: 32px;
   font-size: 0.95rem;
   color: var(--dark-text-color);
-  cursor: default;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
 }
 
-.calendar-date-item.today {
+.calendar-date-item:hover:not(.selected) {
+  background-color: var(--dark-text-color);
+  border-color: var(--dark-text-color);
+  color: white;
+}
+
+.calendar-date-item.selected {
   background-color: var(--focus-border-color);
   border-color: var(--focus-border-color);
   color: white;
@@ -7302,12 +7388,13 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   font-size: 0.95rem;
   color: var(--dark-text-color);
   border-right: 1px solid var(--border-color); /* 显示内部分割线 */
-  background-color: #f7f7f9;
+  background-color: var(--button-gray-background-color);
   /* 防止文本被挤压成竖排 */
   min-width: 100px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: default; /* 不可操作的星期表头使用普通指针 */
 }
 
 /* 移除星期导航最后一列的右侧分割线，避免溢出 */
@@ -7386,6 +7473,13 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   display: none; /* 隐藏蓝色圆形背景 */
 }
 
+/* 桌面端：选中日期的号数高亮显示（使用 focus-border-color） */
+@media (min-width: 577px) {
+  .calendar-month-cell.selected .calendar-month-date {
+    color: var(--focus-border-color);
+  }
+}
+
 .calendar-month-cell.has-episodes {
   background-color: transparent !important; /* 去除有播出集背景色 */
 }
@@ -7402,7 +7496,7 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   font-size: 0.85rem;
   padding: 6px; /* 等距6px */
   line-height: 1; /* 统一行高，消除上下视觉不等距 */
-  /* 日历视图：默认保持原按钮灰背景 */
+  /* 日历视图：默认保持原按钮灰背景（未转存且未播出） */
   background-color: #f7f7f9;
   border-radius: 6px; /* 圆角6px */
   display: flex;
@@ -7410,9 +7504,14 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   gap: 4px;
 }
 
-/* 日历视图：仅当该集已达转存进度时，卡片背景改为导航悬停浅蓝色 */
+/* 日历视图：当该集已达转存进度时，卡片背景改为导航悬停浅蓝色 */
 .calendar-month-episode:has(.episode-number.episode-number-reached) {
   background-color: #e6f1ff;
+}
+
+/* 日历视图：未转存但已播出的集，卡片背景为浅绿色 */
+.calendar-month-episode:has(.episode-number.episode-number-aired):not(:has(.episode-number.episode-number-reached)) {
+  background-color: #E6F7EE;
 }
 
 .episode-title {
@@ -7584,10 +7683,13 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   }
   /* 超小模式：表格内部的卡片背景色覆盖（仅表格体内紧凑卡片） */
   .calendar-month-body .calendar-month-episode {
-    background-color: var(--border-color) !important; /* 普通状态背景色 */
+    background-color: var(--border-color) !important; /* 普通状态背景色（未转存且未播出） */
   }
   .calendar-month-body .calendar-month-episode:has(.episode-number.episode-number-reached) {
     background-color: var(--focus-border-color) !important; /* 已转存背景色 */
+  }
+  .calendar-month-body .calendar-month-episode:has(.episode-number.episode-number-aired):not(:has(.episode-number.episode-number-reached)) {
+    background-color: #28a745 !important; /* 已播出但未转存背景色 */
   }
 
 }
@@ -7603,11 +7705,14 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
     padding: 6px;
     line-height: 1;
     transform: none; /* 还原不上移 */
-    background-color: #f7f7f9; /* 桌面端默认背景 */
+    background-color: #f7f7f9; /* 桌面端默认背景：未转存且未播出 */
     border-radius: 6px;
   }
   .calendar-selected-episodes .calendar-month-episode:has(.episode-number.episode-number-reached) {
     background-color: #e6f1ff; /* 桌面端已转存背景 */
+  }
+  .calendar-selected-episodes .calendar-month-episode:has(.episode-number.episode-number-aired):not(:has(.episode-number.episode-number-reached)) {
+    background-color: #E6F7EE; /* 桌面端已播出但未转存背景 */
   }
 
   /* 移动端：下方列表的集号样式与桌面端一致（显示完整 SxxExx） */
@@ -7875,9 +7980,14 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   border-color: #0A42CC !important;
 }
 
-/* 显示设置：拖拽时显示“移动”而非“添加”视觉提示 */
+/* 显示设置：拖拽时显示"移动"而非"添加"视觉提示 */
 .draggable-item {
   cursor: move; /* 显示移动光标 */
+}
+
+/* 显示设置可拖动配置项的标题也使用拖拽指针 */
+.draggable-item .input-group-text {
+  cursor: move !important; /* 可拖动配置项的标题使用拖拽指针 */
 }
 
 .draggable-item:active {
@@ -7894,10 +8004,16 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   cursor: text;
 }
 
+/* QASX API Token 显示框背景色：与普通输入框保持一致，覆盖 disabled 状态的灰色背景 */
+.form-control.token-display:disabled,
+.form-control.token-display[readonly] {
+  background-color: #fff !important; /* 与普通输入框背景色保持一致 */
+}
+
 /* TMDB 说明文本样式与链接样式（继承颜色、无下划线、悬停不变） */
 .tmdb-attribution {
   margin-top: 4px;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   color: var(--light-text-color);
 }
 .tmdb-attribution a {
@@ -7907,7 +8023,7 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
 .tmdb-attribution a:hover,
 .tmdb-attribution a:focus {
   text-decoration: none;
-  color: inherit;
+  color: var(--focus-border-color);
 }
 
 /* 任务列表：类型筛选按钮与上方名称筛选区域的间距 */
@@ -7941,7 +8057,7 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   font-size: 0.95rem; /* 与左侧类型按钮一致 */
 }
 
-/* 左侧“按”按钮：保留边框，去右边框，与中间边框重叠 */
+/* 左侧"按"按钮：保留边框，去右边框，与中间边框重叠 */
 .tasklist-sort-pill-icon {
   width: 31px;
   min-width: 31px;
@@ -7950,6 +8066,7 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   border-right: none !important;
   border-radius: 6px 0 0 6px;
   background-color: var(--button-gray-background-color);
+  cursor: default; /* 不可操作的"按"按钮使用普通指针 */
 }
 
 /* 中间下拉：白底，负责显示唯一可见边框（上下左右均有） */
@@ -7961,7 +8078,7 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   -webkit-appearance: none;
   -moz-appearance: none;
   background: #fff !important;
-  cursor: pointer;
+  cursor: default;
   background-image: none;
   height: 32px;
   line-height: 30px;
@@ -8409,10 +8526,131 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
 }
 
 .tasklist-count-number {
-  cursor: text;
+  cursor: default;
   user-select: text;
 }
 
+/* 追剧日历计数模块：减少左侧与排序组件的间距8px（ml-2是8px，减少8px后为0） */
+.calendar-count-indicator {
+  margin-left: 0 !important;
+}
+
+/* 运行日志页面日志行样式：与运行日志弹窗保持一致 */
+.runlog-content .runlog-line {
+  margin: 0;
+  padding: 0 0 0 1.5px; /* 桌面端日志行左边距 */
+  font-family: monospace;
+  font-size: 0.85rem; /* 与 #logModal pre 字号一致 */
+  line-height: 1.5;   /* 行高与弹窗一致 */
+  color: var(--dark-text-color);
+  /* 桌面端：超长内容不换行，直接截断显示 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 运行日志页面：级别可点击筛选样式 */
+.runlog-content .log-level-clickable {
+  cursor: pointer;
+  transition: color 0.2s ease-in-out;
+  user-select: text; /* 允许选中文本，确保复制时包含级别信息 */
+}
+
+.runlog-content .log-level-clickable:hover {
+  color: var(--focus-border-color) !important;
+}
+
+/* 运行日志页面：内容中可点击的快速筛选元素样式（>>> 和任务名称） */
+.runlog-content .runtime-log-arrow-clickable,
+.runlog-content .runtime-log-taskname-clickable {
+  cursor: pointer;
+  user-select: text; /* 允许正常选中复制文本 */
+}
+
+.runlog-content .runtime-log-arrow-clickable:hover,
+.runlog-content .runtime-log-taskname-clickable:hover {
+  color: var(--focus-border-color);
+}
+
+/* --------------- 页面底部元素统一间距 --------------- */
+/* 转存记录和文件整理页面：分页控制区域距离页面底部统一为 20px */
+.pagination-container {
+  margin-bottom: -90px !important;
+}
+
+/* 日历表格距离页面底部为 20px */
+/* 同时覆盖 padding-bottom，确保样式生效 */
+.calendar-month-mode {
+  margin-bottom: -86px !important;
+  padding-bottom: 20px !important;
+}
+
 .calendar-filter-row {
-  margin-bottom: 20px; /* 桌面端保持与下方组件净间距 8px（抵消分类与控制按钮的 -12px 上移） */
+  margin-bottom: 20px;
+}
+
+/* --------------- 运行日志页面 --------------- */
+.runlog-content {
+  min-height: 360px;
+  max-height: calc(100vh - 146px);
+  overflow-y: auto;
+  /* 通过负margin抵消body的padding-bottom(15px)，确保日志显示区域底部距离页面底部为20px */
+  margin-bottom: -15px !important;
+  padding: 0 0 20px 0;
+}
+
+@media (max-width: 768px) {
+  .runlog-content {
+    max-height: none;
+    min-height: 240px;
+    /* 窄屏设备：支持横向滚动，完整显示超长内容 */
+    overflow-x: auto;
+  }
+  
+  /* 窄屏设备：日志行允许横向滚动，完整显示内容 */
+  .runlog-content .runlog-line {
+    white-space: nowrap; /* 不换行，保持单行 */
+    overflow: unset; /* 移除overflow限制，允许内容溢出到父容器 */
+    text-overflow: unset; /* 移除省略号，完整显示 */
+    padding-left: 5.5px; /* 窄屏设备日志行左边距 */
+  }
+}
+
+/* API 配置模块样式 */
+.api-config-group + .api-config-group {
+  margin-top: 8px;
+}
+
+.api-label-link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.api-label-link:hover,
+.api-label-link:focus {
+  color: var(--focus-border-color);
+  text-decoration: none;
+}
+
+/* 海报悬停信息行数限制样式 */
+/* 单行限制：最多显示一行，超长部分截断显示省略号 */
+.discovery-poster-overlay .info-line-single,
+.calendar-poster-overlay .info-line-single {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+/* 双行限制：最多显示两行，如果两行还不能显示完整，超长部分截断显示省略号 */
+.discovery-poster-overlay .info-line-double,
+.calendar-poster-overlay .info-line-double {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  word-wrap: break-word;
 }

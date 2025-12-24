@@ -18,6 +18,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.date import DateTrigger
 from queue import Queue
+from collections import deque
 from sdk.cloudsaver import CloudSaver
 try:
     from sdk.pansou import PanSou
@@ -28,6 +29,7 @@ import subprocess
 import requests
 import hashlib
 import logging
+from logging.handlers import RotatingFileHandler
 import base64
 import sys
 import os
@@ -53,45 +55,135 @@ from sdk.douban_service import douban_service
 # 导入追剧日历相关模块
 from utils.task_extractor import TaskExtractor
 from sdk.tmdb_service import TMDBService
+from sdk.trakt_service import TraktService
 from sdk.db import CalendarDB
 from sdk.db import RecordDB
 from utils.task_extractor import TaskExtractor
 
-def get_effective_date_for_aired_count():
+def _get_local_timezone() -> str:
     """
-    根据用户设置的播出集数刷新时间，返回应该用于计算已播出集数的日期。
-    如果在刷新时间之前，返回昨天的日期；如果在刷新时间之后，返回今天的日期。
-    这样可以确保在刷新时间之前，已播出集数不会被提前更新。
+    获取本地时区配置，用于 Trakt 播出时间转换与本地时间判断。
+    默认为 Asia/Shanghai（北京时间），保证向后兼容。
     """
-    from datetime import datetime as _dt, timedelta
-    now = _dt.now()
-    today = now.strftime('%Y-%m-%d')
+    try:
+        if isinstance(config_data, dict):
+            tz = config_data.get("local_timezone") or "Asia/Shanghai"
+            return str(tz) or "Asia/Shanghai"
+    except Exception:
+        pass
+    return "Asia/Shanghai"
+
+def is_episode_aired(tmdb_id: int, season_number: int, episode_number: int, now_local_dt) -> bool:
+    """
+    单集是否已播出判定：
+    1. 始终使用 air_date_local（已考虑 air_date_offset）作为日期判断
+    2. 如果 air_date_local 不存在，说明播出时间未知，返回 False
+    3. 始终使用 local_air_time 作为时间判断，如果不存在则使用播出集数刷新时间
+    """
+    try:
+        tmdb_id = int(tmdb_id)
+        season_number = int(season_number)
+        episode_number = int(episode_number)
+    except Exception:
+        return False
+
+    # 从数据库获取集的播出时间信息
+    try:
+        cal_db = CalendarDB()
+        cur = cal_db.conn.cursor()
+        cur.execute(
+            """
+            SELECT air_date_local
+            FROM episodes
+            WHERE tmdb_id=? AND season_number=? AND episode_number=?
+            """,
+            (tmdb_id, season_number, episode_number),
+        )
+        row = cur.fetchone()
+        if not row:
+            return False
+        air_date_local = row[0]
+    except Exception:
+        return False
+
+    # 如果 air_date_local 不存在，说明播出时间未知，返回 False
+    if not air_date_local:
+        return False
+
+    # 获取节目级播出时间配置
+    schedule = {}
+    try:
+        schedule = CalendarDB().get_show_air_schedule(tmdb_id) or {}
+    except Exception:
+        schedule = {}
     
-    # 获取用户配置的刷新时间，默认 00:00
-    perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
-    refresh_time_str = perf.get('aired_refresh_time', '00:00')
+    # 优先使用 local_air_time，如果不存在（为空或 None）则使用全局播出集数刷新时间
+    local_air_time = (schedule.get("local_air_time") or "").strip() or None
+    perf = config_data.get("performance", {}) if isinstance(config_data, dict) else {}
+    refresh_time_str = perf.get("aired_refresh_time", "00:00")
+    
+    # 始终使用 local_air_time（如果存在），否则使用播出集数刷新时间
+    time_to_use = local_air_time if local_air_time else refresh_time_str
+    
+    # 解析时间（HH:MM）
+    hh, mm = 0, 0
+    try:
+        parts = str(time_to_use).split(":")
+        if len(parts) == 2:
+            hh = int(parts[0])
+            mm = int(parts[1])
+    except Exception:
+        hh, mm = 0, 0
+
+    # 组合日期和时间
+    try:
+        dt_str = f"{air_date_local} {hh:02d}:{mm:02d}:00"
+        dt_ep_local = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+        # 如果 now_local_dt 有时区信息，为 dt_ep_local 也添加相同的时区信息
+        if getattr(now_local_dt, "tzinfo", None) is not None:
+            dt_ep_local = dt_ep_local.replace(tzinfo=now_local_dt.tzinfo)
+        result = dt_ep_local.timestamp() <= now_local_dt.timestamp()
+        return result
+    except Exception as _e:
+        logging.debug(f"is_episode_aired 日期+时间判定异常: tmdb_id={tmdb_id}, season={season_number}, ep={episode_number}, error={_e}")
+        import traceback
+        logging.debug(f"异常堆栈: {traceback.format_exc()}")
+        return False
+
+def compute_aired_count_by_episode_check(tmdb_id: int, season_number: int, now_local_dt=None) -> int:
+    """
+    通过逐集调用 is_episode_aired 计算已播出集数（考虑播出时间）
+    这是正确的计算方式，应该替代所有简单的日期比较逻辑
+    """
+    try:
+        from zoneinfo import ZoneInfo as _ZoneInfo
+        local_tz = _ZoneInfo(_get_local_timezone())
+        if now_local_dt is None:
+            now_local_dt = datetime.now(local_tz)
+    except Exception:
+        if now_local_dt is None:
+            now_local_dt = datetime.now()
     
     try:
-        refresh_parts = refresh_time_str.split(':')
-        if len(refresh_parts) == 2:
-            refresh_hour = int(refresh_parts[0])
-            refresh_minute = int(refresh_parts[1])
-            current_hour = now.hour
-            current_minute = now.minute
-            
-            # 当前时间 >= 刷新时间，使用今天的日期
-            if current_hour > refresh_hour or (current_hour == refresh_hour and current_minute >= refresh_minute):
-                return today
-            else:
-                # 当前时间 < 刷新时间，使用昨天的日期
-                yesterday = (now - timedelta(days=1)).strftime('%Y-%m-%d')
-                return yesterday
-        else:
-            # 解析失败时默认使用今天的日期（向后兼容）
-            return today
+        cal_db = CalendarDB()
+        cur = cal_db.conn.cursor()
+        cur.execute(
+            """
+            SELECT episode_number FROM episodes
+            WHERE tmdb_id=? AND season_number=?
+            """,
+            (int(tmdb_id), int(season_number)),
+        )
+        aired_count = 0
+        for (ep_no,) in cur.fetchall() or []:
+            try:
+                if is_episode_aired(int(tmdb_id), int(season_number), int(ep_no), now_local_dt):
+                    aired_count += 1
+            except Exception:
+                continue
+        return aired_count
     except Exception:
-        # 解析失败时默认使用今天的日期（向后兼容）
-        return today
+        return 0
 
 def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
     """为任务列表注入日历相关元数据：节目状态、最新季处理后名称、已转存/已播出/本季总集数。
@@ -184,43 +276,31 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
         except Exception:
             transferred_by_task = {}
 
-        # 统计"已播出集数"：读取本地 episodes 表中有 air_date 且 <= 有效日期的集数
-        # 有效日期根据播出集数刷新时间确定：刷新时间之前使用昨天的日期，之后使用今天的日期
+        # 统计"已播出集数"：使用 is_episode_aired 逐集判断（考虑播出时间）
+        # 修复：不再使用简单的日期比较，而是逐集调用 is_episode_aired 判断是否已播出
         from datetime import datetime as _dt
-        now = _dt.now()
-        today = now.strftime('%Y-%m-%d')
-        effective_date = get_effective_date_for_aired_count()  # 获取应该用于计算已播出集数的有效日期
-        current_time_str = now.strftime('%H:%M')
-        # 获取用户配置的刷新时间，默认 00:00
-        perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
-        refresh_time_str = perf.get('aired_refresh_time', '00:00')
-        # 判断当前时间是否已经过了用户设置的刷新时间
-        allow_refresh = False
         try:
-            refresh_parts = refresh_time_str.split(':')
-            if len(refresh_parts) == 2:
-                refresh_hour = int(refresh_parts[0])
-                refresh_minute = int(refresh_parts[1])
-                current_hour = now.hour
-                current_minute = now.minute
-                # 当前时间 >= 刷新时间，允许刷新
-                if current_hour > refresh_hour or (current_hour == refresh_hour and current_minute >= refresh_minute):
-                    allow_refresh = True
+            from zoneinfo import ZoneInfo as _ZoneInfo
+            local_tz = _ZoneInfo(_get_local_timezone())
+            now_local_dt = datetime.now(local_tz)
         except Exception:
-            # 解析失败时默认允许刷新（向后兼容）
-            allow_refresh = True
+            now_local_dt = datetime.now()
+        
         aired_by_show_season = {}
         try:
+            # 获取所有有剧集的节目和季
             cur.execute(
                 """
-                SELECT tmdb_id, season_number, COUNT(1) FROM episodes
-                WHERE air_date IS NOT NULL AND air_date != '' AND air_date <= ?
-                GROUP BY tmdb_id, season_number
-                """,
-                (effective_date,)
+                SELECT DISTINCT tmdb_id, season_number FROM episodes
+                WHERE tmdb_id IS NOT NULL AND season_number IS NOT NULL
+                """
             )
-            for tid, sn, cnt in (cur.fetchall() or []):
-                aired_by_show_season[(int(tid), int(sn))] = int(cnt or 0)
+            for tid, sn in (cur.fetchall() or []):
+                try:
+                    aired_count = compute_aired_count_by_episode_check(int(tid), int(sn), now_local_dt)
+                    aired_by_show_season[(int(tid), int(sn))] = aired_count
+                except Exception:
+                    continue
         except Exception:
             aired_by_show_season = {}
 
@@ -427,7 +507,6 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                     CalendarDB().upsert_season_metrics(int(tmdb_id), int(latest_sn), int(_effective_transferred or 0), int(aired_count or 0), int(total_count or 0), int(progress_pct), int(_now()))
             except Exception:
                 pass
-            # 写回 task_metrics（以任务为键）
             try:
                 if task_name and tmdb_id and latest_sn:
                     from time import time as _now
@@ -443,6 +522,11 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                     CalendarDB().upsert_task_metrics(task_name, int(tmdb_id), int(latest_sn), int(_effective_transferred or 0), int(progress_pct), int(_now()))
             except Exception:
                 pass
+            
+            # 补充最新季号给前端（用于下一集查找逻辑）
+            if latest_sn:
+                t['latest_season_number'] = int(latest_sn)
+                
             enriched.append(t)
         return enriched
     except Exception:
@@ -566,16 +650,15 @@ def recompute_task_metrics_and_notify(task_name: str) -> bool:
             aired = metrics.get('aired_count')
             total = metrics.get('total_count')
             if aired in (None, 0) or total in (None, 0):
-                # 动态回退：使用有效日期计算已播出集数
-                effective_date = get_effective_date_for_aired_count()
-                cur.execute(
-                    """
-                    SELECT COUNT(1) FROM episodes
-                    WHERE tmdb_id=? AND season_number=? AND air_date IS NOT NULL AND air_date != '' AND air_date <= ?
-                    """,
-                    (tmdb_id, season_no, effective_date)
-                )
-                aired = int((cur.fetchone() or [0])[0])
+                # 动态回退：使用 is_episode_aired 逐集判断计算已播出集数（考虑播出时间）
+                # 修复：不再使用简单的日期比较，而是逐集调用 is_episode_aired 判断是否已播出
+                try:
+                    from zoneinfo import ZoneInfo as _ZoneInfo
+                    local_tz = _ZoneInfo(_get_local_timezone())
+                    now_local_dt = datetime.now(local_tz)
+                except Exception:
+                    now_local_dt = datetime.now()
+                aired = compute_aired_count_by_episode_check(tmdb_id, season_no, now_local_dt)
                 cur.execute('SELECT episode_count FROM seasons WHERE tmdb_id=? AND season_number=?', (tmdb_id, season_no))
                 row2 = cur.fetchone()
                 total = int((row2 or [0])[0]) if row2 else 0
@@ -889,6 +972,13 @@ PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "")
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 # 从环境变量获取端口，默认为5005
 PORT = int(os.environ.get("PORT", "5005"))
+LOG_DIR = os.path.join(parent_dir, "config", "logs")
+LOG_FILE_PATH = os.path.join(LOG_DIR, "runtime.log")
+MAX_RUNTIME_LOG_LINES = 2000
+RUNTIME_LOG_PATTERN = re.compile(
+    r'^\[(?P<timestamp>\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\[(?P<level>[A-Z]+)\]\s?(?P<message>.*)$'
+)
+os.makedirs(LOG_DIR, exist_ok=True)
 
 config_data = {}
 task_plugins_config_default = {}
@@ -986,14 +1076,14 @@ def ensure_today_aired_done_if_due_once(trigger_reason: str = ''):
     """仅在需要时、且至多每日一次按需补算。无定时轮询，无高频检查。"""
     global _aired_on_demand_checked_date
     try:
-        # 计算当前应生效的有效日期
-        current_effective = str(get_effective_date_for_aired_count())
-        # 进程内已检查过本有效期，直接跳过
-        if _aired_on_demand_checked_date == current_effective:
-            return
-        # 仅当已过刷新时间时才允许补算（避免提前）
+        # 直接使用今天的日期作为标记（现在集的播出日期已经是本地日期，不需要通过播出集数刷新时间限制）
         from datetime import datetime as _dt
         now = _dt.now()
+        today = now.strftime('%Y-%m-%d')
+        # 进程内已检查过今日，直接跳过
+        if _aired_on_demand_checked_date == today:
+            return
+        # 仅当已过刷新时间时才允许补算（避免提前）
         perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
         time_str = perf.get('aired_refresh_time', '00:00')
         try:
@@ -1006,15 +1096,15 @@ def ensure_today_aired_done_if_due_once(trigger_reason: str = ''):
             return
         # 已记录的上次完成日期
         stamped = _read_aired_effective_stamp()
-        if stamped != current_effective:
+        if stamped != today:
             # 需要补算一次
             logging.debug(f"检测到当日尚未生效（触发:{trigger_reason or 'on_demand'}），执行一次补偿刷新…")
             recompute_all_seasons_aired_daily()
             # 成功后 recompute 内部会写 stamp；此处将进程内记为已检查，避免多次触发
-            _aired_on_demand_checked_date = current_effective
+            _aired_on_demand_checked_date = today
         else:
             # 已完成，标记今日已检查，避免重复
-            _aired_on_demand_checked_date = current_effective
+            _aired_on_demand_checked_date = today
     except Exception:
         pass
 
@@ -1034,9 +1124,10 @@ def _is_today_aired_done() -> bool:
         now = _dt.now()
         if not _is_after_refresh_time(now):
             return False
-        current_effective = str(get_effective_date_for_aired_count())
+        # 直接使用今天的日期作为标记（现在集的播出日期已经是本地日期，不需要通过播出集数刷新时间限制）
+        today = now.strftime('%Y-%m-%d')
         stamped = _read_aired_effective_stamp()
-        return stamped == current_effective
+        return stamped == today
     except Exception:
         return False
 
@@ -1063,6 +1154,31 @@ def _schedule_aired_retry_in(minutes_delay: int = 10):
         logging.debug(f"已安排播出集数补偿重试任务，时间 {run_at.strftime('%Y-%m-%d %H:%M')}" )
     except Exception as e:
         logging.warning(f"安排播出集数补偿重试任务失败: {e}")
+
+def _schedule_show_retry_in(tmdb_id: int, minutes_delay: int = 10):
+    """为单个节目安排播出进度刷新重试任务"""
+    try:
+        from datetime import datetime as _dt, timedelta as _td
+        job_id = f'show_aired_retry_{tmdb_id}'
+        # 移除已有的重试任务，避免重复堆积
+        try:
+            scheduler.remove_job(job_id)
+        except Exception:
+            pass
+        run_at = _dt.now() + _td(minutes=max(1, int(minutes_delay)))
+        scheduler.add_job(
+            func=lambda _tid=int(tmdb_id): recompute_show_aired_progress(_tid),
+            trigger=DateTrigger(run_date=run_at),
+            id=job_id,
+            replace_existing=True,
+            coalesce=True,
+            max_instances=1,
+        )
+        if scheduler.state == 0:
+            scheduler.start()
+        logging.debug(f"已安排节目播出进度补偿重试任务 tmdb_id={tmdb_id}，时间 {run_at.strftime('%Y-%m-%d %H:%M')}" )
+    except Exception as e:
+        logging.warning(f"安排节目播出进度补偿重试任务失败 tmdb_id={tmdb_id}: {e}")
 
 # 是否为 Flask 主服务进程（仅该进程输出某些提示）
 IS_FLASK_SERVER_PROCESS = False
@@ -1111,14 +1227,41 @@ try:
     _urllib3_logger.addFilter(_RetryWarningToDebug())
 except Exception:
     pass
-# 过滤werkzeug日志输出
-if not DEBUG:
-    logging.getLogger("werkzeug").setLevel(logging.ERROR)
-    # 静音 APScheduler 的普通信息日志，避免 "Adding job tentatively" 等噪音
-    try:
-        logging.getLogger("apscheduler").setLevel(logging.WARNING)
-    except Exception:
-        pass
+# 添加过滤器，过滤HTTP访问日志（格式：IP - - [时间] "METHOD /path HTTP/1.1" 状态码）
+class _HTTPAccessLogFilter(logging.Filter):
+    """过滤HTTP访问日志，避免输出到日志文件"""
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            msg = str(record.getMessage())
+            # 匹配HTTP访问日志格式：IP - - [时间] "METHOD /path HTTP/1.1" 状态码
+            if re.match(r'^\d+\.\d+\.\d+\.\d+\s+-\s+-\s+\[.*?\]\s+"(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+.*?\s+HTTP/1\.\d"\s+\d+', msg):
+                return False  # 过滤掉HTTP访问日志
+        except Exception:
+            pass
+        return True
+
+# 过滤werkzeug日志输出（包括HTTP访问日志）
+# 无论是否DEBUG模式，都禁用werkzeug的访问日志，只保留ERROR级别以上的日志
+_werkzeug_logger = logging.getLogger("werkzeug")
+_werkzeug_logger.setLevel(logging.ERROR)
+# 将过滤器添加到werkzeug日志记录器，过滤HTTP访问日志
+try:
+    _werkzeug_logger.addFilter(_HTTPAccessLogFilter())
+except Exception:
+    pass
+
+# 将过滤器也添加到根日志记录器，确保所有HTTP访问日志都被过滤
+try:
+    _root_logger = logging.getLogger()
+    _root_logger.addFilter(_HTTPAccessLogFilter())
+except Exception:
+    pass
+
+# 静音 APScheduler 的普通信息日志，避免 "Adding job tentatively" 等噪音
+try:
+    logging.getLogger("apscheduler").setLevel(logging.WARNING)
+except Exception:
+    pass
 
 # 统一所有已有处理器（包括 werkzeug、apscheduler）的日志格式
 _root_logger = logging.getLogger()
@@ -1140,16 +1283,162 @@ for _name in ("werkzeug", "apscheduler", "gunicorn.error", "gunicorn.access"):
         except Exception:
             pass
 
+# 写入运行日志文件，便于前端实时查看
+try:
+    _runtime_log_handler = RotatingFileHandler(
+        LOG_FILE_PATH,
+        maxBytes=5 * 1024 * 1024,
+        backupCount=2,
+        encoding="utf-8"
+    )
+    _runtime_log_handler.setFormatter(_standard_formatter)
+    _root_logger.addHandler(_runtime_log_handler)
+except Exception as e:
+    logging.warning(f"初始化运行日志文件处理器失败: {e}")
+
+
+def _parse_runtime_log_line(line: str) -> dict:
+    """解析单行日志文本，提取时间、级别与内容。"""
+    text = (line or "").rstrip("\n")
+    entry = {
+        "raw": text,
+        "timestamp": "",
+        "level": "INFO",
+        "message": text
+    }
+    if not text:
+        return entry
+    match = RUNTIME_LOG_PATTERN.match(text.strip())
+    if match:
+        entry["timestamp"] = match.group("timestamp")
+        entry["level"] = match.group("level")
+        entry["message"] = match.group("message")
+    return entry
+
+
+def get_recent_runtime_logs(limit: int = None, days: float = None) -> list:
+    """获取最近的运行日志行。
+    
+    Args:
+        limit: 按条数限制，默认 None（不使用条数限制）
+        days: 按时间范围限制（天数），默认 None（不使用时间限制）
+              如果同时指定 limit 和 days，优先使用 days 参数
+    
+    Returns:
+        日志条目列表
+    """
+    if not os.path.exists(LOG_FILE_PATH):
+        return []
+    
+    # 如果指定了 days 参数，按时间范围筛选
+    if days is not None:
+        try:
+            days_float = float(days)
+            if days_float <= 0:
+                days_float = 1.0  # 默认1天
+        except (ValueError, TypeError):
+            days_float = 1.0
+        
+        # 计算时间阈值（当前时间往前推指定天数）
+        time_threshold = datetime.now() - timedelta(days=days_float)
+        current_year = datetime.now().year
+        
+        logs = []
+        try:
+            with open(LOG_FILE_PATH, "r", encoding="utf-8", errors="replace") as fp:
+                for raw_line in fp:
+                    line = raw_line.rstrip("\n")
+                    if not line:
+                        continue
+                    
+                    entry = _parse_runtime_log_line(line)
+                    timestamp_str = entry.get("timestamp", "")
+                    
+                    # 解析时间戳（格式：MM-DD HH:MM:SS）
+                    if timestamp_str:
+                        try:
+                            # 尝试解析时间戳，需要加上当前年份
+                            log_time = datetime.strptime(f"{current_year}-{timestamp_str}", "%Y-%m-%d %H:%M:%S")
+                            
+                            # 如果解析出的时间比当前时间还晚（跨年情况），则减一年
+                            if log_time > datetime.now():
+                                log_time = datetime.strptime(f"{current_year - 1}-{timestamp_str}", "%Y-%m-%d %H:%M:%S")
+                            
+                            # 只保留在时间范围内的日志
+                            if log_time >= time_threshold:
+                                entry["id"] = f"{len(logs)}-{hashlib.md5((line + str(len(logs))).encode('utf-8', 'ignore')).hexdigest()}"
+                                logs.append(entry)
+                        except (ValueError, TypeError):
+                            # 如果时间戳解析失败，保留该日志（兼容没有时间戳的日志）
+                            entry["id"] = f"{len(logs)}-{hashlib.md5((line + str(len(logs))).encode('utf-8', 'ignore')).hexdigest()}"
+                            logs.append(entry)
+                    else:
+                        # 没有时间戳的日志也保留
+                        entry["id"] = f"{len(logs)}-{hashlib.md5((line + str(len(logs))).encode('utf-8', 'ignore')).hexdigest()}"
+                        logs.append(entry)
+        except Exception as exc:
+            logging.warning(f"读取运行日志失败: {exc}")
+            return []
+        
+        return logs
+    
+    # 如果指定了 limit 参数，按条数限制（保持向后兼容）
+    if limit is not None:
+        try:
+            limit_int = int(limit)
+        except (ValueError, TypeError):
+            limit_int = 600
+        limit_int = max(100, min(limit_int, MAX_RUNTIME_LOG_LINES))
+        
+        lines = deque(maxlen=limit_int)
+        try:
+            with open(LOG_FILE_PATH, "r", encoding="utf-8", errors="replace") as fp:
+                for raw_line in fp:
+                    lines.append(raw_line.rstrip("\n"))
+        except Exception as exc:
+            logging.warning(f"读取运行日志失败: {exc}")
+            return []
+        
+        logs = []
+        for idx, raw_line in enumerate(lines):
+            entry = _parse_runtime_log_line(raw_line)
+            entry["id"] = f"{idx}-{hashlib.md5((raw_line + str(idx)).encode('utf-8', 'ignore')).hexdigest()}"
+            logs.append(entry)
+        return logs
+    
+    # 如果两个参数都没有指定，返回所有日志（不推荐，但保持兼容性）
+    logs = []
+    try:
+        with open(LOG_FILE_PATH, "r", encoding="utf-8", errors="replace") as fp:
+            for raw_line in fp:
+                line = raw_line.rstrip("\n")
+                if not line:
+                    continue
+                entry = _parse_runtime_log_line(line)
+                entry["id"] = f"{len(logs)}-{hashlib.md5((line + str(len(logs))).encode('utf-8', 'ignore')).hexdigest()}"
+                logs.append(entry)
+    except Exception as exc:
+        logging.warning(f"读取运行日志失败: {exc}")
+        return []
+    
+    return logs
+
 
 # --------- 每日任务：在用户设置的刷新时间重算所有季的已播出集数并更新进度 ---------
 def recompute_all_seasons_aired_daily():
     logging.info(f">>> 开始执行播出集数自动刷新")
     try:
-        from datetime import datetime as _dt
         from time import time as _now
         now_ts = int(_now())
-        # 获取应该用于计算已播出集数的有效日期（根据播出集数刷新时间确定）
-        effective_date = get_effective_date_for_aired_count()
+
+        # 当前本地时间（用于精确“是否已播出”判断）
+        try:
+            from zoneinfo import ZoneInfo as _ZoneInfo
+            local_tz = _get_local_timezone()
+            now_local_dt = datetime.now(_ZoneInfo(local_tz))
+        except Exception:
+            now_local_dt = datetime.now()
+
         cal_db = CalendarDB()
         cur = cal_db.conn.cursor()
         # 遍历本地所有季
@@ -1160,15 +1449,23 @@ def recompute_all_seasons_aired_daily():
                 tmdb_id_i = int(tmdb_id)
                 season_no_i = int(season_no)
                 total_i = int(total or 0)
-                # 使用有效日期计算已播出集数
+
+                # 逐集判断是否已播出（优先使用 Trakt 本地时间，其次节目级本地时间，最后 TMDB 日期）
+                aired_i = 0
                 cur.execute(
                     """
-                    SELECT COUNT(1) FROM episodes
-                    WHERE tmdb_id=? AND season_number=? AND air_date IS NOT NULL AND air_date != '' AND air_date <= ?
+                    SELECT episode_number FROM episodes
+                    WHERE tmdb_id=? AND season_number=?
                     """,
-                    (tmdb_id_i, season_no_i, effective_date)
+                    (tmdb_id_i, season_no_i),
                 )
-                aired_i = int((cur.fetchone() or [0])[0])
+                for (ep_no,) in cur.fetchall() or []:
+                    try:
+                        if is_episode_aired(tmdb_id_i, season_no_i, int(ep_no), now_local_dt):
+                            aired_i += 1
+                    except Exception:
+                        continue
+
                 # 取已转存集数用于计算进度
                 metrics = cal_db.get_season_metrics(tmdb_id_i, season_no_i) or {}
                 transferred_i = int(metrics.get('transferred_count') or 0)
@@ -1180,7 +1477,10 @@ def recompute_all_seasons_aired_daily():
                 continue
         # 成功后写入当日完成标记（使用 stamp 文件，避免引入 DB 结构变更）
         try:
-            _write_aired_effective_stamp(str(effective_date))
+            # 直接使用今天的日期作为标记（现在集的播出日期已经是本地日期，不需要通过播出集数刷新时间限制）
+            from datetime import datetime as _dt
+            today = _dt.now().strftime('%Y-%m-%d')
+            _write_aired_effective_stamp(today)
         except Exception:
             pass
         try:
@@ -1206,6 +1506,331 @@ def recompute_all_seasons_aired_daily():
             _schedule_aired_retry_in(10)
         except Exception:
             pass
+
+
+def recompute_show_aired_progress(tmdb_id: int, now_local_dt=None, season_number: int = None, episode_number: int = None):
+    """按节目维度重算播出/进度，供按播出时间触发与补偿使用
+    
+    Args:
+        tmdb_id: 节目ID
+        now_local_dt: 当前本地时间，可选
+        season_number: 季号，可选。如果提供，只刷新指定的季
+        episode_number: 集号，可选。如果提供，日志中会显示集号信息
+    """
+    try:
+        from time import time as _now
+        now_ts = int(_now())
+        try:
+            from zoneinfo import ZoneInfo as _ZoneInfo
+            local_tz = _ZoneInfo(_get_local_timezone())
+            if now_local_dt is None:
+                now_local_dt = datetime.now(local_tz)
+        except Exception:
+            if now_local_dt is None:
+                now_local_dt = datetime.now()
+
+        cal_db = CalendarDB()
+        cur = cal_db.conn.cursor()
+        # 获取节目名称（用于日志，仅影响可读性）
+        show_name = str(tmdb_id)
+        try:
+            cur.execute("SELECT name FROM shows WHERE tmdb_id=? LIMIT 1", (int(tmdb_id),))
+            row = cur.fetchone()
+            if row and row[0]:
+                show_name = str(row[0])
+        except Exception:
+            pass
+        
+        # 如果指定了季号，只处理该季；否则处理所有季
+        if season_number is not None:
+            cur.execute(
+                "SELECT season_number, episode_count FROM seasons WHERE tmdb_id=? AND season_number=?",
+                (int(tmdb_id), int(season_number)),
+            )
+        else:
+            cur.execute(
+                "SELECT season_number, episode_count FROM seasons WHERE tmdb_id=?",
+                (int(tmdb_id),),
+            )
+        rows = cur.fetchall() or []
+        for season_no, total in rows:
+            try:
+                season_no_i = int(season_no)
+                total_i = int(total or 0)
+                
+                # 构建日志显示名称：如果提供了集号，在日志中显示集号
+                log_name = f"{show_name} · 第 {season_no_i} 季"
+                if episode_number is not None:
+                    log_name = f"{show_name} · 第 {season_no_i} 季 · 第 {int(episode_number)} 集"
+                
+                try:
+                    logging.info(f">>> 开始执行 [{log_name}] 播出状态刷新任务")
+                except Exception:
+                    pass
+                aired_i = 0
+                cur.execute(
+                    """
+                    SELECT episode_number FROM episodes
+                    WHERE tmdb_id=? AND season_number=?
+                    """,
+                    (int(tmdb_id), season_no_i),
+                )
+                for (ep_no,) in cur.fetchall() or []:
+                    try:
+                        if is_episode_aired(int(tmdb_id), season_no_i, int(ep_no), now_local_dt):
+                            aired_i += 1
+                    except Exception:
+                        continue
+                metrics = cal_db.get_season_metrics(int(tmdb_id), season_no_i) or {}
+                transferred_i = int(metrics.get('transferred_count') or 0)
+                denom = min(int(aired_i or 0), int(total_i or 0))
+                progress_pct = (100 * min(transferred_i, denom) // denom) if denom > 0 else 0
+                cal_db.upsert_season_metrics(int(tmdb_id), season_no_i, None, aired_i, total_i, progress_pct, now_ts)
+                try:
+                    logging.info(f">>> [{log_name}] 播出状态刷新任务执行成功")
+                except Exception:
+                    pass
+            except Exception:
+                continue
+        try:
+            notify_calendar_changed('aired_on_demand')
+        except Exception:
+            pass
+        # 成功后清理该节目的重试任务
+        try:
+            job_id = f'show_aired_retry_{int(tmdb_id)}'
+            scheduler.remove_job(job_id)
+        except Exception:
+            pass
+    except Exception as e:
+        logging.warning(f">>> 剧集播出状态刷新执行异常 tmdb_id={tmdb_id}: {e}")
+        # 发生异常也安排一次补偿重试
+        try:
+            _schedule_show_retry_in(int(tmdb_id), minutes_delay=10)
+        except Exception:
+            pass
+
+
+def _build_episode_local_air_dt(tmdb_id, air_datetime_local, air_date_local, air_date):
+    """
+    根据本地播出时间字段和兜底配置生成本地播出 datetime
+    返回 (datetime_or_none, used_time_str_or_none)，用于上层判断是否与全局刷新时间重叠
+    """
+    try:
+        from zoneinfo import ZoneInfo as _ZoneInfo
+        local_tz = _ZoneInfo(_get_local_timezone())
+    except Exception:
+        local_tz = None
+
+    try:
+        if air_datetime_local:
+            dt = datetime.fromisoformat(str(air_datetime_local))
+            if dt.tzinfo is None and local_tz:
+                dt = dt.replace(tzinfo=local_tz)
+            return dt, None
+    except Exception:
+        pass
+
+    date_str = (air_date_local or air_date or '').strip()
+    if not date_str:
+        return None, None
+    try:
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except Exception:
+        return None, None
+
+    schedule = {}
+    try:
+        schedule = CalendarDB().get_show_air_schedule(int(tmdb_id)) or {}
+    except Exception:
+        schedule = {}
+    perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
+    fallback_time = (schedule.get("local_air_time") or perf.get("aired_refresh_time") or "00:00").strip()
+    try:
+        hh, mm = [int(x) for x in str(fallback_time).split(":")]
+    except Exception:
+        hh, mm = 0, 0
+    try:
+        dt = datetime.combine(date_obj, datetime.min.time()).replace(hour=hh, minute=mm, second=0)
+        if local_tz:
+            dt = dt.replace(tzinfo=local_tz)
+        return dt, fallback_time
+    except Exception:
+        return None, fallback_time
+
+
+def schedule_airtime_based_refresh_jobs(days_back: int = 2, days_forward: int = 14, tmdb_id: int = None):
+    """
+    为每个节目按本地播出时间调度单节目刷新，含错过补偿：
+    - 未来的播出时间：注册 DateTrigger，确保到点立即重算
+    - 已经过期但当天未刷新：立即重算一次补偿
+    """
+    try:
+        try:
+            from zoneinfo import ZoneInfo as _ZoneInfo
+            local_tz = _ZoneInfo(_get_local_timezone())
+            now_local = datetime.now(local_tz)
+        except Exception:
+            local_tz = None
+            now_local = datetime.now()
+
+        cal_db = CalendarDB()
+        cur = cal_db.conn.cursor()
+        base_sql = """
+            SELECT tmdb_id, season_number, episode_number, air_datetime_local, air_date_local, air_date
+            FROM episodes
+            WHERE ((air_datetime_local IS NOT NULL AND air_datetime_local != '')
+               OR (air_date_local IS NOT NULL AND air_date_local != '')
+               OR (air_date IS NOT NULL AND air_date != ''))
+        """
+        params = []
+        if tmdb_id is not None:
+            base_sql += " AND tmdb_id = ?"
+            params.append(int(tmdb_id))
+        cur.execute(base_sql, params)
+        rows = cur.fetchall() or []
+        if not rows:
+            return
+
+        # 全局播出集数刷新时间，用于与节目级时间对比，避免重复调度
+        perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
+        global_refresh_time = (perf.get('aired_refresh_time') or "00:00").strip()
+
+        # 清理旧的播出时间调度，避免单一 job 覆盖多集
+        try:
+            _removed = 0
+            prefix = f"aired_refresh_{int(tmdb_id)}_" if tmdb_id is not None else "aired_refresh_"
+            for _job in scheduler.get_jobs():
+                try:
+                    if str(getattr(_job, "id", "")).startswith(prefix):
+                        scheduler.remove_job(_job.id)
+                        _removed += 1
+                except Exception:
+                    continue
+            if _removed > 0:
+                if tmdb_id is None:
+                    logging.debug(f"已清理 {_removed} 个过期的剧集播出状态刷新任务")
+                else:
+                    logging.debug(f"已清理 {_removed} 个过期的剧集播出状态刷新任务 (tmdb_id={int(tmdb_id)})")
+        except Exception:
+            pass
+
+        min_date = (now_local.date() - timedelta(days=max(0, days_back))).isoformat()
+        max_date = (now_local.date() + timedelta(days=max(0, days_forward))).isoformat()
+        # 用于记录需要补偿刷新的节目，key 为 tmdb_id，value 为最早需要补偿的播出时间
+        shows_need_catch = {}
+        scheduled = 0
+        
+        # 预加载所有季的刷新时间戳与当前已播集数，用于检查是否已经刷新过
+        season_refresh_times = {}
+        try:
+            cur.execute('SELECT tmdb_id, season_number, updated_at, aired_count FROM season_metrics')
+            for tid, sn, ua, ac in (cur.fetchall() or []):
+                key = (int(tid), int(sn))
+                if ua:
+                    season_refresh_times[key] = {"updated_at": int(ua), "aired_count": 0 if ac is None else int(ac)}
+        except Exception:
+            pass
+        
+        for tmdb_id, season_number, episode_number, air_dt_local, air_date_local, air_date in rows:
+            target_dt, used_time = _build_episode_local_air_dt(tmdb_id, air_dt_local, air_date_local, air_date)
+            if not target_dt:
+                continue
+            # 若使用的播出时间与全局刷新时间相同，则交由全局任务处理，避免重复调度
+            try:
+                if used_time and str(used_time).strip() == global_refresh_time:
+                    continue
+            except Exception:
+                pass
+            try:
+                d_str = target_dt.date().isoformat()
+                if d_str < min_date or d_str > max_date:
+                    continue
+            except Exception:
+                pass
+
+            job_id = f"aired_refresh_{tmdb_id}_{season_number}_{episode_number}_{target_dt.strftime('%Y%m%d%H%M')}"
+
+            # 对于已过期的播出时间，检查是否需要补偿刷新
+            if target_dt <= now_local:
+                tmdb_id_i = int(tmdb_id)
+                season_no_i = int(season_number)
+                
+                # 检查该季是否已经刷新过（通过 season_metrics 的 updated_at 和已播集数）
+                need_refresh = True
+                try:
+                    refresh_info = season_refresh_times.get((tmdb_id_i, season_no_i)) or {}
+                    refresh_ts = refresh_info.get("updated_at")
+                    aired_cached = refresh_info.get("aired_count")
+                    # 将播出时间转换为时间戳进行比较
+                    target_ts = int(target_dt.timestamp())
+                    if refresh_ts:
+                        # 如果刷新时间晚于播出时间，且已播集数已覆盖该集，则视为已刷新
+                        if refresh_ts >= target_ts and aired_cached is not None:
+                            try:
+                                if int(aired_cached) >= int(episode_number):
+                                    need_refresh = False
+                            except Exception:
+                                need_refresh = False
+                except Exception:
+                    # 检查失败，保守处理：执行补偿刷新
+                    pass
+                
+                if need_refresh:
+                    # 记录需要补偿的节目，并记录最早需要补偿的播出时间（用于日志）
+                    if tmdb_id_i not in shows_need_catch:
+                        shows_need_catch[tmdb_id_i] = target_dt
+                    elif target_dt < shows_need_catch[tmdb_id_i]:
+                        shows_need_catch[tmdb_id_i] = target_dt
+                continue
+
+            # 未来的播出时间：注册 DateTrigger
+            try:
+                _tmdb_id = int(tmdb_id)
+                _season_no = int(season_number)
+                _ep_no = int(episode_number)
+                scheduler.add_job(
+                    func=lambda _tid=_tmdb_id, _sn=_season_no, _ep=_ep_no: recompute_show_aired_progress(_tid, season_number=_sn, episode_number=_ep),
+                    trigger=DateTrigger(run_date=target_dt),
+                    id=job_id,
+                    replace_existing=True,
+                    coalesce=True,
+                    max_instances=1,
+                    misfire_grace_time=None,
+                )
+                scheduled += 1
+            except Exception as _e:
+                logging.debug(f"安排剧集播出状态刷新失败 tmdb_id={tmdb_id}: {_e}")
+                continue
+
+        # 执行补偿刷新：对于需要补偿的节目，立即刷新
+        if shows_need_catch:
+            for tid, earliest_dt in shows_need_catch.items():
+                try:
+                    logging.debug(f"补偿刷新节目 tmdb_id={tid}，最早错过播出时间: {earliest_dt.strftime('%Y-%m-%d %H:%M')}")
+                    recompute_show_aired_progress(int(tid), now_local_dt=now_local)
+                except Exception as _e:
+                    logging.debug(f"补偿刷新失败 tmdb_id={tid}: {_e}")
+
+        if scheduler.state == 0:
+            scheduler.start()
+        if scheduled > 0:
+            logging.debug(f"已更新 {scheduled} 个剧集播出状态刷新任务")
+    except Exception as e:
+        logging.warning(f"按播出时间调度刷新失败: {e}")
+
+
+def _trigger_airtime_reschedule(reason: str = "", tmdb_id: int = None):
+    """统一包装，便于在数据更新后重新计算播出时间调度"""
+    try:
+        schedule_airtime_based_refresh_jobs(tmdb_id=tmdb_id)
+        if reason:
+            if tmdb_id is None:
+                logging.debug(f"已重新安排剧集播出状态刷新任务，原因: {reason}")
+            else:
+                logging.debug(f"已重新安排剧集播出状态刷新任务，原因: {reason}, tmdb_id={int(tmdb_id)}")
+    except Exception as e:
+        logging.debug(f"重新安排剧集播出状态刷新任务失败({reason}): {e}")
 
 
 def restart_daily_aired_update_job():
@@ -1264,6 +1889,8 @@ try:
     restart_daily_aired_update_job()
     # 启动时做一次极简按需补偿检查（仅一次）
     ensure_today_aired_done_if_due_once('startup')
+    # 启动时同步一次播出时间触发调度，确保新一集能按播出时间刷新
+    _trigger_airtime_reschedule('startup')
     # 取消低频健康检查方案，改为失败后按需重试调度
 except Exception:
     pass
@@ -1466,6 +2093,20 @@ def get_data():
     if 'poster_language' not in data:
         data['poster_language'] = 'zh-CN'
 
+    # 初始化追剧日历时区模式（原始时区 / 本地时区）
+    if 'calendar_timezone_mode' not in data:
+        data['calendar_timezone_mode'] = 'original'
+    # 初始化本地时区（用于 Trakt 播出时间转换与本地时间判断）
+    if 'local_timezone' not in data:
+        # 默认按照北京时间处理，也支持用户后续在配置文件中手动修改
+        data['local_timezone'] = 'Asia/Shanghai'
+
+    # 初始化 Trakt 配置
+    if 'trakt' not in data or not isinstance(data.get('trakt'), dict):
+        data['trakt'] = {'client_id': ''}
+    else:
+        data['trakt'].setdefault('client_id', '')
+
     # 处理插件配置中的多账号支持字段，将数组格式转换为逗号分隔的字符串用于显示
     if "plugins" in data:
         # 处理Plex的quark_root_path
@@ -1638,6 +2279,13 @@ def update():
     # 记录旧的播出集数刷新时间设置
     old_perf = config_data.get('performance', {}) if isinstance(config_data, dict) else {}
     old_aired_refresh_time = old_perf.get('aired_refresh_time', '00:00')
+    # 记录旧的 Trakt Client ID，用于判断是否首次配置
+    old_trakt_client_id = ''
+    try:
+        old_trakt_client_id = (config_data.get("trakt", {}) or {}).get("client_id", "") or ""
+        old_trakt_client_id = str(old_trakt_client_id).strip()
+    except Exception:
+        old_trakt_client_id = ''
     dont_save_keys = ["task_plugins_config_default", "api_token"]
     for key, value in request.json.items():
         if key not in dont_save_keys:
@@ -1661,11 +2309,25 @@ def update():
             elif key == "tmdb_api_key":
                 # 更新TMDB API密钥
                 config_data[key] = value
+            elif key == "trakt":
+                # 更新 Trakt 配置，仅接收 client_id 字段，其它字段忽略
+                if not isinstance(value, dict):
+                    value = {}
+                trakt_cfg = config_data.get("trakt") if isinstance(config_data.get("trakt"), dict) else {}
+                trakt_cfg["client_id"] = (value.get("client_id") or "").strip()
+                config_data["trakt"] = trakt_cfg
             else:
                 config_data.update({key: value})
     
     # 同步更新任务的插件配置
     sync_task_plugins_config()
+    
+    # 记录新的 Trakt Client ID
+    try:
+        new_trakt_client_id = (config_data.get("trakt", {}) or {}).get("client_id", "") or ""
+        new_trakt_client_id = str(new_trakt_client_id).strip()
+    except Exception:
+        new_trakt_client_id = ''
     
     # 保存配置的执行步骤，异步执行
     try:
@@ -1679,7 +2341,7 @@ def update():
         prev_tmdb, new_tmdb = '', None
 
     import threading
-    def _post_update_tasks(old_task_map_snapshot, prev_tmdb_value, new_tmdb_value, old_poster_lang, old_aired_refresh_time_value):
+    def _post_update_tasks(old_task_map_snapshot, prev_tmdb_value, new_tmdb_value, old_poster_lang, old_aired_refresh_time_value, prev_trakt_client_id_value, new_trakt_client_id_value):
         # 检查海报语言设置是否改变
         new_poster_language = config_data.get('poster_language', 'zh-CN')
         if old_poster_lang != new_poster_language:
@@ -1771,6 +2433,11 @@ def update():
             try:
                 from app.sdk.db import CalendarDB as _CalDB
                 _CalDB().cleanup_orphan_data(valid_pairs, valid_names)
+                # 清理孤立数据后，也清理可能残留的孤立海报文件
+                try:
+                    cleanup_orphaned_posters()
+                except Exception:
+                    pass
             except Exception:
                 pass
         except Exception as e:
@@ -1789,6 +2456,14 @@ def update():
         except Exception as e:
             logging.warning(f"重启已播出集数更新任务失败: {e}")
 
+        # 若首次配置 Trakt Client ID，则为所有节目补齐播出时间
+        try:
+            if (not prev_trakt_client_id_value) and new_trakt_client_id_value:
+                logging.info("首次配置 Trakt Client ID，开始全量同步节目播出时间")
+                sync_trakt_airtime_for_all_shows()
+        except Exception as e:
+            logging.warning(f"首次配置 Trakt 播出时间同步失败: {e}")
+
         # 如果 TMDB API 从无到有，自动执行一次 bootstrap
         try:
             if (prev_tmdb_value == '' or prev_tmdb_value is None) and new_tmdb_value and new_tmdb_value != '':
@@ -1805,7 +2480,7 @@ def update():
         except Exception as e:
             logging.warning(f"自动初始化 bootstrap 失败: {e}")
 
-    threading.Thread(target=_post_update_tasks, args=(old_task_map, prev_tmdb, new_tmdb, old_poster_language, old_aired_refresh_time), daemon=True).start()
+    threading.Thread(target=_post_update_tasks, args=(old_task_map, prev_tmdb, new_tmdb, old_poster_language, old_aired_refresh_time, old_trakt_client_id, new_trakt_client_id), daemon=True).start()
     
     # 确保性能配置包含秒级字段
     if not isinstance(config_data.get('performance'), dict):
@@ -1910,6 +2585,30 @@ def run_script_now():
     )
 
 
+@app.route("/api/runtime_logs")
+def api_runtime_logs():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"}), 401
+    # 优先使用 days 参数（按时间范围），如果没有则使用 limit 参数（按条数，保持向后兼容）
+    days = request.args.get("days")
+    limit = request.args.get("limit")
+    
+    if days is not None:
+        try:
+            days_float = float(days)
+            logs = get_recent_runtime_logs(days=days_float)
+        except (ValueError, TypeError):
+            # 如果 days 参数无效，回退到 limit 参数
+            limit = limit or 600
+            logs = get_recent_runtime_logs(limit=limit)
+    else:
+        # 如果没有 days 参数，使用 limit 参数（保持向后兼容）
+        limit = limit or 600
+        logs = get_recent_runtime_logs(limit=limit)
+    
+    return jsonify({"success": True, "logs": logs})
+
+
 # -------------------- 追剧日历：任务提取与匹配辅助 --------------------
 def purge_calendar_by_tmdb_id_internal(tmdb_id: int, force: bool = False) -> bool:
     """内部工具：按 tmdb_id 清理 shows/seasons/episodes，并尝试删除本地海报文件
@@ -1996,6 +2695,7 @@ def sync_content_type_between_config_and_database() -> bool:
         
         tasks = config_data.get('tasklist', [])
         changed = False
+        local_air_time_changed = False
         synced_count = 0
         
         for task in tasks:
@@ -2059,8 +2759,6 @@ def sync_content_type_between_config_and_database() -> bool:
                             logging.debug(f"建立绑定关系并同步内容类型 - 任务: '{task_name}', 类型: '{config_content_type}', tmdb_id: {tmdb_id}")
                         else:
                             logging.debug(f"任务配置中的 TMDB ID 在数据库中不存在 - 任务: '{task_name}', tmdb_id: {tmdb_id}")
-                    else:
-                        logging.debug(f"任务无 TMDB 匹配信息，无法建立绑定关系 - 任务: '{task_name}'")
         
         if changed:
             logging.debug(f"内容类型同步完成，共同步了 {synced_count} 个任务")
@@ -2231,9 +2929,9 @@ def ensure_calendar_info_for_tasks() -> bool:
                     logging.debug(f"TMDB季数数据: {seasons}")
                     
                     # 选择已播出的季中最新的一季
-                    # 使用有效日期判断季是否已播出（考虑播出集数刷新时间）
-                    effective_date_str = get_effective_date_for_aired_count()
-                    effective_date = datetime.strptime(effective_date_str, '%Y-%m-%d').date()
+                    # 使用今天的日期判断季是否已播出（现在集的播出日期已经是本地日期，不需要通过播出集数刷新时间限制）
+                    from datetime import datetime as _dt
+                    today_date = _dt.now().date()
                     latest_season_number = 0
                     latest_air_date = None
                     
@@ -2242,11 +2940,11 @@ def ensure_calendar_info_for_tasks() -> bool:
                         air_date = s.get('air_date')
                         logging.debug(f"季数: {sn}, 播出日期: {air_date}, 类型: {type(sn)}")
                         
-                        # 只考虑已播出的季（有air_date且早于或等于有效日期）
+                        # 只考虑已播出的季（有air_date且早于或等于今天的日期）
                         if sn and sn > 0 and air_date:  # 排除第0季（特殊季）
                             try:
                                 season_air_date = datetime.strptime(air_date, '%Y-%m-%d').date()
-                                if season_air_date <= effective_date:
+                                if season_air_date <= today_date:
                                     # 选择播出日期最新的季
                                     if latest_air_date is None or season_air_date > latest_air_date:
                                         latest_season_number = sn
@@ -3509,6 +4207,23 @@ def reload_tasks():
             # 更新记录的值
             _last_crontab = crontab
             _last_crontab_delay = delay_str
+
+        # 每次 reload_tasks() 会调用 scheduler.remove_all_jobs()，会把“按播出时间”的 DateTrigger 一起清掉。
+        # 这里参考 __main__ 中的启动流程，在重载后立即重新注册：
+        try:
+            restart_calendar_refresh_job()
+        except Exception:
+            pass
+        try:
+            restart_daily_aired_update_job()
+        except Exception:
+            pass
+        try:
+            # 重新计算并注册所有节目/指定节目的“播出状态刷新任务”
+            _trigger_airtime_reschedule('startup')
+        except Exception:
+            pass
+
         # 不再冗余输出现有任务列表
         return True
     else:
@@ -3556,6 +4271,20 @@ def init():
     # 默认执行周期模式设置
     if "execution_mode" not in config_data:
         config_data["execution_mode"] = "manual"
+
+    # 初始化追剧日历时区模式（原始时区 / 本地时区）
+    if "calendar_timezone_mode" not in config_data:
+        config_data["calendar_timezone_mode"] = "original"
+    # 初始化本地时区（用于 Trakt 播出时间转换与本地时间判断）
+    if "local_timezone" not in config_data:
+        # 默认按照北京时间处理，也支持用户后续在配置文件中手动修改
+        config_data["local_timezone"] = "Asia/Shanghai"
+
+    # 初始化 Trakt 配置（仅存储 Client ID，用于调用节目播出时间 API）
+    if "trakt" not in config_data or not isinstance(config_data.get("trakt"), dict):
+        config_data["trakt"] = {"client_id": ""}
+    else:
+        config_data["trakt"].setdefault("client_id", "")
 
     # 初始化插件配置
     _, plugins_config_default, task_plugins_config_default = Config.load_plugins()
@@ -4706,10 +5435,6 @@ def sync_content_type_api():
 def get_calendar_tasks():
     """获取追剧日历任务信息"""
     try:
-        logging.debug("进入get_calendar_tasks函数")
-        logging.debug(f"config_data类型: {type(config_data)}")
-        logging.debug(f"config_data内容: {config_data}")
-        
         # 获取任务列表
         tasks = config_data.get('tasklist', [])
         
@@ -4770,26 +5495,12 @@ def get_calendar_tasks():
         
         db.close()
         
-        # 提取任务信息
-        logging.debug("开始提取任务信息")
-        logging.debug(f"tasks数量: {len(tasks)}")
-        logging.debug(f"task_latest_files数量: {len(task_latest_files)}")
-        
         try:
             extractor = TaskExtractor()
-            logging.debug("TaskExtractor创建成功")
             tasks_info = extractor.extract_all_tasks_info(tasks, task_latest_files)
-            logging.debug("extract_all_tasks_info调用成功")
         except Exception as e:
-            logging.debug(f"TaskExtractor相关操作失败: {e}")
-            import traceback
-            traceback.print_exc()
             raise
         
-        logging.debug(f"提取的任务信息数量: {len(tasks_info)}")
-        if tasks_info:
-            logging.debug(f"第一个任务信息: {tasks_info[0]}")
-
         # 首先同步数据库绑定关系到任务配置
         sync_task_config_with_database_bindings()
         
@@ -4806,13 +5517,57 @@ def get_calendar_tasks():
             cursor.execute('SELECT tmdb_id, name, year, poster_local_path, bound_task_names FROM shows')
             all_shows = cursor.fetchall()
             shows_by_name = {s[1]: {'tmdb_id': s[0], 'name': s[1], 'year': s[2], 'poster_local_path': s[3], 'bound_task_names': s[4]} for s in all_shows}
-            
+
+            # 计算有效“最新季”：若第一集未定档或在未来，则回退到已播季
+            def determine_effective_latest_season(tmdb_id, fallback_latest):
+                try:
+                    cur = cal_db.conn.cursor()
+                    cur.execute("""
+                        SELECT season_number,
+                               MIN(
+                                   COALESCE(
+                                       NULLIF(air_date_local, ''),
+                                       NULLIF(air_date, '')
+                                   )
+                               ) as first_air
+                        FROM episodes
+                        WHERE tmdb_id=?
+                        GROUP BY season_number
+                        ORDER BY season_number DESC
+                    """, (int(tmdb_id),))
+                    rows = cur.fetchall() or []
+                    from datetime import datetime as _dt
+                    today = _dt.utcnow().strftime('%Y-%m-%d')
+                    for sn, first_air in rows:
+                        try:
+                            if not sn:
+                                continue
+                            fa = (first_air or '').strip()
+                            if not fa:
+                                # 无首播日期视为未定档季，跳过
+                                continue
+                            if fa > today:
+                                # 首集在未来，视为未开播季，跳过
+                                continue
+                            return int(sn)
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
+                try:
+                    if fallback_latest and int(fallback_latest) > 0:
+                        return int(fallback_latest)
+                except Exception:
+                    pass
+                return None
+
             for idx, t in enumerate(tasks_info):
                 # 1) 优先通过 calendar_info.match.tmdb_id 查找
                 raw = tasks[idx] if idx < len(tasks) else None
                 cal = (raw or {}).get('calendar_info') or {}
                 match = cal.get('match') or {}
-                tmdb_id = match.get('tmdb_id')
+                tmdb_id = match.get('tmdb_id') or (cal.get('tmdb_id') if isinstance(cal, dict) else None)
+                legacy_match = raw.get('match') if isinstance(raw.get('match'), dict) else {}
                 
                 task_name = t.get('task_name', '').strip()
                 matched_show = None
@@ -4823,12 +5578,8 @@ def get_calendar_tasks():
                         show = cal_db.get_show(int(tmdb_id)) or {}
                         if show:
                             matched_show = show
-                            logging.debug(f"通过任务 TMDB 匹配结果找到节目 - 任务: '{task_name}', tmdb_id: {tmdb_id}, 节目: '{show.get('name', '')}'")
                     except Exception as e:
-                        logging.debug(f"通过任务 TMDB 匹配结果查找失败 - 任务: '{task_name}', tmdb_id: {tmdb_id}, 错误: {e}")
                         pass
-                else:
-                    logging.debug(f"任务配置中无 TMDB 匹配结果，尝试通过已绑定关系查找 - 任务: '{task_name}'")
                 
                 # 2) 如果找到匹配的节目，检查是否需要建立绑定关系
                 if matched_show:
@@ -4837,24 +5588,33 @@ def get_calendar_tasks():
                     # 清理空格，确保比较准确
                     bound_tasks_clean = [task.strip() for task in bound_tasks if task.strip()]
                     needs_binding = task_name not in bound_tasks_clean
-                    
-                    logging.debug(f"检查绑定状态 - 任务: '{task_name}', 已绑定任务: {bound_tasks_clean}, 需要绑定: {needs_binding}")
-                    
+                                        
                     if needs_binding:
                         # 建立任务与节目的绑定关系，同时设置内容类型
                         task_content_type = t.get('content_type', '')
                         cal_db.bind_task_and_content_type(matched_show['tmdb_id'], task_name, task_content_type)
-                        logging.debug(f"成功绑定任务到节目 - 任务: '{task_name}', 节目: '{matched_show['name']}', tmdb_id: {matched_show['tmdb_id']}")
-                    else:
-                        logging.debug(f"任务已绑定到节目，跳过重复绑定 - 任务: '{task_name}', 节目: '{matched_show['name']}', tmdb_id: {matched_show['tmdb_id']}")
                     
                     t['match_tmdb_id'] = matched_show['tmdb_id']
                     t['matched_show_name'] = matched_show['name']
                     t['matched_year'] = matched_show['year']
                     t['matched_poster_local_path'] = matched_show['poster_local_path']
-                    # 提供最新季数用于前端展示
+                    # 提供最新季数用于前端展示：优先保留用户设定的匹配季，其次依据有效最新季规则
                     try:
-                        t['matched_latest_season_number'] = matched_show.get('latest_season_number')
+                        manual_season = (
+                            match.get('latest_season_number')
+                            or cal.get('latest_season_number')
+                            or legacy_match.get('latest_season_number')
+                            or t.get('matched_latest_season_number')
+                        )
+                        if manual_season:
+                            t['matched_latest_season_number'] = int(manual_season)
+                        else:
+                            effective_latest = determine_effective_latest_season(
+                                matched_show['tmdb_id'],
+                                matched_show.get('latest_season_number')
+                            )
+                            if effective_latest:
+                                t['matched_latest_season_number'] = effective_latest
                     except Exception:
                         pass
                     # 从数据库获取实际的内容类型（如果已设置）
@@ -4866,6 +5626,17 @@ def get_calendar_tasks():
                     if not (config_ct and str(config_ct).strip()):
                         if t.get('matched_content_type'):
                             t['content_type'] = t['matched_content_type']
+                    # 从数据库获取 local_air_time 和 air_date_offset 并添加到 calendar_info 中供前端读取
+                    try:
+                        schedule = cal_db.get_show_air_schedule(int(matched_show.get('tmdb_id'))) or {}
+                        local_air_time = schedule.get('local_air_time') or ''
+                        air_date_offset = schedule.get('air_date_offset') or 0
+                        if not t.get('calendar_info'):
+                            t['calendar_info'] = {}
+                        t['calendar_info']['local_air_time'] = local_air_time
+                        t['calendar_info']['air_date_offset'] = air_date_offset
+                    except Exception:
+                        pass
                 else:
                     # 如果任务配置中没有 TMDB 匹配结果，检查是否已通过其他方式绑定到节目
                     # 通过任务名称在数据库中搜索已绑定的节目
@@ -4880,8 +5651,30 @@ def get_calendar_tasks():
                             # 查询完整信息以提供最新季数
                             try:
                                 full_show = cal_db.get_show(int(bound_show[0]))
-                                if full_show and 'latest_season_number' in full_show:
-                                    t['matched_latest_season_number'] = full_show['latest_season_number']
+                                if full_show:
+                                    manual_season = (
+                                        match.get('latest_season_number')
+                                        or cal.get('latest_season_number')
+                                        or legacy_match.get('latest_season_number')
+                                        or t.get('matched_latest_season_number')
+                                    )
+                                    if manual_season:
+                                        t['matched_latest_season_number'] = int(manual_season)
+                                    else:
+                                        effective_latest = determine_effective_latest_season(
+                                            int(bound_show[0]),
+                                            full_show.get('latest_season_number')
+                                        )
+                                        if effective_latest:
+                                            t['matched_latest_season_number'] = effective_latest
+                                    # 从完整信息中获取 local_air_time 和 air_date_offset
+                                    schedule = cal_db.get_show_air_schedule(int(bound_show[0])) or {}
+                                    local_air_time = schedule.get('local_air_time') or ''
+                                    air_date_offset = schedule.get('air_date_offset') or 0
+                                    if not t.get('calendar_info'):
+                                        t['calendar_info'] = {}
+                                    t['calendar_info']['local_air_time'] = local_air_time
+                                    t['calendar_info']['air_date_offset'] = air_date_offset
                             except Exception:
                                 pass
                             # 从数据库获取实际的内容类型（如果已设置）
@@ -4894,17 +5687,13 @@ def get_calendar_tasks():
                                 if t.get('matched_content_type'):
                                     t['content_type'] = t['matched_content_type']
                             
-                            logging.debug(f"通过已绑定关系找到节目 - 任务: '{task_name}', 节目: '{bound_show[1]}', tmdb_id: {bound_show[0]}")
                         else:
                             t['match_tmdb_id'] = None
                             t['matched_show_name'] = ''
                             t['matched_year'] = ''
                             t['matched_poster_local_path'] = ''
                             t['matched_content_type'] = t.get('content_type', '')
-                            
-                            logging.debug(f"任务未绑定到任何节目 - 任务: '{task_name}'")
                     except Exception as e:
-                        logging.debug(f"搜索已绑定节目失败 - 任务: '{task_name}', 错误: {e}")
                         t['match_tmdb_id'] = None
                         t['matched_show_name'] = ''
                         t['matched_year'] = ''
@@ -4914,7 +5703,6 @@ def get_calendar_tasks():
             tasks_info = enriched
         except Exception as _e:
             # 若补充失败，不影响主流程
-            print(f"补充匹配结果失败: {_e}")
             pass
 
         return jsonify({
@@ -5091,30 +5879,98 @@ def process_single_task_async(task, tmdb_service, cal_db):
         # 如果还没有 TMDB 匹配，进行匹配
         if not tmdb_id and extracted.get('show_name'):
             try:
-                search = tmdb_service.search_tv_show(extracted.get('show_name'), extracted.get('year') or None)
-                if search and search.get('id'):
-                    tmdb_id = search['id']
+                show_name = extracted.get('show_name', '')
+                year = extracted.get('year') or None
+                search_result = None
+                match_type = None  # 'exact' 或 'name_only'
+                
+                # 优先级匹配逻辑：先尝试精准匹配（名称+年份），无结果时再按名称匹配
+                if year:
+                    # 第一步：尝试精准匹配（名称+年份）
+                    search_results = tmdb_service.search_tv_show_all(show_name, year)
+                    if search_results:
+                        # 从结果中找到年份完全匹配的
+                        for result in search_results:
+                            result_year = None
+                            first_air_date = result.get('first_air_date', '')
+                            if first_air_date:
+                                try:
+                                    result_year = first_air_date[:4] if len(first_air_date) >= 4 else None
+                                except Exception:
+                                    pass
+                            
+                            if result_year == year and result.get('id'):
+                                search_result = result
+                                match_type = 'exact'
+                                logging.debug(f"TMDB 匹配成功: 任务名称={task.get('taskname', '')}, 节目名称={show_name}, 年份={year}")
+                                break
+                
+                # 第二步：如果精准匹配没有结果，尝试仅名称匹配
+                if not search_result:
+                    search_results = tmdb_service.search_tv_show_all(show_name, None)
+                    if search_results:
+                        # 如果有年份信息，选择年份最接近的结果
+                        if year:
+                            try:
+                                target_year = int(year)
+                                best_match = None
+                                min_year_diff = float('inf')
+                                
+                                for result in search_results:
+                                    if not result.get('id'):
+                                        continue
+                                    result_year = None
+                                    first_air_date = result.get('first_air_date', '')
+                                    if first_air_date:
+                                        try:
+                                            result_year = int(first_air_date[:4]) if len(first_air_date) >= 4 else None
+                                        except Exception:
+                                            pass
+                                    
+                                    if result_year:
+                                        year_diff = abs(result_year - target_year)
+                                        if year_diff < min_year_diff:
+                                            min_year_diff = year_diff
+                                            best_match = result
+                                
+                                if best_match:
+                                    search_result = best_match
+                                    match_type = 'name_only'
+                                    matched_year = best_match.get('first_air_date', '')[:4] if best_match.get('first_air_date') else '未知'
+                                    logging.debug(f"TMDB 匹配成功（年份不一致）: 任务名称={task.get('taskname', '')}, 节目名称={show_name}, 期望年份={year}, 匹配年份={matched_year}, 年份差异={min_year_diff}")
+                            except (ValueError, TypeError) as e:
+                                # 年份解析失败，使用第一个结果
+                                search_result = search_results[0] if search_results else None
+                                match_type = 'name_only'
+                                logging.debug(f"TMDB 匹配成功（年份解析失败）: 任务名称={task.get('taskname', '')}, 节目名称={show_name}, 错误={e}")
+                        else:
+                            # 没有年份信息，直接使用第一个结果
+                            search_result = search_results[0] if search_results else None
+                            match_type = 'name_only'
+                            logging.debug(f"TMDB 匹配成功（无年份信息）: 任务名称={task.get('taskname', '')}, 节目名称={show_name}")
+                
+                # 如果找到了匹配结果，继续处理
+                if search_result and search_result.get('id'):
+                    tmdb_id = search_result['id']
                     details = tmdb_service.get_tv_show_details(tmdb_id) or {}
                     seasons = details.get('seasons', [])
-                    logging.debug(f"process_single_task_async - TMDB季数数据: {seasons}")
                     
                     # 选择已播出的季中最新的一季
-                    # 使用有效日期判断季是否已播出（考虑播出集数刷新时间）
-                    effective_date_str = get_effective_date_for_aired_count()
-                    effective_date = datetime.strptime(effective_date_str, '%Y-%m-%d').date()
+                    # 使用今天的日期判断季是否已播出（现在集的播出日期已经是本地日期，不需要通过播出集数刷新时间限制）
+                    from datetime import datetime as _dt
+                    today_date = _dt.now().date()
                     latest_season_number = 0
                     latest_air_date = None
                     
                     for s in seasons:
                         sn = s.get('season_number', 0)
                         air_date = s.get('air_date')
-                        logging.debug(f"process_single_task_async - 季数: {sn}, 播出日期: {air_date}, 类型: {type(sn)}")
                         
-                        # 只考虑已播出的季（有air_date且早于或等于有效日期）
+                        # 只考虑已播出的季（有air_date且早于或等于今天的日期）
                         if sn and sn > 0 and air_date:  # 排除第0季（特殊季）
                             try:
                                 season_air_date = datetime.strptime(air_date, '%Y-%m-%d').date()
-                                if season_air_date <= effective_date:
+                                if season_air_date <= today_date:
                                     # 选择播出日期最新的季
                                     if latest_air_date is None or season_air_date > latest_air_date:
                                         latest_season_number = sn
@@ -5123,12 +5979,9 @@ def process_single_task_async(task, tmdb_service, cal_db):
                                 # 日期格式错误，跳过
                                 continue
                     
-                    logging.debug(f"process_single_task_async - 计算出的最新已播季数: {latest_season_number}")
-                    
                     # 如果没有找到已播出的季，回退到第1季
                     if latest_season_number == 0:
                         latest_season_number = 1
-                        logging.debug(f"process_single_task_async - 没有找到已播出的季，回退到第1季: {latest_season_number}")
 
                     chinese_title = tmdb_service.get_chinese_title_with_fallback(tmdb_id, extracted.get('show_name', ''))
                     
@@ -5146,11 +5999,26 @@ def process_single_task_async(task, tmdb_service, cal_db):
                         notify_calendar_changed('edit_metadata')
                     except Exception:
                         pass
+                else:
+                    # 没有找到任何匹配结果
+                    year_info = f", 年份={year}" if year else ""
+                    logging.warning(f"TMDB 匹配失败 - 任务名称: {task.get('taskname', '')}, 搜索的节目名称: {show_name}{year_info}, 失败原因: TMDB 搜索无结果，可能节目名称不匹配或 TMDB 中不存在该节目")
                         
             except Exception as e:
-                logging.warning(f"TMDB 匹配失败: task={task.get('taskname', '')}, err={e}")
+                # 捕获异常并输出详细的失败原因
+                task_name = task.get('taskname') or task.get('task_name') or ''
+                show_name = extracted.get('show_name', '')
+                year = extracted.get('year') or None
+                year_info = f", 年份={year}" if year else ""
+                import traceback
+                error_detail = str(e)
+                error_type = type(e).__name__
+                # 获取异常堆栈信息的前几行，用于诊断
+                tb_lines = traceback.format_exc().split('\n')
+                tb_summary = '; '.join([line.strip() for line in tb_lines[:3] if line.strip()][:2])
+                logging.warning(f"TMDB 匹配失败 - 任务名称: {task_name}, 搜索的节目名称: {show_name}{year_info}, 失败原因: 异常类型={error_type}, 错误信息={error_detail}, 堆栈摘要={tb_summary}")
 
-        # 如果现在有 TMDB ID，下载海报并更新数据库
+        # 如果现在有 TMDB ID，下载海报并更新数据库，并在可能的情况下同步 Trakt 播出时间信息
         if tmdb_id:
             try:
                 # 重新获取更新后的match信息
@@ -5244,6 +6112,53 @@ def process_single_task_async(task, tmdb_service, cal_db):
                             ep_type=(ep.get('episode_type') or ep.get('type')),
                             updated_at=now_ts,
                         )
+
+                    # 使用 Trakt 同步节目级播出时间（如已配置 Client ID）
+                    try:
+                        trakt_cfg = config_data.get("trakt", {}) if isinstance(config_data, dict) else {}
+                        client_id = (trakt_cfg.get("client_id") or "").strip()
+                        if client_id:
+                            local_tz = config_data.get("local_timezone", "Asia/Shanghai")
+                            tsvc = TraktService(client_id=client_id)
+                            if tsvc.is_configured():
+                                logging.debug(f"开始同步 Trakt 播出时间 tmdb_id={tmdb_id}")
+                                show_info = tsvc.get_show_by_tmdb_id(int(tmdb_id))
+                                if show_info and show_info.get("trakt_id"):
+                                    trakt_id = show_info.get("trakt_id")
+                                    logging.debug(f"找到 Trakt 节目 tmdb_id={tmdb_id}, trakt_id={trakt_id}")
+                                    # 1) 节目级播出时间 -> 本地时区 HH:MM，写入 shows.local_air_time
+                                    airtime = tsvc.get_show_airtime(trakt_id)
+                                    if airtime and airtime.get("aired_time") and airtime.get("timezone"):
+                                        local_air_time = tsvc.convert_show_airtime_to_local(
+                                            airtime.get("aired_time"), airtime.get("timezone"), local_tz
+                                        ) or airtime.get("aired_time")
+                                        logging.debug(f"获取到播出时间 tmdb_id={tmdb_id}, aired_time={airtime.get('aired_time')}, timezone={airtime.get('timezone')}, local_air_time={local_air_time}")
+                                        try:
+                                            from sdk.db import CalendarDB as _CalDB
+                                            _CalDB().update_show_air_schedule(
+                                                int(tmdb_id),
+                                                local_air_time=local_air_time or "",
+                                                air_time_source=airtime.get("aired_time") or "",
+                                                air_timezone=airtime.get("timezone") or "",
+                                            )
+                                            logging.debug(f"成功写入播出时间到数据库 tmdb_id={tmdb_id}")
+                                        except Exception as _db_err:
+                                            logging.warning(f"写入播出时间到数据库失败 tmdb_id={tmdb_id}: {_db_err}")
+                                    else:
+                                        logging.warning(f"未获取到完整的播出时间信息 tmdb_id={tmdb_id}, airtime={airtime}")
+                                else:
+                                    logging.debug(f"未找到 Trakt 节目映射 tmdb_id={tmdb_id}, show_info={show_info}")
+                            else:
+                                logging.debug(f"TraktService 未配置 tmdb_id={tmdb_id}")
+                        else:
+                            logging.debug(f"Trakt Client ID 未配置，跳过同步 tmdb_id={tmdb_id}")
+                    except Exception as _te_outer:
+                        logging.warning(f"同步 Trakt 播出时间失败 tmdb_id={tmdb_id}: {_te_outer}")
+                        import traceback
+                        logging.debug(f"异常堆栈: {traceback.format_exc()}")
+                    
+                    # 2) 如果有 Trakt 的源时间/时区，计算每集的本地播出日期并更新 air_date_local
+                    update_episodes_air_date_local(cal_db, int(tmdb_id), int(latest_season_number), episodes)
                 except Exception as _e:
                     logging.warning(f"写入剧集失败 tmdb_id={tmdb_id}: {_e}")
                 
@@ -5371,6 +6286,8 @@ def do_calendar_bootstrap() -> tuple:
                         ep_type=(ep.get('episode_type') or ep.get('type')),
                         updated_at=now_ts,
                     )
+                # 如果有 Trakt 的源时间/时区，计算每集的本地播出日期并更新 air_date_local
+                update_episodes_air_date_local(cal_db, int(tmdb_id), int(latest_season_number), episodes)
                 any_written = True
             except Exception as _e:
                 logging.warning(f"bootstrap 写入剧集失败 tmdb_id={tmdb_id}: {_e}")
@@ -5398,6 +6315,237 @@ def details_of_season_episode_count(tmdb_service: TMDBService, tmdb_id: int, sea
         return len(season.get('episodes', []) or [])
     except Exception:
         return 0
+
+
+def update_episodes_air_date_local(cal_db: CalendarDB, tmdb_id: int, season_number: int, episodes: list):
+    """
+    辅助函数：如果有 Trakt 的源时间/时区，计算每集的本地播出日期并更新 air_date_local
+    如果用户手动设置了 air_date_offset，优先使用该偏移值而不是重新计算
+    
+    Args:
+        cal_db: CalendarDB 实例
+        tmdb_id: 节目 TMDB ID
+        season_number: 季号
+        episodes: 集列表（包含 air_date 字段）
+    """
+    try:
+        # 从 shows 表读取 Trakt 的源时间/时区和用户手动设置的偏移值
+        show = cal_db.get_show(int(tmdb_id))
+        if not show:
+            return
+        air_time_source = show.get('air_time_source') or ''
+        air_timezone = show.get('air_timezone') or ''
+        # 获取用户手动设置的日期偏移值（如果存在）
+        schedule = cal_db.get_show_air_schedule(int(tmdb_id)) or {}
+        manual_air_date_offset = schedule.get('air_date_offset')
+        local_air_time = schedule.get('local_air_time') or ''
+        # 获取是否手动设置的标记（只有用户在 WebUI 编辑元数据页面修改并保存后才为 True）
+        air_date_offset_manually_set = schedule.get('air_date_offset_manually_set', False)
+        
+        # 重要：判断是否应该自动计算 air_date_offset
+        # 判断标准：
+        # 1. 默认 is_manually_set 为 False
+        # 2. 只有当 air_date_offset_manually_set 为 True 时（用户在 WebUI 编辑元数据页面修改并保存过），才认为是手动设置的
+        # 3. 这样初始化时即使 air_date_offset 是 0，也会自动计算正确的偏移值
+        is_manually_set = bool(air_date_offset_manually_set)
+        
+        # 如果 manual_air_date_offset 是 None，设置为 0 用于计算
+        if manual_air_date_offset is None:
+            manual_air_date_offset = 0
+        
+        # 如果用户手动设置了偏移值（且没有时区信息），直接使用偏移值计算
+        if not air_time_source or not air_timezone:
+            if is_manually_set:
+                # 用户手动设置了偏移值，使用偏移值计算 air_date_local
+                for ep in episodes:
+                    ep_air_date = ep.get('air_date') or ''
+                    ep_number = ep.get('episode_number') or 0
+                    if ep_air_date and ep_number:
+                        try:
+                            from datetime import datetime as _dt, timedelta as _td
+                            src_date = _dt.strptime(ep_air_date, '%Y-%m-%d').date()
+                            adjusted_date = src_date + _td(days=manual_air_date_offset)
+                            cal_db.update_episode_air_date_local(
+                                int(tmdb_id),
+                                int(season_number),
+                                int(ep_number),
+                                adjusted_date.strftime('%Y-%m-%d')
+                            )
+                        except Exception as _e_sync:
+                            logging.debug(f"使用手动偏移值更新 air_date_local 失败 tmdb_id={tmdb_id}, season={season_number}, ep={ep_number}: {_e_sync}")
+                return
+            else:
+                # 没有时区信息且没有手动偏移值，将 air_date_local 设置为与 air_date 相同的值
+                for ep in episodes:
+                    ep_air_date = ep.get('air_date') or ''
+                    ep_number = ep.get('episode_number') or 0
+                    if ep_air_date and ep_number:
+                        try:
+                            cal_db.update_episode_air_date_local(
+                                int(tmdb_id),
+                                int(season_number),
+                                int(ep_number),
+                                ep_air_date
+                            )
+                        except Exception as _e_sync:
+                            logging.debug(f"同步 air_date 到 air_date_local 失败 tmdb_id={tmdb_id}, season={season_number}, ep={ep_number}: {_e_sync}")
+                return
+        
+        # 获取本地时区配置
+        local_tz = config_data.get("local_timezone", "Asia/Shanghai")
+        
+        try:
+            from zoneinfo import ZoneInfo as _ZoneInfo
+            from datetime import datetime as _dt, time as _dtime, timedelta as _td
+            date_offset = None  # 用于存储计算出的日期偏移
+            for ep in episodes:
+                ep_air_date = ep.get('air_date') or ''
+                ep_number = ep.get('episode_number') or 0
+                if ep_air_date and ep_number:
+                    try:
+                        # 解析 TMDB air_date 作为源时区日期
+                        src_date = _dt.strptime(ep_air_date, '%Y-%m-%d').date()
+                        
+                        # 如果用户手动设置了偏移值（包括手动设置为0），优先使用手动偏移值
+                        if is_manually_set:
+                            adjusted_date = src_date + _td(days=manual_air_date_offset)
+                            air_date_local = adjusted_date.strftime('%Y-%m-%d')
+                            date_offset = manual_air_date_offset
+                        else:
+                            # 否则通过时区转换计算
+                            # 解析源时区时间
+                            hh, mm = [int(x) for x in air_time_source.split(':')]
+                            src_time = _dtime(hour=hh, minute=mm)
+                            # 组合成源时区 datetime
+                            src_dt = _dt.combine(src_date, src_time)
+                            src_dt = src_dt.replace(tzinfo=_ZoneInfo(air_timezone))
+                            # 转换到本地时区
+                            local_dt = src_dt.astimezone(_ZoneInfo(local_tz))
+                            air_date_local = local_dt.strftime('%Y-%m-%d')
+                            # 计算日期偏移（如果还未计算）
+                            if date_offset is None:
+                                local_date = _dt.strptime(air_date_local, '%Y-%m-%d').date()
+                                date_offset = (local_date - src_date).days
+                        
+                        # 更新数据库
+                        cal_db.update_episode_air_date_local(
+                            int(tmdb_id),
+                            int(season_number),
+                            int(ep_number),
+                            air_date_local
+                        )
+                    except Exception as _e_local:
+                        logging.debug(f"计算本地播出日期失败 tmdb_id={tmdb_id}, season={season_number}, ep={ep_number}: {_e_local}")
+            
+            # 如果计算出了日期偏移且用户没有手动设置，存储到数据库
+            # 这里的 date_offset 是通过时区转换计算出的偏移值（例如：美东周日 21:00 -> 北京时间周一 10:00，偏移 +1）
+            if date_offset is not None and not is_manually_set:
+                try:
+                    cal_db.update_show_air_schedule(
+                        int(tmdb_id),
+                        air_date_offset=date_offset
+                    )
+                except Exception as _offset_err:
+                    logging.debug(f"存储日期偏移失败 tmdb_id={tmdb_id}: {_offset_err}")
+        except Exception as _e_batch:
+            logging.debug(f"批量更新本地播出日期失败 tmdb_id={tmdb_id}, season={season_number}: {_e_batch}")
+    except Exception as _e:
+        logging.debug(f"更新本地播出日期失败 tmdb_id={tmdb_id}: {_e}")
+
+
+def sync_trakt_airtime_for_all_shows():
+    """为所有已有节目同步一次 Trakt 播出时间（首次配置 Client ID 时使用）"""
+    try:
+        trakt_cfg = config_data.get("trakt", {}) if isinstance(config_data, dict) else {}
+        client_id = (trakt_cfg.get("client_id") or "").strip()
+        if not client_id:
+            logging.debug("Trakt Client ID 未配置，跳过全量播出时间同步")
+            return
+        local_tz = config_data.get("local_timezone", "Asia/Shanghai")
+        tsvc = TraktService(client_id=client_id)
+        if not tsvc.is_configured():
+            logging.debug("TraktService 未配置，跳过全量播出时间同步")
+            return
+
+        cal_db = CalendarDB()
+        shows = cal_db.get_all_shows() or []
+        if not shows:
+            logging.debug("当前无节目可同步 Trakt 播出时间")
+            return
+
+        total = len(shows)
+        synced = 0
+        for show in shows:
+            tmdb_id = show.get("tmdb_id")
+            if tmdb_id is None or tmdb_id == "":
+                continue
+            try:
+                tmdb_id_int = int(tmdb_id)
+            except Exception:
+                continue
+
+            try:
+                show_info = tsvc.get_show_by_tmdb_id(tmdb_id_int)
+                if not show_info or not show_info.get("trakt_id"):
+                    logging.debug(f"未找到 Trakt 节目映射 tmdb_id={tmdb_id_int}")
+                    continue
+                trakt_id = show_info.get("trakt_id")
+                airtime = tsvc.get_show_airtime(trakt_id)
+                if not airtime or not airtime.get("aired_time") or not airtime.get("timezone"):
+                    logging.debug(f"Trakt 未返回播出时间 tmdb_id={tmdb_id_int}")
+                    continue
+
+                local_air_time = tsvc.convert_show_airtime_to_local(
+                    airtime.get("aired_time"), airtime.get("timezone"), local_tz
+                ) or airtime.get("aired_time")
+
+                cal_db.update_show_air_schedule(
+                    tmdb_id_int,
+                    local_air_time=local_air_time or "",
+                    air_time_source=airtime.get("aired_time") or "",
+                    air_timezone=airtime.get("timezone") or "",
+                )
+
+                # 同步已有集的本地播出日期
+                try:
+                    cursor = cal_db.conn.cursor()
+                    cursor.execute(
+                        "SELECT season_number, episode_number, air_date FROM episodes WHERE tmdb_id=?",
+                        (tmdb_id_int,),
+                    )
+                    rows = cursor.fetchall()
+                    episodes_by_season = {}
+                    for season_number, ep_number, air_date in rows:
+                        episodes_by_season.setdefault(season_number, []).append(
+                            {"episode_number": ep_number, "air_date": air_date}
+                        )
+                    for season_number, eps in episodes_by_season.items():
+                        update_episodes_air_date_local(cal_db, tmdb_id_int, int(season_number), eps)
+                except Exception as _ep_err:
+                    logging.debug(f"同步本地播出日期失败 tmdb_id={tmdb_id_int}: {_ep_err}")
+
+                synced += 1
+            except Exception as _single_err:
+                logging.debug(f"同步单个节目 Trakt 播出时间失败 tmdb_id={tmdb_id_int}: {_single_err}")
+
+        if synced > 0:
+            try:
+                notify_calendar_changed('trakt_airtime_synced')
+            except Exception:
+                pass
+            try:
+                _trigger_airtime_reschedule('trakt_airtime_synced')
+            except Exception:
+                pass
+            # 首次全量同步后立即重算播出/转存进度并热更新
+            try:
+                recompute_all_seasons_aired_daily()
+            except Exception as _recalc_err:
+                logging.debug(f"Trakt 全量同步后重算进度失败: {_recalc_err}")
+
+        logging.info(f"Trakt 播出时间全量同步完成，成功 {synced}/{total}")
+    except Exception as e:
+        logging.warning(f"Trakt 播出时间全量同步失败: {e}")
 
 
 def get_poster_language_setting():
@@ -5718,6 +6866,12 @@ def calendar_refresh_latest_season():
         if not show:
             return jsonify({"success": False, "message": "未初始化该剧（请先 bootstrap）"})
 
+        try:
+            show_name_for_log = show.get('name') or f"tmdb:{tmdb_id}"
+            logging.info(f">>> 开始执行刷新最新季元数据 [{show_name_for_log}]")
+        except Exception:
+            pass
+
         latest_season = int(show['latest_season_number'])
         season = tmdb_service.get_tv_show_episodes(tmdb_id, latest_season) or {}
         episodes = season.get('episodes', []) or []
@@ -5751,7 +6905,9 @@ def calendar_refresh_latest_season():
                 ep_type=(ep.get('episode_type') or ep.get('type')),
                 updated_at=now_ts,
             )
-            any_written = True
+        # 如果有 Trakt 的源时间/时区，计算每集的本地播出日期并更新 air_date_local
+        update_episodes_air_date_local(cal_db, int(tmdb_id), latest_season, episodes)
+        any_written = True
 
         # 同步更新 seasons 表的季名称与总集数
         try:
@@ -5769,14 +6925,15 @@ def calendar_refresh_latest_season():
             )
             # 写回 season_metrics（air/total），transferred 留待聚合更新
             try:
-                # 使用有效日期计算已播出集数
-                effective_date = get_effective_date_for_aired_count()
-                cur = cal_db.conn.cursor()
-                cur.execute("""
-                    SELECT COUNT(1) FROM episodes
-                    WHERE tmdb_id=? AND season_number=? AND air_date IS NOT NULL AND air_date != '' AND air_date <= ?
-                """, (int(tmdb_id), int(latest_season), effective_date))
-                aired_cnt = int((cur.fetchone() or [0])[0])
+                # 使用 is_episode_aired 逐集判断计算已播出集数（考虑播出时间）
+                # 修复：不再使用简单的日期比较，而是逐集调用 is_episode_aired 判断是否已播出
+                try:
+                    from zoneinfo import ZoneInfo as _ZoneInfo
+                    local_tz = _ZoneInfo(_get_local_timezone())
+                    now_local_dt = datetime.now(local_tz)
+                except Exception:
+                    now_local_dt = datetime.now()
+                aired_cnt = compute_aired_count_by_episode_check(int(tmdb_id), int(latest_season), now_local_dt)
                 progress_pct = 0
                 from time import time as _now
                 cal_db.upsert_season_metrics(int(tmdb_id), int(latest_season), None, aired_cnt, int(len(episodes)), int(progress_pct), int(_now()))
@@ -5784,10 +6941,23 @@ def calendar_refresh_latest_season():
                 pass
         except Exception:
             pass
+        # 单节目手动刷新完成后，立即重算已播出/进度并同步前后端
+        try:
+            recompute_show_aired_progress(int(tmdb_id))
+        except Exception as _recalc_err:
+            logging.debug(f"刷新后重算播出进度失败 tmdb_id={tmdb_id}: {_recalc_err}")
 
         try:
             if any_written:
                 notify_calendar_changed('refresh_latest_season')
+        except Exception:
+            pass
+        try:
+            _trigger_airtime_reschedule('refresh_latest_season', tmdb_id)
+        except Exception:
+            pass
+        try:
+            logging.info(f">>> 刷新最新季元数据 [{show_name_for_log}] 执行成功")
         except Exception:
             pass
         return jsonify({"success": True, "updated": len(episodes)})
@@ -5795,7 +6965,52 @@ def calendar_refresh_latest_season():
         return jsonify({"success": False, "message": f"刷新失败: {str(e)}"})
 
 
-# 强制刷新单集或合并集的元数据（海报视图使用）
+# 工具函数：格式化集范围用于日志
+def format_episode_range_for_log(episodes):
+    try:
+        eps = sorted(set(int(x) for x in episodes if x is not None))
+    except Exception:
+        return ''
+    if not eps:
+        return ''
+    if len(eps) == 1:
+        return f"第 {eps[0]} 集"
+    # 检测连续
+    is_consecutive = all(eps[i] + 1 == eps[i + 1] for i in range(len(eps) - 1))
+    if is_consecutive:
+        return f"第 {eps[0]} 至 {eps[-1]} 集"
+    return "第 " + "、".join(str(e) for e in eps) + " 集"
+
+
+def _refresh_single_episode(cal_db, tmdb_id: int, season_number: int, episode_number: int, tmdb_service):
+    season = tmdb_service.get_tv_show_episodes(tmdb_id, season_number) or {}
+    episodes = season.get('episodes', []) or []
+    target_episode = None
+    for ep in episodes:
+        if int(ep.get('episode_number') or 0) == episode_number:
+            target_episode = ep
+            break
+    if not target_episode:
+        raise ValueError(f"未找到第 {season_number} 季第 {episode_number} 集")
+
+    from time import time as _now
+    now_ts = int(_now())
+    cal_db.upsert_episode(
+        tmdb_id=int(tmdb_id),
+        season_number=season_number,
+        episode_number=episode_number,
+        name=target_episode.get('name') or '',
+        overview=target_episode.get('overview') or '',
+        air_date=target_episode.get('air_date') or '',
+        runtime=target_episode.get('runtime'),
+        ep_type=(target_episode.get('episode_type') or target_episode.get('type')),
+        updated_at=now_ts,
+    )
+    update_episodes_air_date_local(cal_db, int(tmdb_id), season_number, [target_episode])
+    return target_episode
+
+
+# 强制刷新单集元数据
 @app.route("/api/calendar/refresh_episode")
 def calendar_refresh_episode():
     try:
@@ -5817,50 +7032,102 @@ def calendar_refresh_episode():
         tmdb_service = TMDBService(tmdb_api_key, poster_language)
         cal_db = CalendarDB()
         
-        # 验证节目是否存在
         show = cal_db.get_show(int(tmdb_id))
         if not show:
             return jsonify({"success": False, "message": "未初始化该剧（请先 bootstrap）"})
 
-        # 获取指定季的所有集数据
-        season = tmdb_service.get_tv_show_episodes(tmdb_id, season_number) or {}
-        episodes = season.get('episodes', []) or []
-        
-        # 查找指定集
-        target_episode = None
-        for ep in episodes:
-            if int(ep.get('episode_number') or 0) == episode_number:
-                target_episode = ep
-                break
-        
-        if not target_episode:
-            return jsonify({"success": False, "message": f"未找到第 {season_number} 季第 {episode_number} 集"})
+        show_name_for_log = show.get('name') or f"tmdb:{tmdb_id}"
+        try:
+            logging.info(f">>> 开始执行刷新元数据 [{show_name_for_log} · 第 {season_number} 季 · 第 {episode_number} 集]")
+        except Exception:
+            pass
 
-        # 强制更新该集数据（无论是否有 runtime）
-        from time import time as _now
-        now_ts = int(_now())
-        
-        cal_db.upsert_episode(
-            tmdb_id=int(tmdb_id),
-            season_number=season_number,
-            episode_number=episode_number,
-            name=target_episode.get('name') or '',
-            overview=target_episode.get('overview') or '',
-            air_date=target_episode.get('air_date') or '',
-            runtime=target_episode.get('runtime'),
-            ep_type=(target_episode.get('episode_type') or target_episode.get('type')),
-            updated_at=now_ts,
-        )
+        target_episode = _refresh_single_episode(cal_db, int(tmdb_id), int(season_number), int(episode_number), tmdb_service)
 
-        # 通知日历数据变更
         try:
             notify_calendar_changed('refresh_episode')
         except Exception:
             pass
+        try:
+            _trigger_airtime_reschedule('refresh_episode', tmdb_id)
+        except Exception:
+            pass
             
-        # 获取剧名用于通知
         show_name = show.get('name', '未知剧集')
+        try:
+            logging.info(f">>> 刷新元数据 [{show_name_for_log} · 第 {season_number} 季 · 第 {episode_number} 集] 执行成功")
+        except Exception:
+            pass
         return jsonify({"success": True, "message": f"《{show_name}》第 {season_number} 季 · 第 {episode_number} 集刷新成功"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"刷新失败: {str(e)}"})
+
+
+# 批量刷新多集（合并集）
+@app.route("/api/calendar/refresh_episodes_batch")
+def calendar_refresh_episodes_batch():
+    try:
+        if not is_login():
+            return jsonify({"success": False, "message": "未登录"})
+
+        tmdb_id = request.args.get('tmdb_id', type=int)
+        season_number = request.args.get('season_number', type=int)
+        episode_numbers_raw = request.args.get('episode_numbers', '')
+
+        if not tmdb_id or not season_number or not episode_numbers_raw:
+            return jsonify({"success": False, "message": "缺少必要参数"})
+
+        try:
+            episode_numbers = [int(x) for x in str(episode_numbers_raw).split(',') if str(x).strip()]
+        except Exception:
+            return jsonify({"success": False, "message": "episode_numbers 参数非法"})
+        if not episode_numbers:
+            return jsonify({"success": False, "message": "缺少有效的集号列表"})
+
+        tmdb_api_key = config_data.get('tmdb_api_key', '')
+        if not tmdb_api_key:
+            return jsonify({"success": False, "message": "TMDB API 未配置"})
+
+        poster_language = get_poster_language_setting()
+        tmdb_service = TMDBService(tmdb_api_key, poster_language)
+        cal_db = CalendarDB()
+
+        show = cal_db.get_show(int(tmdb_id))
+        if not show:
+            return jsonify({"success": False, "message": "未初始化该剧（请先 bootstrap）"})
+
+        show_name_for_log = show.get('name') or f"tmdb:{tmdb_id}"
+        ep_range = format_episode_range_for_log(episode_numbers)
+        try:
+            logging.info(f">>> 开始执行刷新元数据 [{show_name_for_log} · 第 {season_number} 季 · {ep_range}]")
+        except Exception:
+            pass
+
+        failed = []
+        for ep_num in episode_numbers:
+            try:
+                _refresh_single_episode(cal_db, int(tmdb_id), int(season_number), int(ep_num), tmdb_service)
+            except Exception as e:
+                failed.append((ep_num, str(e)))
+
+        try:
+            notify_calendar_changed('refresh_episode')
+        except Exception:
+            pass
+        try:
+            _trigger_airtime_reschedule('refresh_episodes_batch', tmdb_id)
+        except Exception:
+            pass
+
+        show_name = show.get('name', '未知剧集')
+        if failed:
+            msg = f"《{show_name}》第 {season_number} 季 · {ep_range}部分刷新失败: {failed}"
+            return jsonify({"success": False, "message": msg})
+        try:
+            logging.info(f">>> 刷新元数据 [{show_name_for_log} · 第 {season_number} 季 · {ep_range}] 执行成功")
+        except Exception:
+            pass
+        return jsonify({"success": True, "message": f"《{show_name}》第 {season_number} 季 · {ep_range}刷新成功"})
     except Exception as e:
         return jsonify({"success": False, "message": f"刷新失败: {str(e)}"})
 
@@ -5874,6 +7141,9 @@ def calendar_refresh_season():
 
         tmdb_id = request.args.get('tmdb_id', type=int)
         season_number = request.args.get('season_number', type=int)
+        is_auto_refresh = request.args.get('is_auto_refresh', 'false').lower() == 'true'
+        is_batch_refresh = request.args.get('is_batch_refresh', 'false').lower() == 'true'
+        is_edit_metadata_refresh = request.args.get('is_edit_metadata_refresh', 'false').lower() == 'true'
         
         if not tmdb_id or not season_number:
             return jsonify({"success": False, "message": "缺少必要参数"})
@@ -5890,6 +7160,18 @@ def calendar_refresh_season():
         show = cal_db.get_show(int(tmdb_id))
         if not show:
             return jsonify({"success": False, "message": "未初始化该剧（请先 bootstrap）"})
+
+        # 日志：季级刷新（批量刷新时不输出单个任务日志，手动刷新用INFO，自动刷新和编辑元数据触发的刷新用DEBUG）
+        if not is_batch_refresh:
+            try:
+                show_name_for_log = show.get('name') or f"tmdb:{tmdb_id}"
+                log_msg = f">>> 开始执行刷新元数据 [{show_name_for_log} · 第 {season_number} 季]"
+                if is_auto_refresh or is_edit_metadata_refresh:
+                    logging.debug(log_msg)
+                else:
+                    logging.info(log_msg)
+            except Exception:
+                pass
 
         # 获取指定季的所有集数据
         season = tmdb_service.get_tv_show_episodes(tmdb_id, season_number) or {}
@@ -5930,6 +7212,9 @@ def calendar_refresh_season():
                 updated_at=now_ts,
             )
             updated_count += 1
+        
+        # 如果有 Trakt 的源时间/时区，计算每集的本地播出日期并更新 air_date_local
+        update_episodes_air_date_local(cal_db, int(tmdb_id), season_number, episodes)
 
         # 同步更新 seasons 表的季名称与总集数
         try:
@@ -5945,19 +7230,41 @@ def calendar_refresh_season():
                 f"/tv/{tmdb_id}/season/{season_number}",
                 season_name_processed
             )
-            # 写回 season_metrics（air/total），transferred 留待聚合更新
+            # 写回 season_metrics（使用时区感知的已播出判定）
             try:
-                # 使用有效日期计算已播出集数
-                effective_date = get_effective_date_for_aired_count()
+                try:
+                    from zoneinfo import ZoneInfo as _ZoneInfo
+                    _local_tz = _ZoneInfo(_get_local_timezone())
+                    _now_local_dt = datetime.now(_local_tz)
+                except Exception:
+                    _now_local_dt = datetime.now()
+                aired_cnt = 0
                 cur = cal_db.conn.cursor()
-                cur.execute("""
-                    SELECT COUNT(1) FROM episodes
-                    WHERE tmdb_id=? AND season_number=? AND air_date IS NOT NULL AND air_date != '' AND air_date <= ?
-                """, (int(tmdb_id), int(season_number), effective_date))
-                aired_cnt = int((cur.fetchone() or [0])[0])
+                cur.execute(
+                    """
+                    SELECT episode_number FROM episodes
+                    WHERE tmdb_id=? AND season_number=?
+                    """,
+                    (int(tmdb_id), int(season_number)),
+                )
+                ep_list = cur.fetchall() or []
+                for (_ep_no,) in ep_list:
+                    try:
+                        result = is_episode_aired(int(tmdb_id), int(season_number), int(_ep_no), _now_local_dt)
+                        if result:
+                            aired_cnt += 1
+                    except Exception as _ep_err:
+                        logging.debug(f"calendar_refresh_season 计算已播出集数异常: tmdb_id={tmdb_id}, season={season_number}, ep={_ep_no}, error={_ep_err}")
+                        import traceback
+                        logging.debug(f"异常堆栈: {traceback.format_exc()}")
+                        continue
                 from time import time as _now
-                cal_db.upsert_season_metrics(int(tmdb_id), int(season_number), None, aired_cnt, int(len(episodes)), int(_now()))
-            except Exception:
+                logging.debug(f"calendar_refresh_season 计算完成: tmdb_id={tmdb_id}, season={season_number}, aired_cnt={aired_cnt}, total={len(episodes)}")
+                cal_db.upsert_season_metrics(int(tmdb_id), int(season_number), None, aired_cnt, int(len(episodes)), 0, int(_now()))
+            except Exception as _metrics_err:
+                logging.debug(f"calendar_refresh_season 更新 season_metrics 异常: tmdb_id={tmdb_id}, season={season_number}, error={_metrics_err}")
+                import traceback
+                logging.debug(f"异常堆栈: {traceback.format_exc()}")
                 pass
         except Exception:
             pass
@@ -5967,12 +7274,71 @@ def calendar_refresh_season():
             notify_calendar_changed('refresh_season')
         except Exception:
             pass
-            
+        try:
+            _trigger_airtime_reschedule('refresh_season', tmdb_id)
+        except Exception:
+            pass
+
         # 获取剧名用于通知
         show_name = show.get('name', '未知剧集')
+        if not is_batch_refresh:
+            try:
+                log_msg = f">>> 刷新元数据 [{show_name_for_log} · 第 {season_number} 季] 执行成功"
+                if is_auto_refresh or is_edit_metadata_refresh:
+                    logging.debug(log_msg)
+                else:
+                    logging.info(log_msg)
+            except Exception:
+                pass
+        # 刷新后回填任务进度（若有绑定且匹配到同季）
+        try:
+            tasks = (config_data or {}).get('tasklist', [])
+            bound_tasks = []
+            for _t in tasks:
+                _name = _t.get('taskname') or _t.get('task_name') or ''
+                _cal = (_t.get('calendar_info') or {})
+                _match = (_cal.get('match') or {})
+                _tid = _match.get('tmdb_id') or _cal.get('tmdb_id')
+                _matched_sn = _t.get('matched_latest_season_number')
+                if _name and _tid and int(_tid) == int(tmdb_id):
+                    # 仅对匹配到同一季的任务执行回填
+                    if _matched_sn is None or int(_matched_sn) == int(season_number):
+                        bound_tasks.append(_name)
+            for _task_name in bound_tasks:
+                try:
+                    recompute_task_metrics_and_notify(_task_name)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
         return jsonify({"success": True, "message": f"《{show_name}》第 {season_number} 季刷新成功，共 {updated_count} 集"})
     except Exception as e:
         return jsonify({"success": False, "message": f"刷新失败: {str(e)}"})
+
+
+# 记录批量刷新开始日志
+@app.route("/api/calendar/log_batch_refresh_start", methods=["POST"])
+def log_batch_refresh_start():
+    try:
+        if not is_login():
+            return jsonify({"success": False, "message": "未登录"})
+        logging.info(">>> 开始执行追剧日历手动刷新")
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"记录日志失败: {str(e)}"})
+
+
+# 记录批量刷新结束日志
+@app.route("/api/calendar/log_batch_refresh_end", methods=["POST"])
+def log_batch_refresh_end():
+    try:
+        if not is_login():
+            return jsonify({"success": False, "message": "未登录"})
+        logging.info(">>> 追剧日历手动刷新执行成功")
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"记录日志失败: {str(e)}"})
 
 
 # 刷新：拉取剧级别的最新详情并更新 shows 表（用于更新节目状态/中文名/首播年/海报/最新季）
@@ -6096,6 +7462,7 @@ def calendar_edit_metadata():
         new_tmdb_id = data.get('new_tmdb_id')
         new_season_number = data.get('new_season_number')
         custom_poster_url = (data.get('custom_poster_url') or '').strip()
+        local_air_time = (data.get('local_air_time') or '').strip()
 
         if not task_name:
             return jsonify({"success": False, "message": "缺少任务名称"})
@@ -6113,14 +7480,134 @@ def calendar_edit_metadata():
 
         cal = (target.get('calendar_info') or {})
         match = (cal.get('match') or {})
-        old_tmdb_id = match.get('tmdb_id') or cal.get('tmdb_id')
+        # 兼容旧字段，避免因结构差异无法读取已匹配的节目
+        legacy_match = target.get('match') if isinstance(target.get('match'), dict) else {}
+        old_tmdb_id = (
+            match.get('tmdb_id')
+            or cal.get('tmdb_id')
+            or legacy_match.get('tmdb_id')
+            or target.get('match_tmdb_id')
+            or target.get('tmdb_id')
+        )
 
         changed = False
+        local_air_time_changed = False
 
         if new_task_name and new_task_name != task_name:
             target['taskname'] = new_task_name
             target['task_name'] = new_task_name
             changed = True
+
+        # 处理节目级本地播出时间：写入任务配置，并在存在 TMDB ID 时同步到数据库
+        if 'calendar_info' not in target:
+            target['calendar_info'] = {}
+        if local_air_time or cal.get('local_air_time'):
+            # 允许用户清空播出时间（回退到 Trakt 自动推断或全局刷新时间）
+            # 从数据库获取当前的播出时间和偏移值，而不是从 cal 中获取（可能不准确）
+            old_offset = 0
+            old_air_time_only = ''
+            if old_tmdb_id:
+                try:
+                    cal_db_for_offset = CalendarDB()
+                    schedule_for_offset = cal_db_for_offset.get_show_air_schedule(int(old_tmdb_id)) or {}
+                    old_air_time_only = schedule_for_offset.get('local_air_time') or ''
+                    old_offset = schedule_for_offset.get('air_date_offset') or 0
+                except Exception:
+                    old_air_time_only = str(cal.get('local_air_time') or '').strip()
+                    old_offset = cal.get('air_date_offset') or 0
+            else:
+                old_air_time_only = str(cal.get('local_air_time') or '').strip()
+                old_offset = cal.get('air_date_offset') or 0
+            
+            norm_old = old_air_time_only  # 只使用时间部分，不包含偏移值
+            norm_new = str(local_air_time or '').strip()
+            
+            # 解析新的播出时间字符串，提取时间和日期偏移
+            air_time_only_new = norm_new
+            air_date_offset_new = 0
+            offset_match = re.match(r'^([01]?[0-9]|2[0-3]):([0-5][0-9])\s+([+-])(\d+)d$', norm_new)
+            if offset_match:
+                air_time_only_new = offset_match.group(1) + ':' + offset_match.group(2)
+                sign = offset_match.group(3)
+                days = int(offset_match.group(4))
+                air_date_offset_new = days if sign == '+' else -days
+            
+            # 比较时间部分和偏移值，只要有一个不同就需要更新
+            time_changed = (air_time_only_new != norm_old) or (air_date_offset_new != old_offset)
+            if time_changed:
+                # 使用已解析的值
+                air_time_only = air_time_only_new
+                air_date_offset = air_date_offset_new
+                
+                target['calendar_info']['local_air_time'] = air_time_only
+                target['calendar_info']['air_date_offset'] = air_date_offset
+                changed = True
+                local_air_time_changed = True
+                # 用户手动设置播出时间：仅以本地时间为准，同时清空节目级源时区设置，
+                # 后续不再使用 Trakt 的 airs.time / timezone 做日期偏移推导
+                try:
+                    if old_tmdb_id:
+                        cal_db_for_air = CalendarDB()
+                        # 保留原有的 air_time_source 和 air_timezone（不清空），但使用手动设置的偏移值
+                        # 这样 update_episodes_air_date_local 可以优先使用手动偏移值
+                        # 如果日期偏移发生变化，或者时间部分发生变化，都标记为手动设置
+                        # 因为用户通过 WebUI 编辑元数据页面修改了播出时间，无论是否改变了偏移值，都应该标记为手动设置
+                        should_mark_manually_set = (air_date_offset != old_offset) or (air_time_only_new != norm_old)
+                        
+                        cal_db_for_air.update_show_air_schedule(
+                            int(old_tmdb_id),
+                            local_air_time=air_time_only,
+                            air_date_offset=air_date_offset,
+                            air_date_offset_manually_set=True if should_mark_manually_set else None,
+                        )
+                        # 如果日期偏移发生变化，重新计算所有集的 air_date_local
+                        if air_date_offset != old_offset:
+                            try:
+                                cursor = cal_db_for_air.conn.cursor()
+                                cursor.execute(
+                                    "SELECT season_number, episode_number, air_date FROM episodes WHERE tmdb_id=? AND air_date IS NOT NULL AND air_date != ''",
+                                    (int(old_tmdb_id),),
+                                )
+                                rows = cursor.fetchall()
+                                episodes_by_season = {}
+                                for season_number, ep_number, air_date in rows:
+                                    episodes_by_season.setdefault(season_number, []).append(
+                                        {"episode_number": ep_number, "air_date": air_date}
+                                    )
+                                updated_count = 0
+                                for season_number, eps in episodes_by_season.items():
+                                    # 使用新的偏移值重新计算 air_date_local
+                                    for ep in eps:
+                                        try:
+                                            from datetime import datetime as _dt, timedelta as _td
+                                            src_date = _dt.strptime(ep['air_date'], '%Y-%m-%d').date()
+                                            adjusted_date = src_date + _td(days=air_date_offset)
+                                            cal_db_for_air.update_episode_air_date_local(
+                                                int(old_tmdb_id),
+                                                int(season_number),
+                                                int(ep['episode_number']),
+                                                adjusted_date.strftime('%Y-%m-%d')
+                                            )
+                                            updated_count += 1
+                                        except Exception as _ep_err:
+                                            logging.debug(f"更新集日期失败 tmdb_id={old_tmdb_id}, season={season_number}, ep={ep['episode_number']}: {_ep_err}")
+                            except Exception as _recalc_date_err:
+                                logging.debug(f"重新计算集日期失败 tmdb_id={old_tmdb_id}: {_recalc_date_err}")
+                        # 变更播出时间后，立即重算该节目的已播/进度并通知前端，确保热更新
+                        try:
+                            recompute_show_aired_progress(int(old_tmdb_id))
+                        except Exception as _recalc_err:
+                            logging.debug(f"重算节目进度失败 tmdb_id={old_tmdb_id}: {_recalc_err}")
+                        try:
+                            notify_calendar_changed('update_airtime')
+                        except Exception:
+                            pass
+                        try:
+                            _trigger_airtime_reschedule('update_airtime', old_tmdb_id)
+                        except Exception as _sched_err:
+                            logging.debug(f"重建播出时间调度失败 tmdb_id={old_tmdb_id}: {_sched_err}")
+                except Exception as e:
+                    logging.warning(f"同步本地播出时间到数据库失败: {e}")
 
         valid_types = {'tv', 'anime', 'variety', 'documentary', 'other', ''}
         if new_content_type in valid_types:
@@ -6143,6 +7630,8 @@ def calendar_edit_metadata():
                 changed = True
 
         did_rematch = False
+        new_tid = None
+        season_no = None
         cal_db = CalendarDB()
         tmdb_api_key = config_data.get('tmdb_api_key', '')
         poster_language = get_poster_language_setting()
@@ -6284,6 +7773,8 @@ def calendar_edit_metadata():
                         ep_type=(ep.get('episode_type') or ep.get('type')),
                         updated_at=now_ts,
                     )
+                # 如果有 Trakt 的源时间/时区，计算每集的本地播出日期并更新 air_date_local
+                update_episodes_air_date_local(cal_db, int(new_tid), int(season_no), eps)
                 try:
                     sname_raw = (season or {}).get('name') or ''
                     sname = tmdb_service.process_season_name(sname_raw) if tmdb_service else sname_raw
@@ -6291,14 +7782,15 @@ def calendar_edit_metadata():
                     cal_db.update_show_latest_season_number(int(new_tid), int(season_no))
                     # 写回 season_metrics（air/total），transferred 留给聚合环节补齐
                     try:
-                        # 使用有效日期计算已播出集数
-                        effective_date = get_effective_date_for_aired_count()
-                        cur = cal_db.conn.cursor()
-                        cur.execute("""
-                            SELECT COUNT(1) FROM episodes
-                            WHERE tmdb_id=? AND season_number=? AND air_date IS NOT NULL AND air_date != '' AND air_date <= ?
-                        """, (int(new_tid), int(season_no), effective_date))
-                        aired_cnt = int((cur.fetchone() or [0])[0])
+                        # 使用 is_episode_aired 逐集判断计算已播出集数（考虑播出时间）
+                        # 修复：不再使用简单的日期比较，而是逐集调用 is_episode_aired 判断是否已播出
+                        try:
+                            from zoneinfo import ZoneInfo as _ZoneInfo
+                            local_tz = _ZoneInfo(_get_local_timezone())
+                            now_local_dt = datetime.now(local_tz)
+                        except Exception:
+                            now_local_dt = datetime.now()
+                        aired_cnt = compute_aired_count_by_episode_check(int(new_tid), int(season_no), now_local_dt)
                         progress_pct = 0  # 此处无 transferred_count，百分比暂置 0，由聚合环节补齐
                         from time import time as _now
                         cal_db.upsert_season_metrics(int(new_tid), int(season_no), None, aired_cnt, int(len(eps)), int(progress_pct), int(_now()))
@@ -6336,6 +7828,11 @@ def calendar_edit_metadata():
                         except Exception:
                             pass
                 CalendarDB().cleanup_orphan_data(_valid_pairs, _valid_names)
+                # 清理孤立数据后，也清理可能残留的孤立海报文件
+                try:
+                    cleanup_orphaned_posters()
+                except Exception:
+                    pass
             except Exception:
                 pass
         # 场景二：未提供 new_tmdb_id，但提供了 new_season_number（仅修改季数）
@@ -6346,7 +7843,12 @@ def calendar_edit_metadata():
                 return jsonify({"success": False, "message": "季数必须为数字"})
 
             # 检查是否与当前匹配的季数相同，如果相同则跳过处理
-            current_match_season = match.get('latest_season_number')
+            current_match_season = (
+                match.get('latest_season_number')
+                or legacy_match.get('latest_season_number')
+                or target.get('matched_latest_season_number')
+                or cal.get('latest_season_number')
+            )
             if current_match_season and int(current_match_season) == season_no:
                 # 季数未变化，跳过处理
                 pass
@@ -6396,6 +7898,8 @@ def calendar_edit_metadata():
                             ep_type=(ep.get('episode_type') or ep.get('type')),
                             updated_at=now_ts,
                         )
+                    # 如果有 Trakt 的源时间/时区，计算每集的本地播出日期并更新 air_date_local
+                    update_episodes_air_date_local(cal_db, int(old_tmdb_id), int(season_no), eps)
                     try:
                         sname_raw = (season or {}).get('name') or ''
                         sname = tmdb_service.process_season_name(sname_raw)
@@ -6435,6 +7939,11 @@ def calendar_edit_metadata():
                             except Exception:
                                 pass
                     CalendarDB().cleanup_orphan_data(_valid_pairs, _valid_names)
+                    # 清理孤立数据后，也清理可能残留的孤立海报文件
+                    try:
+                        cleanup_orphaned_posters()
+                    except Exception:
+                        pass
                 except Exception:
                     pass
 
@@ -6527,6 +8036,37 @@ def calendar_edit_metadata():
         except Exception:
             pass
 
+        if local_air_time_changed and old_tmdb_id:
+            try:
+                _trigger_airtime_reschedule('edit_metadata_local_air_time', old_tmdb_id)
+            except Exception:
+                pass
+
+        # 确定最终的 tmdb_id 和 season_number，用于前端刷新
+        # 只有在需要刷新元数据的情况下才返回有效的 tmdb_id 和 season_number：
+        # 1. 重新匹配了 TMDB（did_rematch）
+        # 2. 修改了季数（new_season_number）
+        # 3. 修改了自定义海报（custom_poster_url）- 需要刷新以更新海报
+        # 其他情况（如只修改任务名、内容类型、本地播出时间）不应该触发刷新
+        final_tmdb_id = None
+        final_season_number = None
+        if did_rematch and new_tid:
+            # 如果重新匹配，使用新的 tmdb_id 和 season_number
+            final_tmdb_id = new_tid
+            final_season_number = season_no
+        elif (new_season_number is not None) and (str(new_season_number).strip() != '') and old_tmdb_id:
+            # 如果只修改了季数，使用当前的 tmdb_id 和新的季数
+            try:
+                final_tmdb_id = old_tmdb_id
+                final_season_number = int(new_season_number)
+            except Exception:
+                pass
+        elif custom_poster_url and old_tmdb_id:
+            # 如果修改了自定义海报，需要刷新以更新海报（但不需要刷新元数据）
+            # 这里不返回 tmdb_id 和 season_number，因为海报更新不需要刷新元数据
+            # 海报更新会通过 notify_calendar_changed('poster_updated:...') 通知前端
+            pass
+
         msg = '元数据更新成功'
         if did_rematch:
             msg = '元数据更新成功，已重新匹配并刷新元数据'
@@ -6535,7 +8075,16 @@ def calendar_edit_metadata():
                 msg = '元数据更新成功，已重新匹配并刷新元数据，自定义海报已更新'
             else:
                 msg = '元数据更新成功，自定义海报已更新'
-        return jsonify({"success": True, "message": msg})
+        
+        # 返回修改状态和需要刷新的节目信息
+        result = {
+            "success": True,
+            "message": msg,
+            "changed": changed,
+            "tmdb_id": final_tmdb_id,
+            "season_number": final_season_number
+        }
+        return jsonify(result)
     except Exception as e:
         return jsonify({"success": False, "message": f"保存失败: {str(e)}"})
 
@@ -6700,6 +8249,10 @@ def run_calendar_refresh_all_internal():
                             updated_at=now_ts,
                         )
                         any_written = True
+                    
+                    # 如果有 Trakt 的源时间/时区，计算每集的本地播出日期并更新 air_date_local
+                    # 如果没有时区信息，将 air_date_local 设置为与 air_date 相同的值
+                    update_episodes_air_date_local(db, int(tmdb_id), int(db.get_show(int(tmdb_id))['latest_season_number']), episodes)
 
                     # 新增：节目状态变更检测与更新（如 Returning → 本季终/已完结 等）
                     try:
@@ -6738,6 +8291,10 @@ def run_calendar_refresh_all_internal():
                 notify_calendar_changed('auto_refresh')
             if status_changed_any:
                 notify_calendar_changed('status_updated')
+        except Exception:
+            pass
+        try:
+            _trigger_airtime_reschedule('auto_refresh')
         except Exception:
             pass
     except Exception as e:
@@ -6837,11 +8394,177 @@ def get_calendar_episodes_local():
         except Exception:
             progress_by_task = {}
 
+        # 获取日历时区模式配置
+        calendar_timezone_mode = config_data.get('calendar_timezone_mode', 'original')
+
+        # 统一获取当前本地时间，用于批量计算 is_aired 保持与后端统计逻辑一致
+        try:
+            from zoneinfo import ZoneInfo as _ZoneInfo
+            local_tz = _ZoneInfo(_get_local_timezone())
+            now_local_dt = datetime.now(local_tz)
+        except Exception:
+            now_local_dt = datetime.now()
+        
+        # 批量计算 is_aired 的辅助函数（避免重复数据库查询）
+        def batch_compute_is_aired(episodes_list, db_instance):
+            """批量计算所有集的 is_aired，复用数据库连接和批量查询优化性能"""
+            if not episodes_list:
+                return
+            try:
+                # 收集所有需要查询的 (tmdb_id, season_number, episode_number) 三元组
+                episode_keys = []
+                for e in episodes_list:
+                    try:
+                        tmdb_id_i = int(e.get('tmdb_id'))
+                        season_no_i = int(e.get('season_number'))
+                        ep_no = int(e.get('episode_number'))
+                        episode_keys.append((tmdb_id_i, season_no_i, ep_no, e))
+                    except Exception:
+                        continue
+                
+                if not episode_keys:
+                    return
+                
+                # 批量查询所有集的 air_date_local（一次性查询）
+                cur = db_instance.conn.cursor()
+                air_dates_map = {}
+                try:
+                    # SQLite 不支持元组 IN，使用 OR 条件组合（性能仍然比逐集查询好很多）
+                    if len(episode_keys) <= 500:  # 限制批量大小，避免 SQL 过长
+                        conditions = []
+                        params = []
+                        for tmdb_id_i, season_no_i, ep_no, _ in episode_keys:
+                            conditions.append("(tmdb_id=? AND season_number=? AND episode_number=?)")
+                            params.extend([tmdb_id_i, season_no_i, ep_no])
+                        sql = f"""
+                            SELECT tmdb_id, season_number, episode_number, air_date_local
+                            FROM episodes
+                            WHERE {' OR '.join(conditions)}
+                        """
+                        cur.execute(sql, params)
+                        for row in cur.fetchall():
+                            tmdb_id_i, season_no_i, ep_no, air_date_local = row
+                            air_dates_map[(int(tmdb_id_i), int(season_no_i), int(ep_no))] = air_date_local
+                    else:
+                        # 如果集数太多，分批查询（每批500个）
+                        batch_size = 500
+                        for i in range(0, len(episode_keys), batch_size):
+                            batch = episode_keys[i:i + batch_size]
+                            conditions = []
+                            params = []
+                            for tmdb_id_i, season_no_i, ep_no, _ in batch:
+                                conditions.append("(tmdb_id=? AND season_number=? AND episode_number=?)")
+                                params.extend([tmdb_id_i, season_no_i, ep_no])
+                            sql = f"""
+                                SELECT tmdb_id, season_number, episode_number, air_date_local
+                                FROM episodes
+                                WHERE {' OR '.join(conditions)}
+                            """
+                            cur.execute(sql, params)
+                            for row in cur.fetchall():
+                                tmdb_id_i, season_no_i, ep_no, air_date_local = row
+                                air_dates_map[(int(tmdb_id_i), int(season_no_i), int(ep_no))] = air_date_local
+                except Exception:
+                    # 如果批量查询失败，回退到逐集查询（兼容性）
+                    for tmdb_id_i, season_no_i, ep_no, _ in episode_keys:
+                        try:
+                            cur.execute(
+                                "SELECT air_date_local FROM episodes WHERE tmdb_id=? AND season_number=? AND episode_number=?",
+                                (tmdb_id_i, season_no_i, ep_no)
+                            )
+                            row = cur.fetchone()
+                            if row:
+                                air_dates_map[(tmdb_id_i, season_no_i, ep_no)] = row[0]
+                        except Exception:
+                            pass
+                
+                # 批量查询所有节目的播出时间配置（一次性查询，避免重复）
+                unique_tmdb_ids = list(set([k[0] for k in episode_keys]))
+                schedules_map = {}
+                try:
+                    if unique_tmdb_ids:
+                        placeholders = ','.join(['?' for _ in unique_tmdb_ids])
+                        cur.execute(
+                            f"SELECT tmdb_id, local_air_time FROM shows WHERE tmdb_id IN ({placeholders})",
+                            unique_tmdb_ids
+                        )
+                        for row in cur.fetchall():
+                            schedules_map[int(row[0])] = (row[1] or '').strip() or None
+                except Exception:
+                    # 回退到逐节目查询（使用 get_show_air_schedule 获取完整配置）
+                    for tmdb_id_i in unique_tmdb_ids:
+                        try:
+                            schedule = db_instance.get_show_air_schedule(tmdb_id_i) or {}
+                            schedules_map[tmdb_id_i] = (schedule.get('local_air_time') or '').strip() or None
+                        except Exception:
+                            schedules_map[tmdb_id_i] = None
+                
+                # 获取全局播出集数刷新时间（只需获取一次）
+                perf = config_data.get("performance", {}) if isinstance(config_data, dict) else {}
+                refresh_time_str = perf.get("aired_refresh_time", "00:00")
+                
+                # 在内存中批量计算 is_aired，并同时为前端注入节目级播出时间（local_air_time）
+                for tmdb_id_i, season_no_i, ep_no, episode_obj in episode_keys:
+                    try:
+                        air_date_local = air_dates_map.get((tmdb_id_i, season_no_i, ep_no))
+                        if not air_date_local:
+                            episode_obj['is_aired'] = False
+                            continue
+                        
+                        # 获取节目级播出时间
+                        local_air_time = schedules_map.get(tmdb_id_i)
+                        # 将节目级播出时间原样注入到每一集对象中，供前端悬停提示展示
+                        # 仅在存在节目级配置时注入；若配置为空则保持该字段缺失，前端仍按原逻辑不显示时间
+                        if local_air_time:
+                            episode_obj['local_air_time'] = local_air_time
+                        time_to_use = local_air_time if local_air_time else refresh_time_str
+                        
+                        # 解析时间（HH:MM）
+                        hh, mm = 0, 0
+                        try:
+                            parts = str(time_to_use).split(":")
+                            if len(parts) == 2:
+                                hh = int(parts[0])
+                                mm = int(parts[1])
+                        except Exception:
+                            hh, mm = 0, 0
+                        
+                        # 组合日期和时间，与当前时间比较
+                        dt_str = f"{air_date_local} {hh:02d}:{mm:02d}:00"
+                        dt_ep_local = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+                        if getattr(now_local_dt, "tzinfo", None) is not None:
+                            dt_ep_local = dt_ep_local.replace(tzinfo=now_local_dt.tzinfo)
+                        episode_obj['is_aired'] = dt_ep_local.timestamp() <= now_local_dt.timestamp()
+                    except Exception:
+                        episode_obj['is_aired'] = False
+            except Exception:
+                # 如果批量计算失败，回退到逐集调用 is_episode_aired（兼容性保证）
+                for e in episodes_list:
+                    try:
+                        tmdb_id_i = int(e.get('tmdb_id'))
+                        season_no_i = int(e.get('season_number'))
+                        ep_no = int(e.get('episode_number'))
+                        e['is_aired'] = bool(is_episode_aired(tmdb_id_i, season_no_i, ep_no, now_local_dt))
+                    except Exception:
+                        e['is_aired'] = False
+        
         if tmdb_id:
             show = db.get_show(int(tmdb_id))
             if not show:
                 return jsonify({'success': True, 'data': {'episodes': [], 'total': 0}})
             eps = db.list_latest_season_episodes(int(tmdb_id), int(show['latest_season_number']))
+            # 根据 calendar_timezone_mode 选择使用 air_date 还是 air_date_local
+            # air_date_local 应该已经包含了偏移值，直接使用即可
+            for e in eps:
+                if calendar_timezone_mode == 'local' and e.get('air_date_local'):
+                    e['display_air_date'] = e['air_date_local']
+                else:
+                    e['display_air_date'] = e.get('air_date') or ''
+                # 补充 tmdb_id 和 season_number（批量计算需要）
+                e['tmdb_id'] = int(tmdb_id)
+                e['season_number'] = int(show['latest_season_number'])
+            # 批量计算 is_aired（优化性能）
+            batch_compute_is_aired(eps, db)
             # 注入任务信息与标准化进度
             info = tmdb_to_taskinfo.get(int(tmdb_id))
             if info:
@@ -6856,6 +8579,15 @@ def get_calendar_episodes_local():
         else:
             # 返回全部最新季汇总（供周视图合并展示）
             eps = db.list_all_latest_episodes()
+            # 根据 calendar_timezone_mode 选择使用 air_date 还是 air_date_local
+            # air_date_local 应该已经包含了偏移值，直接使用即可
+            for e in eps:
+                if calendar_timezone_mode == 'local' and e.get('air_date_local'):
+                    e['display_air_date'] = e['air_date_local']
+                else:
+                    e['display_air_date'] = e.get('air_date') or ''
+            # 批量计算 is_aired（优化性能）
+            batch_compute_is_aired(eps, db)
             for e in eps:
                 info = tmdb_to_taskinfo.get(int(e.get('tmdb_id')))
                 if info:

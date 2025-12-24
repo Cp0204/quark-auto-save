@@ -9,10 +9,6 @@ import re
 import os
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
-import logging
-
-logger = logging.getLogger(__name__)
-
 class TaskExtractor:
     def __init__(self):
         # 剧集编号提取模式
@@ -233,31 +229,19 @@ class TaskExtractor:
         Returns:
             包含所有任务信息的列表
         """
-        logging.debug("TaskExtractor.extract_all_tasks_info 开始")
-        logging.debug(f"tasks数量: {len(tasks)}")
-        logging.debug(f"task_latest_files数量: {len(task_latest_files)}")
-        
         tasks_info = []
         
         for i, task in enumerate(tasks):
             try:
-                logging.debug(f"处理第{i+1}个任务: {task.get('taskname', '')}")
-                
                 task_name = task.get('taskname', '')
                 save_path = task.get('savepath', '')
                 latest_file = task_latest_files.get(task_name, '')
-                
-                logging.debug(f"task_name: {task_name}")
-                logging.debug(f"save_path: {save_path}")
-                logging.debug(f"latest_file: {latest_file}")
-                
+
                 # 提取基本信息
                 show_info = self.extract_show_info_from_path(save_path)
-                logging.debug(f"show_info: {show_info}")
                 
                 # 提取进度信息
                 progress_info = self.extract_progress_from_latest_file(latest_file)
-                logging.debug(f"progress_info: {progress_info}")
                 
                 # 优先使用任务显式类型（配置或提取出的），否则回退到路径判断
                 explicit_type = None
@@ -283,16 +267,11 @@ class TaskExtractor:
                     'progress_type': progress_info.get('progress_type')
                 }
                 
-                logging.debug(f"task_info: {task_info}")
                 tasks_info.append(task_info)
                 
             except Exception as e:
-                logging.debug(f"处理任务 {i+1} 时出错: {e}")
-                import traceback
-                traceback.print_exc()
                 continue
         
-        logging.debug(f"TaskExtractor.extract_all_tasks_info 完成，返回任务数量: {len(tasks_info)}")
         return tasks_info
     
     def get_content_type_display_name(self, content_type: str) -> str:

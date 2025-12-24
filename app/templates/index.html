@@ -390,6 +390,11 @@
               </a>
             </li>
             <li class="nav-item">
+              <a class="nav-link" href="#" :class="{active: activeTab === 'runlogs'}" @click="changeTab('runlogs')">
+                <i class="bi bi-terminal"></i> <span class="nav-text">运行日志</span>
+              </a>
+            </li>
+            <li class="nav-item">
               <a class="nav-link" href="/logout">
                 <i class="bi bi-power"></i> <span class="nav-text">退出</span>
               </a>
@@ -425,7 +430,7 @@
 
           <div v-if="activeTab === 'config'">
             <div style="height: 0.5px;"></div>
-            <div class="row title">
+            <div class="row title" title="夸克自动转存WebUI账号设置">
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">账号设置</h2>
                 <span class="badge badge-pill badge-light">
@@ -457,7 +462,7 @@
               </div>
             </div>
 
-            <div class="row title">
+            <div class="row title" title="夸克网盘账号的Cookie，用于转存、签到和文件整理，查阅Wiki了解详情">
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">Cookie</h2>
                 <span class="badge badge-pill badge-light">
@@ -483,7 +488,7 @@
               </div>
             </div>
 
-            <div class="row title">
+            <div class="row title" title="设置任务的定时、延迟规则与执行周期模式，查阅Wiki了解详情">
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">定时规则</h2>
                 <span class="badge badge-pill badge-light">
@@ -867,6 +872,18 @@
                   </select>
                 </div>
               </div>
+              <!-- 追剧日历时区设置 -->
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text" title="追剧日历中剧集播出日期的显示时区：选择原始时区时，按节目原始发行地的播出日期显示；选择本地时区时，按节目在本地（北京时间）的实际播出日期显示">追剧日历时区</span>
+                  </div>
+                  <select class="form-control" v-model="formData.calendar_timezone_mode" title="原始时区：节目原始发行地时区，播出日期与TMDB一致；本地时区：东八时区（北京时间），跨时区换算后播出日期可能发生变化（最多相差1天）">
+                    <option value="original">原始时区</option>
+                    <option value="local">本地时区</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             <!-- 性能设置 -->
@@ -891,7 +908,7 @@
                 </div>
               </div>
               <div class="col-lg-3 col-md-6 mb-2">
-                <div class="input-group" title="文件列表在本地缓存的持续时间，过期后将自动清除。设置过短会增加API请求次数，设置过长可能无法及时反映最新变动。建议值：0-300，0表示不缓存">
+                <div class="input-group" title="文件列表在本地缓存的持续时间，过期后将自动清除。设置过短会增加API请求次数，设置过长可能无法及时反映最新变动。建议值：0-300（0表示不缓存）">
                   <div class="input-group-prepend">
                     <span class="input-group-text">文件列表缓存时长</span>
                   </div>
@@ -913,7 +930,7 @@
                 </div>
               </div>
               <div class="col-lg-3 col-md-6 mb-2">
-                <div class="input-group" title="追剧日历最新季元数据自动刷新周期，单位秒。设置为0或负数可关闭自动刷新。默认值：21600（6小时）">
+                <div class="input-group" title="追剧日历最新季元数据自动刷新周期，设置为0或负数可关闭自动刷新。默认值：21600（6小时）">
                   <div class="input-group-prepend">
                     <span class="input-group-text">追剧日历刷新周期</span>
                   </div>
@@ -924,45 +941,126 @@
                 </div>
               </div>
               <div class="col-lg-3 col-md-6 mb-2">
-                <div class="input-group" title="已播出集数（及任务进度）自动刷新时间，24小时制，格式：HH:MM。默认值：00:00（每天0点）">
+                <div class="input-group" title="已播出集数（及任务进度）自动刷新时间，24小时制，格式：HH:MM；无播出时间的节目将使用该值作为默认播出时间。默认值：00:00（每天0点）">
                   <div class="input-group-prepend">
                     <span class="input-group-text">播出集数刷新时间</span>
                   </div>
                   <input type="text" class="form-control no-spinner" v-model="formData.performance.aired_refresh_time" placeholder="00:00">
                 </div>
               </div>
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group" title="运行日志页面显示的日志时间范围。默认值：1（最近24小时）">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">运行日志显示范围</span>
+                  </div>
+                  <input type="text" class="form-control no-spinner" v-model="formData.performance.runtime_log_display_days" placeholder="1">
+                  <div class="input-group-append">
+                    <span class="input-group-text square-append">天</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="row title" title="QASX API 支持第三方添加任务、开发插件及自动化操作，查阅Wiki了解详情">
+            <div class="row title" title="配置与任务处理、节目元数据获取及外部服务交互相关的API访问凭证，查阅Wiki了解详情">
               <div class="col">
-                <h2 style="display: inline-block; font-size: 1.5rem;">QASX API</h2>
+                <h2 style="display: inline-block; font-size: 1.5rem;">API</h2>
                 <span class="badge badge-pill badge-light">
-                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/API" target="_blank"><i class="bi bi-question-circle"></i></a>
+                  <a href="https://github.com/x1ao4/quark-auto-save-x/wiki/API" target="_blank" title="配置与任务处理、节目元数据获取及外部服务交互相关的API访问凭证，查阅Wiki了解详情"><i class="bi bi-question-circle"></i></a>
                 </span>
               </div>
             </div>
-            <div class="input-group">
+            <div class="input-group api-config-group">
               <div class="input-group-prepend">
-                <span class="input-group-text">Token</span>
+                <span class="input-group-text" title="QASX Token，用于授权第三方访问系统的API接口并执行受控操作">QASX Token</span>
               </div>
-              <input type="text" v-model="formData.api_token" class="form-control token-display" disabled>
+              <input type="text" v-model="formData.api_token" class="form-control token-display" disabled title="QASX Token，用于授权第三方访问系统的API接口并执行受控操作">
             </div>
-
-            <div class="row title" title="TMDB API密钥，用于追剧日历功能获取电视节目信息和播出时间表，点击获取TMDB API密钥">
-              <div class="col">
-                <h2 style="display: inline-block; font-size: 1.5rem;">TMDB API</h2>
-                <span class="badge badge-pill badge-light">
-                  <a href="https://www.themoviedb.org/settings/api" target="_blank" title="TMDB API密钥，用于获取电视节目信息和播出时间表，点击获取TMDB API密钥"><i class="bi bi-question-circle"></i></a>
+            <div class="input-group api-config-group">
+              <div class="input-group-prepend">
+                <span class="input-group-text">
+                  <a href="https://www.themoviedb.org/settings/api" target="_blank" class="api-label-link" title="前往TMDB设置页面获取API密钥">TMDB API 密钥</a>
                 </span>
               </div>
+              <input type="text" v-model="formData.tmdb_api_key" class="form-control" placeholder="输入 TMDB API 密钥，用于获取电视节目的元数据" title="TMDB API密钥，用于获取电视节目的元数据">
             </div>
-            <div class="input-group">
+            <div class="input-group api-config-group">
               <div class="input-group-prepend">
-                <span class="input-group-text">API 密钥</span>
+                <span class="input-group-text">
+                  <a href="https://trakt.tv/oauth/applications" target="_blank" class="api-label-link" title="前往Trakt应用管理页面获取Client ID">Trakt Client ID</a>
+                </span>
               </div>
-              <input type="text" v-model="formData.tmdb_api_key" class="form-control" placeholder="请输入 TMDB API 密钥，用于追剧日历功能">
+              <input type="text" v-model="formData.trakt.client_id" class="form-control" placeholder="输入 Trakt Client ID，用于获取电视节目的播出时间" title="Trakt Client ID，用于获取电视节目的播出时间">
             </div>
             <p class="tmdb-attribution">部分功能基于 <a href="https://www.themoviedb.org/" target="_blank">TMDB</a> 提供的数据实现，本应用与 TMDB 无关。</p>
 
+          </div>
+
+          <div v-if="activeTab === 'runlogs'">
+            <div style="height: 20px;"></div>
+            <div class="row tasklist-filter-row" style="margin-bottom: 20px;">
+              <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">内容筛选</span>
+                  </div>
+                  <input type="text" class="form-control" v-model="runtimeLogFilters.keyword" placeholder="日志内容关键词">
+                  <div class="input-group-append">
+                    <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearRuntimeLogFilter('keyword')"><i class="bi bi-x-lg"></i></button>
+                  </div>
+                </div>
+              </div>
+              <div class="col-xl-4 col-lg-4 col-md-6 mb-2 mb-lg-0">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">任务筛选</span>
+                  </div>
+                  <div class="position-relative" style="flex: 1;">
+                    <select class="form-control task-filter-select" v-model="runtimeLogFilters.task" style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 8px !important;">
+                      <option value="">全部</option>
+                      <option v-for="task in taskNames" :value="task" v-html="task"></option>
+                    </select>
+                  </div>
+                  <div class="input-group-append">
+                    <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearRuntimeLogFilter('task')"><i class="bi bi-x-lg"></i></button>
+                  </div>
+                </div>
+              </div>
+              <div class="col-xl-4 col-lg-4 col-md-6">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">级别筛选</span>
+                  </div>
+                  <div class="position-relative" style="flex: 1;">
+                    <select class="form-control task-filter-select"
+                            v-model="runtimeLogFilters.level"
+                            style="padding-left: 8px !important; text-indent: 0 !important; display: flex !important; align-items: center !important; line-height: 1.5 !important; padding-right: 8px !important;">
+                      <option value="">全部</option>
+                      <option v-for="level in runtimeLogLevels" :value="level">{{ level }}</option>
+                    </select>
+                  </div>
+                  <div class="input-group-append">
+                    <button type="button" class="btn btn-outline-secondary filter-btn-square" @click="clearRuntimeLogFilter('level')"><i class="bi bi-x-lg"></i></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="row" style="margin-bottom: 20px;">
+                  <div class="col">
+                <div class="runlog-content" ref="runtimeLogViewport">
+                  <div v-if="!runtimeLogLoading && filteredRuntimeLogs.length === 0" style="display: flex; align-items: center; justify-content: center; min-height: 200px; color: var(--light-text-color);">
+                    暂无匹配的日志
+                  </div>
+                  <div v-else-if="filteredRuntimeLogs.length > 0" :style="{ visibility: runtimeLogInitialized ? 'visible' : 'hidden' }">
+                    <div v-for="log in filteredRuntimeLogs"
+                         :key="log.id"
+                         class="runlog-line"
+                         @click="handleRuntimeLogClick(log, $event)">
+                      <span style="margin-right: 8px;">[{{ log.timestamp || '--' }}][<span class="log-level-clickable" @click="filterByLogLevel(log.level || 'INFO', $event)">{{ log.level || 'INFO' }}</span>]</span>
+                      <span v-html="getRuntimeLogDisplayHtml(log)"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div v-if="activeTab === 'tasklist'">
@@ -1052,6 +1150,7 @@
                       <option value="name">任务名称</option>
                       <option v-if="formData.tmdb_api_key" value="progress">任务进度</option>
                       <option value="update_time">更新时间</option>
+                      <option value="airtime">播出时间</option>
                     </select>
                     <span class="tasklist-sort-pill tasklist-sort-order" @click="toggleTasklistSortOrder" title="切换升降序">
                       {{ tasklistSort.order === 'asc' ? '升序排列' : '降序排列' }}
@@ -1257,7 +1356,7 @@
                   <div class="form-group row" title="匹配成功的文件夹的所有嵌套目录都会被更新，并且会应用与根目录相同的正则命名和过滤规则。注意：原理是逐级索引，深层嵌套目录的场景下效率非常低，慎用.*">
                     <label class="col-sm-2 col-form-label">更新目录</label>
                     <div class="col-sm-10">
-                      <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如：4K|1080P">
+                      <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如 4K|1080P">
                     </div>
                   </div>
                   <div class="form-group row">
@@ -1367,7 +1466,7 @@
                       <!-- 任务编号 -->
                       <div class="info-line">#{{ String((task.__originalIndex !== undefined ? task.__originalIndex : index) + 1).padStart(2, '0') }}</div>
                       <!-- 匹配的剧名 -->
-                      <div class="info-line">
+                      <div class="info-line info-line-single">
                         <template v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name">
                           {{ getCalendarTaskByName(task.taskname).matched_show_name }}
                         </template>
@@ -1376,11 +1475,11 @@
                         </template>
                       </div>
                       <!-- 季名称 -->
-                      <div class="info-line" v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).latest_season_name && getCalendarTaskByName(task.taskname).latest_season_name.trim() !== ''">
+                      <div class="info-line info-line-single" v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).latest_season_name && getCalendarTaskByName(task.taskname).latest_season_name.trim() !== ''">
                         {{ getCalendarTaskByName(task.taskname).latest_season_name }}
                       </div>
-                      <!-- 最近转存文件 -->
-                      <div class="info-line" v-if="taskLatestFiles[task.taskname]">{{ taskLatestFiles[task.taskname] }}</div>
+                      <!-- 下一集播出日期 + 时间（基于已转存集数推算） -->
+                      <div class="info-line" v-if="getTaskNextAirDateTimeDisplay(task.taskname)">{{ getTaskNextAirDateTimeDisplay(task.taskname) }}</div>
                       <!-- 最近更新日期 -->
                       <div class="info-line" v-if="taskLatestRecords[task.taskname]">{{ getTaskLatestRecordDisplay(task.taskname) }}</div>
                     </div>
@@ -1941,8 +2040,14 @@
                       <i class="bi bi-plus-lg"></i>
                     </div>
                     <div class="discovery-poster-overlay">
-                      <div class="info-line" v-for="(detail, index) in getMovieDetails(item)" :key="index">
-                        {{ detail }}
+                      <div class="info-line" 
+                           :class="{ 
+                             'info-line-single': detail.type === 'region' || detail.type === 'director',
+                             'info-line-double': detail.type === 'genre' || detail.type === 'cast'
+                           }" 
+                           v-for="(detail, index) in getMovieDetails(item)" 
+                           :key="index">
+                        {{ detail.text }}
                       </div>
                     </div>
                   </div>
@@ -1968,7 +2073,7 @@
             
             <!-- TMDB API未配置提示 -->
             <div v-if="configHasLoaded && !formData.tmdb_api_key" class="alert alert-warning" role="alert">
-              追剧日历需要配置 TMDB API 密钥后才能使用，请在<a href="#" class="link-focus" @click.prevent="changeTab('config')">系统配置</a>页面的 TMDB API 部分进行配置
+              追剧日历需要配置 TMDB API 密钥后才能使用，请在<a href="#" class="link-focus" @click.prevent="changeTab('config')">系统配置</a>页面的 API 部分进行配置
             </div>
             
             <!-- 追剧日历内容 -->
@@ -2052,6 +2157,27 @@
                 <div class="col-lg-4 col-md-6">
                   <!-- 日期切换和视图切换 -->
                   <div class="calendar-controls d-flex justify-content-end">
+                    <!-- 排序组件 -->
+                    <div class="tasklist-sort-controls" style="margin-right: 0;">
+                      <div class="tasklist-sort-wrapper">
+                        <span class="tasklist-sort-pill tasklist-sort-pill-icon" title="切换排序">按</span>
+                        <select class="tasklist-sort-pill tasklist-sort-select task-filter-select" :value="calendar.sortBy" @change="changeCalendarSortBy($event.target.value)" title="选择排序方式">
+                          <option value="name">节目名称</option>
+                          <option value="airtime">播出时间</option>
+                        </select>
+                        <span class="tasklist-sort-pill tasklist-sort-order" @click="toggleCalendarSortOrder" title="切换升降序">
+                          {{ calendar.sortOrder === 'asc' ? '升序排列' : '降序排列' }}
+                        </span>
+                      </div>
+                    </div>
+                    <!-- 计数模块 -->
+                    <div
+                      class="tasklist-count-indicator calendar-count-indicator"
+                      :class="{'tasklist-count-single-digit': calendarCountValue < 10}"
+                      :title="calendarCountTooltip">
+                      <span class="tasklist-count-number">{{ calendarCountValue }}</span>
+                    </div>
+                    
                     <!-- 日期切换按钮 -->
                     <div class="btn-group" v-if="calendar.viewMode === 'poster'">
                       <button type="button" class="btn btn-outline-secondary btn-sm" @click="changeCalendarDate('prevWeek')" title="前一周">
@@ -2072,7 +2198,13 @@
                       <button type="button" class="btn btn-outline-secondary btn-sm" @click="changeCalendarDate('prevMonth')" title="前一月">
                         <i class="bi bi-chevron-double-left"></i>
                       </button>
+                      <button type="button" class="btn btn-outline-secondary btn-sm" @click="changeCalendarDate('prevDay')" title="前一天">
+                        <i class="bi bi-chevron-left"></i>
+                      </button>
                       <button type="button" class="btn btn-primary btn-sm" @click="goToToday">今天</button>
+                      <button type="button" class="btn btn-outline-secondary btn-sm" @click="changeCalendarDate('nextDay')" title="后一天">
+                        <i class="bi bi-chevron-right"></i>
+                      </button>
                       <button type="button" class="btn btn-outline-secondary btn-sm" @click="changeCalendarDate('nextMonth')" title="后一月">
                         <i class="bi bi-chevron-double-right"></i>
                       </button>
@@ -2097,7 +2229,7 @@
                     <!-- 刷新按钮 -->
                     <button type="button" 
                             class="btn btn-outline-primary batch-rename-btn"
-                            @click="refreshCalendarData"
+                            @click="refreshCalendarData(null, true, false, true)"
                             title="刷新追剧日历数据">
                       <i class="bi bi-arrow-clockwise"></i>
                     </button>
@@ -2159,11 +2291,11 @@
                           </template>
                         </div>
                         <div class="info-line" v-if="task.matched_year && String(task.matched_year).trim() !== ''">{{ task.matched_year }}</div>
-                        <div class="info-line" v-if="task.latest_season_name && task.latest_season_name.trim() !== ''">{{ task.latest_season_name }}</div>
+                        <div class="info-line info-line-single" v-if="task.latest_season_name && task.latest_season_name.trim() !== ''">{{ task.latest_season_name }}</div>
+                        <div class="info-line" v-if="getTaskNextAirDateTimeDisplayForCalendar(task)">{{ getTaskNextAirDateTimeDisplayForCalendar(task) }}</div>
                         <div class="info-line" v-if="task.matched_show_name && task.season_counts"
                              v-html="`${getTaskTransferredCount(task)} <span class='count-slash'>/</span> ${getTaskAiredCount(task)} <span class='count-slash'>/</span> ${getTaskTotalCount(task)}`">
                         </div>
-                        <div class="info-line" v-if="task.matched_status && task.matched_status.trim() !== ''">{{ task.matched_status }}</div>
                       </div>
                     </div>
                     <div class="discovery-info">
@@ -2189,7 +2321,9 @@
                   <div class="calendar-date-item" 
                        v-for="(date, index) in calendar.weekDates" 
                        :key="index"
-                       :class="{ 'today': date.isToday }">
+                       :class="{ 'selected': date.date === calendar.selectedDate }"
+                       :title="getDateCountInfo(date.date)"
+                       @click="selectPosterDate(date.date)">
                     <div class="calendar-date-weekday">{{ date.weekday }}</div>
                     <div class="calendar-date-day">{{ date.day }}</div>
                   </div>
@@ -2220,14 +2354,19 @@
                           <i class="bi bi-arrow-clockwise"></i>
                         </div>
                         
-                        <!-- 已转存标识（与影视发现评分标识风格一致） -->
-                        <div class="discovery-rating calendar-transferred-badge" v-if="isEpisodeReachedProgress(episode)" title="已转存">
-                          <i class="bi bi-check2"></i>
+                        <!-- 集状态标识：已转存 / 已播出 -->
+                        <div
+                          class="discovery-rating calendar-transferred-badge"
+                          :class="isEpisodeReachedProgress(episode) ? 'calendar-transferred-badge-transferred' : 'calendar-transferred-badge-aired'"
+                          v-if="isEpisodeReachedProgress(episode) || isEpisodeAiredForDisplay(episode)"
+                          :title="isEpisodeReachedProgress(episode) ? '已转存' : '已播出'"
+                        >
+                          <i :class="isEpisodeReachedProgress(episode) ? 'bi bi-check2-all' : 'bi bi-check2'"></i>
                         </div>
                         
                         <!-- 海报悬停效果 -->
                         <div class="calendar-poster-overlay">
-                          <div class="info-line">{{ episode.name || episode.show_name }}</div>
+                          <div class="info-line info-line-double">{{ episode.name || episode.show_name }}</div>
                           <div class="info-line overview" v-if="episode.overview" :title="episode.overview" :data-fulltext="episode.overview">{{ episode.overview }}</div>
                         </div>
                         
@@ -2278,9 +2417,11 @@
                              'selected': day.date === calendar.selectedDate
                            }"
                            @click="selectCalendarDate(day)">
-                        <div class="calendar-month-date">
+                        <div class="calendar-month-date" 
+                             :title="getDateCountInfo(day.date)"
+                             style="cursor: default;">
                           <span v-if="day.dayNumber === 1">
-                            {{ day.isCurrentMonth ? (calendar.currentDate.getMonth() + 1) : (calendar.currentDate.getMonth() + 2) }}/1
+                            {{ getDateMonthFromString(day.date) }}/1
                           </span>
                           <span v-else>
                             {{ day.dayNumber }}
@@ -2299,7 +2440,7 @@
                                 <i class="bi bi-stars"></i>
                               </span>
                             </span>
-                            <span :class="['episode-number', { 'episode-number-reached': isEpisodeReachedProgress(episode) }]"
+                            <span :class="['episode-number', { 'episode-number-reached': isEpisodeReachedProgress(episode), 'episode-number-aired': !isEpisodeReachedProgress(episode) && isEpisodeAiredForDisplay(episode) }]"
                                   :title="getEpisodeTooltip(episode)"
                                   :data-full="getEpisodeDisplayNumber(episode)"
                                   :data-episode-only="getEpisodeOnlyNumber(episode)"
@@ -2329,7 +2470,7 @@
                             <i class="bi bi-stars"></i>
                           </span>
                         </span>
-                        <span :class="['episode-number', { 'episode-number-reached': isEpisodeReachedProgress(episode) }]"
+                        <span :class="['episode-number', { 'episode-number-reached': isEpisodeReachedProgress(episode), 'episode-number-aired': !isEpisodeReachedProgress(episode) && isEpisodeAiredForDisplay(episode) }]"
                               :title="getEpisodeTooltip(episode)"
                               :data-full="getEpisodeDisplayNumber(episode)"
                               :data-episode-only="getEpisodeOnlyNumber(episode)"
@@ -2508,8 +2649,8 @@
                            v-check-modal-overflow="key + '|file_name'">
                         <i class="bi" :class="getFileIconClass(file.file_name, file.dir)"></i> {{file.file_name}}
                       </div>
-                      <div class="expand-button" v-if="isModalTextTruncated(file.file_name, key, 'file_name')" @click.stop="toggleModalExpand(key, 'file_name')">
-                        <i :class="file._expandedFields && file._expandedFields.includes('file_name') ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
+                      <div class="expand-button" v-if="isModalTextTruncated(file.file_name, key, 'file_name')" @click.stop="toggleModalExpand(key, 'file_name', $event)">
+                        <i :class="file._expandedFields && file._expandedFields.length > 0 ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
                       </div>
                       <div v-if="file._expandedFields && file._expandedFields.includes('file_name')" style="white-space: normal; word-break: break-word; padding-right: 25px; display: block; width: 100%; position: relative;">
                         <i class="bi" :class="getFileIconClass(file.file_name, file.dir)"></i> {{file.file_name}}
@@ -2527,8 +2668,8 @@
                           <span class="episode-x">{{file.file_name_re || '×'}}</span>
                         </template>
                       </div>
-                      <div class="expand-button" v-if="isModalTextTruncated(file.file_name_re || '×', key, 'file_name_re')" @click.stop="toggleModalExpand(key, 'file_name_re')">
-                        <i :class="file._expandedFields && file._expandedFields.includes('file_name_re') ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
+                      <div class="expand-button" v-if="isModalTextTruncated(file.file_name_re || '×', key, 'file_name_re')" @click.stop="toggleModalExpand(key, 'file_name_re', $event)">
+                        <i :class="file._expandedFields && file._expandedFields.length > 0 ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
                       </div>
                       <div v-if="file._expandedFields && file._expandedFields.includes('file_name_re')" style="white-space: normal; word-break: break-word; padding-right: 25px; display: block; width: 100%; position: relative; color: inherit;">
                         <template v-if="file.file_name_re && file.file_name_re.startsWith('× ')">
@@ -2560,6 +2701,7 @@
               </span>
               共 {{ fileSelect.fileList.length }} 个项目<span v-if="fileSelect.selectedFiles.length > 0">，已选中 {{ fileSelect.selectedFiles.length }} 个项目</span>
             </div>
+            <button type="button" class="btn btn-primary btn-cancel" @click="$('#fileSelectModal').modal('hide')"><span class="btn-text">取消</span></button>
             <!-- 连续浏览按钮组（仅在资源搜索模式下且当前资源在搜索结果中时显示） -->
             <div v-if="fileSelect.selectShare && smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length > 1 && isCurrentResourceInSearchResults()" class="resource-navigation-buttons">
               <button type="button" class="btn btn-primary btn-sm" 
@@ -2575,7 +2717,6 @@
                 下一个
               </button>
             </div>
-            <button type="button" class="btn btn-primary btn-cancel" @click="$('#fileSelectModal').modal('hide')" v-if="fileSelect.moveMode">取消</button>
             <button type="button" class="btn btn-primary btn-sm" @click="selectCurrentFolder()">
               <span v-if="fileSelect.moveMode">移动到当前文件夹</span>
               <span v-else>{{fileSelect.selectShare ? '转存当前文件夹' : '保存到当前文件夹'}}</span>
@@ -2583,11 +2724,29 @@
             <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && fileSelect.index === -1 && createTask.taskData.taskname" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="generateCustomFolderPath(createTask.taskData)"></span>」文件夹</button>
             <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && fileSelect.index !== null && fileSelect.index >= 0 && formData.tasklist[fileSelect.index]" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="formData.tasklist[fileSelect.index].taskname"></span>」文件夹</button>
           </div>
+          <div class="modal-footer" v-if="!fileSelect.selectDir && !fileSelect.previewRegex">
+            <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+              共 {{ fileSelect.fileList.length }} 个项目
+            </div>
+            <button type="button" class="btn btn-primary btn-cancel" @click="$('#fileSelectModal').modal('hide')"><span class="btn-text">取消</span></button>
+          </div>
+          <div class="modal-footer" v-if="fileSelect.previewRegex && fileSelect.index === -1 && document.getElementById('fileSelectModal').getAttribute('data-modal-type') === 'preview'">
+            <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+              共 {{ fileSelect.fileList.filter(f => f.file_name_re && f.file_name_re !== '×' && !f.file_name_re.startsWith('×')).length }} 个项目可重命名
+            </div>
+            <button type="button" class="btn btn-primary btn-cancel" @click="$('#fileSelectModal').modal('hide')"><span class="btn-text">取消</span></button>
+          </div>
+          <div class="modal-footer" v-if="fileSelect.previewRegex && fileSelect.index >= 0 && formData.tasklist[fileSelect.index]">
+            <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+              共 {{ fileSelect.fileList.filter(f => f.file_name_re && f.file_name_re !== '×' && !f.file_name_re.startsWith('×')).length }} 个项目可重命名
+            </div>
+            <button type="button" class="btn btn-primary btn-cancel" @click="$('#fileSelectModal').modal('hide')"><span class="btn-text">取消</span></button>
+          </div>
           <div class="modal-footer" v-if="fileSelect.previewRegex && fileSelect.index === -1 && document.getElementById('fileSelectModal').getAttribute('data-modal-type') === 'preview-filemanager'">
             <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
               共 {{ fileSelect.fileList.filter(f => f.file_name_re && f.file_name_re !== '×' && !f.file_name_re.startsWith('×')).length }} 个项目可重命名
             </div>
-            <button type="button" class="btn btn-primary btn-cancel" @click="cancelPreviewRename">取消</button>
+            <button type="button" class="btn btn-primary btn-cancel" @click="cancelPreviewRename"><span class="btn-text">取消</span></button>
             <button type="button" class="btn btn-primary" :disabled="!fileSelect.canUndoRename || modalLoading" @click="undoPreviewRename">撤销</button>
             <button type="button" class="btn btn-primary" :disabled="modalLoading || !fileSelect.fileList.some(f => f.file_name_re && f.file_name_re !== '×' && !f.file_name_re.startsWith('×'))" @click="applyPreviewRename">
               重命名
@@ -2730,7 +2889,7 @@
               <div class="form-group row" title="匹配成功的文件夹的所有嵌套目录都会被更新，并且会应用与根目录相同的正则命名和过滤规则。注意：原理是逐级索引，深层嵌套目录的场景下效率非常低，慎用.*">
                 <label class="col-sm-2 col-form-label">更新目录</label>
                 <div class="col-sm-10">
-                  <input type="text" name="update_subdir[]" class="form-control" v-model="createTask.taskData.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如：4K|1080P">
+                  <input type="text" name="update_subdir[]" class="form-control" v-model="createTask.taskData.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如 4K|1080P">
                 </div>
               </div>
               <div class="form-group row">
@@ -2889,7 +3048,15 @@
 
               <!-- 更换海报 -->
               <div class="row">
-                <div class="col-12 mb-2">
+                <div class="col-md-6 mb-2">
+                  <div class="input-group">
+                    <div class="input-group-prepend">
+                      <span class="input-group-text" style="background-color: var(--button-gray-background-color);" title="节目在本地时区的播出时间，用于精确判断剧集是否已播出，24小时制，格式为HH:MM ±Nd（N为天数），其中+Nd表示相对原始播出日期延后、-Nd表示提前，不填写±Nd表示播出日期不偏移，若整体留空则使用节目原始播出日期并以系统配置的播出集数刷新时间作为判断依据">播出时间</span>
+                    </div>
+                    <input type="text" class="form-control no-spinner" v-model="editMetadata.form.local_air_time" :placeholder="editMetadata.form.local_air_time ? '' : '输入节目的播出时间，格式为 HH:MM，如 20:00'" title="节目在本地时区的播出时间，用于精确判断剧集是否已播出，24小时制，格式为HH:MM ±Nd（N为天数），其中+Nd表示相对原始播出日期延后、-Nd表示提前，不填写±Nd表示播出日期不偏移，若整体留空则使用节目原始播出日期并以系统配置的播出集数刷新时间作为判断依据">
+                  </div>
+                </div>
+                <div class="col-md-6 mb-2">
                   <div class="input-group">
                     <div class="input-group-prepend">
                       <span class="input-group-text" style="background-color: var(--button-gray-background-color);">更换海报</span>
@@ -2987,6 +3154,10 @@
             today_update_indicator: "always"
           },
           poster_language: "zh-CN",
+          trakt: {
+            client_id: ""
+          },
+          calendar_timezone_mode: "original",
           // 显示顺序（可拖拽修改）：按钮 + 信息
           button_display_order: [
             "refresh_plex",
@@ -3009,7 +3180,9 @@
             // 追剧日历刷新周期（秒），默认6小时（21600秒）
             calendar_refresh_interval_seconds: 21600,
             // 已播出集数刷新时间，24小时制，格式：HH:MM，默认00:00
-            aired_refresh_time: "00:00"
+            aired_refresh_time: "00:00",
+            // 运行日志显示范围（天），默认1天
+            runtime_log_display_days: 1
           },
           plugin_config_mode: {
             aria2: "independent",
@@ -3052,6 +3225,19 @@
           execution_mode: null // 将在openCreateTaskModal中设置为formData.execution_mode
         },
         run_log: "",
+        runtimeLogs: [],
+        runtimeLogLoading: false,
+        runtimeLogFilters: {
+          keyword: '',
+          task: '',
+          level: ''
+        },
+        runtimeLogScrollPositionBeforeTaskFilter: null, // 保存应用任务筛选之前的滚动位置
+        runtimeLogScrollPositionBeforeLevelFilter: null, // 保存应用级别筛选之前的滚动位置
+        runtimeLogScrollPositionBeforeKeywordFilter: null, // 保存应用内容筛选之前的滚动位置
+        runtimeLogLevels: ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+        runtimeLogPollingTimer: null,
+        runtimeLogInitialized: false, // 跟踪运行日志是否已初始化（用于避免首次加载时的闪现）
         taskDirs: [""],
         taskDirSelected: "",
         taskNameFilter: "",
@@ -3338,6 +3524,23 @@
             const m = (d.getMonth()+1).toString().padStart(2,'0');
             const day = d.getDate().toString().padStart(2,'0');
             return `${y}-${m}-${day}`;
+          })(),
+          // 排序选项（支持持久化）
+          sortBy: (() => {
+            try {
+              const saved = JSON.parse(localStorage.getItem('calendar_sort_options') || '{}');
+              return (saved.by === 'name' || saved.by === 'airtime') ? saved.by : 'name';
+            } catch (e) {
+              return 'name';
+            }
+          })(),
+          sortOrder: (() => {
+            try {
+              const saved = JSON.parse(localStorage.getItem('calendar_sort_options') || '{}');
+              return (saved.order === 'asc' || saved.order === 'desc') ? saved.order : 'asc';
+            } catch (e) {
+              return 'asc';
+            }
           })()
         },
         // 任务列表：类型筛选状态
@@ -3353,7 +3556,7 @@
         tasklistSort: (() => {
           try {
             const saved = JSON.parse(localStorage.getItem('tasklist_sort_options') || '{}');
-            let by = ['index','name','progress','update_time'].includes(saved.by) ? saved.by : 'index';
+            let by = ['index','name','progress','update_time','airtime'].includes(saved.by) ? saved.by : 'index';
             const order = (saved.order === 'asc' || saved.order === 'desc') ? saved.order : 'asc';
             // 注意：这里无法检查 TMDB API 配置，会在 mounted 中处理
             return { by, order };
@@ -3449,23 +3652,146 @@
           if (this.calendar.statusFilter && this.calendar.statusFilter.trim() !== '') {
             list = list.filter(t => this.filterTaskByStatus(t, this.calendar.statusFilter));
           }
-          // 按匹配状态和任务名称拼音排序：匹配的项目在前，未匹配的项目在后
+          // 根据排序选项进行排序
           try {
+            const sortBy = this.calendar.sortBy || 'name';
+            const sortOrder = this.calendar.sortOrder || 'asc';
+            const factor = sortOrder === 'desc' ? -1 : 1;
+            
             list.sort((a, b) => {
-              // 首先按匹配状态排序：匹配的在前，未匹配的在后
-              const aMatched = !!(a.matched_show_name && a.matched_show_name.trim() !== '');
-              const bMatched = !!(b.matched_show_name && b.matched_show_name.trim() !== '');
-              
-              if (aMatched !== bMatched) {
-                return aMatched ? -1 : 1; // 匹配的排在前面
+              if (sortBy === 'name') {
+                // 按匹配状态和任务名称拼音排序：匹配的项目在前，未匹配的项目在后
+                const aMatched = !!(a.matched_show_name && a.matched_show_name.trim() !== '');
+                const bMatched = !!(b.matched_show_name && b.matched_show_name.trim() !== '');
+                
+                if (aMatched !== bMatched) {
+                  return aMatched ? -1 : 1; // 匹配的排在前面
+                }
+                
+                // 匹配状态相同时，按任务名称拼音排序
+                const aKey = pinyinPro.pinyin(a.task_name || '', { toneType: 'none', type: 'string' }).toLowerCase();
+                const bKey = pinyinPro.pinyin(b.task_name || '', { toneType: 'none', type: 'string' }).toLowerCase();
+                if (aKey < bKey) return -1; if (aKey > bKey) return 1; return 0;
+              } else if (sortBy === 'airtime') {
+                // 按播出时间排序（下一个待播集的播出日期和播出时间）
+                // 逻辑与任务列表的播出时间排序一致，除了日期提取方式不同
+                const getNameKey = (task) => {
+                  const name = (task && task.task_name) || '';
+                  try {
+                    return pinyinPro.pinyin(name, { toneType: 'none', type: 'string' }).toLowerCase() || name.toLowerCase();
+                  } catch (e) {
+                    return name.toLowerCase();
+                  }
+                };
+                const parseDateKey = (raw) => {
+                  if (!raw) return null;
+                  const s = String(raw).trim();
+                  // 优先解析 YYYY-MM-DD
+                  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                  if (m) {
+                    return parseInt(`${m[1]}${m[2]}${m[3]}`, 10);
+                  }
+                  // 简单兜底：解析 MM-DD 或 MM/DD
+                  m = s.match(/(\d{1,2})[-/](\d{1,2})/);
+                  if (m) {
+                    const mm = m[1].padStart(2, '0');
+                    const dd = m[2].padStart(2, '0');
+                    return parseInt(`9999${mm}${dd}`, 10); // 年份未知，使用固定年保证相对顺序
+                  }
+                  return null;
+                };
+                const parseTimeMinutes = (raw) => {
+                  if (!raw) return null;
+                  const s = String(raw).trim();
+                  const m = s.match(/([0-2]?\d):([0-5]\d)/);
+                  if (!m) return null;
+                  const h = parseInt(m[1], 10);
+                  const min = parseInt(m[2], 10);
+                  if (Number.isNaN(h) || Number.isNaN(min)) return null;
+                  const hh = Math.max(0, Math.min(23, h));
+                  const mm = Math.max(0, Math.min(59, min));
+                  return hh * 60 + mm;
+                };
+                
+                // 获取播出日期和时间信息
+                // 如果 getTaskNextAirDateForSort 返回 null（没有找到下一个待播集），
+                // 我们仍然应该尝试从任务本身获取节目级的播出时间
+                const getAirInfo = (task) => {
+                  const nextAir = this.getTaskNextAirDateForSort(task);
+                  if (nextAir) {
+                    return {
+                      date: nextAir.date || '',
+                      time: nextAir.time
+                    };
+                  }
+                  // 如果没有找到下一个待播集，尝试从任务本身获取节目级播出时间
+                  const airTime = task.local_air_time || (task.calendar_info && task.calendar_info.local_air_time) || '';
+                  let timeMinutes = null;
+                  if (airTime) {
+                    const timeMatch = String(airTime).trim().match(/^([0-2]?\d):([0-5]\d)/);
+                    if (timeMatch) {
+                      timeMinutes = parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]);
+                    }
+                  }
+                  return {
+                    date: '',
+                    time: timeMinutes
+                  };
+                };
+                
+                const aInfo = getAirInfo(a);
+                const bInfo = getAirInfo(b);
+                const aHasDate = !!(aInfo.date && String(aInfo.date).trim() !== '');
+                const bHasDate = !!(bInfo.date && String(bInfo.date).trim() !== '');
+                
+                // 1) 有日期的排在前面，无日期的排在后面（不受 asc/desc 影响）
+                if (aHasDate !== bHasDate) {
+                  return aHasDate ? -1 : 1;
+                } else {
+                  const aDateKey = aHasDate ? (parseDateKey(aInfo.date) ?? 0) : 0;
+                  const bDateKey = bHasDate ? (parseDateKey(bInfo.date) ?? 0) : 0;
+                  // 2) 主排序：日期（同为"无日期"时视为相等，进入时间排序）
+                  if (aHasDate && bHasDate && aDateKey !== bDateKey) {
+                    return aDateKey - bDateKey;
+                  } else {
+                    // 3) 次排序：时间（同一天或都无日期时）
+                    const aMinutes = aInfo.time;
+                    const bMinutes = bInfo.time;
+                    const aHasTime = aMinutes != null;
+                    const bHasTime = bMinutes != null;
+                    if (aHasTime || bHasTime) {
+                      // 缺少时间的任务排在当日末尾
+                      const sentinel = 24 * 60 + 1;
+                      const aVal = aHasTime ? aMinutes : sentinel;
+                      const bVal = bHasTime ? bMinutes : sentinel;
+                      const diff = aVal - bVal;
+                      if (diff !== 0) {
+                        return diff;
+                      } else {
+                        // 时间也相同时回退到任务名称
+                        const ak = getNameKey(a);
+                        const bk = getNameKey(b);
+                        if (ak < bk) return -1; else if (ak > bk) return 1; return 0;
+                      }
+                    } else {
+                      // 4) 既无日期也无时间：完全回退到任务名称排序（仍受升降序影响）
+                      const ak = getNameKey(a);
+                      const bk = getNameKey(b);
+                      if (ak < bk) return -1; else if (ak > bk) return 1; return 0;
+                    }
+                  }
+                }
               }
-              
-              // 匹配状态相同时，按任务名称拼音排序
-              const aKey = pinyinPro.pinyin(a.task_name || '', { toneType: 'none', type: 'string' }).toLowerCase();
-              const bKey = pinyinPro.pinyin(b.task_name || '', { toneType: 'none', type: 'string' }).toLowerCase();
-              if (aKey < bKey) return -1; if (aKey > bKey) return 1; return 0;
+              return 0;
             });
-          } catch (e) {}
+            
+            // 应用升降序
+            if (sortOrder === 'desc') {
+              list.reverse();
+            }
+          } catch (e) {
+            console.error('内容管理模式排序失败:', e);
+          }
           return list;
         },
 
@@ -3507,6 +3833,135 @@
             return this.tasklistVisibleTasks.length;
           } catch (e) {
             return 0;
+          }
+        },
+
+        // 追剧日历：选中日期当天的节目数（去重后的节目名称数量）
+        calendarSelectedDateShowCount() {
+          try {
+            if (this.calendar.manageMode) return 0;
+            if (!this.calendar.selectedDate) return 0;
+            const episodes = this.getEpisodesByDate(this.calendar.selectedDate);
+            if (!episodes || episodes.length === 0) return 0;
+            const showNames = new Set();
+            episodes.forEach(episode => {
+              if (episode && episode.show_name) {
+                showNames.add(episode.show_name);
+              }
+            });
+            return showNames.size;
+          } catch (e) {
+            return 0;
+          }
+        },
+
+        // 追剧日历：选中日期当天的集数（始终按实际分集数计算，不考虑合并集）
+        calendarSelectedDateEpisodeCount() {
+          try {
+            if (this.calendar.manageMode) return 0;
+            if (!this.calendar.selectedDate) return 0;
+            const episodes = this.getEpisodesByDate(this.calendar.selectedDate);
+            if (!episodes || episodes.length === 0) return 0;
+            
+            // 始终按实际分集数计算，合并集需要展开计算
+            let totalCount = 0;
+            episodes.forEach(episode => {
+              if (episode && episode.is_merged && episode.original_episodes && episode.original_episodes.length > 0) {
+                // 合并集：使用原始集数
+                totalCount += episode.original_episodes.length;
+              } else {
+                // 单集：计为1
+                totalCount += 1;
+              }
+            });
+            return totalCount;
+          } catch (e) {
+            return 0;
+          }
+        },
+
+        // 追剧日历：内容管理模式下的已匹配节目数
+        calendarMatchedShowCount() {
+          try {
+            if (!this.calendar.manageMode) return 0;
+            const tasks = this.managementTasksFiltered || [];
+            return tasks.filter(task => {
+              return task && (task.match_tmdb_id || (task.matched_show_name && task.matched_show_name.trim() !== ''));
+            }).length;
+          } catch (e) {
+            return 0;
+          }
+        },
+
+        // 追剧日历：内容管理模式下的未匹配任务数
+        calendarUnmatchedTaskCount() {
+          try {
+            if (!this.calendar.manageMode) return 0;
+            const tasks = this.managementTasksFiltered || [];
+            return tasks.filter(task => {
+              return !task || (!task.match_tmdb_id && (!task.matched_show_name || task.matched_show_name.trim() === ''));
+            }).length;
+          } catch (e) {
+            return 0;
+          }
+        },
+
+        // 追剧日历：计数模块显示的值
+        calendarCountValue() {
+          try {
+            if (this.calendar.manageMode) {
+              // 内容管理模式：显示匹配和未匹配的总数
+              const matched = this.calendarMatchedShowCount;
+              const unmatched = this.calendarUnmatchedTaskCount;
+              return matched + unmatched;
+            } else {
+              // 海报视图和日历视图：显示选中日期当天的集数
+              return this.calendarSelectedDateEpisodeCount;
+            }
+          } catch (e) {
+            return 0;
+          }
+        },
+
+        // 追剧日历：计数模块的悬停信息
+        calendarCountTooltip() {
+          try {
+            if (this.calendar.manageMode) {
+              // 内容管理模式
+              const matched = this.calendarMatchedShowCount;
+              const unmatched = this.calendarUnmatchedTaskCount;
+              
+              // 全部匹配的情况
+              if (matched > 0 && unmatched === 0) {
+                return `共${matched}个节目`;
+              }
+              
+              // 全部未匹配的情况
+              if (matched === 0 && unmatched > 0) {
+                return `共${unmatched}个未匹配任务`;
+              }
+              
+              // 部分匹配的情况
+              if (matched > 0 && unmatched > 0) {
+                return `共${matched}个节目，${unmatched}个未匹配任务`;
+              }
+              
+              // 匹配和未匹配的数量全都是0的情况（参考总集数为0的处理）
+              return '暂无数据';
+            } else {
+              // 海报视图和日历视图
+              const showCount = this.calendarSelectedDateShowCount;
+              const episodeCount = this.calendarSelectedDateEpisodeCount;
+              
+              if (showCount > 0 && episodeCount > 0) {
+                return `当日播出${showCount}个节目，共${episodeCount}集`;
+              }
+              
+              // 如果节目数和集数都为0，参考总集数为0的处理
+              return '暂无数据';
+            }
+          } catch (e) {
+            return '暂无数据';
           }
         },
 
@@ -3640,6 +4095,64 @@
           
           return this.sortTaskNamesByPinyin([...taskNames]);
         },
+        filteredRuntimeLogs() {
+          try {
+            let logs = Array.isArray(this.runtimeLogs) ? this.runtimeLogs.slice() : [];
+            const keyword = (this.runtimeLogFilters.keyword || '').trim().toLowerCase();
+            const taskName = (this.runtimeLogFilters.task || '').trim();
+            const level = (this.runtimeLogFilters.level || '').trim().toUpperCase();
+            
+            // 如果指定了任务筛选，需要按任务块进行完整筛选
+            if (taskName) {
+              // 首先解析所有任务块
+              const taskBlocks = this.parseTaskBlocks(logs);
+              
+              // 找出所有匹配任务名称的任务块索引
+              const matchedBlockIndices = new Set();
+              taskBlocks.forEach((block, index) => {
+                if (block.taskName === taskName) {
+                  matchedBlockIndices.add(index);
+                }
+              });
+              
+              // 筛选出所有匹配任务块的日志行
+              const filteredLogs = [];
+              logs.forEach((log, logIndex) => {
+                const blockIndex = taskBlocks.findIndex(block => 
+                  logIndex >= block.startIndex && logIndex <= block.endIndex
+                );
+                if (blockIndex !== -1 && matchedBlockIndices.has(blockIndex)) {
+                  filteredLogs.push(log);
+                }
+              });
+              
+              logs = filteredLogs;
+            }
+            
+            // 关键词筛选（在任务块筛选之后进行）
+            if (keyword) {
+              logs = logs.filter(log => {
+                const text = this.getRuntimeLogText(log).toLowerCase();
+                return text.includes(keyword);
+              });
+            }
+            
+            // 日志级别筛选
+            if (level) {
+              logs = logs.filter(log => (log.level || '').toUpperCase() === level);
+            }
+            
+            // 移动端（窄屏设备）：倒序显示，让最新日志在顶部
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+              logs = logs.reverse();
+            }
+            return logs;
+          } catch (e) {
+            console.error('筛选运行日志时出错:', e);
+            return this.runtimeLogs || [];
+          }
+        },
         totalPages() {
           // 直接使用后端返回的total_pages
           if (this.history.pagination && this.history.pagination.total_pages) {
@@ -3725,6 +4238,17 @@
             localStorage.setItem('calendar_status_filter', newVal || '');
           } catch (e) {}
         },
+        // 排序选项变化时重建视图数据
+        'calendar.sortBy': function(newVal, oldVal) {
+          if (this.calendar.viewMode === 'month') {
+            this.initializeCalendarDates();
+          }
+        },
+        'calendar.sortOrder': function(newVal, oldVal) {
+          if (this.calendar.viewMode === 'month') {
+            this.initializeCalendarDates();
+          }
+        },
         taskStatusFilter(newValue) {
           try {
             localStorage.setItem('tasklist_status_filter', newValue || '');
@@ -3776,7 +4300,124 @@
             this.loadHistoryRecords();
           }
         },
+        'runtimeLogFilters.task': function(newVal, oldVal) {
+          const viewport = this.$refs.runtimeLogViewport;
+          if (!viewport) return;
+          
+          // 当应用任务筛选时（从空变为有值），保存当前的滚动位置
+          if (!oldVal && newVal) {
+            this.runtimeLogScrollPositionBeforeTaskFilter = {
+              scrollTop: viewport.scrollTop,
+              scrollHeight: viewport.scrollHeight
+            };
+          }
+          // 当清空任务筛选时（从有值变为空），恢复之前保存的滚动位置
+          else if (oldVal && !newVal && this.runtimeLogScrollPositionBeforeTaskFilter) {
+            this.$nextTick(() => {
+              const savedPosition = this.runtimeLogScrollPositionBeforeTaskFilter;
+              if (savedPosition && viewport && savedPosition.scrollHeight > 0) {
+                // 计算滚动位置的相对比例，以适应内容高度可能的变化
+                const ratio = savedPosition.scrollTop / savedPosition.scrollHeight;
+                const newScrollTop = viewport.scrollHeight * ratio;
+                // 确保滚动位置在有效范围内
+                viewport.scrollTop = Math.max(0, Math.min(newScrollTop, viewport.scrollHeight - viewport.clientHeight));
+                // 清空保存的位置
+                this.runtimeLogScrollPositionBeforeTaskFilter = null;
+              } else if (savedPosition && viewport) {
+                // 如果保存的 scrollHeight 为 0，直接使用保存的 scrollTop（如果有效）
+                if (savedPosition.scrollTop >= 0) {
+                  viewport.scrollTop = Math.min(savedPosition.scrollTop, viewport.scrollHeight);
+                }
+                this.runtimeLogScrollPositionBeforeTaskFilter = null;
+              }
+            });
+          }
+        },
+        'runtimeLogFilters.level': function(newVal, oldVal) {
+          const viewport = this.$refs.runtimeLogViewport;
+          if (!viewport) return;
+          
+          // 当应用级别筛选时（从空变为有值），保存当前的滚动位置
+          if (!oldVal && newVal) {
+            this.runtimeLogScrollPositionBeforeLevelFilter = {
+              scrollTop: viewport.scrollTop,
+              scrollHeight: viewport.scrollHeight
+            };
+          }
+          // 当清空级别筛选时（从有值变为空），恢复之前保存的滚动位置
+          else if (oldVal && !newVal && this.runtimeLogScrollPositionBeforeLevelFilter) {
+            this.$nextTick(() => {
+              const savedPosition = this.runtimeLogScrollPositionBeforeLevelFilter;
+              if (savedPosition && viewport && savedPosition.scrollHeight > 0) {
+                // 计算滚动位置的相对比例，以适应内容高度可能的变化
+                const ratio = savedPosition.scrollTop / savedPosition.scrollHeight;
+                const newScrollTop = viewport.scrollHeight * ratio;
+                // 确保滚动位置在有效范围内
+                viewport.scrollTop = Math.max(0, Math.min(newScrollTop, viewport.scrollHeight - viewport.clientHeight));
+                // 清空保存的位置
+                this.runtimeLogScrollPositionBeforeLevelFilter = null;
+              } else if (savedPosition && viewport) {
+                // 如果保存的 scrollHeight 为 0，直接使用保存的 scrollTop（如果有效）
+                if (savedPosition.scrollTop >= 0) {
+                  viewport.scrollTop = Math.min(savedPosition.scrollTop, viewport.scrollHeight);
+                }
+                this.runtimeLogScrollPositionBeforeLevelFilter = null;
+              }
+            });
+          }
+        },
+        'runtimeLogFilters.keyword': function(newVal, oldVal) {
+          const viewport = this.$refs.runtimeLogViewport;
+          if (!viewport) return;
+          
+          // 当应用内容筛选时（从空变为有值），保存当前的滚动位置
+          if (!oldVal && newVal) {
+            this.runtimeLogScrollPositionBeforeKeywordFilter = {
+              scrollTop: viewport.scrollTop,
+              scrollHeight: viewport.scrollHeight
+            };
+          }
+          // 当清空内容筛选时（从有值变为空），恢复之前保存的滚动位置
+          else if (oldVal && !newVal && this.runtimeLogScrollPositionBeforeKeywordFilter) {
+            this.$nextTick(() => {
+              const savedPosition = this.runtimeLogScrollPositionBeforeKeywordFilter;
+              if (savedPosition && viewport && savedPosition.scrollHeight > 0) {
+                // 计算滚动位置的相对比例，以适应内容高度可能的变化
+                const ratio = savedPosition.scrollTop / savedPosition.scrollHeight;
+                const newScrollTop = viewport.scrollHeight * ratio;
+                // 确保滚动位置在有效范围内
+                viewport.scrollTop = Math.max(0, Math.min(newScrollTop, viewport.scrollHeight - viewport.clientHeight));
+                // 清空保存的位置
+                this.runtimeLogScrollPositionBeforeKeywordFilter = null;
+              } else if (savedPosition && viewport) {
+                // 如果保存的 scrollHeight 为 0，直接使用保存的 scrollTop（如果有效）
+                if (savedPosition.scrollTop >= 0) {
+                  viewport.scrollTop = Math.min(savedPosition.scrollTop, viewport.scrollHeight);
+                }
+                this.runtimeLogScrollPositionBeforeKeywordFilter = null;
+              }
+            });
+          }
+        },
         activeTab(newValue, oldValue) {
+          if (newValue === 'runlogs') {
+            // 如果已经有日志，立即显示并滚动到底部，避免空白
+            const hasLogs = Array.isArray(this.runtimeLogs) && this.runtimeLogs.length > 0;
+            if (hasLogs && !this.runtimeLogInitialized) {
+              this.runtimeLogInitialized = true;
+              this.$nextTick(() => {
+                const viewport = this.$refs.runtimeLogViewport;
+                if (viewport) {
+                  viewport.scrollTop = viewport.scrollHeight;
+                }
+              });
+            }
+            this.startRuntimeLogPolling();
+          } else if (oldValue === 'runlogs') {
+            this.stopRuntimeLogPolling();
+            // 离开运行日志页面时重置初始化标志，下次进入时会重新初始化
+            this.runtimeLogInitialized = false;
+          }
           // 如果切换到任务列表页面，则刷新任务最新信息和元数据
           if (newValue === 'tasklist') {
             // 确保全局 SSE 已建立
@@ -3791,21 +4432,30 @@
           }
           // 切换到追剧日历：立刻检查一次并启动后台监听；离开则停止监听
           if (newValue === 'calendar') {
-            // 确保全局 SSE 已建立
-            try { this.ensureGlobalSSE(); } catch (e) {}
+            // 确保全局 SSE 已建立（如果连接断开，尝试重连）
+            try {
+              if (!this.appSSE || !this.appSSEInitialized) {
+                // 重置标志，允许重连（服务器休眠后唤醒时特别有用）
+                this.appSSEInitialized = false;
+              }
+              this.ensureGlobalSSE();
+            } catch (e) {}
             // 立即检查一次（若已初始化过监听，直接调用tick引用）
             // 先本地读取一次，立刻应用“已转存”状态（不依赖轮询）
             try { this.loadCalendarEpisodesLocal && this.loadCalendarEpisodesLocal(); } catch (e) {}
             // 先启动监听以确保 tickRef 已就绪
             this.startCalendarAutoWatch();
-            // 重置签名，确保本次切换能触发一次增量检查
-            this.calendarLatestFilesSignature = '';
+            // 初始化签名（如果还没有），但不重置已有签名，避免触发不必要的刷新
+            if (!this.calendarLatestFilesSignature) {
+              this.calendarLatestFilesSignature = this.calcLatestFilesSignature(this.taskLatestFiles || {});
+            }
             // 进入页面即刻用现有的最近文件重建一次进度映射，避免UI滞后
             try {
               this.calendar.progressByTaskName = this.buildProgressByTaskNameFromLatestFiles(this.taskLatestFiles || {});
               this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
             } catch (e) {}
-            // 立刻触发一次增量检查与热更新（无需等待下一轮定时器）
+            // 立刻触发一次增量检查（但不应该触发刷新，因为只是切换标签页，没有文件变化）
+            // 注意：tick 函数会检查签名变化，如果签名没有变化，不会触发刷新
             if (this.calendarAutoWatchTickRef) {
               this.calendarAutoWatchTickRef();
             }
@@ -4014,6 +4664,9 @@
           // 添加移动端任务列表展开/收起状态监听
           this.setupMobileTaskListToggle();
         }, 500);
+      if (this.activeTab === 'runlogs') {
+        this.startRuntimeLogPolling();
+      }
       },
       beforeDestroy() {
         window.removeEventListener('beforeunload', this.handleBeforeUnload);
@@ -4030,8 +4683,61 @@
         document.removeEventListener('click', this.handleOutsideClick);
         // 清理日历后台监听
         this.stopCalendarAutoWatch();
+        this.stopRuntimeLogPolling();
       },
       methods: {
+        // 从日期字符串（YYYY-MM-DD）中提取月份
+        getDateMonthFromString(dateStr) {
+          try {
+            if (!dateStr) return '';
+            const parts = dateStr.split('-');
+            if (parts.length >= 2) {
+              return parseInt(parts[1], 10);
+            }
+            return '';
+          } catch (e) {
+            return '';
+          }
+        },
+        // 追剧日历：获取指定日期的计数信息（用于悬停提示）
+        getDateCountInfo(date) {
+          try {
+            if (!date) return '暂无数据';
+            if (this.calendar.manageMode) return '暂无数据';
+            
+            const episodes = this.getEpisodesByDate(date);
+            if (!episodes || episodes.length === 0) return '暂无数据';
+            
+            // 计算节目数（去重）
+            const showNames = new Set();
+            episodes.forEach(episode => {
+              if (episode && episode.show_name) {
+                showNames.add(episode.show_name);
+              }
+            });
+            const showCount = showNames.size;
+            
+            // 计算集数（始终按实际分集数计算，不考虑合并集）
+            let episodeCount = 0;
+            episodes.forEach(episode => {
+              if (episode && episode.is_merged && episode.original_episodes && episode.original_episodes.length > 0) {
+                // 合并集：使用原始集数
+                episodeCount += episode.original_episodes.length;
+              } else {
+                // 单集：计为1
+                episodeCount += 1;
+              }
+            });
+            
+            if (showCount > 0 && episodeCount > 0) {
+              return `当日播出${showCount}个节目，共${episodeCount}集`;
+            }
+            
+            return '暂无数据';
+          } catch (e) {
+            return '暂无数据';
+          }
+        },
         // 计算来源徽标 class：多来源时使用 multi-source，单来源使用小写来源名
         getSourceBadgeClass(source) {
           try {
@@ -4088,12 +4794,10 @@
                 }
               } catch (e) {}
             };
-            // 统一 onerror：关闭SSE并回退双侧轮询
+            // 统一 onerror：回退到轮询，但不关闭连接，让 EventSource 自动重连
+            // 注意：不在 onerror 中调用 close()，这样 EventSource 会自动尝试重连
             this.appSSE.onerror = () => {
-              try { this.appSSE.close(); } catch (e) {}
-              this.appSSE = null;
-              this.appSSEInitialized = false;
-              // 日历回退：若没有轮询定时器，则恢复轮询并立即执行一次
+              // 回退到轮询，确保即使 SSE 断开也能继续工作
               try {
                 if (!this.calendarAutoWatchTimer && this.calendarAutoWatchTickRef) {
                   const baseIntervalMs = this.calendar && this.calendar.manageMode ? 5 * 1000 : 60 * 1000;
@@ -4101,12 +4805,14 @@
                   this.calendarAutoWatchTickRef();
                 }
               } catch (e) {}
-              // 任务列表回退：若没有轮询定时器，则恢复轮询
               try {
                 if (!this.tasklistAutoWatchTimer) {
                   this.startTasklistPollingFallback();
                 }
               } catch (e) {}
+              // 不调用 close()，让 EventSource 自动重连
+              // 如果连接长时间无法恢复，EventSource 会继续尝试重连
+              // 重连成功后，onopen 会被触发，轮询会被停止
             };
             // ping 心跳占位
             try { this.appSSE.addEventListener('ping', () => {}); } catch (e) {}
@@ -4153,6 +4859,7 @@
           if (key === 'name') return '任务名称';
           if (key === 'progress') return '任务进度';
           if (key === 'update_time') return '更新时间';
+          if (key === 'airtime') return '播出时间';
           return '任务编号';
         },
         // 任务列表排序：保存到localStorage
@@ -4164,7 +4871,7 @@
         // 任务列表排序：切换排序字段
         // 仅切换排序字段，不改变当前升降序
         changeTasklistSortBy(by) {
-          if (!['index','name','progress','update_time'].includes(by)) return;
+          if (!['index','name','progress','update_time','airtime'].includes(by)) return;
           if (this.tasklistSort.by !== by) {
             this.tasklistSort.by = by;
             // 不重置、不切换 order，保持现状
@@ -4177,6 +4884,33 @@
           this.tasklistSort.order = this.tasklistSort.order === 'asc' ? 'desc' : 'asc';
           this.saveTasklistSort();
           // 不再调用 applyTasklistSort，因为现在使用计算属性
+        },
+        // 追剧日历排序：保存到localStorage
+        saveCalendarSort() {
+          try {
+            localStorage.setItem('calendar_sort_options', JSON.stringify({ by: this.calendar.sortBy, order: this.calendar.sortOrder }));
+          } catch (e) {}
+        },
+        // 追剧日历排序：切换排序字段
+        changeCalendarSortBy(by) {
+          if (!['name','airtime'].includes(by)) return;
+          if (this.calendar.sortBy !== by) {
+            this.calendar.sortBy = by;
+            this.saveCalendarSort();
+            // 重新构建视图数据以应用新的排序
+            if (this.calendar.viewMode === 'month') {
+              this.initializeCalendarDates();
+            }
+          }
+        },
+        // 追剧日历排序：切换升降序
+        toggleCalendarSortOrder() {
+          this.calendar.sortOrder = this.calendar.sortOrder === 'asc' ? 'desc' : 'asc';
+          this.saveCalendarSort();
+          // 重新构建视图数据以应用新的排序
+          if (this.calendar.viewMode === 'month') {
+            this.initializeCalendarDates();
+          }
         },
         // 获取排序后的任务列表（不修改原始数据，避免触发 configModified）
         getSortedTasklist() {
@@ -4195,6 +4929,90 @@
                   const bk = pinyinPro.pinyin(bn, { toneType: 'none', type: 'string' }).toLowerCase();
                   if (ak < bk) cmp = -1; else if (ak > bk) cmp = 1; else cmp = 0;
                 } catch (e) { cmp = an.localeCompare(bn); }
+              } else if (by === 'airtime') {
+                // 按“已转存集数下一集”的播出日期 + 播出时间排序
+                // 1) 有播出日期的任务永远排在无播出日期的任务前面（与升降序无关）
+                // 2) 主排序：播出日期（升/降）
+                // 3) 次排序：播出时间（同一天或都无日期时；缺少时间的排在当日末尾）
+                // 4) 若既无日期也无时间，则回退为任务名称拼音排序
+                const getNameKey = (task) => {
+                  const name = (task && (task.taskname || task.task_name) || '').toString();
+                  try {
+                    return pinyinPro.pinyin(name, { toneType: 'none', type: 'string' }).toLowerCase() || name.toLowerCase();
+                  } catch (e) {
+                    return name.toLowerCase();
+                  }
+                };
+                const parseDateKey = (raw) => {
+                  if (!raw) return null;
+                  const s = String(raw).trim();
+                  // 优先解析 YYYY-MM-DD
+                  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                  if (m) {
+                    return parseInt(`${m[1]}${m[2]}${m[3]}`, 10);
+                  }
+                  // 简单兜底：解析 MM-DD 或 MM/DD
+                  m = s.match(/(\d{1,2})[-/](\d{1,2})/);
+                  if (m) {
+                    const mm = m[1].padStart(2, '0');
+                    const dd = m[2].padStart(2, '0');
+                    return parseInt(`9999${mm}${dd}`, 10); // 年份未知，使用固定年保证相对顺序
+                  }
+                  return null;
+                };
+                const parseTimeMinutes = (raw) => {
+                  if (!raw) return null;
+                  const s = String(raw).trim();
+                  const m = s.match(/([0-2]?\d):([0-5]\d)/);
+                  if (!m) return null;
+                  const h = parseInt(m[1], 10);
+                  const min = parseInt(m[2], 10);
+                  if (Number.isNaN(h) || Number.isNaN(min)) return null;
+                  const hh = Math.max(0, Math.min(23, h));
+                  const mm = Math.max(0, Math.min(59, min));
+                  return hh * 60 + mm;
+                };
+                const aInfo = this.getTaskNextAirRaw(a.t.taskname || a.t.task_name || '');
+                const bInfo = this.getTaskNextAirRaw(b.t.taskname || b.t.task_name || '');
+                const aHasDate = !!(aInfo && aInfo.date && String(aInfo.date).trim() !== '');
+                const bHasDate = !!(bInfo && bInfo.date && String(bInfo.date).trim() !== '');
+                // 1) 有日期的排在前面，无日期的排在后面（不受 asc/desc 影响）
+                if (aHasDate !== bHasDate) {
+                  cmp = aHasDate ? -1 : 1;
+                } else {
+                  const aDateKey = aHasDate ? (parseDateKey(aInfo.date) ?? 0) : 0;
+                  const bDateKey = bHasDate ? (parseDateKey(bInfo.date) ?? 0) : 0;
+                  // 2) 主排序：日期（同为“无日期”时视为相等，进入时间排序）
+                  if (aHasDate && bHasDate && aDateKey !== bDateKey) {
+                    cmp = aDateKey - bDateKey;
+                  } else {
+                    // 3) 次排序：时间（同一天或都无日期时）
+                    const aMinutes = parseTimeMinutes(aInfo.time);
+                    const bMinutes = parseTimeMinutes(bInfo.time);
+                    const aHasTime = aMinutes != null;
+                    const bHasTime = bMinutes != null;
+                    if (aHasTime || bHasTime) {
+                      // 缺少时间的任务排在当日末尾
+                      const sentinel = 24 * 60 + 1;
+                      const aVal = aHasTime ? aMinutes : sentinel;
+                      const bVal = bHasTime ? bMinutes : sentinel;
+                      const diff = aVal - bVal;
+                      if (diff !== 0) {
+                        cmp = diff;
+                      } else {
+                        // 时间也相同时回退到任务名称
+                        const ak = getNameKey(a.t);
+                        const bk = getNameKey(b.t);
+                        if (ak < bk) cmp = -1; else if (ak > bk) cmp = 1; else cmp = 0;
+                      }
+                    } else {
+                      // 4) 既无日期也无时间：完全回退到任务名称排序（仍受升降序影响）
+                      const ak = getNameKey(a.t);
+                      const bk = getNameKey(b.t);
+                      if (ak < bk) cmp = -1; else if (ak > bk) cmp = 1; else cmp = 0;
+                    }
+                  }
+                }
               } else if (by === 'progress') {
                 const ap = (this.getTaskProgress && this.getTaskProgress(a.t.taskname) != null) ? Number(this.getTaskProgress(a.t.taskname)) : -1;
                 const bp = (this.getTaskProgress && this.getTaskProgress(b.t.taskname) != null) ? Number(this.getTaskProgress(b.t.taskname)) : -1;
@@ -4285,7 +5103,41 @@
         selectCalendarDate(day) {
           try {
             if (!day || !day.date) return;
-            this.calendar.selectedDate = day.date;
+            
+            // 解析点击的日期
+            const dateParts = day.date.split('-');
+            if (dateParts.length !== 3) return;
+            
+            const clickedYear = parseInt(dateParts[0], 10);
+            const clickedMonth = parseInt(dateParts[1], 10) - 1; // 月份从0开始
+            const clickedDay = parseInt(dateParts[2], 10);
+            
+            // 获取当前视图的年份和月份
+            const currentYear = this.calendar.currentDate.getFullYear();
+            const currentMonth = this.calendar.currentDate.getMonth();
+            
+            // 如果点击的日期不在当前月份，切换到对应月份
+            if (clickedYear !== currentYear || clickedMonth !== currentMonth) {
+              this.calendar.currentDate = new Date(clickedYear, clickedMonth, clickedDay);
+              this.calendar.selectedDate = day.date;
+              this.initializeCalendarDates();
+            } else {
+              // 如果点击的日期已经是选中日期，则取消选择，恢复为今天
+              if (this.calendar.selectedDate === day.date) {
+                const today = new Date();
+                this.calendar.selectedDate = this.formatDateToYYYYMMDD(today);
+              } else {
+                // 否则选中点击的日期
+                this.calendar.selectedDate = day.date;
+              }
+            }
+          } catch (e) {}
+        },
+        // 选择海报视图日期
+        selectPosterDate(dateStr) {
+          try {
+            if (!dateStr) return;
+            this.calendar.selectedDate = dateStr;
           } catch (e) {}
         },
         // 根据日期字符串获取当日剧集数组
@@ -4435,6 +5287,124 @@
             return task.task_name || task.taskname || '';
           }
         },
+        // 获取节目本地播出时间的展示文本
+        getTaskAirTimeDisplay(taskNameOrTask) {
+          try {
+            let t = taskNameOrTask;
+            if (typeof taskNameOrTask === 'string') {
+              const name = taskNameOrTask;
+              t = (this.calendar.tasks || []).find(x => (x.task_name || x.taskname) === name);
+              if (!t && Array.isArray(this.formData.tasklist)) {
+                t = this.formData.tasklist.find(x => (x.taskname || x.task_name) === name);
+              }
+            }
+            if (!t) return '';
+            const val = (t.local_air_time) 
+              || (t.calendar_info && t.calendar_info.local_air_time)
+              || '';
+            const norm = String(val || '').trim();
+            if (!norm) return '';
+            return norm;
+          } catch (e) {
+            return '';
+          }
+        },
+        // 内部工具：获取“已转存集数下一集”的原始播出日期和播出时间
+        // 返回值格式：{ date: string, time: string }
+        // - date：优先 air_date_local，其次 display_air_date / air_date，可能为 YYYY-MM-DD 或其他兼容格式；若无则为 ''
+        // - time：任务的本地播出时间展示（如 '19:40' 或 '19:40 +1d'），可能为空字符串
+        getTaskNextAirRaw(taskNameOrTask) {
+          try {
+            // 先获取原有的播出时间展示（例如 19:40 或 19:40 +1d），作为回退
+            const airTime = this.getTaskAirTimeDisplay(taskNameOrTask);
+
+            // 规范化任务名称
+            const taskName = (typeof taskNameOrTask === 'string')
+              ? taskNameOrTask
+              : (taskNameOrTask && (taskNameOrTask.task_name || taskNameOrTask.taskname)) || '';
+            if (!taskName) {
+              return { date: '', time: airTime };
+            }
+
+            // 需要日历任务和本地剧集数据，否则回退为仅时间
+            const calendarTask = this.getCalendarTaskByName(taskName);
+            if (!calendarTask || !this.calendar || !Array.isArray(this.calendar.episodes) || this.calendar.episodes.length === 0) {
+              return { date: '', time: airTime };
+            }
+
+            // 当前匹配季号：仅使用 matched_latest_season_number
+            const seasonNumber = (calendarTask.matched_latest_season_number != null)
+              ? Number(calendarTask.matched_latest_season_number)
+              : null;
+            if (!seasonNumber || Number.isNaN(seasonNumber) || seasonNumber <= 0) {
+              return { date: '', time: airTime };
+            }
+
+            // 已转存集数：来自 season_counts.transferred_count
+            const transferred = Number((calendarTask.season_counts && calendarTask.season_counts.transferred_count) || 0);
+            const nextEpNumber = transferred > 0 ? transferred + 1 : 1;
+
+            // 在本地剧集列表中查找对应 tmdb_id + season_number 的下一集
+            const tmdbId = (calendarTask.match_tmdb_id)
+              || (calendarTask.match && calendarTask.match.tmdb_id)
+              || calendarTask.tmdb_id
+              || null;
+            if (!tmdbId) {
+              return { date: '', time: airTime };
+            }
+
+            const nextEp = this.calendar.episodes.find(ep => {
+              if (!ep) return false;
+              if (!ep.tmdb_id || Number(ep.tmdb_id) !== Number(tmdbId)) return false;
+              if (ep.season_number == null || Number(ep.season_number) !== Number(seasonNumber)) return false;
+              if (ep.episode_number == null) return false;
+              const n = parseInt(ep.episode_number);
+              if (Number.isNaN(n)) return false;
+              return n === nextEpNumber;
+            });
+            if (!nextEp) {
+              return { date: '', time: airTime };
+            }
+
+            // 优先使用 air_date_local；若无则回退到 display_air_date / air_date
+            const rawDate = (nextEp.air_date_local || nextEp.display_air_date || nextEp.air_date || '') || '';
+            if (!rawDate) {
+              return { date: '', time: airTime };
+            }
+
+            return { date: rawDate, time: airTime };
+          } catch (e) {
+            // 任意异常都回退为原有的时间展示，保证不影响原功能
+            return { date: '', time: this.getTaskAirTimeDisplay(taskNameOrTask) };
+          }
+        },
+        // 获取“已转存集数下一集”的本地播出日期 + 时间展示文本（任务列表海报视图使用）
+        getTaskNextAirDateTimeDisplay(taskNameOrTask) {
+          try {
+            const { date: rawDate, time: airTime } = this.getTaskNextAirRaw(taskNameOrTask);
+            if (!rawDate && !airTime) return '';
+            if (!rawDate) return airTime;
+
+            // 日期格式统一为 MM-DD
+            let mmdd = rawDate;
+            const m = String(rawDate).match(/^\d{4}-(\d{2})-(\d{2})/);
+            if (m) {
+              mmdd = `${m[1]}-${m[2]}`;
+            } else if (rawDate.length >= 5) {
+              // 简单兜底：截取最后 5 位，兼容已有本地格式
+              mmdd = rawDate.slice(-5);
+            }
+
+            // 组合“日期 + 播出时间”，若没有时间则仅显示日期
+            if (airTime) {
+              return `${mmdd} ${airTime}`;
+            }
+            return mmdd;
+          } catch (e) {
+            // 任意异常都回退为原有的时间展示，保证不影响原功能
+            return this.getTaskAirTimeDisplay(taskNameOrTask);
+          }
+        },
         seasonInputComputedWidth() {
           try {
             const val = String(this.editMetadata && this.editMetadata.form ? (this.editMetadata.form.season_number ?? '') : '');
@@ -4456,9 +5426,105 @@
         getTaskAiredCount(task) {
           try { return Number((task && task.season_counts && task.season_counts.aired_count) || 0); } catch (e) { return 0; }
         },
+        // 获取下一个待播集的播出日期（用于内容管理模式排序）
+        // 返回值：{ date: string, time: number }，date 为 YYYY-MM-DD 格式，time 为分钟数（0-1439），如果不存在则返回 null
+        getTaskNextAirDateForSort(task) {
+          try {
+            if (!task) return null;
+            const airedCount = this.getTaskAiredCount(task);
+            const nextEpNumber = airedCount + 1;
+            
+            // 获取任务的 tmdb_id 和 season_number
+            const tmdbId = task.match_tmdb_id || task.tmdb_id;
+            const seasonNumber = task.latest_season_number || task.season_number;
+            
+            if (!tmdbId || !seasonNumber) return null;
+            
+            // 在 calendar.episodes 中查找对应的集
+            if (!this.calendar.episodes || !Array.isArray(this.calendar.episodes)) return null;
+            
+            const nextEpisode = this.calendar.episodes.find(ep => {
+              return ep.tmdb_id === parseInt(tmdbId) &&
+                     ep.season_number === parseInt(seasonNumber) &&
+                     ep.episode_number === nextEpNumber;
+            });
+            
+            if (!nextEpisode) return null;
+            
+            // 获取播出日期（优先使用 air_date_local，其次 display_air_date，最后 air_date）
+            const airDate = nextEpisode.air_date_local || nextEpisode.display_air_date || nextEpisode.air_date || '';
+            if (!airDate) return null;
+            
+            // 获取节目级播出时间
+            const airTime = task.local_air_time || (task.calendar_info && task.calendar_info.local_air_time) || '';
+            let timeMinutes = null;
+            if (airTime) {
+              const timeMatch = String(airTime).trim().match(/^([0-2]?\d):([0-5]\d)/);
+              if (timeMatch) {
+                timeMinutes = parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]);
+              }
+            }
+            
+            return { date: airDate, time: timeMinutes };
+          } catch (e) {
+            return null;
+          }
+        },
         // 获取管理视图卡片展示用：总集数（直接来自任务元数据）
         getTaskTotalCount(task) {
           try { return Number((task && task.season_counts && task.season_counts.total_count) || 0); } catch (e) { return 0; }
+        },
+        // 获取下一个待播集的播出日期和时间显示文本（用于内容管理模式悬停信息）
+        // 格式：12-22 23:00 或 23:00 或 12-22
+        getTaskNextAirDateTimeDisplayForCalendar(task) {
+          try {
+            if (!task) return '';
+            const nextAir = this.getTaskNextAirDateForSort(task);
+            if (!nextAir) {
+              // 如果没有下一个待播集的播出日期，只显示播出时间
+              return this.getTaskAirTimeDisplay(task);
+            }
+            
+            const airDate = nextAir.date;
+            const airTime = task.local_air_time || (task.calendar_info && task.calendar_info.local_air_time) || '';
+            
+            // 格式化日期为 MM-DD
+            let dateStr = '';
+            if (airDate) {
+              try {
+                const dateMatch = airDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (dateMatch) {
+                  dateStr = `${dateMatch[2]}-${dateMatch[3]}`;
+                } else {
+                  dateStr = airDate;
+                }
+              } catch (e) {
+                dateStr = airDate;
+              }
+            }
+            
+            // 格式化时间为 HH:MM（只取时间部分，忽略日期偏移）
+            let timeStr = '';
+            if (airTime) {
+              const timeMatch = String(airTime).trim().match(/^([0-2]?\d):([0-5]\d)/);
+              if (timeMatch) {
+                timeStr = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
+              }
+            }
+            
+            // 组合显示
+            if (dateStr && timeStr) {
+              return `${dateStr} ${timeStr}`;
+            } else if (dateStr) {
+              return dateStr;
+            } else if (timeStr) {
+              return timeStr;
+            }
+            
+            return '';
+          } catch (e) {
+            return '';
+          }
         },
         // —— 任务列表：类型筛选 ——
         selectTasklistType(type) {
@@ -4784,7 +5850,7 @@
               try { await this.loadTodayUpdatesLocal(); } catch (e) {}
               // 背景增量刷新（带节流），完成后热更新
               if (this.shouldAutoRefreshCalendar()) {
-                this.refreshCalendarData().catch(() => {});
+                this.refreshCalendarData(null, true, true).catch(() => {}); // isAutoRefresh=true
               }
               // 启动后台轻量监听，近实时发现“最近转存文件”变化
               this.startCalendarAutoWatch();
@@ -5126,7 +6192,9 @@
               return false;
             }
             
-            return episode.air_date === date;
+            // 优先使用 display_air_date（根据 calendar_timezone_mode 设置），否则使用 air_date
+            const episodeDate = episode.display_air_date || episode.air_date || '';
+            return episodeDate === date;
           });
           
           // 如果启用了合并集功能，则进行合并处理
@@ -5134,17 +6202,101 @@
             ? this.mergeEpisodesByShow(filteredEpisodes)
             : filteredEpisodes;
 
-          // 统一对同一天节目按节目名称拼音排序（与内容管理一致）
+          // 根据排序选项进行排序
           try {
+            const sortBy = this.calendar.sortBy || 'name';
+            const sortOrder = this.calendar.sortOrder || 'asc';
+            const factor = sortOrder === 'desc' ? -1 : 1;
+            
             result = result.slice().sort((a, b) => {
-              const an = (a && a.show_name) ? String(a.show_name) : '';
-              const bn = (b && b.show_name) ? String(b.show_name) : '';
-              const ak = pinyinPro.pinyin(an, { toneType: 'none', type: 'string' }).toLowerCase();
-              const bk = pinyinPro.pinyin(bn, { toneType: 'none', type: 'string' }).toLowerCase();
-              if (ak === bk) return 0;
-              return ak > bk ? 1 : -1;
+              if (sortBy === 'name') {
+                // 按节目名称拼音排序
+                const an = (a && a.show_name) ? String(a.show_name) : '';
+                const bn = (b && b.show_name) ? String(b.show_name) : '';
+                const ak = pinyinPro.pinyin(an, { toneType: 'none', type: 'string' }).toLowerCase();
+                const bk = pinyinPro.pinyin(bn, { toneType: 'none', type: 'string' }).toLowerCase();
+                if (ak === bk) return 0;
+                return ak > bk ? 1 : -1;
+              } else if (sortBy === 'airtime') {
+                // 按播出时间排序
+                // 获取播出日期和时间
+                const getAirDateTime = (ep) => {
+                  const airDate = ep.display_air_date || ep.air_date || '';
+                  const airTime = ep.local_air_time || '';
+                  // 解析时间（HH:MM）
+                  let timeMinutes = null;
+                  if (airTime) {
+                    const timeMatch = String(airTime).trim().match(/^([0-2]?\d):([0-5]\d)/);
+                    if (timeMatch) {
+                      timeMinutes = parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]);
+                    }
+                  }
+                  return { date: airDate, time: timeMinutes };
+                };
+                
+                const aAir = getAirDateTime(a);
+                const bAir = getAirDateTime(b);
+                
+                // 没有播出时间的节目始终排在最末
+                const aHasDate = !!aAir.date;
+                const bHasDate = !!bAir.date;
+                if (aHasDate !== bHasDate) {
+                  return aHasDate ? -1 : 1; // 有日期的排在前面
+                }
+                
+                // 都没有日期时，退回节目名称排序
+                if (!aHasDate && !bHasDate) {
+                  const an = (a && a.show_name) ? String(a.show_name) : '';
+                  const bn = (b && b.show_name) ? String(b.show_name) : '';
+                  const ak = pinyinPro.pinyin(an, { toneType: 'none', type: 'string' }).toLowerCase();
+                  const bk = pinyinPro.pinyin(bn, { toneType: 'none', type: 'string' }).toLowerCase();
+                  if (ak === bk) return 0;
+                  return ak > bk ? 1 : -1;
+                }
+                
+                // 都有日期时，先按日期排序
+                if (aAir.date !== bAir.date) {
+                  return aAir.date > bAir.date ? 1 : -1;
+                }
+                
+                // 日期相同时，按时间排序
+                if (aAir.time !== null && bAir.time !== null) {
+                  if (aAir.time !== bAir.time) {
+                    return aAir.time > bAir.time ? 1 : -1;
+                  }
+                } else if (aAir.time !== null) {
+                  return -1; // a有时间，b没有，a排在前面
+                } else if (bAir.time !== null) {
+                  return 1; // b有时间，a没有，b排在前面
+                }
+                
+                // 时间也相同时，同一节目内的多集按集号排序
+                if (a.show_name === b.show_name) {
+                  const aEpNum = parseInt(a.episode_number || 0);
+                  const bEpNum = parseInt(b.episode_number || 0);
+                  if (aEpNum !== bEpNum) {
+                    return aEpNum > bEpNum ? 1 : -1;
+                  }
+                }
+                
+                // 最后按节目名称排序
+                const an = (a && a.show_name) ? String(a.show_name) : '';
+                const bn = (b && b.show_name) ? String(b.show_name) : '';
+                const ak = pinyinPro.pinyin(an, { toneType: 'none', type: 'string' }).toLowerCase();
+                const bk = pinyinPro.pinyin(bn, { toneType: 'none', type: 'string' }).toLowerCase();
+                if (ak === bk) return 0;
+                return ak > bk ? 1 : -1;
+              }
+              return 0;
             });
-          } catch (e) {}
+            
+            // 应用升降序
+            if (sortOrder === 'desc') {
+              result.reverse();
+            }
+          } catch (e) {
+            console.error('排序失败:', e);
+          }
 
           return result;
         },
@@ -5353,21 +6505,102 @@
         
         
         
-        // 增量刷新追剧日历数据：仅对最新季执行增量拉取，然后本地读取
-        async refreshCalendarData() {
+        // 增量刷新追剧日历数据：只刷新当前匹配季的元数据（不刷新 TMDB 最新季）
+        // 可选传入限定 tmdb_id 列表，仅刷新指定节目
+        // onlyTmdbIds: 指定节目，allowFullRefresh: 仅显式同意时才全量刷新，isAutoRefresh: 是否为自动刷新（影响日志级别），isBatchRefresh: 是否为批量刷新（影响日志输出）
+        async refreshCalendarData(onlyTmdbIds = null, allowFullRefresh = false, isAutoRefresh = false, isBatchRefresh = false, isEditMetadataRefresh = false) {
           try {
+            if (this.calendar.refreshing) {
+              // 如果正在刷新中，给用户提示（仅手动刷新时）
+              if (!isAutoRefresh) {
+                this.showToast('刷新正在进行中，请稍候');
+              }
+              return;
+            }
+            this.calendar.refreshing = true;
             const tasklist = (this.formData && this.formData.tasklist) ? this.formData.tasklist : [];
-            const tmdbIds = [];
+            // 收集 tmdb_id -> 匹配季号映射
+            const tmdbToSeason = {};
+            // 优先使用日历任务最新数据
+            try {
+              (this.calendar.tasks || []).forEach(t => {
+                const tid = t.match_tmdb_id;
+                const sn = t.matched_latest_season_number;
+                if (tid && sn) tmdbToSeason[tid] = sn;
+              });
+            } catch (e) {}
+            // 回退表单任务里的匹配季
             tasklist.forEach(t => {
-              const cal = (t && t.calendar_info) ? t.calendar_info : {};
-              const match = cal.match || {};
-              if (match.tmdb_id) tmdbIds.push(match.tmdb_id);
-            });
-            for (const id of tmdbIds) {
               try {
-                await axios.get('/api/calendar/refresh_latest_season', { params: { tmdb_id: id } });
+                const cal = (t && t.calendar_info) ? t.calendar_info : {};
+                const match = cal.match || {};
+                const tid = match.tmdb_id;
+                const sn = match.latest_season_number;
+                if (tid && sn && !tmdbToSeason[tid]) tmdbToSeason[tid] = sn;
+              } catch (e) {}
+            });
+
+            const tmdbIds = Object.keys(tmdbToSeason).map(v => Number(v)).filter(Boolean);
+            const idsToRefresh = Array.isArray(onlyTmdbIds) && onlyTmdbIds.length
+              ? onlyTmdbIds
+              : (allowFullRefresh ? tmdbIds : []);
+
+            if (!idsToRefresh || idsToRefresh.length === 0) {
+              // 未授权全量且未指定节目，直接跳过
+              if (!isAutoRefresh) {
+                this.showToast('没有可刷新的节目数据');
+              }
+              // 提前返回时也要重置刷新状态
+              this.calendar.refreshing = false;
+              return;
+            }
+
+            // 如果不是自动刷新，显示开始提示
+            if (!isAutoRefresh) {
+              this.showToast(`正在刷新追剧日历，共 ${idsToRefresh.length} 个节目`);
+            }
+
+            // 批量刷新时输出整体开始日志
+            if (isBatchRefresh) {
+              try {
+                await axios.post('/api/calendar/log_batch_refresh_start');
               } catch (e) {
-                console.warn('refresh 失败:', id, e);
+                // 忽略日志记录失败
+              }
+            }
+
+            let successCount = 0;
+            let failCount = 0;
+            for (const id of idsToRefresh) {
+              const sn = tmdbToSeason[id];
+              if (!sn) {
+                console.warn('缺少匹配季，跳过刷新', id);
+                failCount++;
+                continue;
+              }
+              try {
+                await axios.get('/api/calendar/refresh_season', { 
+                  params: { 
+                    tmdb_id: id, 
+                    season_number: sn,
+                    is_auto_refresh: isAutoRefresh ? 'true' : 'false',
+                    is_batch_refresh: isBatchRefresh ? 'true' : 'false',
+                    is_edit_metadata_refresh: isEditMetadataRefresh ? 'true' : 'false'
+                  } 
+                });
+                successCount++;
+              } catch (e) {
+                console.warn('refresh season 失败:', id, sn, e);
+                failCount++;
+              }
+            }
+            
+            // 批量刷新时输出整体结束日志
+            if (isBatchRefresh) {
+              try {
+                await axios.post('/api/calendar/log_batch_refresh_end');
+              } catch (e) {
+                // 忽略日志记录失败
               }
             }
             
@@ -5394,8 +6627,25 @@
             try { await this.loadTodayUpdatesLocal(); } catch (e) {}
             // 记录自动刷新时间戳，用于节流
             try { localStorage.setItem('calendar_last_auto_refresh', String(Date.now())); } catch (e) {}
+            
+            // 如果不是自动刷新，显示完成提示
+            if (!isAutoRefresh) {
+              if (failCount === 0) {
+                this.showToast(`追剧日历刷新成功，共 ${successCount} 个节目`);
+              } else if (successCount > 0) {
+                this.showToast(`追剧日历刷新完成，${successCount} 个节目成功，${failCount} 个节目失败`);
+              } else {
+                this.showToast(`追剧日历刷新失败，共 ${failCount} 个节目`);
+              }
+            }
           } catch (error) {
             console.warn('增量刷新失败:', error);
+            // 如果不是自动刷新，显示错误提示
+            if (!isAutoRefresh) {
+              this.showToast('追剧日历刷新失败：' + (error.response?.data?.message || error.message || '未知错误'));
+            }
+          } finally {
+            this.calendar.refreshing = false;
           }
         },
         
@@ -5409,67 +6659,24 @@
             
             // 检查是否为合并集
             if (episode.is_merged && episode.original_episodes && episode.original_episodes.length > 0) {
-              // 合并集：刷新所有原始集
-              console.log('检测到合并集，将刷新所有原始集:', episode.original_episodes.length, '集');
-              
-              let successCount = 0;
-              let failCount = 0;
-              const successEpisodes = [];
-              const failEpisodes = [];
-              const errors = [];
-              
-              // 并行刷新所有原始集
-              const refreshPromises = episode.original_episodes.map(async (originalEpisode) => {
-                try {
-                  const response = await axios.get('/api/calendar/refresh_episode', {
-                    params: {
-                      tmdb_id: episode.tmdb_id,
-                      season_number: episode.season_number,
-                      episode_number: originalEpisode.episode_number
-                    }
-                  });
-                  
-                  if (response.data.success) {
-                    successCount++;
-                    successEpisodes.push(originalEpisode.episode_number);
-                    return { success: true, episode: originalEpisode.episode_number };
-                  } else {
-                    failCount++;
-                    failEpisodes.push(originalEpisode.episode_number);
-                    errors.push(`第${originalEpisode.episode_number}集: ${response.data.message}`);
-                    return { success: false, episode: originalEpisode.episode_number, error: response.data.message };
-                  }
-                } catch (error) {
-                  failCount++;
-                  failEpisodes.push(originalEpisode.episode_number);
-                  const errorMsg = error.response?.data?.message || error.message;
-                  errors.push(`第${originalEpisode.episode_number}集: ${errorMsg}`);
-                  return { success: false, episode: originalEpisode.episode_number, error: errorMsg };
+              // 合并集：使用批量接口，一次刷新所有原始集
+              const episodeNumbers = (episode.original_episodes || []).map(ep => ep.episode_number).filter(Boolean);
+              const response = await axios.get('/api/calendar/refresh_episodes_batch', {
+                params: {
+                  tmdb_id: episode.tmdb_id,
+                  season_number: episode.season_number,
+                  episode_numbers: episodeNumbers.join(',')
                 }
               });
               
-              // 等待所有刷新完成
-              await Promise.all(refreshPromises);
-              
-              // 显示结果提示
               const showName = episode.show_name || '未知剧集';
               const seasonNumber = episode.season_number;
+              const episodeRange = this.formatEpisodeRange(episodeNumbers);
               
-              if (successCount > 0 && failCount === 0) {
-                // 全部成功
-                const episodeRange = this.formatEpisodeRange(successEpisodes);
-                this.showToast(`《${showName}》第 ${seasonNumber} 季 · ${episodeRange}刷新成功`);
-              } else if (successCount > 0 && failCount > 0) {
-                // 部分成功：使用顿号明确区分成功和失败的集数
-                const successRange = this.formatEpisodeRange(successEpisodes, true);
-                const failRange = this.formatEpisodeRange(failEpisodes, true);
-                this.showToast(`《${showName}》第 ${seasonNumber} 季 · ${successRange}刷新成功，${failRange}刷新失败`);
-                console.warn('部分刷新失败:', errors);
+              if (response.data.success) {
+                this.showToast(response.data.message || `《${showName}》第 ${seasonNumber} 季 · ${episodeRange}刷新成功`);
               } else {
-                // 全部失败
-                const episodeRange = this.formatEpisodeRange(failEpisodes);
-                this.showToast(`《${showName}》第 ${seasonNumber} 季 · ${episodeRange}刷新失败`);
-                console.error('集刷新失败:', errors);
+                this.showToast(response.data.message || `《${showName}》第 ${seasonNumber} 季 · ${episodeRange}刷新失败`);
               }
               
             } else {
@@ -5495,8 +6702,9 @@
               }
             }
             
-            // 热更新数据
-            await this.refreshCalendarData();
+            // 仅刷新任务与本地剧集数据缓存，不触发季级刷新
+            try { await this.loadTasklistMetadata(); } catch (e) {}
+            try { await this.loadCalendarEpisodesLocal(); } catch (e) {}
             
           } catch (error) {
             console.error('刷新单集元数据失败:', error);
@@ -5518,17 +6726,16 @@
               this.showToast('该任务未匹配季信息');
               return;
             }
-            
-            // 先刷新剧级别详情（更新节目状态/最新季/海报等）
+
+            // 先刷新剧级别详情（状态/海报等），失败不阻塞季刷新
             try {
               await axios.get('/api/calendar/refresh_show', {
                 params: { tmdb_id: task.match_tmdb_id }
               });
             } catch (e) {
-              // 忽略失败，继续刷新季
-              console.warn('刷新剧详情失败（忽略继续）:', e);
+              console.warn('刷新剧详情失败（忽略继续季刷新）:', e);
             }
-
+            
             const response = await axios.get('/api/calendar/refresh_season', {
               params: {
                 tmdb_id: task.match_tmdb_id,
@@ -5540,17 +6747,18 @@
               // 显示成功提示
               this.showToast(response.data.message || '季元数据刷新成功');
               
-              // 刷新任务数据，确保节目状态（如 本季终/已完结/已取消）及时更新
+              // 刷新任务与本地剧集数据（不再触发季级刷新，避免重复日志/全量刷新）
               try {
                 const tasksResponse = await axios.get('/api/calendar/tasks');
                 if (tasksResponse.data && tasksResponse.data.success) {
                   this.calendar.tasks = tasksResponse.data.data.tasks;
                   this.calendar.taskNames = this.calendar.tasks.map(task => task.task_name);
+                  this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
+                  const rawTypes = tasksResponse.data.data.content_types || [];
+                  this.updateContentTypes(rawTypes);
                 }
               } catch (e) {}
-
-              // 热更新日历与本地剧集数据
-              await this.refreshCalendarData();
+              try { await this.loadCalendarEpisodesLocal(); } catch (e) {}
             } else {
               this.showToast(response.data.message || '季元数据刷新失败');
             }
@@ -5573,20 +6781,30 @@
             const matchedName = task.matched_show_name || '';
             const matchedYear = task.matched_year || '';
 
+            // 构建播出时间显示字符串（包含日期偏移）
+            const airTime = (task.calendar_info && task.calendar_info.local_air_time) || '';
+            const airDateOffset = (task.calendar_info && task.calendar_info.air_date_offset) || 0;
+            let airTimeDisplay = airTime;
+            if (airTime && airDateOffset !== 0) {
+              airTimeDisplay = airTime + (airDateOffset > 0 ? ` +${airDateOffset}d` : ` ${airDateOffset}d`);
+            }
+            
             this.editMetadata = {
               visible: true,
               original: {
                 task_name: currentName,
                 content_type: task.content_type || '',
                 tmdb_id: currentTmdbId || '',
-                season_number: currentSeason || ''
+                season_number: currentSeason || '',
+                local_air_time: airTimeDisplay
               },
               form: {
                 task_name: currentName,
                 content_type: task.content_type || '',
                 tmdb_id: '',
                 season_number: currentSeason || 1,
-                custom_poster_url: ''
+                custom_poster_url: '',
+                local_air_time: airTimeDisplay
               },
               display: {
                 matched_label: matchedName ? `${matchedName}${matchedYear ? ' (' + matchedYear + ')' : ''}` : '未匹配',
@@ -5651,15 +6869,48 @@
               new_content_type: this.editMetadata.form.content_type,
               new_tmdb_id: this.editMetadata.form.tmdb_id,
               new_season_number: this.editMetadata.form.season_number,
-              custom_poster_url: this.editMetadata.form.custom_poster_url
+              custom_poster_url: this.editMetadata.form.custom_poster_url,
+              local_air_time: this.editMetadata.form.local_air_time
             };
+
+            // 验证播出时间格式（如果填写了的话）
+            const airTimeStr = String(payload.local_air_time || '').trim();
+            if (airTimeStr) {
+              // 验证格式是否为 HH:MM（24小时制，00:00 到 23:59），可选附加日期偏移：+Nd 或 -Nd（N 为天数）
+              const timePattern = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
+              const timeWithOffsetPattern = /^([01]?[0-9]|2[0-3]):([0-5][0-9])\s+([+-])(\d+)d$/;
+              if (!timePattern.test(airTimeStr) && !timeWithOffsetPattern.test(airTimeStr)) {
+                // 停止加载动画
+                this.editMetadata.loading = false;
+                // 手动隐藏 spinner，确保动画停止
+                try {
+                  var __sp = document.querySelector('#editMetadataModal .modal-title .spinner-border');
+                  if (__sp) {
+                    __sp.style.display = 'none';
+                  }
+                } catch (e) {}
+                // 等待视图更新后再显示提示
+                await this.$nextTick();
+                this.showToast('播出时间格式不正确，请输入 HH:MM 格式，如 20:00，或带日期偏移如 19:30 +1d 或 19:30 -1d');
+                return;
+              }
+            }
 
             // 如果没有任何变化则直接关闭
             const noNameChange = (payload.new_task_name || '') === (this.editMetadata.original.task_name || '');
             const noTypeChange = (payload.new_content_type || '') === (this.editMetadata.original.content_type || '');
             const noRematch = !(payload.new_tmdb_id && String(payload.new_tmdb_id).trim()) && !(payload.new_season_number && String(payload.new_season_number).trim());
             const noPosterChange = !(payload.custom_poster_url && String(payload.custom_poster_url).trim());
-            if (noNameChange && noTypeChange && noRematch && noPosterChange) {
+            const noAirTimeChange = (String(payload.local_air_time || '') === String(this.editMetadata.original.local_air_time || ''));
+            if (noNameChange && noTypeChange && noRematch && noPosterChange && noAirTimeChange) {
+              // 重置加载状态
+              this.editMetadata.loading = false;
+              try {
+                var __sp = document.querySelector('#editMetadataModal .modal-title .spinner-border');
+                if (__sp) {
+                  __sp.style.display = 'none';
+                }
+              } catch (e) {}
               $('#editMetadataModal').modal('hide');
               return;
             }
@@ -5669,7 +6920,7 @@
               this.showToast(res.data.message || '保存成功');
               $('#editMetadataModal').modal('hide');
               // 热更新任务与日历
-              // 避免触发“未保存修改”提示：本次更新由后端变更引发
+              // 避免触发"未保存修改"提示：本次更新由后端变更引发
               this.suppressConfigModifiedOnce = true;
               // 本次操作来自编辑元数据，不应提示未保存
               this.configModified = false;
@@ -5704,8 +6955,26 @@
               // 并行刷新：优先尽快更新任务列表的类型按钮与映射
               try {
                 const tasksPromise = axios.get('/api/calendar/tasks');
-                // 同时后台刷新日历数据（不阻塞UI）
-                const refreshPromise = this.refreshCalendarData().catch(() => {});
+                // 根据后端返回的信息，决定是否刷新以及刷新哪个节目
+                // 只有在确实有修改（changed=true）且有有效的 tmdb_id 和 season_number 时才刷新
+                let refreshPromise = Promise.resolve();
+                if (res.data.changed && res.data.tmdb_id && res.data.season_number) {
+                  // 只刷新被编辑的单个节目，使用 DEBUG 级别日志
+                  const tmdbIdToRefresh = parseInt(res.data.tmdb_id);
+                  const seasonNumberToRefresh = parseInt(res.data.season_number);
+                  if (tmdbIdToRefresh && seasonNumberToRefresh) {
+                    // 直接调用 refresh_season API，使用 DEBUG 级别日志
+                    refreshPromise = axios.get('/api/calendar/refresh_season', {
+                      params: {
+                        tmdb_id: tmdbIdToRefresh,
+                        season_number: seasonNumberToRefresh,
+                        is_auto_refresh: 'false',
+                        is_batch_refresh: 'false',
+                        is_edit_metadata_refresh: 'true'
+                      }
+                    }).catch(() => {});
+                  }
+                }
                 const tasksResponse = await tasksPromise;
                 if (tasksResponse.data && tasksResponse.data.success) {
                   this.calendar.tasks = tasksResponse.data.data.tasks || [];
@@ -5740,9 +7009,10 @@
                 }
                 await refreshPromise;
                 // 再次触发缓存穿透，保证刷新后的数据也使用新时间戳
+                // 使用后端返回的最新 tmdb_id（如果有）
                 try {
                   const nowTick = Date.now();
-                  const eid = (this.editMetadata.display && this.editMetadata.display.matched_tmdb_id) || (this.editMetadata.original && this.editMetadata.original.tmdb_id);
+                  const eid = res.data.tmdb_id || (this.editMetadata.display && this.editMetadata.display.matched_tmdb_id) || (this.editMetadata.original && this.editMetadata.original.tmdb_id);
                   const taskName = (this.editMetadata.original && this.editMetadata.original.task_name) || '';
                   const matchedLabel = (this.editMetadata.display && this.editMetadata.display.matched_label) || '';
                   const normalizeMatchedName = (label) => {
@@ -5895,21 +7165,31 @@
                 if (res.data && res.data.success) {
                   const latestFiles = res.data.data.latest_files || {};
                   const sig = this.calcLatestFilesSignature(latestFiles);
+                  // 如果签名发生变化，说明有文件变化
                   if (sig && sig !== this.calendarLatestFilesSignature) {
-                    // 更新签名，触发热更新
+                    // 如果当前签名为空，说明是首次初始化，只更新签名，不触发刷新
+                    const isFirstInit = !this.calendarLatestFilesSignature;
+                    // 更新签名
                     this.calendarLatestFilesSignature = sig;
                     // 先更新任务面板数据（若有显示）
                     this.taskLatestFiles = latestFiles;
                     this.taskLatestRecords = res.data.data.latest_records || {};
-                    // 同步重建“已转存”判定所需的进度映射，确保UI立即反映
+                    // 同步重建"已转存"判定所需的进度映射，确保UI立即反映
                     try {
                       this.calendar.progressByTaskName = this.buildProgressByTaskNameFromLatestFiles(latestFiles);
                       this.calendar.progressByShowName = this.buildProgressByShowNameFromTasks(this.calendar.tasks || [], this.calendar.progressByTaskName);
                     } catch (e) {}
-                    // 拉取并热更新日历
-                    await this.refreshCalendarData();
-                    // 同步“今日更新”
-                    try { await this.loadTodayUpdatesLocal(); } catch (e) {}
+                    // 如果不是首次初始化，且确实有文件变化，则触发刷新（遵守30分钟节流）
+                    if (!isFirstInit && this.shouldAutoRefreshCalendar()) {
+                      await this.refreshCalendarData(null, true, true); // isAutoRefresh=true
+                      // 同步"今日更新"
+                      try { await this.loadTodayUpdatesLocal(); } catch (e) {}
+                    } else if (!isFirstInit) {
+                      // 即使不刷新元数据（节流中），也要更新本地视图以反映文件变化
+                      try { await this.loadCalendarEpisodesLocal(); } catch (e) {}
+                      try { await this.loadTodayUpdatesLocal(); } catch (e) {}
+                    }
+                    // 首次初始化时，只更新签名，不触发任何刷新
                   }
                 }
               } catch (e) {
@@ -5932,6 +7212,15 @@
                   this.calendarAutoWatchTimer = null;
                 }
               } else {
+                // 页面从隐藏变为可见时，尝试重连 SSE（服务器休眠后唤醒时特别有用）
+                if (!this.appSSE || !this.appSSEInitialized) {
+                  try {
+                    // 重置标志，允许重连
+                    this.appSSEInitialized = false;
+                    this.ensureGlobalSSE();
+                  } catch (e) {}
+                }
+                // 如果 SSE 连接失败，回退到轮询
                 if (!this.appSSE && !this.calendarAutoWatchTimer && this.calendarAutoWatchTickRef) {
                   const baseIntervalMs = this.calendar && this.calendar.manageMode ? 5 * 1000 : 60 * 1000;
                   this.calendarAutoWatchTimer = setInterval(this.calendarAutoWatchTickRef, baseIntervalMs);
@@ -6124,36 +7413,272 @@
         
         // 更改日期
         changeCalendarDate(action) {
-          const currentDate = new Date(this.calendar.currentDate);
-          
-          switch (action) {
-            case 'prevDay':
-              currentDate.setDate(currentDate.getDate() - 1);
-              break;
-            case 'nextDay':
-              currentDate.setDate(currentDate.getDate() + 1);
-              break;
-            case 'prevWeek':
-              currentDate.setDate(currentDate.getDate() - 7);
-              break;
-            case 'nextWeek':
-              currentDate.setDate(currentDate.getDate() + 7);
-              break;
-            case 'prevMonth':
-              currentDate.setMonth(currentDate.getMonth() - 1);
-              break;
-            case 'nextMonth':
-              currentDate.setMonth(currentDate.getMonth() + 1);
-              break;
+          // 海报视图模式下，以选中的日期为基准进行偏移
+          if (this.calendar.viewMode === 'poster') {
+            // 解析选中的日期
+            const selectedDateStr = this.calendar.selectedDate;
+            if (!selectedDateStr) {
+              // 如果没有选中日期，使用当前日期
+              const currentDate = new Date(this.calendar.currentDate);
+              switch (action) {
+                case 'prevDay':
+                  currentDate.setDate(currentDate.getDate() - 1);
+                  break;
+                case 'nextDay':
+                  currentDate.setDate(currentDate.getDate() + 1);
+                  break;
+                case 'prevWeek':
+                  currentDate.setDate(currentDate.getDate() - 7);
+                  break;
+                case 'nextWeek':
+                  currentDate.setDate(currentDate.getDate() + 7);
+                  break;
+                case 'prevMonth':
+                  currentDate.setMonth(currentDate.getMonth() - 1);
+                  break;
+                case 'nextMonth':
+                  currentDate.setMonth(currentDate.getMonth() + 1);
+                  break;
+              }
+              this.calendar.currentDate = currentDate;
+              this.calendar.selectedDate = this.formatDateToYYYYMMDD(currentDate);
+              this.initializeCalendarDates();
+              return;
+            }
+            
+            // 解析选中日期
+            let selectedDate;
+            try {
+              const selectedDateParts = selectedDateStr.split('-');
+              if (selectedDateParts.length !== 3) {
+                // 日期格式不正确，回退到使用当前日期
+                const currentDate = new Date(this.calendar.currentDate);
+                switch (action) {
+                  case 'prevDay': currentDate.setDate(currentDate.getDate() - 1); break;
+                  case 'nextDay': currentDate.setDate(currentDate.getDate() + 1); break;
+                  case 'prevWeek': currentDate.setDate(currentDate.getDate() - 7); break;
+                  case 'nextWeek': currentDate.setDate(currentDate.getDate() + 7); break;
+                  case 'prevMonth': currentDate.setMonth(currentDate.getMonth() - 1); break;
+                  case 'nextMonth': currentDate.setMonth(currentDate.getMonth() + 1); break;
+                }
+                this.calendar.currentDate = currentDate;
+                this.calendar.selectedDate = this.formatDateToYYYYMMDD(currentDate);
+                this.initializeCalendarDates();
+                return;
+              }
+              selectedDate = new Date(
+                parseInt(selectedDateParts[0], 10),
+                parseInt(selectedDateParts[1], 10) - 1,
+                parseInt(selectedDateParts[2], 10)
+              );
+              // 验证日期是否有效
+              if (isNaN(selectedDate.getTime())) {
+                throw new Error('Invalid date');
+              }
+            } catch (e) {
+              // 日期解析失败，回退到使用当前日期
+              const currentDate = new Date(this.calendar.currentDate);
+              switch (action) {
+                case 'prevDay': currentDate.setDate(currentDate.getDate() - 1); break;
+                case 'nextDay': currentDate.setDate(currentDate.getDate() + 1); break;
+                case 'prevWeek': currentDate.setDate(currentDate.getDate() - 7); break;
+                case 'nextWeek': currentDate.setDate(currentDate.getDate() + 7); break;
+                case 'prevMonth': currentDate.setMonth(currentDate.getMonth() - 1); break;
+                case 'nextMonth': currentDate.setMonth(currentDate.getMonth() + 1); break;
+              }
+              this.calendar.currentDate = currentDate;
+              this.calendar.selectedDate = this.formatDateToYYYYMMDD(currentDate);
+              this.initializeCalendarDates();
+              return;
+            }
+            
+            // 计算新日期
+            const newDate = new Date(selectedDate);
+            switch (action) {
+              case 'prevDay':
+                newDate.setDate(newDate.getDate() - 1);
+                break;
+              case 'nextDay':
+                newDate.setDate(newDate.getDate() + 1);
+                break;
+              case 'prevWeek':
+                newDate.setDate(newDate.getDate() - 7);
+                break;
+              case 'nextWeek':
+                newDate.setDate(newDate.getDate() + 7);
+                break;
+              case 'prevMonth':
+                newDate.setMonth(newDate.getMonth() - 1);
+                break;
+              case 'nextMonth':
+                newDate.setMonth(newDate.getMonth() + 1);
+                break;
+            }
+            
+            const newDateStr = this.formatDateToYYYYMMDD(newDate);
+            
+            // 检查新日期是否在当前视图范围内
+            const currentViewStart = new Date(this.calendar.currentDate);
+            const availableWidth = this.getCalendarAvailableWidth();
+            const minColumnWidth = 140;
+            const columnGap = 20;
+            const eps = 0.1;
+            const maxColumns = Math.max(2, Math.floor((availableWidth + columnGap - eps) / (minColumnWidth + columnGap)));
+            const currentViewEnd = new Date(currentViewStart);
+            currentViewEnd.setDate(currentViewStart.getDate() + maxColumns - 1);
+            
+            // 比较日期（只比较年月日，忽略时间）
+            const newDateOnly = new Date(newDate.getFullYear(), newDate.getMonth(), newDate.getDate());
+            const viewStartOnly = new Date(currentViewStart.getFullYear(), currentViewStart.getMonth(), currentViewStart.getDate());
+            const viewEndOnly = new Date(currentViewEnd.getFullYear(), currentViewEnd.getMonth(), currentViewEnd.getDate());
+            
+            // 如果新日期在视图范围内，只更新选中日期，不改变视图
+            if (newDateOnly >= viewStartOnly && newDateOnly <= viewEndOnly) {
+              this.calendar.selectedDate = newDateStr;
+            } else {
+              // 如果新日期不在视图范围内，调整视图使新日期在范围内
+              // 将新日期设置为视图的起始日期
+              this.calendar.currentDate = newDate;
+              this.calendar.selectedDate = newDateStr;
+              this.initializeCalendarDates();
+            }
+          } else {
+            // 日历视图模式
+            if (action === 'prevDay' || action === 'nextDay') {
+              // 前后一天切换：基于选中的日期进行切换
+              const selectedDateStr = this.calendar.selectedDate;
+              if (!selectedDateStr) {
+                // 如果没有选中日期，使用当前日期
+                const currentDate = new Date(this.calendar.currentDate);
+                if (action === 'prevDay') {
+                  currentDate.setDate(currentDate.getDate() - 1);
+                } else {
+                  currentDate.setDate(currentDate.getDate() + 1);
+                }
+                this.calendar.currentDate = currentDate;
+                this.calendar.selectedDate = this.formatDateToYYYYMMDD(currentDate);
+                this.initializeCalendarDates();
+                return;
+              }
+              
+              // 解析选中日期
+              let selectedDate;
+              try {
+                const selectedDateParts = selectedDateStr.split('-');
+                if (selectedDateParts.length !== 3) {
+                  throw new Error('Invalid date format');
+                }
+                selectedDate = new Date(
+                  parseInt(selectedDateParts[0], 10),
+                  parseInt(selectedDateParts[1], 10) - 1,
+                  parseInt(selectedDateParts[2], 10)
+                );
+                if (isNaN(selectedDate.getTime())) {
+                  throw new Error('Invalid date');
+                }
+              } catch (e) {
+                // 日期解析失败，回退到使用当前日期
+                const currentDate = new Date(this.calendar.currentDate);
+                if (action === 'prevDay') {
+                  currentDate.setDate(currentDate.getDate() - 1);
+                } else {
+                  currentDate.setDate(currentDate.getDate() + 1);
+                }
+                this.calendar.currentDate = currentDate;
+                this.calendar.selectedDate = this.formatDateToYYYYMMDD(currentDate);
+                this.initializeCalendarDates();
+                return;
+              }
+              
+              // 计算新日期
+              const newDate = new Date(selectedDate);
+              if (action === 'prevDay') {
+                newDate.setDate(newDate.getDate() - 1);
+              } else {
+                newDate.setDate(newDate.getDate() + 1);
+              }
+              
+              const newDateStr = this.formatDateToYYYYMMDD(newDate);
+              
+              // 检查新日期是否在当前月份
+              const currentMonth = this.calendar.currentDate.getMonth();
+              const currentYear = this.calendar.currentDate.getFullYear();
+              const newMonth = newDate.getMonth();
+              const newYear = newDate.getFullYear();
+              
+              // 如果新日期是当月，只更新选中日期
+              if (newYear === currentYear && newMonth === currentMonth) {
+                this.calendar.selectedDate = newDateStr;
+              } else {
+                // 如果新日期跨月了，切换到对应月份的日期范围和视图
+                this.calendar.currentDate = newDate;
+                this.calendar.selectedDate = newDateStr;
+                this.initializeCalendarDates();
+              }
+            } else {
+              // 其他操作（前后一月、前后一周等）保持原有逻辑
+              const currentDate = new Date(this.calendar.currentDate);
+              
+              switch (action) {
+                case 'prevWeek':
+                  currentDate.setDate(currentDate.getDate() - 7);
+                  break;
+                case 'nextWeek':
+                  currentDate.setDate(currentDate.getDate() + 7);
+                  break;
+                case 'prevMonth':
+                  currentDate.setMonth(currentDate.getMonth() - 1);
+                  break;
+                case 'nextMonth':
+                  currentDate.setMonth(currentDate.getMonth() + 1);
+                  break;
+              }
+              
+              this.calendar.currentDate = currentDate;
+              // 切换月份后，如果当前没有选中日期或选中日期不在新月份，则选中新月份的第一天
+              const newMonth = currentDate.getMonth();
+              const newYear = currentDate.getFullYear();
+              const selectedDateStr = this.calendar.selectedDate;
+              let needUpdateSelected = true;
+              
+              if (selectedDateStr) {
+                try {
+                  const selectedDateParts = selectedDateStr.split('-');
+                  if (selectedDateParts.length === 3) {
+                    const selectedDate = new Date(
+                      parseInt(selectedDateParts[0], 10),
+                      parseInt(selectedDateParts[1], 10) - 1,
+                      parseInt(selectedDateParts[2], 10)
+                    );
+                    if (!isNaN(selectedDate.getTime()) && 
+                        selectedDate.getFullYear() === newYear && 
+                        selectedDate.getMonth() === newMonth) {
+                      // 选中日期在新月份内，保持不变
+                      needUpdateSelected = false;
+                    }
+                  }
+                } catch (e) {
+                  // 解析失败，需要更新
+                }
+              }
+              
+              if (needUpdateSelected) {
+                // 选中新月份的第一天
+                const firstDay = new Date(newYear, newMonth, 1);
+                this.calendar.selectedDate = this.formatDateToYYYYMMDD(firstDay);
+              }
+              
+              this.initializeCalendarDates();
+            }
           }
-          
-          this.calendar.currentDate = currentDate;
-          this.initializeCalendarDates();
         },
         
         // 回到今天
         goToToday() {
-          this.calendar.currentDate = new Date();
+          const today = new Date();
+          this.calendar.currentDate = today;
+          // 更新selectedDate为今天的日期
+          this.calendar.selectedDate = this.formatDateToYYYYMMDD(today);
           this.initializeCalendarDates();
         },
         
@@ -6321,6 +7846,28 @@
           return false;
         },
 
+        // 判断剧集是否“已播出”（用于前端样式展示）
+        // 说明：
+        // - 优先使用 display_air_date（已按配置时区处理），否则回退到 air_date
+        // - 若后端提供 is_aired，则以该布尔值为准，保证前后端一致
+        // - 否则仅按日期与本地“今天”比较：日期早于或等于今天视为已播出（兼容旧版本）
+        // - 合并集场景下，使用合并集自身日期（同一天的多集会同时视为已播出或未播出，仅在缺少 is_aired 时生效）
+        isEpisodeAiredForDisplay(episode) {
+          try {
+            if (!episode) return false;
+            // 优先使用后端返回的 is_aired，保证与后端统计逻辑一致
+            if (Object.prototype.hasOwnProperty.call(episode, 'is_aired')) {
+              return !!episode.is_aired;
+            }
+            const dateStr = String(episode.display_air_date || episode.air_date || '').trim();
+            if (!dateStr) return false;
+            const todayStr = this.formatDateToYYYYMMDD(new Date());
+            return dateStr <= todayStr;
+          } catch (e) {
+            return false;
+          }
+        },
+
         
         
         // 获取剧集显示集数
@@ -6358,23 +7905,41 @@
         
         // 获取剧集提示信息
         getEpisodeTooltip(episode) {
-          // 规范：集数悬停显示对应集在TMDB上的单集标题
+          // 规范：集数悬停显示对应集在 TMDB 上的单集标题
           // 普通：SxxExx 标题
           // 合并：逐行列出每一集：SxxExx 标题
+          // 扩展：若存在节目级播出时间（local_air_time），则在前面追加时间，例如：
+          //       18:00 S01E17 标题
+          //       18:00 S01E18 标题
           const pad2 = n => String(n).padStart(2, '0');
+          // 仅使用节目级播出时间（local_air_time），不使用全局刷新时间；
+          // 未配置 local_air_time 时保持原有行为（不显示时间）
+          let timePrefix = '';
+          try {
+            const raw = (episode && episode.local_air_time) ? String(episode.local_air_time).trim() : '';
+            if (raw) {
+              // 只取 HH:MM 部分，忽略可选的日期偏移（例如 "+1d"）
+              const m = raw.match(/^([0-2]?\d:[0-5]\d)/);
+              const hhmm = m ? m[1] : raw;
+              timePrefix = hhmm ? (hhmm + ' ') : '';
+            }
+          } catch (e) {
+            timePrefix = '';
+          }
+
           if (episode.is_merged && Array.isArray(episode.original_episodes) && episode.original_episodes.length) {
             const lines = episode.original_episodes.map(ep => {
               const s = ep.season_number ? pad2(ep.season_number) : pad2(episode.season_number || 1);
               const e = ep.episode_number ? pad2(ep.episode_number) : '';
               const title = ep.name || '';
-              return `S${s}E${e} ${title}`.trim();
+              return `${timePrefix}S${s}E${e} ${title}`.trim();
             });
             return lines.join('\n');
           }
           const s = episode.season_number ? pad2(episode.season_number) : '01';
           const e = episode.episode_number ? pad2(episode.episode_number) : '01';
           const title = episode.name || '';
-          return `S${s}E${e} ${title}`.trim();
+          return `${timePrefix}S${s}E${e} ${title}`.trim();
         },
 
         // 打开剧的TMDB页面
@@ -7363,13 +8928,16 @@
               }
               // 确保性能设置存在并补默认值（单位：秒）
               if (!config_data.performance) {
-                config_data.performance = { calendar_refresh_interval_seconds: 21600, aired_refresh_time: "00:00" };
+                config_data.performance = { calendar_refresh_interval_seconds: 21600, aired_refresh_time: "00:00", runtime_log_display_days: 1 };
               } else {
                 if (config_data.performance.calendar_refresh_interval_seconds === undefined || config_data.performance.calendar_refresh_interval_seconds === null) {
                   config_data.performance.calendar_refresh_interval_seconds = 21600;
                 }
                 if (config_data.performance.aired_refresh_time === undefined || config_data.performance.aired_refresh_time === null) {
                   config_data.performance.aired_refresh_time = "00:00";
+                }
+                if (config_data.performance.runtime_log_display_days === undefined || config_data.performance.runtime_log_display_days === null) {
+                  config_data.performance.runtime_log_display_days = 1;
                 }
               }
               // 确保execution_mode有默认值
@@ -8096,6 +9664,284 @@
         },
         clearData(target) {
           this[target] = "";
+        },
+        clearRuntimeLogFilter(field) {
+          if (!this.runtimeLogFilters) return;
+          if (Object.prototype.hasOwnProperty.call(this.runtimeLogFilters, field)) {
+            this.$set(this.runtimeLogFilters, field, '');
+          }
+        },
+        // 运行日志：日志级别点击筛选
+        filterByLogLevel(level, event) {
+          // 防止事件冒泡
+          if (event) {
+            event.stopPropagation();
+          }
+          
+          // 如果当前已经筛选了该级别，则取消筛选
+          if (this.runtimeLogFilters.level === level) {
+            this.$set(this.runtimeLogFilters, 'level', '');
+          } else {
+            // 设置级别筛选值
+            this.$set(this.runtimeLogFilters, 'level', level);
+          }
+        },
+        // 运行日志：统一获取日志原始文本
+        getRuntimeLogText(log) {
+          // 统一获取日志展示文本，避免空字符串被误判为无内容
+          if (!log) {
+            return '';
+          }
+          if (Object.prototype.hasOwnProperty.call(log, 'message')) {
+            const message = log.message;
+            if (message !== undefined && message !== null) {
+              return String(message);
+            }
+          }
+          return log.raw ? String(log.raw) : '';
+        },
+        // 运行日志：将日志文本转换为带可点击区域的 HTML
+        getRuntimeLogDisplayHtml(log) {
+          // 使用 v-html 时，先对原始文本进行转义，再插入自定义的可点击 span
+          const text = this.getRuntimeLogText(log) || '';
+          const escapeHtml = (str) => {
+            return String(str)
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+          };
+          const escapeAttr = (str) => {
+            // 属性用的简单转义，避免引号破坏属性
+            return String(str)
+              .replace(/&/g, '&amp;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;');
+          };
+
+          let html = escapeHtml(text);
+
+          // 1. 任务名称: xxxx 中的 xxxx 可点击 —— 只处理首个“任务名称:”匹配，避免误伤其他内容
+          html = html.replace(/(任务名称:\s*)(.+)/, (match, prefix, name) => {
+            const trimmedName = name.trim();
+            if (!trimmedName) return match;
+            const safeName = escapeHtml(trimmedName);
+            const safeAttr = escapeAttr(trimmedName);
+            return `${prefix}<span class="runtime-log-taskname-clickable" data-taskname="${safeAttr}">${safeName}</span>`;
+          });
+
+          // 2. 将所有 >>> 替换为可点击的 span（在转义后的文本中是 &gt;&gt;&gt;）
+          html = html.replace(/&gt;&gt;&gt;/g, '<span class="runtime-log-arrow-clickable" data-keyword="&gt;&gt;&gt;">&gt;&gt;&gt;</span>');
+
+          return html;
+        },
+        // 运行日志：统一处理内容区域点击（事件委托，避免影响复制）
+        handleRuntimeLogClick(log, event) {
+          if (!event || !event.target) return;
+          const target = event.target;
+
+          // 点击 >>> 触发内容关键词快速筛选（再次点击则清空）
+          if (target.classList && target.classList.contains('runtime-log-arrow-clickable')) {
+            event.stopPropagation();
+            this.toggleRuntimeLogKeywordFilter('>>>');
+            return;
+          }
+
+          // 点击任务名称触发任务筛选（再次点击则清空）
+          if (target.classList && target.classList.contains('runtime-log-taskname-clickable')) {
+            event.stopPropagation();
+            const taskName = (target.getAttribute('data-taskname') || target.textContent || '').trim();
+            if (taskName) {
+              this.toggleRuntimeLogTaskFilter(taskName);
+            }
+          }
+        },
+        // 运行日志：基于固定关键词（例如 >>>）的内容筛选开关
+        toggleRuntimeLogKeywordFilter(keyword) {
+          const current = (this.runtimeLogFilters.keyword || '').trim();
+          if (current === keyword) {
+            this.$set(this.runtimeLogFilters, 'keyword', '');
+          } else {
+            this.$set(this.runtimeLogFilters, 'keyword', keyword);
+          }
+        },
+        // 运行日志：基于任务名称的任务筛选开关（与任务下拉保持一致）
+        toggleRuntimeLogTaskFilter(taskName) {
+          const current = (this.runtimeLogFilters.task || '').trim();
+          if (current === taskName) {
+            this.$set(this.runtimeLogFilters, 'task', '');
+          } else {
+            this.$set(this.runtimeLogFilters, 'task', taskName);
+          }
+        },
+        parseTaskBlocks(logs) {
+          // 解析日志中的任务块，返回任务块数组
+          // 每个任务块包含：startIndex, endIndex, taskName, taskNumber
+          const blocks = [];
+          let currentBlock = null;
+          
+          for (let i = 0; i < logs.length; i++) {
+            const log = logs[i];
+            const text = this.getRuntimeLogText(log);
+            
+            // 检查是否是任务块开始标记：格式为 #数字------------------
+            const taskStartMatch = text.match(/^#(\d+)------------------/);
+            if (taskStartMatch) {
+              // 如果之前有未完成的任务块，先结束它（结束于上一个日志行）
+              if (currentBlock && currentBlock.endIndex === -1) {
+                currentBlock.endIndex = Math.max(i - 1, currentBlock.startIndex);
+              }
+              
+              // 开始新的任务块
+              const taskNumber = taskStartMatch[1];
+              currentBlock = {
+                startIndex: i,
+                endIndex: -1, // 暂时设为-1，表示未结束
+                taskName: '',
+                taskNumber: taskNumber
+              };
+              blocks.push(currentBlock);
+              continue;
+            }
+            
+            // 如果当前在任务块中，检查是否是任务名称行
+            if (currentBlock && currentBlock.taskName === '') {
+              const taskNameMatch = text.match(/^任务名称:\s*(.+)$/);
+              if (taskNameMatch) {
+                currentBlock.taskName = taskNameMatch[1].trim();
+              }
+            }
+            
+            // 检查是否是任务块结束标记
+            if (currentBlock && currentBlock.endIndex === -1) {
+              // 检查是否是程序结束相关标记（这些标记表示任务块应该结束）
+              // 任务块应该在推送通知之前结束，包括推送通知之前的空行
+              if (text.includes('===============推送通知===============') ||
+                  text.includes('===============程序结束===============')) {
+                // 任务块结束于推送通知之前的最后一行（包括空行）
+                // 如果上一行是空行，则包含它；否则结束于上一行
+                currentBlock.endIndex = i - 1;
+                currentBlock = null;
+                continue;
+              }
+              
+              // 检查是否是程序执行成功标记（这些标记不属于任务块）
+              if (text.match(/^>>>\s+(定时运行全部任务|手动运行任务\s+\[.+\])\s+执行成功$/)) {
+                // 执行成功标记不属于任务块，所以任务块结束于上一行
+                currentBlock.endIndex = Math.max(i - 1, currentBlock.startIndex);
+                currentBlock = null;
+                continue;
+              }
+            }
+          }
+          
+          // 处理最后一个未结束的任务块
+          if (currentBlock && currentBlock.endIndex === -1) {
+            currentBlock.endIndex = logs.length - 1;
+          }
+          
+          return blocks;
+        },
+        fetchRuntimeLogs(force = false) {
+          const hasLogs = Array.isArray(this.runtimeLogs) && this.runtimeLogs.length > 0;
+          const shouldShowLoading = force || (!hasLogs && !this.runtimeLogLoading);
+          const isInitialLoad = force && !hasLogs; // 判断是否是首次加载（强制刷新且没有现有日志）
+          
+          // 首次加载时先隐藏内容，避免闪现
+          if (isInitialLoad) {
+            this.runtimeLogInitialized = false;
+          } else if (!this.runtimeLogInitialized && hasLogs) {
+            // 如果不是首次加载但日志被隐藏了（比如从其他页面切换回来），立即显示
+            this.runtimeLogInitialized = true;
+          }
+          
+          if (shouldShowLoading) {
+            this.runtimeLogLoading = true;
+          }
+          
+          // 记录刷新前的滚动位置和内容高度
+          const viewport = this.$refs.runtimeLogViewport;
+          let previousScrollTop = 0;
+          let previousScrollHeight = 0;
+          let wasNearBottom = false;
+          
+          if (viewport) {
+            previousScrollTop = viewport.scrollTop;
+            previousScrollHeight = viewport.scrollHeight;
+            // 判断用户是否接近底部（距离底部小于50像素视为接近底部）
+            const distanceFromBottom = previousScrollHeight - previousScrollTop - viewport.clientHeight;
+            wasNearBottom = distanceFromBottom < 50;
+          }
+          
+          // 获取运行日志显示范围配置（天数），默认1天
+          const displayDays = this.formData.performance && this.formData.performance.runtime_log_display_days 
+            ? parseFloat(this.formData.performance.runtime_log_display_days) || 1 
+            : 1;
+          axios.get('/api/runtime_logs', { params: { days: displayDays } })
+            .then(res => {
+              if (res.data && res.data.success) {
+                this.runtimeLogs = res.data.logs || [];
+                this.$nextTick(() => {
+                  const viewport = this.$refs.runtimeLogViewport;
+                  if (viewport) {
+                    if (isInitialLoad || wasNearBottom) {
+                      // 首次加载或用户接近底部时，滚动到底部（保持自动跟随最新日志）
+                      viewport.scrollTop = viewport.scrollHeight;
+                      // 首次加载时，滚动完成后再显示内容，避免闪现
+                      if (isInitialLoad) {
+                        // 使用 requestAnimationFrame 确保滚动完成后再显示
+                        requestAnimationFrame(() => {
+                          requestAnimationFrame(() => {
+                            this.runtimeLogInitialized = true;
+                          });
+                        });
+                      }
+                    } else {
+                      // 否则保持用户的滚动位置
+                      const newScrollHeight = viewport.scrollHeight;
+                      const heightDiff = newScrollHeight - previousScrollHeight;
+                      viewport.scrollTop = previousScrollTop + heightDiff;
+                    }
+                    // 确保如果不是首次加载，日志是显示的
+                    if (!isInitialLoad && !this.runtimeLogInitialized) {
+                      this.runtimeLogInitialized = true;
+                    }
+                  }
+                });
+              }
+            })
+            .catch(error => {
+              console.error('获取运行日志失败:', error);
+              // 出错时也要显示内容
+              if (isInitialLoad) {
+                this.runtimeLogInitialized = true;
+              } else if (!this.runtimeLogInitialized) {
+                this.runtimeLogInitialized = true;
+              }
+            })
+            .finally(() => {
+              if (shouldShowLoading) {
+                this.runtimeLogLoading = false;
+              }
+            });
+        },
+        startRuntimeLogPolling() {
+          if (this.runtimeLogPollingTimer) {
+            return;
+          }
+          this.fetchRuntimeLogs(true);
+          this.runtimeLogPollingTimer = setInterval(() => {
+            this.fetchRuntimeLogs(false);
+          }, 5000);
+        },
+        stopRuntimeLogPolling() {
+          if (this.runtimeLogPollingTimer) {
+            clearInterval(this.runtimeLogPollingTimer);
+            this.runtimeLogPollingTimer = null;
+          }
         },
         async runScriptNow(task_index = null) {
           body = {};
@@ -9746,7 +11592,7 @@
             
             // 如果当前是追剧日历页面，也刷新日历数据
             if (this.activeTab === 'calendar') {
-              await this.refreshCalendarData();
+              await this.refreshCalendarData(null, true);
             }
           } catch (error) {
             console.warn('触发热更新失败:', error);
@@ -9981,7 +11827,12 @@
           
           return file._isOverflowing && file._isOverflowing[field];
         },
-        toggleModalExpand(index, field) {
+        toggleModalExpand(index, field, event) {
+          // 阻止事件冒泡，避免触发行选择
+          if (event) {
+            event.stopPropagation();
+          }
+          
           // 获取当前文件
           const file = this.fileSelect.fileList[index];
           // 初始化_expandedFields属性（如果不存在）
@@ -9993,12 +11844,21 @@
           const fieldIndex = file._expandedFields.indexOf(field);
           const isExpanding = fieldIndex === -1;
           
+          // 所有可能需要展开的字段
+          const allFields = ['file_name', 'file_name_re'];
+          
           if (isExpanding) {
-            // 如果是展开操作，添加字段到展开列表
-            file._expandedFields.push(field);
+            // 如果是展开操作，展开该行所有超长字段
+            allFields.forEach(fieldName => {
+              // 只有超长的字段才需要展开
+              if (this.isModalTextTruncated(file[fieldName] || (fieldName === 'file_name_re' ? '×' : ''), index, fieldName) && 
+                  !file._expandedFields.includes(fieldName)) {
+                file._expandedFields.push(fieldName);
+              }
+            });
           } else {
-            // 如果是收起操作，从展开列表中移除字段
-            file._expandedFields.splice(fieldIndex, 1);
+            // 如果是收起操作，收起该行所有字段
+            file._expandedFields = [];
           }
           
           // 在下一个DOM更新周期中强制重新检测溢出状态
@@ -10009,16 +11869,15 @@
             }
             
             // 在收起状态下，通过设置为true确保展开按钮依然可见
-            if (!isExpanding) {
-              this.$set(file._isOverflowing, field, true);
-            }
+            allFields.forEach(fieldName => {
+              if (!isExpanding) {
+                this.$set(file._isOverflowing, fieldName, true);
+              }
+            });
             
             // 强制更新视图
             this.$forceUpdate();
           });
-          
-          // 阻止事件冒泡，避免触发行点击事件
-          event.stopPropagation();
         },
         // 文件选择模态框的排序方法
         sortFileList(field) {
@@ -12313,36 +14172,29 @@
         },
         getMovieDetails(item) {
           // 处理card_subtitle信息用于海报悬停显示
+          // 格式: 年份 / 地区 / 类型 / 导演 / 主演
           if (item.card_subtitle) {
             const parts = item.card_subtitle.split(' / ');
             const details = [];
 
             if (parts.length >= 1 && parts[0]) {
-              details.push(parts[0]); // 年份
+              details.push({ text: parts[0], type: 'year' }); // 年份
             }
             if (parts.length >= 2 && parts[1]) {
-              details.push(parts[1]); // 地区
+              details.push({ text: parts[1], type: 'region' }); // 地区
             }
             if (parts.length >= 3 && parts[2]) {
-              details.push(parts[2]); // 类型
+              details.push({ text: parts[2], type: 'genre' }); // 类型
             }
             if (parts.length >= 4 && parts[3]) {
-              // 处理导演信息，最多显示两个导演
+              // 处理导演信息，不限制数量，通过CSS限制显示行数
               const directors = parts[3].trim();
               if (directors) {
-                const directorList = directors.split(/\s+/); // 按空格分割导演名字
-                if (directorList.length > 2) {
-                  // 如果导演超过2个，只取前两个
-                  const limitedDirectors = directorList.slice(0, 2).join(' ');
-                  details.push(limitedDirectors);
-                } else {
-                  // 导演不超过2个，直接显示
-                  details.push(directors);
-                }
+                details.push({ text: directors, type: 'director' });
               }
             }
             if (parts.length >= 5 && parts[4]) {
-              details.push(parts[4]); // 主演
+              details.push({ text: parts[4], type: 'cast' }); // 主演
             }
 
             return details;

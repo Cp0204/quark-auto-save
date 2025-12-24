@@ -128,6 +128,20 @@ class TMDBService:
             return result['results'][0]
         return None
     
+    def search_tv_show_all(self, query: str, year: str = None) -> List[Dict]:
+        """搜索电视剧，返回所有搜索结果"""
+        params = {
+            'query': query,
+        }
+        # 如果提供了年份，添加到参数中
+        if year:
+            params['first_air_date_year'] = year
+        
+        result = self._make_request('/search/tv', params)
+        if result and result.get('results'):
+            return result['results']
+        return []
+    
     def get_tv_show_details(self, tv_id: int) -> Optional[Dict]:
         """获取电视剧详细信息"""
         return self._make_request(f'/tv/{tv_id}')
