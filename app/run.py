@@ -6360,7 +6360,9 @@ def update_episodes_air_date_local(cal_db: CalendarDB, tmdb_id: int, season_numb
                 for ep in episodes:
                     ep_air_date = ep.get('air_date') or ''
                     ep_number = ep.get('episode_number') or 0
-                    if ep_air_date and ep_number:
+                    if not ep_number:
+                        continue
+                    if ep_air_date:
                         try:
                             from datetime import datetime as _dt, timedelta as _td
                             src_date = _dt.strptime(ep_air_date, '%Y-%m-%d').date()
@@ -6373,13 +6375,26 @@ def update_episodes_air_date_local(cal_db: CalendarDB, tmdb_id: int, season_numb
                             )
                         except Exception as _e_sync:
                             logging.debug(f"使用手动偏移值更新 air_date_local 失败 tmdb_id={tmdb_id}, season={season_number}, ep={ep_number}: {_e_sync}")
+                    else:
+                        # 如果 air_date 为空，清空 air_date_local
+                        try:
+                            cal_db.update_episode_air_date_local(
+                                int(tmdb_id),
+                                int(season_number),
+                                int(ep_number),
+                                ''
+                            )
+                        except Exception as _e_clear:
+                            logging.debug(f"清空 air_date_local 失败 tmdb_id={tmdb_id}, season={season_number}, ep={ep_number}: {_e_clear}")
                 return
             else:
                 # 没有时区信息且没有手动偏移值，将 air_date_local 设置为与 air_date 相同的值
                 for ep in episodes:
                     ep_air_date = ep.get('air_date') or ''
                     ep_number = ep.get('episode_number') or 0
-                    if ep_air_date and ep_number:
+                    if not ep_number:
+                        continue
+                    if ep_air_date:
                         try:
                             cal_db.update_episode_air_date_local(
                                 int(tmdb_id),
@@ -6389,6 +6404,17 @@ def update_episodes_air_date_local(cal_db: CalendarDB, tmdb_id: int, season_numb
                             )
                         except Exception as _e_sync:
                             logging.debug(f"同步 air_date 到 air_date_local 失败 tmdb_id={tmdb_id}, season={season_number}, ep={ep_number}: {_e_sync}")
+                    else:
+                        # 如果 air_date 为空，清空 air_date_local
+                        try:
+                            cal_db.update_episode_air_date_local(
+                                int(tmdb_id),
+                                int(season_number),
+                                int(ep_number),
+                                ''
+                            )
+                        except Exception as _e_clear:
+                            logging.debug(f"清空 air_date_local 失败 tmdb_id={tmdb_id}, season={season_number}, ep={ep_number}: {_e_clear}")
                 return
         
         # 获取本地时区配置
@@ -6401,7 +6427,9 @@ def update_episodes_air_date_local(cal_db: CalendarDB, tmdb_id: int, season_numb
             for ep in episodes:
                 ep_air_date = ep.get('air_date') or ''
                 ep_number = ep.get('episode_number') or 0
-                if ep_air_date and ep_number:
+                if not ep_number:
+                    continue
+                if ep_air_date:
                     try:
                         # 解析 TMDB air_date 作为源时区日期
                         src_date = _dt.strptime(ep_air_date, '%Y-%m-%d').date()
@@ -6436,6 +6464,17 @@ def update_episodes_air_date_local(cal_db: CalendarDB, tmdb_id: int, season_numb
                         )
                     except Exception as _e_local:
                         logging.debug(f"计算本地播出日期失败 tmdb_id={tmdb_id}, season={season_number}, ep={ep_number}: {_e_local}")
+                else:
+                    # 如果 air_date 为空，清空 air_date_local
+                    try:
+                        cal_db.update_episode_air_date_local(
+                            int(tmdb_id),
+                            int(season_number),
+                            int(ep_number),
+                            ''
+                        )
+                    except Exception as _e_clear:
+                        logging.debug(f"清空 air_date_local 失败 tmdb_id={tmdb_id}, season={season_number}, ep={ep_number}: {_e_clear}")
             
             # 如果计算出了日期偏移且用户没有手动设置，存储到数据库
             # 这里的 date_offset 是通过时区转换计算出的偏移值（例如：美东周日 21:00 -> 北京时间周一 10:00，偏移 +1）
