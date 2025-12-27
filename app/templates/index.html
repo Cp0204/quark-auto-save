@@ -596,6 +596,19 @@
         </div>
       </div>
     </div>
+
+    <!-- Toast 提示 -->
+    <div class="toast-container">
+      <div v-for="toast in toasts" :key="toast.id" class="toast show shadow-sm" :class="toast.type" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-body d-flex align-items-center">
+          <i class="bi mr-2" :class="getToastIcon(toast.type)"></i>
+          <span>{{ toast.message }}</span>
+          <button type="button" class="ml-auto close" @click="removeToast(toast.id)" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
 
@@ -628,6 +641,7 @@
             }
           },
         },
+        toasts: [],
         newTask: {
           taskname: "",
           shareurl: "",
@@ -803,8 +817,10 @@
             .then(response => {
               if (response.data.success) {
                 this.configModified = false;
+                this.showToast(response.data.message, 'success');
+              } else {
+                this.showToast(response.data.message, 'error');
               }
-              alert(response.data.message);
               console.log('Config saved result:', response.data);
             })
             .catch(error => {
@@ -1067,7 +1083,7 @@
         updateMagicRegexKey(oldKey, newKey) {
           if (oldKey !== newKey) {
             if (this.formData.magic_regex[newKey]) {
-              alert(`魔法名 [${newKey}] 已存在，请使用其他名称`);
+              this.showToast(`魔法名 [${newKey}] 已存在，请使用其他名称`, 'warning');
               return;
             }
             this.$set(this.formData.magic_regex, newKey, this.formData.magic_regex[oldKey]);
@@ -1087,7 +1103,7 @@
               if (response.data.code == 0) {
                 this.fileSelect.fileList = this.fileSelect.fileList.filter(item => item.fid != fid);
               } else {
-                alert('删除失败：' + response.data.message);
+                this.showToast('删除失败：' + response.data.message, 'error');
               }
             }).catch(error => {
               console.error('Error /delete_file:', error);
@@ -1170,9 +1186,9 @@
           currentIndex = this.smart_param.taskSuggestions.data.indexOf(this.fileSelect.share);
           nextIndex = currentIndex + index;
           if (nextIndex < 0) {
-            alert("没有上一个啦");
+            this.showToast("没有上一个啦", "info");
           } else if (nextIndex >= this.smart_param.taskSuggestions.data.length) {
-            alert("没有下一个啦");
+            this.showToast("没有下一个啦", "info");
           } else {
             this.fileSelect.error = "";
             this.fileSelect.stoken = "";
@@ -1282,8 +1298,9 @@
         copyTaskToClipboard(index) {
           const task = { ...this.formData.tasklist[index] };
           delete task.addition;
+          const _this = this;
           this.copyText(JSON.stringify(task), function () {
-            console.log("任务参数已复制到剪贴板");
+            _this.showToast("任务参数已复制到剪贴板", "success");
           });
         },
         addTaskForClipboard() {
@@ -1294,14 +1311,35 @@
                 const task = JSON.parse(text);
                 task.addition = config_data.task_plugins_config_default;;
                 this.formData.tasklist.push(task);
+                this.showToast("剪贴板参数已成功导入任务", "success");
               } catch (error) {
+                this.showToast("剪贴板内容不是有效的任务参数", "error");
                 console.error("解析剪贴板内容失败:", error);
                 return;
               }
             }
           }).catch(err => {
+            this.showToast("读取剪贴板内容失败", "error");
             console.error("读取剪贴板内容失败:", err);
           });
+        },
+        showToast(message, type = 'info', duration = 3000) {
+          const id = Date.now();
+          this.toasts.push({ id, message, type });
+          setTimeout(() => {
+            this.removeToast(id);
+          }, duration);
+        },
+        removeToast(id) {
+          this.toasts = this.toasts.filter(t => t.id !== id);
+        },
+        getToastIcon(type) {
+          switch (type) {
+            case 'success': return 'bi-check-circle-fill text-success';
+            case 'error': return 'bi-exclamation-circle-fill text-danger';
+            case 'warning': return 'bi-exclamation-triangle-fill text-warning';
+            default: return 'bi-info-circle-fill text-info';
+          }
         },
       }
     });
