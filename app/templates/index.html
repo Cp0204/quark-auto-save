@@ -1316,6 +1316,12 @@
               task.addition = config_data.task_plugins_config_default;;
               this.formData.tasklist.push(task);
               this.showToast("剪贴板参数已成功导入任务", "success");
+              // 滚到最下
+              setTimeout(() => {
+                $('#collapse_' + (this.formData.tasklist.length - 1)).collapse('show').on('shown.bs.collapse', () => {
+                  this.scrollToX();
+                });
+              }, 1);
             } catch (error) {
               this.showToast("解析剪贴板内容失败", "error");
             }
