@@ -45,7 +45,7 @@ body {
   margin-bottom: 10px;
 }
 
-table.jsoneditor-tree > tbody > tr.jsoneditor-expandable:first-child {
+table.jsoneditor-tree>tbody>tr.jsoneditor-expandable:first-child {
   display: none;
 }
 
@@ -195,4 +195,49 @@ table.jsoneditor-tree > tbody > tr.jsoneditor-expandable:first-child {
 .qrcode-tutorial img {
   max-width: 100%;
   height: auto;
+}
+
+/* Toast */
+.toast-container {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  z-index: 9999;
+  width: 300px;
+}
+
+.toast {
+  background-color: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  border-width: 0 0 0 5px !important;
+  margin-bottom: 10px;
+  animation: slideIn 0.3s ease forwards;
+}
+
+.toast.success {
+  border-left-color: #28a745 !important;
+}
+
+.toast.error {
+  border-left-color: #dc3545 !important;
+}
+
+.toast.warning {
+  border-left-color: #ffc107 !important;
+}
+
+.toast.info {
+  border-left-color: #17a2b8 !important;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
