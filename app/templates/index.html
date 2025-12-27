@@ -1303,25 +1303,23 @@
             _this.showToast("任务参数已复制到剪贴板", "success");
           });
         },
-        addTaskForClipboard() {
-          // 读取剪贴板内容
-          navigator.clipboard.readText().then(text => {
-            if (text) {
-              try {
-                const task = JSON.parse(text);
-                task.addition = config_data.task_plugins_config_default;;
-                this.formData.tasklist.push(task);
-                this.showToast("剪贴板参数已成功导入任务", "success");
-              } catch (error) {
-                this.showToast("剪贴板内容不是有效的任务参数", "error");
-                console.error("解析剪贴板内容失败:", error);
-                return;
-              }
+        async addTaskForClipboard() {
+          text = null
+          try {
+            text = await navigator.clipboard.readText();
+          } catch (error) {
+            text = prompt("当前环境不支持自动读取粘贴板，请手动粘贴任务参数", "");
+          }
+          if (text) {
+            try {
+              const task = JSON.parse(text);
+              task.addition = config_data.task_plugins_config_default;;
+              this.formData.tasklist.push(task);
+              this.showToast("剪贴板参数已成功导入任务", "success");
+            } catch (error) {
+              this.showToast("解析剪贴板内容失败", "error");
             }
-          }).catch(err => {
-            this.showToast("读取剪贴板内容失败", "error");
-            console.error("读取剪贴板内容失败:", err);
-          });
+          }
         },
         showToast(message, type = 'info', duration = 3000) {
           const id = Date.now();
