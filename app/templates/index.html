@@ -379,7 +379,7 @@
                         <div class="input-group-prepend">
                           <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=true;fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showShareSelect(index)" title="预览正则处理效果">正则处理</button>
                         </div>
-                        <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex">
+                        <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex" @dblclick="inputRawMagicRegex(task)" title="双击可将魔法匹配释放为填入原始正则表达式">
                         <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
                         <div class="input-group-append" title="保存时只比较文件名的部分，01.mp4 和 01.mkv 视同为同一文件，不重复转存">
                           <div class="input-group-text">
@@ -1245,6 +1245,13 @@
             if (valA > valB) return this.fileSelect.sortOrder === "asc" ? 1 : -1;
             return 0;
           });
+        },
+        inputRawMagicRegex(task) {
+          const item = this.formData.magic_regex[task.pattern];
+          if (item) {
+            task.pattern = item.pattern;
+            task.replace = item.replace;
+          }
         }
       }
     });
