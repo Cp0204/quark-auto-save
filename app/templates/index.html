@@ -310,9 +310,10 @@
                     </div>
                   </div>
                   <div class="col-auto">
-                    <button class="btn btn-warning" v-if="task.shareurl_ban" :title="task.shareurl_ban" disabled><i class="bi bi-exclamation-triangle-fill"></i></button>
-                    <button type="button" class="btn btn-outline-primary" @click="runScriptNow(index)" title="运行此任务" v-else><i class="bi bi-play-fill"></i></button>
-                    <button type="button" class="btn btn-outline-danger" @click="removeTask(index)" title="删除此任务"><i class="bi bi-trash3-fill"></i></button>
+                    <button type="button" class="btn btn-outline-primary btn-sm" @click="copyTaskToClipboard(index)" title="复制任务参数到粘贴板"><i class=" bi bi-clipboard-check-fill"></i></button>
+                    <button class="btn btn-warning btn-sm" v-if="task.shareurl_ban" :title="task.shareurl_ban" disabled><i class="bi bi-exclamation-triangle-fill"></i></button>
+                    <button type="button" class="btn btn-outline-primary btn-sm" @click="runScriptNow(index)" title="运行此任务" v-else><i class="bi bi-play-fill"></i></button>
+                    <button type="button" class="btn btn-outline-danger btn-sm" @click="removeTask(index)" title="删除此任务"><i class="bi bi-trash3-fill"></i></button>
                   </div>
                 </div>
                 <div class="collapse ml-3" :id="'collapse_'+index">
@@ -446,7 +447,10 @@
             </div>
             <div class="row mt-5">
               <div class="col-sm-12 text-center">
-                <button type="button" class="btn btn-primary" @click="addTask()"><i class="bi bi-plus"></i> 增加任务</button>
+                <div class="btn-group" role="group" aria-label="任务操作">
+                  <button type="button" class="btn btn-primary" @click="addTask()"><i class="bi bi-plus"></i> 增加任务</button>
+                  <button type="button" class="btn btn-primary" @click="addTaskForClipboard()" title="从粘贴板导入"><i class="bi bi-clipboard-plus"></i></button>
+                </div>
               </div>
             </div>
           </div>
@@ -1252,7 +1256,53 @@
             task.pattern = item.pattern;
             task.replace = item.replace;
           }
-        }
+        },
+        copyText(text, callback = () => { }) {
+          if (!text) {
+            console.error('No text to copy');
+            return;
+          }
+          if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text);
+          } else {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.top = '0';
+            textarea.style.left = '0';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            textarea.setSelectionRange(0, 99999);
+            document.execCommand("copy");
+            document.body.removeChild(textarea);
+          }
+          callback()
+        },
+        copyTaskToClipboard(index) {
+          const task = { ...this.formData.tasklist[index] };
+          delete task.addition;
+          this.copyText(JSON.stringify(task), function () {
+            console.log("任务参数已复制到剪贴板");
+          });
+        },
+        addTaskForClipboard() {
+          // 读取剪贴板内容
+          navigator.clipboard.readText().then(text => {
+            if (text) {
+              try {
+                const task = JSON.parse(text);
+                task.addition = config_data.task_plugins_config_default;;
+                this.formData.tasklist.push(task);
+              } catch (error) {
+                console.error("解析剪贴板内容失败:", error);
+                return;
+              }
+            }
+          }).catch(err => {
+            console.error("读取剪贴板内容失败:", err);
+          });
+        },
       }
     });
   </script>
