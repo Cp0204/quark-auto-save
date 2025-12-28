@@ -1312,8 +1312,8 @@
           }
           if (text) {
             try {
-              const task = JSON.parse(text);
-              task.addition = config_data.task_plugins_config_default;;
+              let task = JSON.parse(text);
+              task = { ...this.newTask, ...task };
               this.formData.tasklist.push(task);
               this.showToast("剪贴板参数已成功导入任务", "success");
               // 滚到最下
