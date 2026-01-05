@@ -511,13 +511,6 @@ def run_python(args):
                 logging.error(f"错误信息: {result.stderr[:500]}")
     except subprocess.TimeoutExpired as e:
         logging.error(f">>> 任务执行超时(>{TASK_TIMEOUT}s)，强制终止")
-        # 尝试终止进程
-        if e.process:
-            try:
-                e.process.kill()
-                logging.info(">>> 已终止超时进程")
-            except:
-                pass
     except Exception as e:
         logging.error(f">>> 任务执行异常: {str(e)}")
         logging.error(traceback.format_exc())
