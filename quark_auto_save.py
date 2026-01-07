@@ -567,6 +567,8 @@ class Quark:
                 "_fetch_sub_dirs": "0",
                 "_sort": "file_type:asc,updated_at:desc",
                 "_fetch_full_path": kwargs.get("fetch_full_path", 0),
+                "fetch_all_file": 1,  # 跟随Web端，作用未知
+                "fetch_risk_file_name": 1,  # 如无此参数，违规文件名会被变 ***
             }
             response = self._send_request("GET", url, params=querystring).json()
             if response["code"] != 0:
