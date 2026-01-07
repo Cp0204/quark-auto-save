@@ -1115,6 +1115,7 @@ def do_save(account, tasklist=[]):
     plugins, CONFIG_DATA["plugins"], task_plugins_config = Config.load_plugins(
         CONFIG_DATA.get("plugins", {})
     )
+    print()
     print(f"转存账号: {account.nickname}")
     # 获取全部保存目录fid
     account.update_savepath_fid(tasklist)
@@ -1181,6 +1182,13 @@ def do_save(account, tasklist=[]):
                         task = (
                             plugin.run(task, account=account, tree=is_new_tree) or task
                         )
+    print()
+    print(f"===============插件收尾===============")
+    for plugin_name, plugin in plugins.items():
+        if plugin.is_active and hasattr(plugin, "task_after"):
+            data = plugin.task_after()
+            if data.get("config"):
+                CONFIG_DATA["plugins"][plugin_name] = data["config"]
     print()
 
 
