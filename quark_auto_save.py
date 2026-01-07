@@ -96,20 +96,26 @@ class Config:
         PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "").split(",")
         plugins_available = {}
         task_plugins_config = {}
+        # 获取所有模块
+        py_ext = [".py", ".pyd"] if sys.platform == "win32" else [".py", ".so"]
         all_modules = [
-            f.replace(".py", "") for f in os.listdir(plugins_dir) if f.endswith(".py")
+            f.replace(ext, "")
+            for f in os.listdir(plugins_dir)
+            for ext in py_ext
+            if f.endswith(ext)
         ]
         # 调整模块优先级
         priority_path = os.path.join(plugins_dir, "_priority.json")
         try:
             with open(priority_path, encoding="utf-8") as f:
                 priority_modules = json.load(f)
-            if priority_modules:
-                all_modules = [
-                    module for module in priority_modules if module in all_modules
-                ] + [module for module in all_modules if module not in priority_modules]
         except (FileNotFoundError, json.JSONDecodeError):
             priority_modules = []
+        if priority_modules:
+            all_modules = [
+                module for module in priority_modules if module in all_modules
+            ] + [module for module in all_modules if module not in priority_modules]
+        # 加载模块
         for module_name in all_modules:
             if f"-{module_name}" in PLUGIN_FLAGS:
                 continue
