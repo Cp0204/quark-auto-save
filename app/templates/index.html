@@ -1260,7 +1260,7 @@
                           <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(task.__originalIndex !== undefined ? task.__originalIndex : index, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
                             <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                             <small class="text-muted">
-                              <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '') }}</a>
+                              <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '').split('#')[0] }}</a>
                               <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date, suggestion.pansou_source, suggestion.source) : ''">{{ suggestion.source }}</span></template>
                             </small>
                           </div>
@@ -2793,7 +2793,7 @@
                       <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(-1, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
                         <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                         <small class="text-muted">
-                          <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '') }}</a>
+                          <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '').split('#')[0] }}</a>
                           <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date, suggestion.pansou_source, suggestion.source) : ''">{{ suggestion.source }}</span></template>
                         </small>
                       </div>
