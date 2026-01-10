@@ -14300,8 +14300,20 @@
           event.target.src = '/static/images/no-poster.svg';
         },
         getProxiedImageUrl(originalUrl) {
-          // 保持直连，发现页加载更快，且不需要取色跨域处理
+          // 检查是否为豆瓣图片URL，如果是则使用后端代理绕过防盗链限制
           if (!originalUrl) return '/static/images/no-poster.svg';
+          
+          // 检查是否为豆瓣图片地址
+          const doubanDomains = ['douban.com', 'doubanio.com'];
+          const isDoubanImage = doubanDomains.some(domain => originalUrl.includes(domain));
+          
+          if (isDoubanImage) {
+            // 使用后端代理接口，通过URL编码传递图片地址
+            const encodedUrl = encodeURIComponent(originalUrl);
+            return `/api/proxy/douban-image?url=${encodedUrl}`;
+          }
+          
+          // 非豆瓣图片直接返回原URL
           return originalUrl;
         },
         createTaskFromDiscovery(item) {
