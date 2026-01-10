@@ -3521,6 +3521,39 @@ def get_task_suggestions():
         return jsonify({"success": True, "message": f"error: {str(e)}"})
 
 
+def _resolve_qoark_redirect(url: str) -> str:
+    """
+    解析 pan.qoark.cn 链接的重定向地址
+    如果链接是 pan.qoark.cn，则获取重定向后的真实地址
+    如果不是，则直接返回原链接
+    """
+    if not isinstance(url, str) or "pan.qoark.cn" not in url:
+        return url
+    
+    try:
+        # 创建新的 session 用于重定向解析
+        redirect_session = requests.Session()
+        redirect_session.max_redirects = 10
+        # 只获取头信息，不获取完整内容（HEAD 请求更快）
+        resp = redirect_session.head(url, allow_redirects=True, timeout=10)
+        
+        # 如果成功重定向到 pan.quark.cn，返回重定向后的地址
+        if resp.status_code == 200 and "pan.quark.cn" in resp.url:
+            return resp.url
+        # 如果 HEAD 请求失败，尝试 GET 请求（某些服务器可能不支持 HEAD）
+        elif resp.status_code != 200:
+            resp = redirect_session.get(url, allow_redirects=True, timeout=10)
+            if resp.status_code == 200 and "pan.quark.cn" in resp.url:
+                return resp.url
+        
+        # 如果重定向失败或没有重定向到 pan.quark.cn，返回原链接
+        return url
+    except Exception as e:
+        # 如果解析失败，返回原链接（避免影响其他功能）
+        logging.warning(f"解析 pan.qoark.cn 重定向失败: {str(e)}")
+        return url
+
+
 # 获取分享详情接口
 @app.route("/get_share_detail", methods=["GET", "POST"])
 def get_share_detail():
@@ -3534,6 +3567,10 @@ def get_share_detail():
     else:
         shareurl = request.json.get("shareurl", "")
         stoken = request.json.get("stoken", "")
+    
+    # 解析 pan.qoark.cn 链接的重定向地址
+    if shareurl and "pan.qoark.cn" in shareurl:
+        shareurl = _resolve_qoark_redirect(shareurl)
         
     account = Quark("", 0)
     # 设置account的必要属性
@@ -8804,6 +8841,60 @@ def get_tv_list(tv_type, sub_category):
             'message': f'获取电视剧榜单失败: {str(e)}',
             'data': {'items': []}
         })
+
+
+@app.route("/api/proxy/douban-image")
+def proxy_douban_image():
+    """代理豆瓣图片请求，设置正确的 Referer 头以绕过防盗链限制"""
+    try:
+        image_url = request.args.get('url')
+        if not image_url:
+            return Response('缺少图片URL参数', status=400, mimetype='text/plain')
+        
+        # 验证URL是否为豆瓣图片地址
+        if not (image_url.startswith('http://') or image_url.startswith('https://')):
+            return Response('无效的图片URL', status=400, mimetype='text/plain')
+        
+        # 检查是否为豆瓣图片域名（douban.com, doubanio.com等）
+        douban_domains = ['douban.com', 'doubanio.com']
+        is_douban_image = any(domain in image_url for domain in douban_domains)
+        
+        if not is_douban_image:
+            # 如果不是豆瓣图片，可以选择直接重定向或拒绝
+            # 这里我们选择直接代理，但不设置Referer
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1'
+            }
+        else:
+            # 豆瓣图片需要设置Referer为豆瓣域名
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+                'Referer': 'https://movie.douban.com/'
+            }
+        
+        # 请求图片
+        response = requests.get(image_url, headers=headers, timeout=10, stream=True)
+        
+        if response.status_code != 200:
+            return Response(f'图片加载失败: {response.status_code}', 
+                          status=response.status_code, 
+                          mimetype='text/plain')
+        
+        # 获取图片的Content-Type
+        content_type = response.headers.get('Content-Type', 'image/jpeg')
+        
+        # 设置响应头，允许跨域（如果需要）
+        resp = Response(
+            stream_with_context(response.iter_content(chunk_size=8192)),
+            content_type=content_type
+        )
+        resp.headers['Cache-Control'] = 'public, max-age=3600'
+        
+        return resp
+        
+    except Exception as e:
+        logging.error(f"代理豆瓣图片失败: {str(e)}")
+        return Response(f'代理图片失败: {str(e)}', status=500, mimetype='text/plain')
 
 @app.route("/api/calendar/update_content_type", methods=["POST"])
 def update_show_content_type():

@@ -23,6 +23,38 @@ class PanSou:
             return resp.json()
         except Exception as e:
             return {"success": False, "message": str(e)}
+    
+    def _resolve_qoark_redirect(self, url: str) -> str:
+        """
+        解析 pan.qoark.cn 链接的重定向地址
+        如果链接是 pan.qoark.cn，则获取重定向后的真实地址
+        如果不是，则直接返回原链接
+        """
+        if not isinstance(url, str) or "pan.qoark.cn" not in url:
+            return url
+        
+        try:
+            # 创建新的 session 用于重定向解析（避免影响主 session）
+            redirect_session = requests.Session()
+            redirect_session.max_redirects = 10
+            # 只获取头信息，不获取完整内容（HEAD 请求更快）
+            resp = redirect_session.head(url, allow_redirects=True, timeout=10)
+            
+            # 如果成功重定向到 pan.quark.cn，返回重定向后的地址
+            if resp.status_code == 200 and "pan.quark.cn" in resp.url:
+                return resp.url
+            # 如果 HEAD 请求失败，尝试 GET 请求（某些服务器可能不支持 HEAD）
+            elif resp.status_code != 200:
+                resp = redirect_session.get(url, allow_redirects=True, timeout=10)
+                if resp.status_code == 200 and "pan.quark.cn" in resp.url:
+                    return resp.url
+            
+            # 如果重定向失败或没有重定向到 pan.quark.cn，返回原链接
+            return url
+        except Exception as e:
+            # 如果解析失败，返回原链接（避免影响其他功能）
+            # 可以在这里添加日志记录错误
+            return url
 
     def _get_pansou_source(self, result_item: dict, merged_item: dict = None) -> str:
         """
@@ -116,6 +148,8 @@ class PanSou:
                                 url = link.get("url", "")
                                 link_type = link.get("type", "")
                                 if url:  # 确保有有效链接
+                                    # 解析 pan.qoark.cn 链接的重定向地址
+                                    url = self._resolve_qoark_redirect(url)
                                     cleaned.append({
                                         "taskname": title,
                                         "content": content,
@@ -144,6 +178,8 @@ class PanSou:
                                     pansou_source = self._get_pansou_source(None, link)
                                     
                                     if url:
+                                        # 解析 pan.qoark.cn 链接的重定向地址
+                                        url = self._resolve_qoark_redirect(url)
                                         cleaned.append({
                                             "taskname": note,
                                             "content": note,  # 如果没有 content，使用 note
@@ -158,10 +194,14 @@ class PanSou:
             if not cleaned and isinstance(payload, list):
                 for item in payload:
                     if isinstance(item, dict):
+                        url = item.get("url", "")
+                        # 解析 pan.qoark.cn 链接的重定向地址
+                        if url:
+                            url = self._resolve_qoark_redirect(url)
                         cleaned.append({
                             "taskname": item.get("title", ""),
                             "content": item.get("content", ""),
-                            "shareurl": item.get("url", ""),
+                            "shareurl": url,
                             "tags": item.get("tags", []) or [],
                             "publish_date": item.get("datetime", ""),  # 原始时间
                             "source": "PanSou",  # 添加来源标识
@@ -178,8 +218,8 @@ class PanSou:
                 try:
                     url = item.get("shareurl", "")
                     tags = item.get("tags", []) or []
-                    # 检查是否为夸克网盘
-                    is_quark = ("quark" in tags) or ("pan.quark.cn" in url)
+                    # 检查是否为夸克网盘（支持 pan.quark.cn 和已解析的 pan.qoark.cn）
+                    is_quark = ("quark" in tags) or ("pan.quark.cn" in url) or ("pan.qoark.cn" in url)
                     if is_quark:
                         filtered.append(item)
                 except Exception:
