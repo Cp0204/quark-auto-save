@@ -1260,7 +1260,7 @@
                           <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(task.__originalIndex !== undefined ? task.__originalIndex : index, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
                             <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                             <small class="text-muted">
-                              <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.quark\.cn\/s\//, '') }}</a>
+                              <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '') }}</a>
                               <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date, suggestion.pansou_source, suggestion.source) : ''">{{ suggestion.source }}</span></template>
                             </small>
                           </div>
@@ -2793,7 +2793,7 @@
                       <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(-1, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
                         <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                         <small class="text-muted">
-                          <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.quark\.cn\/s\//, '') }}</a>
+                          <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '') }}</a>
                           <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date, suggestion.pansou_source, suggestion.source) : ''">{{ suggestion.source }}</span></template>
                         </small>
                       </div>
@@ -10407,9 +10407,11 @@
           if (!shareurl) return null;
           
           try {
-            // 夸克网盘分享链接格式：https://pan.quark.cn/s/资源ID
-            const match = shareurl.match(/pan\.quark\.cn\/s\/([a-zA-Z0-9]+)/);
-            return match ? match[1] : null;
+            // 夸克网盘分享链接格式：
+            // https://pan.quark.cn/s/资源ID 或 https://pan.qoark.cn/s/资源ID
+            // 支持 pan.quark.cn 和 pan.qoark.cn
+            const match = shareurl.match(/pan\.(quark|qoark)\.cn\/s\/([a-zA-Z0-9]+)/);
+            return match ? match[2] : null;
           } catch (e) {
             return null;
           }

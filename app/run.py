@@ -3521,6 +3521,39 @@ def get_task_suggestions():
         return jsonify({"success": True, "message": f"error: {str(e)}"})
 
 
+def _resolve_qoark_redirect(url: str) -> str:
+    """
+    解析 pan.qoark.cn 链接的重定向地址
+    如果链接是 pan.qoark.cn，则获取重定向后的真实地址
+    如果不是，则直接返回原链接
+    """
+    if not isinstance(url, str) or "pan.qoark.cn" not in url:
+        return url
+    
+    try:
+        # 创建新的 session 用于重定向解析
+        redirect_session = requests.Session()
+        redirect_session.max_redirects = 10
+        # 只获取头信息，不获取完整内容（HEAD 请求更快）
+        resp = redirect_session.head(url, allow_redirects=True, timeout=10)
+        
+        # 如果成功重定向到 pan.quark.cn，返回重定向后的地址
+        if resp.status_code == 200 and "pan.quark.cn" in resp.url:
+            return resp.url
+        # 如果 HEAD 请求失败，尝试 GET 请求（某些服务器可能不支持 HEAD）
+        elif resp.status_code != 200:
+            resp = redirect_session.get(url, allow_redirects=True, timeout=10)
+            if resp.status_code == 200 and "pan.quark.cn" in resp.url:
+                return resp.url
+        
+        # 如果重定向失败或没有重定向到 pan.quark.cn，返回原链接
+        return url
+    except Exception as e:
+        # 如果解析失败，返回原链接（避免影响其他功能）
+        logging.warning(f"解析 pan.qoark.cn 重定向失败: {str(e)}")
+        return url
+
+
 # 获取分享详情接口
 @app.route("/get_share_detail", methods=["GET", "POST"])
 def get_share_detail():
@@ -3534,6 +3567,10 @@ def get_share_detail():
     else:
         shareurl = request.json.get("shareurl", "")
         stoken = request.json.get("stoken", "")
+    
+    # 解析 pan.qoark.cn 链接的重定向地址
+    if shareurl and "pan.qoark.cn" in shareurl:
+        shareurl = _resolve_qoark_redirect(shareurl)
         
     account = Quark("", 0)
     # 设置account的必要属性
