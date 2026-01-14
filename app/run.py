@@ -73,10 +73,18 @@ PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "")
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = os.environ.get("PORT", 5005)
-TASK_TIMEOUT = int(os.environ.get("TASK_TIMEOUT", 1800))
 
 config_data = {}
 task_plugins_config_default = {}
+
+
+def get_task_timeout():
+    """获取任务超时时间（秒）"""
+    # 优先级: 环境变量 > 配置文件 > 默认值
+    env_timeout = os.environ.get("TASK_TIMEOUT")
+    if env_timeout:
+        return int(env_timeout)
+    return config_data.get("task_timeout", 1800)
 
 app = Flask(__name__)
 app.config["APP_VERSION"] = get_app_ver()
@@ -194,6 +202,9 @@ def update():
         if key not in dont_save_keys:
             config_data.update({key: value})
     Config.write_json(CONFIG_PATH, config_data)
+    # 记录关键配置变更
+    if "task_timeout" in request.json:
+        logging.info(f">>> 任务超时时间已更新为: {request.json['task_timeout']}秒")
     # 重新加载任务
     if reload_tasks():
         logging.info(f">>> 配置更新成功")
@@ -486,12 +497,13 @@ def add_task():
 
 # 定时任务执行的函数
 def run_python(args):
-    logging.info(f">>> 定时运行任务")
+    task_timeout = get_task_timeout()
+    logging.info(f">>> 定时运行任务 (超时设置: {task_timeout}秒)")
     try:
         result = subprocess.run(
             f"{PYTHON_PATH} {args}",
             shell=True,
-            timeout=TASK_TIMEOUT,
+            timeout=task_timeout,
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -510,7 +522,7 @@ def run_python(args):
             if result.stderr:
                 logging.error(f"错误信息: {result.stderr[:500]}")
     except subprocess.TimeoutExpired as e:
-        logging.error(f">>> 任务执行超时(>{TASK_TIMEOUT}s)，强制终止")
+        logging.error(f">>> 任务执行超时(>{task_timeout}s)，强制终止")
     except Exception as e:
         logging.error(f">>> 任务执行异常: {str(e)}")
         logging.error(traceback.format_exc())
@@ -579,6 +591,10 @@ def init():
     # 默认定时规则
     if not config_data.get("crontab"):
         config_data["crontab"] = "0 8,18,20 * * *"
+
+    # 默认任务超时时间（秒）
+    if not config_data.get("task_timeout"):
+        config_data["task_timeout"] = int(os.environ.get("TASK_TIMEOUT", 1800))
 
     # 初始化插件配置
     _, plugins_config_default, task_plugins_config_default = Config.load_plugins()
