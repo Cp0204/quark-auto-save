@@ -100,6 +100,12 @@
               </div>
               <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
             </div>
+            <div class="input-group mb-2">
+              <div class="input-group-prepend">
+                <span class="input-group-text">任务超时(秒)</span>
+              </div>
+              <input type="number" v-model.number="formData.task_timeout" class="form-control" placeholder="默认 1800 秒（30分钟），任务较多时建议设置为 10800（3小时）">
+            </div>
 
             <div class="row title" title="通知推送，支持多个渠道，见Wiki">
               <div class="col-8">
