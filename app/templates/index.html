@@ -1416,7 +1416,7 @@
                          loading="lazy"
                          :fetchpriority="index < 50 ? 'high' : 'auto'"
                          @load="tasklistPosterLoaded[task.taskname] = true"
-                         @error="handleImageError($event)">
+                         @error="handleTasklistImageError($event, task.taskname)">
 
                     <!-- 按钮行容器：自动补位布局 -->
                     <div class="discovery-actions-row" style="top: 8px;" v-if="tasklistPosterLoaded[task.taskname]">
@@ -3548,7 +3548,10 @@
           selectedType: (localStorage.getItem('tasklist_selected_type') || 'all'),
           contentTypes: [],
           // 任务列表视图模式：list 或 poster（默认列表视图，支持持久化）
-          viewMode: (localStorage.getItem('tasklist_view_mode') === 'poster') ? 'poster' : 'list'
+          viewMode: (localStorage.getItem('tasklist_view_mode') === 'poster') ? 'poster' : 'list',
+          // 任务列表数据加载状态
+          isLoadingMetadata: false,
+          hasLoadedMetadata: false
         },
         // 任务列表海报加载标记：taskname -> boolean（用于优先显示图片，再渐进显示其他信息）
         tasklistPosterLoaded: {},
@@ -4510,6 +4513,28 @@
           this.fileSelect.moveFileIds = [];
           // 重置z-index
           document.getElementById('fileSelectModal').style.zIndex = '';
+          
+          // 修复滚动问题：如果创建任务模态框仍然打开，确保其可以正常滚动
+          const createTaskModal = document.getElementById('createTaskModal');
+          if (createTaskModal && createTaskModal.classList.contains('show')) {
+            // 确保 body 保持 modal-open 类和 overflow: hidden，防止背景滚动
+            if (!document.body.classList.contains('modal-open')) {
+              document.body.classList.add('modal-open');
+            }
+            // 确保 body 的 overflow 样式正确
+            const bodyStyle = window.getComputedStyle(document.body);
+            if (bodyStyle.overflow !== 'hidden') {
+              document.body.style.overflow = 'hidden';
+            }
+            // 确保创建任务模态框的 modal-body 可以滚动
+            const modalBody = createTaskModal.querySelector('.modal-body');
+            if (modalBody) {
+              // 强制重新计算滚动能力
+              modalBody.style.overflowY = 'auto';
+              // 触发重排，确保滚动能力生效
+              void modalBody.offsetHeight;
+            }
+          }
         });
         
         // 检查本地存储中的标签页状态
@@ -4599,6 +4624,28 @@
           document.getElementById('fileSelectModal').style.zIndex = '';
           // 重置资源浏览索引
           this.smart_param.currentResourceIndex = -1;
+          
+          // 修复滚动问题：如果创建任务模态框仍然打开，确保其可以正常滚动
+          const createTaskModal = document.getElementById('createTaskModal');
+          if (createTaskModal && createTaskModal.classList.contains('show')) {
+            // 确保 body 保持 modal-open 类和 overflow: hidden，防止背景滚动
+            if (!document.body.classList.contains('modal-open')) {
+              document.body.classList.add('modal-open');
+            }
+            // 确保 body 的 overflow 样式正确
+            const bodyStyle = window.getComputedStyle(document.body);
+            if (bodyStyle.overflow !== 'hidden') {
+              document.body.style.overflow = 'hidden';
+            }
+            // 确保创建任务模态框的 modal-body 可以滚动
+            const modalBody = createTaskModal.querySelector('.modal-body');
+            if (modalBody) {
+              // 强制重新计算滚动能力
+              modalBody.style.overflowY = 'auto';
+              // 触发重排，确保滚动能力生效
+              void modalBody.offsetHeight;
+            }
+          }
         });
         
         window.addEventListener('beforeunload', this.handleBeforeUnload);
@@ -8649,12 +8696,20 @@
 
           // 当切换到任务列表标签时刷新任务最新信息和元数据
           if (tab === 'tasklist') {
-            this.loadTaskLatestInfo();
-            // 加载任务元数据信息，确保海报和元数据能热更新
-            this.loadTasklistMetadata();
-            // 启动任务列表的后台监听
-            this.startTasklistAutoWatch();
-            // 该分支的系统性加载不应触发“未保存”提示
+            // 并行加载数据，提高加载速度
+            Promise.all([
+              this.loadTaskLatestInfo().catch(err => {
+                console.warn('加载任务最新信息失败:', err);
+              }),
+              this.loadTasklistMetadata().catch(err => {
+                console.warn('加载任务列表元数据失败:', err);
+              })
+            ]).finally(() => {
+              // 数据加载完成后启动后台监听
+              this.startTasklistAutoWatch();
+            });
+            
+            // 该分支的系统性加载不应触发"未保存"提示
             try {
               this.suppressConfigModifiedOnce = true;
               // 异步队列尾部再置一次，覆盖可能的深层变更
@@ -8701,18 +8756,40 @@
           // 显示时也去掉v前缀
           this.versionTips = localVersionClean; 
           
-          axios.get('https://api.github.com/repos/x1ao4/quark-auto-save-x/tags')
-            .then(response => {
-              const latestVersion = response.data[0].name; // GitHub的版本不带v，不需要replace
-              
-              // 使用处理后的版本号进行比较
-              if (latestVersion !== localVersionClean) {
-                this.versionTips += ` <sup><span class="badge badge-pill badge-danger">${latestVersion}</span></sup>`;
+          // 延迟检查版本，避免阻塞页面加载，并添加错误处理
+          setTimeout(() => {
+            axios.get('https://api.github.com/repos/x1ao4/quark-auto-save-x/tags', {
+              timeout: 5000, // 5秒超时
+              validateStatus: function (status) {
+                // 对于 403 rate limit 错误，静默处理，不抛出异常
+                return status < 500;
               }
             })
-            .catch(error => {
-              console.error('Error:', error);
-            });
+              .then(response => {
+                // 检查响应状态
+                if (response.status === 403) {
+                  // GitHub API rate limit，静默处理，不显示错误
+                  return;
+                }
+                if (response.status !== 200 || !response.data || !Array.isArray(response.data) || response.data.length === 0) {
+                  return;
+                }
+                
+                const latestVersion = response.data[0].name; // GitHub的版本不带v，不需要replace
+                
+                // 使用处理后的版本号进行比较
+                if (latestVersion !== localVersionClean) {
+                  this.versionTips += ` <sup><span class="badge badge-pill badge-danger">${latestVersion}</span></sup>`;
+                }
+              })
+              .catch(error => {
+                // 静默处理错误，避免控制台污染（rate limit 等错误不影响功能）
+                // 仅在调试模式下输出
+                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                  console.debug('版本检查失败（不影响功能）:', error.message);
+                }
+              });
+          }, 2000); // 延迟2秒执行，避免阻塞页面初始加载
         },
         fetchData() {
           axios.get('/data')
@@ -11560,9 +11637,17 @@
         },
         // 加载任务列表的元数据信息（用于热更新海报和元数据）
         async loadTasklistMetadata() {
+          // 如果正在加载，避免重复请求
+          if (this.tasklist.isLoadingMetadata) {
+            return;
+          }
+          
           try {
+            this.tasklist.isLoadingMetadata = true;
             // 加载任务信息，获取元数据和海报信息
-            const tasksResponse = await axios.get('/api/calendar/tasks');
+            const tasksResponse = await axios.get('/api/calendar/tasks', {
+              timeout: 10000 // 10秒超时
+            });
             if (tasksResponse.data.success) {
               // 更新任务映射，确保海报视图能正确显示元数据，使用Vue.set确保响应式更新
               this.calendar.tasks = tasksResponse.data.data.tasks || [];
@@ -11579,9 +11664,16 @@
               
               // 更新任务列表的内容类型
               this.tasklist.contentTypes = this.calendar.contentTypes;
+              
+              // 标记元数据已加载
+              this.tasklist.hasLoadedMetadata = true;
             }
           } catch (error) {
             console.warn('加载任务列表元数据失败:', error);
+            // 即使失败也标记为已尝试加载，避免一直阻塞
+            this.tasklist.hasLoadedMetadata = true;
+          } finally {
+            this.tasklist.isLoadingMetadata = false;
           }
         },
         // 触发热更新（保存配置后调用）
@@ -14301,6 +14393,30 @@
           console.warn('海报加载失败:', event.target.src);
           event.target.src = '/static/images/no-poster.svg';
         },
+        // 处理任务列表海报图片加载错误
+        handleTasklistImageError(event, taskName) {
+          // 图片加载失败时显示默认图片
+          const img = event.target;
+          const originalSrc = img.src;
+          
+          // 如果已经是默认图片，避免无限循环
+          if (originalSrc.includes('no-poster.svg')) {
+            return;
+          }
+          
+          // 设置为默认图片
+          img.src = '/static/images/no-poster.svg';
+          
+          // 标记为已加载，确保UI能正常显示（即使图片加载失败）
+          if (taskName) {
+            this.$set(this.tasklistPosterLoaded, taskName, true);
+          }
+          
+          // 仅在调试模式下输出警告
+          if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            console.debug('任务列表海报加载失败:', taskName, originalSrc);
+          }
+        },
         getProxiedImageUrl(originalUrl) {
           // 检查是否为豆瓣图片URL，如果是则使用后端代理绕过防盗链限制
           if (!originalUrl) return '/static/images/no-poster.svg';
@@ -15611,6 +15727,28 @@
           this.fileSelect.moveFileIds = [];
           // 重置z-index
           document.getElementById('fileSelectModal').style.zIndex = '';
+          
+          // 修复滚动问题：如果创建任务模态框仍然打开，确保其可以正常滚动
+          const createTaskModal = document.getElementById('createTaskModal');
+          if (createTaskModal && createTaskModal.classList.contains('show')) {
+            // 确保 body 保持 modal-open 类和 overflow: hidden，防止背景滚动
+            if (!document.body.classList.contains('modal-open')) {
+              document.body.classList.add('modal-open');
+            }
+            // 确保 body 的 overflow 样式正确
+            const bodyStyle = window.getComputedStyle(document.body);
+            if (bodyStyle.overflow !== 'hidden') {
+              document.body.style.overflow = 'hidden';
+            }
+            // 确保创建任务模态框的 modal-body 可以滚动
+            const modalBody = createTaskModal.querySelector('.modal-body');
+            if (modalBody) {
+              // 强制重新计算滚动能力
+              modalBody.style.overflowY = 'auto';
+              // 触发重排，确保滚动能力生效
+              void modalBody.offsetHeight;
+            }
+          }
         });
         
         // 检查本地存储中的标签页状态
@@ -15675,6 +15813,28 @@
           this.fileSelect.moveFileIds = [];
           // 重置z-index
           document.getElementById('fileSelectModal').style.zIndex = '';
+          
+          // 修复滚动问题：如果创建任务模态框仍然打开，确保其可以正常滚动
+          const createTaskModal = document.getElementById('createTaskModal');
+          if (createTaskModal && createTaskModal.classList.contains('show')) {
+            // 确保 body 保持 modal-open 类和 overflow: hidden，防止背景滚动
+            if (!document.body.classList.contains('modal-open')) {
+              document.body.classList.add('modal-open');
+            }
+            // 确保 body 的 overflow 样式正确
+            const bodyStyle = window.getComputedStyle(document.body);
+            if (bodyStyle.overflow !== 'hidden') {
+              document.body.style.overflow = 'hidden';
+            }
+            // 确保创建任务模态框的 modal-body 可以滚动
+            const modalBody = createTaskModal.querySelector('.modal-body');
+            if (modalBody) {
+              // 强制重新计算滚动能力
+              modalBody.style.overflowY = 'auto';
+              // 触发重排，确保滚动能力生效
+              void modalBody.offsetHeight;
+            }
+          }
         });
         
         window.addEventListener('beforeunload', this.handleBeforeUnload);
@@ -15744,9 +15904,20 @@
           this.loadCalendarData();
         }
         
-        // 如果当前是任务列表页面，启动后台监听
+        // 如果当前是任务列表页面，加载数据并启动后台监听
         if (this.activeTab === 'tasklist') {
-          this.startTasklistAutoWatch();
+          // 并行加载数据，提高加载速度
+          Promise.all([
+            this.loadTaskLatestInfo().catch(err => {
+              console.warn('加载任务最新信息失败:', err);
+            }),
+            this.loadTasklistMetadata().catch(err => {
+              console.warn('加载任务列表元数据失败:', err);
+            })
+          ]).finally(() => {
+            // 数据加载完成后启动后台监听
+            this.startTasklistAutoWatch();
+          });
         }
         }, 500);
       },
