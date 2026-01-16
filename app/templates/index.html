@@ -4510,6 +4510,28 @@
           this.fileSelect.moveFileIds = [];
           // 重置z-index
           document.getElementById('fileSelectModal').style.zIndex = '';
+          
+          // 修复滚动问题：如果创建任务模态框仍然打开，确保其可以正常滚动
+          const createTaskModal = document.getElementById('createTaskModal');
+          if (createTaskModal && createTaskModal.classList.contains('show')) {
+            // 确保 body 保持 modal-open 类和 overflow: hidden，防止背景滚动
+            if (!document.body.classList.contains('modal-open')) {
+              document.body.classList.add('modal-open');
+            }
+            // 确保 body 的 overflow 样式正确
+            const bodyStyle = window.getComputedStyle(document.body);
+            if (bodyStyle.overflow !== 'hidden') {
+              document.body.style.overflow = 'hidden';
+            }
+            // 确保创建任务模态框的 modal-body 可以滚动
+            const modalBody = createTaskModal.querySelector('.modal-body');
+            if (modalBody) {
+              // 强制重新计算滚动能力
+              modalBody.style.overflowY = 'auto';
+              // 触发重排，确保滚动能力生效
+              void modalBody.offsetHeight;
+            }
+          }
         });
         
         // 检查本地存储中的标签页状态
@@ -4599,6 +4621,28 @@
           document.getElementById('fileSelectModal').style.zIndex = '';
           // 重置资源浏览索引
           this.smart_param.currentResourceIndex = -1;
+          
+          // 修复滚动问题：如果创建任务模态框仍然打开，确保其可以正常滚动
+          const createTaskModal = document.getElementById('createTaskModal');
+          if (createTaskModal && createTaskModal.classList.contains('show')) {
+            // 确保 body 保持 modal-open 类和 overflow: hidden，防止背景滚动
+            if (!document.body.classList.contains('modal-open')) {
+              document.body.classList.add('modal-open');
+            }
+            // 确保 body 的 overflow 样式正确
+            const bodyStyle = window.getComputedStyle(document.body);
+            if (bodyStyle.overflow !== 'hidden') {
+              document.body.style.overflow = 'hidden';
+            }
+            // 确保创建任务模态框的 modal-body 可以滚动
+            const modalBody = createTaskModal.querySelector('.modal-body');
+            if (modalBody) {
+              // 强制重新计算滚动能力
+              modalBody.style.overflowY = 'auto';
+              // 触发重排，确保滚动能力生效
+              void modalBody.offsetHeight;
+            }
+          }
         });
         
         window.addEventListener('beforeunload', this.handleBeforeUnload);
@@ -15611,6 +15655,28 @@
           this.fileSelect.moveFileIds = [];
           // 重置z-index
           document.getElementById('fileSelectModal').style.zIndex = '';
+          
+          // 修复滚动问题：如果创建任务模态框仍然打开，确保其可以正常滚动
+          const createTaskModal = document.getElementById('createTaskModal');
+          if (createTaskModal && createTaskModal.classList.contains('show')) {
+            // 确保 body 保持 modal-open 类和 overflow: hidden，防止背景滚动
+            if (!document.body.classList.contains('modal-open')) {
+              document.body.classList.add('modal-open');
+            }
+            // 确保 body 的 overflow 样式正确
+            const bodyStyle = window.getComputedStyle(document.body);
+            if (bodyStyle.overflow !== 'hidden') {
+              document.body.style.overflow = 'hidden';
+            }
+            // 确保创建任务模态框的 modal-body 可以滚动
+            const modalBody = createTaskModal.querySelector('.modal-body');
+            if (modalBody) {
+              // 强制重新计算滚动能力
+              modalBody.style.overflowY = 'auto';
+              // 触发重排，确保滚动能力生效
+              void modalBody.offsetHeight;
+            }
+          }
         });
         
         // 检查本地存储中的标签页状态
@@ -15675,6 +15741,28 @@
           this.fileSelect.moveFileIds = [];
           // 重置z-index
           document.getElementById('fileSelectModal').style.zIndex = '';
+          
+          // 修复滚动问题：如果创建任务模态框仍然打开，确保其可以正常滚动
+          const createTaskModal = document.getElementById('createTaskModal');
+          if (createTaskModal && createTaskModal.classList.contains('show')) {
+            // 确保 body 保持 modal-open 类和 overflow: hidden，防止背景滚动
+            if (!document.body.classList.contains('modal-open')) {
+              document.body.classList.add('modal-open');
+            }
+            // 确保 body 的 overflow 样式正确
+            const bodyStyle = window.getComputedStyle(document.body);
+            if (bodyStyle.overflow !== 'hidden') {
+              document.body.style.overflow = 'hidden';
+            }
+            // 确保创建任务模态框的 modal-body 可以滚动
+            const modalBody = createTaskModal.querySelector('.modal-body');
+            if (modalBody) {
+              // 强制重新计算滚动能力
+              modalBody.style.overflowY = 'auto';
+              // 触发重排，确保滚动能力生效
+              void modalBody.offsetHeight;
+            }
+          }
         });
         
         window.addEventListener('beforeunload', this.handleBeforeUnload);
