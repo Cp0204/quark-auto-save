@@ -1116,8 +1116,31 @@ class CalendarDB:
 
     @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_task_metrics(self, task_name:str):
-        """获取任务的进度指标"""
+        """获取任务的进度指标（直接从数据库读取最新数据）
+        
+        在 WAL 模式下，即使主数据库文件已经是最新的，新连接建立时的快照可能基于旧的 WAL 索引文件状态，
+        导致读取到旧数据。通过执行 PASSIVE checkpoint 来更新 WAL 索引文件（-shm），
+        让新连接基于最新状态建立快照，从而确保读取到最新的已提交数据。
+        
+        这解决了定时任务执行时，即使前后端和主数据库都是最新数据，但定时任务仍读取到旧数据的问题。
+        
+        PASSIVE checkpoint 模式不会阻塞其他连接，性能影响较小，但能确保读取到最新数据。
+        """
         cursor = self.conn.cursor()
+        # 在 WAL 模式下，确保读取最新数据
+        # 执行 PASSIVE checkpoint 来更新 WAL 索引文件，让新连接基于最新状态建立快照
+        # PASSIVE 模式不会阻塞其他连接，性能影响较小，但能确保读取到最新数据
+        try:
+            # 执行 PASSIVE checkpoint，更新 WAL 索引文件（-shm），标记最新的写入点
+            # 这样新连接建立时，会基于最新的 WAL 索引状态建立快照，能读取到最新数据
+            cursor.execute('PRAGMA wal_checkpoint(PASSIVE)')
+            cursor.fetchone()
+        except Exception:
+            # 如果 checkpoint 失败（例如数据库被锁定），继续执行主查询
+            # 在大多数情况下，即使 checkpoint 失败，读取操作仍能看到已提交的数据
+            pass
+        
+        # 从数据库直接查询最新的任务进度
         cursor.execute('SELECT progress_pct FROM task_metrics WHERE task_name=?', (task_name,))
         row = cursor.fetchone()
         if not row:
