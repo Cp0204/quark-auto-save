@@ -1906,13 +1906,17 @@ calendar_subscribers = set()
 
 def notify_calendar_changed(reason: str = ""):
     try:
-        # 如果是会影响任务列表数据的变更，清除任务列表缓存，确保数据实时更新
-        # 包括：转存相关、元数据编辑、任务配置变更等
+        # 如果是会影响任务列表数据或剧集数据的变更，清除所有缓存，确保数据实时更新
+        # 包括：转存相关、元数据编辑、任务配置变更、剧集数据刷新、记录删除等
         if reason in ('transfer_update', 'transfer_record_created', 'transfer_record_updated', 
                      'batch_rename_completed', 'crontab_task_completed', 'edit_metadata', 
-                     'daily_aired_update', 'aired_on_demand'):
+                     'daily_aired_update', 'aired_on_demand', 'bootstrap', 'refresh_latest_season',
+                     'refresh_episode', 'refresh_season', 'refresh_show', 'auto_refresh',
+                     'status_updated', 'aired_refresh_time_changed', 'update_airtime',
+                     'trakt_airtime_synced', 'purge_tmdb', 'purge_by_task', 'purge_orphans',
+                     'delete_records', 'reset_folder'):
             try:
-                clear_calendar_tasks_cache()
+                clear_all_calendar_cache()
             except Exception:
                 pass
         
@@ -2454,9 +2458,9 @@ def update():
             logging.warning(f"自动清理孤儿季与指标失败: {e}")
 
 
-        # 清除任务列表缓存，确保下次请求获取最新数据
+        # 清除所有追剧日历缓存，确保下次请求获取最新数据
         try:
-            clear_calendar_tasks_cache()
+            clear_all_calendar_cache()
         except Exception as e:
             logging.debug(f"清除缓存失败（不影响功能）: {e}")
 
@@ -5475,6 +5479,22 @@ def clear_calendar_tasks_cache():
     with _calendar_tasks_cache_lock:
         _calendar_tasks_cache.clear()
 
+# 追剧日历剧集数据缓存机制
+_calendar_episodes_cache = {}
+_calendar_episodes_cache_lock = Lock()
+_calendar_episodes_cache_ttl = 30  # 缓存30秒
+
+def clear_calendar_episodes_cache():
+    """清除剧集数据缓存，强制下次请求重新加载数据"""
+    global _calendar_episodes_cache
+    with _calendar_episodes_cache_lock:
+        _calendar_episodes_cache.clear()
+
+def clear_all_calendar_cache():
+    """清除所有追剧日历相关缓存（任务列表和剧集数据）"""
+    clear_calendar_tasks_cache()
+    clear_calendar_episodes_cache()
+
 @app.route("/api/calendar/sync_content_type", methods=["POST"])
 def sync_content_type_api():
     """手动触发内容类型数据同步"""
@@ -8449,8 +8469,23 @@ def run_calendar_refresh_all_internal():
 # 本地缓存读取：获取最新一季的本地剧集数据
 @app.route("/api/calendar/episodes_local")
 def get_calendar_episodes_local():
+    """获取本地剧集数据（优化版：添加缓存机制）"""
+    global _calendar_episodes_cache
+    
     try:
+        # 检查缓存是否有效
+        current_time = time.time()
         tmdb_id = request.args.get('tmdb_id')
+        cache_key = f'episodes_data_{tmdb_id or "all"}'
+        
+        with _calendar_episodes_cache_lock:
+            # 检查缓存是否存在且未过期
+            if cache_key in _calendar_episodes_cache:
+                cache_data, cache_time = _calendar_episodes_cache[cache_key]
+                if current_time - cache_time < _calendar_episodes_cache_ttl:
+                    # 缓存有效，直接返回
+                    return jsonify(cache_data)
+        
         db = CalendarDB()
         # 建立 tmdb_id -> 任务信息 映射，用于前端筛选（任务名/类型）
         tmdb_to_taskinfo = {}
@@ -8722,7 +8757,13 @@ def get_calendar_episodes_local():
                     p = progress_by_task.get(tname)
                     if p:
                         e['task_info']['progress'] = p
-            return jsonify({'success': True, 'data': {'episodes': eps, 'total': len(eps), 'show': show}})
+            result_data = {'success': True, 'data': {'episodes': eps, 'total': len(eps), 'show': show}}
+            
+            # 更新缓存
+            with _calendar_episodes_cache_lock:
+                _calendar_episodes_cache[cache_key] = (result_data, current_time)
+            
+            return jsonify(result_data)
         else:
             # 返回全部最新季汇总（供周视图合并展示）
             eps = db.list_all_latest_episodes()
@@ -8743,8 +8784,22 @@ def get_calendar_episodes_local():
                     p = progress_by_task.get(tname)
                     if p:
                         e['task_info']['progress'] = p
-            return jsonify({'success': True, 'data': {'episodes': eps, 'total': len(eps)}})
+            result_data = {'success': True, 'data': {'episodes': eps, 'total': len(eps)}}
+            
+            # 更新缓存
+            with _calendar_episodes_cache_lock:
+                _calendar_episodes_cache[cache_key] = (result_data, current_time)
+            
+            return jsonify(result_data)
     except Exception as e:
+        # 如果出错，尝试返回缓存数据（如果有）
+        with _calendar_episodes_cache_lock:
+            if cache_key in _calendar_episodes_cache:
+                cache_data, _ = _calendar_episodes_cache[cache_key]
+                logging.warning(f'获取本地剧集数据失败，返回缓存数据: {str(e)}')
+                return jsonify(cache_data)
+        
+        # 没有缓存，返回错误
         return jsonify({'success': False, 'message': f'读取本地剧集失败: {str(e)}', 'data': {'episodes': [], 'total': 0}})
 
 
