@@ -10060,6 +10060,13 @@
                 this.modalLoading = false;
                 // 运行后刷新数据
                 this.fetchData();
+                // 更新已转存数相关数据（后端已清除缓存，确保获取最新数据）
+                try {
+                  await this.loadTaskLatestInfo();
+                  await this.loadTasklistMetadata();
+                } catch (e) {
+                  console.warn('更新已转存数数据失败:', e);
+                }
                 break;
               }
               partialData += decoder.decode(value);
@@ -10070,6 +10077,13 @@
                   if (eventData === '[DONE]') {
                     this.modalLoading = false;
                     this.fetchData();
+                    // 更新已转存数相关数据（后端已清除缓存，确保获取最新数据）
+                    try {
+                      await this.loadTaskLatestInfo();
+                      await this.loadTasklistMetadata();
+                    } catch (e) {
+                      console.warn('更新已转存数数据失败:', e);
+                    }
                     return;
                   }
                   this.run_log += eventData + '\n';
@@ -15597,6 +15611,13 @@
                 this.modalLoading = false;
                 // 运行后刷新数据
                 this.fetchData();
+                // 更新已转存数相关数据（后端已清除缓存，确保获取最新数据）
+                try {
+                  await this.loadTaskLatestInfo();
+                  await this.loadTasklistMetadata();
+                } catch (e) {
+                  console.warn('更新已转存数数据失败:', e);
+                }
                 // 调用完成回调
                 if (callback) callback();
                 break;
@@ -15609,6 +15630,13 @@
                   if (eventData === '[DONE]') {
                     this.modalLoading = false;
                     this.fetchData();
+                    // 更新已转存数相关数据（后端已清除缓存，确保获取最新数据）
+                    try {
+                      await this.loadTaskLatestInfo();
+                      await this.loadTasklistMetadata();
+                    } catch (e) {
+                      console.warn('更新已转存数数据失败:', e);
+                    }
                     // 调用完成回调
                     if (callback) callback();
                     return;

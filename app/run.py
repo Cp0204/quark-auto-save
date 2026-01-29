@@ -347,10 +347,11 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                         latest_sn = season_no_to_use
                         sm = season_meta.get((int(tmdb_id), latest_sn)) or {}
                         latest_season_name = sm.get('season_name') or ''
-                        # 优先用 season_metrics 中缓存的 total/air（按匹配季）
+                        # 优先用 season_metrics 中缓存的 total/air/transferred（按匹配季）
                         _metrics = season_metrics_map.get((int(tmdb_id), latest_sn)) or {}
                         total_count = _metrics.get('total_count')
                         aired_count = _metrics.get('aired_count')
+                        _cached_transferred = _metrics.get('transferred_count')
                         _updated_at = _metrics.get('updated_at')
                         # fallback：无缓存则用即时计算（按匹配季）
                         if total_count in (None, 0):
@@ -433,6 +434,15 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                 _effective_transferred = int(transferred_count or 0)
             except Exception:
                 _effective_transferred = 0
+
+            # 保护：如果本次解析不到有效集数（_effective_transferred 为 0），
+            # 且 metrics 中已经有缓存的 transferred_count > 0，则优先保留缓存值，
+            # 避免实时刷新时短暂把已转存集数回落为 0。
+            try:
+                if (not _effective_transferred) and (locals().get('_cached_transferred') not in (None, 0)):
+                    _effective_transferred = int(locals().get('_cached_transferred') or 0)
+            except Exception:
+                pass
 
             if (not _effective_transferred) and task_name and tmdb_id and latest_sn:
                 try:
@@ -1909,10 +1919,10 @@ def notify_calendar_changed(reason: str = ""):
         # 如果是会影响任务列表数据或剧集数据的变更，清除所有缓存，确保数据实时更新
         # 包括：转存相关、元数据编辑、任务配置变更、剧集数据刷新、记录删除等
         if reason in ('transfer_update', 'transfer_record_created', 'transfer_record_updated', 
-                     'batch_rename_completed', 'crontab_task_completed', 'edit_metadata', 
-                     'daily_aired_update', 'aired_on_demand', 'bootstrap', 'refresh_latest_season',
-                     'refresh_episode', 'refresh_season', 'refresh_show', 'auto_refresh',
-                     'status_updated', 'aired_refresh_time_changed', 'update_airtime',
+                     'batch_rename_completed', 'crontab_task_completed', 'manual_task_completed',
+                     'edit_metadata', 'daily_aired_update', 'aired_on_demand', 'bootstrap', 
+                     'refresh_latest_season', 'refresh_episode', 'refresh_season', 'refresh_show', 
+                     'auto_refresh', 'status_updated', 'aired_refresh_time_changed', 'update_airtime',
                      'trakt_airtime_synced', 'purge_tmdb', 'purge_by_task', 'purge_orphans',
                      'delete_records', 'reset_folder'):
             try:
@@ -1927,6 +1937,17 @@ def notify_calendar_changed(reason: str = ""):
                 pass
     except Exception:
         pass
+
+@app.route('/api/calendar/notify', methods=['POST'])
+def api_calendar_notify():
+    """供内部脚本调用的简易通知入口：通过 HTTP 触发日历/任务列表 SSE 事件"""
+    try:
+        data = request.get_json(silent=True) or {}
+        reason = data.get('reason') or ''
+        notify_calendar_changed(reason)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/calendar/stream')
 def calendar_stream():
@@ -2596,6 +2617,11 @@ def run_script_now():
                 task_name = 'ALL'
             if process.returncode == 0:
                 logging.info(f">>> 手动运行任务 [{task_name}] 执行成功")
+                # 手动运行任务完成后，清除缓存以确保前端能获取到最新的已转存数
+                try:
+                    notify_calendar_changed('manual_task_completed')
+                except Exception:
+                    pass
             else:
                 logging.warning(f">>> 手动运行任务 [{task_name}] 执行完成但返回非零退出码: {process.returncode}")
 

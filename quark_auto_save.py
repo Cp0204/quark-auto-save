@@ -45,19 +45,22 @@ except ImportError:
                 return None
 
 def notify_calendar_changed_safe(reason):
-    """安全地触发SSE通知，避免导入错误"""
+    """安全地触发SSE通知，避免导入错误
+    
+    修复：不再通过直接导入 run.py 调用函数（该方式仅作用于当前进程，无法通知运行中的 Flask 服务），
+    而是通过 HTTP 调用后端提供的 /api/calendar/notify 接口，由实际的 Web 进程统一负责广播 SSE 事件。
+    """
     try:
-        # 尝试导入notify_calendar_changed函数
-        import sys
-        import os
-        # 添加app目录到Python路径
-        app_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'app')
-        if app_dir not in sys.path:
-            sys.path.insert(0, app_dir)
-        
-        from run import notify_calendar_changed
-        notify_calendar_changed(reason)
+        # 优先使用与 Flask 相同的 PORT 环境变量；允许通过 CALENDAR_SERVER_BASE 自定义服务基址
+        port = os.environ.get("PORT", "5005")
+        base_url = os.environ.get("CALENDAR_SERVER_BASE", f"http://127.0.0.1:{port}")
+        requests.post(
+            f"{base_url}/api/calendar/notify",
+            json={"reason": reason},
+            timeout=1
+        )
     except Exception as e:
+        # 仅输出提示，不影响主流程
         print(f"触发SSE通知失败: {e}")
 
 def advanced_filter_files(file_list, filterwords):
@@ -2049,12 +2052,20 @@ class Quark:
                 save_path=save_path
             )
             # 调用后端接口触发该任务的指标实时同步（进度热更新）
+            # 修复：不再写死端口 9898，而是优先使用与 Flask 相同的 PORT 环境变量，
+            # 同时支持通过 CALENDAR_SERVER_BASE 覆盖完整服务地址，避免端口/地址不一致导致热更新失效
             try:
-                import requests
                 _tname = task.get("taskname", "")
                 if _tname:
-                    requests.post("http://127.0.0.1:9898/api/calendar/metrics/sync_task", json={"task_name": _tname}, timeout=1)
+                    port = os.environ.get("PORT", "5005")
+                    base_url = os.environ.get("CALENDAR_SERVER_BASE", f"http://127.0.0.1:{port}")
+                    requests.post(
+                        f"{base_url}/api/calendar/metrics/sync_task",
+                        json={"task_name": _tname},
+                        timeout=1
+                    )
             except Exception:
+                # 任何错误都不影响主流程，只影响热更新及时性
                 pass
             
             # 关闭数据库连接
