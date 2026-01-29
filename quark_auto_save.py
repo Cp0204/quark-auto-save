@@ -1139,6 +1139,12 @@ def do_save(account, tasklist=[]):
             or (datetime.today().weekday() + 1 in task.get("runweek"))
         )
 
+    for plugin_name, plugin in plugins.items():
+        if plugin.is_active and hasattr(plugin, "task_before"):
+            tasklist = (
+                plugin.task_before(tasklist=tasklist, account=account) or tasklist
+            )
+
     # 执行任务
     for index, task in enumerate(tasklist):
         print()
@@ -1184,7 +1190,7 @@ def do_save(account, tasklist=[]):
             if is_new_tree:
                 print(f"🧩 调用插件")
                 for plugin_name, plugin in plugins.items():
-                    if plugin.is_active:
+                    if plugin.is_active and hasattr(plugin, "run"):
                         task = (
                             plugin.run(task, account=account, tree=is_new_tree) or task
                         )
@@ -1192,7 +1198,9 @@ def do_save(account, tasklist=[]):
     print(f"===============插件收尾===============")
     for plugin_name, plugin in plugins.items():
         if plugin.is_active and hasattr(plugin, "task_after"):
-            data = plugin.task_after()
+            data = plugin.task_after(tasklist=tasklist, account=account)
+            if data.get("tasklist"):
+                CONFIG_DATA["tasklist"] = data["tasklist"]
             if data.get("config"):
                 CONFIG_DATA["plugins"][plugin_name] = data["config"]
     print()
