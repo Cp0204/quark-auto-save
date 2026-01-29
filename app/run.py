@@ -5530,6 +5530,11 @@ def sync_content_type_api():
     try:
         success = sync_content_type_between_config_and_database()
         if success:
+            # 数据变更时清除缓存，确保前端能获取最新数据
+            try:
+                notify_calendar_changed('edit_metadata')
+            except Exception:
+                pass
             return jsonify({"success": True, "message": "内容类型同步完成"})
         else:
             return jsonify({"success": False, "message": "没有需要同步的内容类型数据"})
@@ -5635,11 +5640,18 @@ def get_calendar_tasks():
         
         if should_sync:
             try:
-                # 首先同步数据库绑定关系到任务配置
-                sync_task_config_with_database_bindings()
+                # 首先同步数据库绑定关系到任务配置，如果数据有变更，清除缓存确保前端获取最新数据
+                bindings_changed = sync_task_config_with_database_bindings()
                 
-                # 同步内容类型数据
-                sync_content_type_between_config_and_database()
+                # 同步内容类型数据，如果数据有变更，清除缓存确保前端获取最新数据
+                content_type_changed = sync_content_type_between_config_and_database()
+                
+                # 如果任何同步操作修改了数据，清除缓存确保前端获取最新数据
+                if bindings_changed or content_type_changed:
+                    try:
+                        notify_calendar_changed('edit_metadata')
+                    except Exception:
+                        pass
                 
                 _last_sync_time = current_time
             except Exception as sync_error:
@@ -9069,6 +9081,11 @@ def update_show_content_type():
         success = cal_db.update_show_content_type(int(tmdb_id), content_type)
         
         if success:
+            # 数据变更时清除缓存，确保前端能获取最新数据
+            try:
+                notify_calendar_changed('edit_metadata')
+            except Exception:
+                pass
             return jsonify({
                 'success': True,
                 'message': '内容类型更新成功'
