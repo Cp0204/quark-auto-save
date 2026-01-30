@@ -347,10 +347,11 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                         latest_sn = season_no_to_use
                         sm = season_meta.get((int(tmdb_id), latest_sn)) or {}
                         latest_season_name = sm.get('season_name') or ''
-                        # 优先用 season_metrics 中缓存的 total/air（按匹配季）
+                        # 优先用 season_metrics 中缓存的 total/air/transferred（按匹配季）
                         _metrics = season_metrics_map.get((int(tmdb_id), latest_sn)) or {}
                         total_count = _metrics.get('total_count')
                         aired_count = _metrics.get('aired_count')
+                        _cached_transferred = _metrics.get('transferred_count')
                         _updated_at = _metrics.get('updated_at')
                         # fallback：无缓存则用即时计算（按匹配季）
                         if total_count in (None, 0):
@@ -433,6 +434,15 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                 _effective_transferred = int(transferred_count or 0)
             except Exception:
                 _effective_transferred = 0
+
+            # 保护：如果本次解析不到有效集数（_effective_transferred 为 0），
+            # 且 metrics 中已经有缓存的 transferred_count > 0，则优先保留缓存值，
+            # 避免实时刷新时短暂把已转存集数回落为 0。
+            try:
+                if (not _effective_transferred) and (locals().get('_cached_transferred') not in (None, 0)):
+                    _effective_transferred = int(locals().get('_cached_transferred') or 0)
+            except Exception:
+                pass
 
             if (not _effective_transferred) and task_name and tmdb_id and latest_sn:
                 try:
@@ -1906,6 +1916,20 @@ calendar_subscribers = set()
 
 def notify_calendar_changed(reason: str = ""):
     try:
+        # 如果是会影响任务列表数据或剧集数据的变更，清除所有缓存，确保数据实时更新
+        # 包括：转存相关、元数据编辑、任务配置变更、剧集数据刷新、记录删除等
+        if reason in ('transfer_update', 'transfer_record_created', 'transfer_record_updated', 
+                     'batch_rename_completed', 'crontab_task_completed', 'manual_task_completed',
+                     'edit_metadata', 'daily_aired_update', 'aired_on_demand', 'bootstrap', 
+                     'refresh_latest_season', 'refresh_episode', 'refresh_season', 'refresh_show', 
+                     'auto_refresh', 'status_updated', 'aired_refresh_time_changed', 'update_airtime',
+                     'trakt_airtime_synced', 'purge_tmdb', 'purge_by_task', 'purge_orphans',
+                     'delete_records', 'reset_folder'):
+            try:
+                clear_all_calendar_cache()
+            except Exception:
+                pass
+        
         for q in list(calendar_subscribers):
             try:
                 q.put_nowait({'type': 'calendar_changed', 'reason': reason})
@@ -1913,6 +1937,17 @@ def notify_calendar_changed(reason: str = ""):
                 pass
     except Exception:
         pass
+
+@app.route('/api/calendar/notify', methods=['POST'])
+def api_calendar_notify():
+    """供内部脚本调用的简易通知入口：通过 HTTP 触发日历/任务列表 SSE 事件"""
+    try:
+        data = request.get_json(silent=True) or {}
+        reason = data.get('reason') or ''
+        notify_calendar_changed(reason)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/calendar/stream')
 def calendar_stream():
@@ -2444,6 +2479,12 @@ def update():
             logging.warning(f"自动清理孤儿季与指标失败: {e}")
 
 
+        # 清除所有追剧日历缓存，确保下次请求获取最新数据
+        try:
+            clear_all_calendar_cache()
+        except Exception as e:
+            logging.debug(f"清除缓存失败（不影响功能）: {e}")
+
         # 根据最新性能配置重启自动刷新任务
         try:
             restart_calendar_refresh_job()
@@ -2576,6 +2617,11 @@ def run_script_now():
                 task_name = 'ALL'
             if process.returncode == 0:
                 logging.info(f">>> 手动运行任务 [{task_name}] 执行成功")
+                # 手动运行任务完成后，清除缓存以确保前端能获取到最新的已转存数
+                try:
+                    notify_calendar_changed('manual_task_completed')
+                except Exception:
+                    pass
             else:
                 logging.warning(f">>> 手动运行任务 [{task_name}] 执行完成但返回非零退出码: {process.returncode}")
 
@@ -5452,6 +5498,29 @@ def sync_task_config_api():
         return jsonify({"success": False, "message": f"同步失败: {str(e)}"})
 
 # 手动同步内容类型数据
+# 清除任务列表缓存（在数据更新时调用）
+def clear_calendar_tasks_cache():
+    """清除任务列表缓存，强制下次请求重新加载数据"""
+    global _calendar_tasks_cache
+    with _calendar_tasks_cache_lock:
+        _calendar_tasks_cache.clear()
+
+# 追剧日历剧集数据缓存机制
+_calendar_episodes_cache = {}
+_calendar_episodes_cache_lock = Lock()
+_calendar_episodes_cache_ttl = 30  # 缓存30秒
+
+def clear_calendar_episodes_cache():
+    """清除剧集数据缓存，强制下次请求重新加载数据"""
+    global _calendar_episodes_cache
+    with _calendar_episodes_cache_lock:
+        _calendar_episodes_cache.clear()
+
+def clear_all_calendar_cache():
+    """清除所有追剧日历相关缓存（任务列表和剧集数据）"""
+    clear_calendar_tasks_cache()
+    clear_calendar_episodes_cache()
+
 @app.route("/api/calendar/sync_content_type", methods=["POST"])
 def sync_content_type_api():
     """手动触发内容类型数据同步"""
@@ -5461,17 +5530,42 @@ def sync_content_type_api():
     try:
         success = sync_content_type_between_config_and_database()
         if success:
+            # 数据变更时清除缓存，确保前端能获取最新数据
+            try:
+                notify_calendar_changed('edit_metadata')
+            except Exception:
+                pass
             return jsonify({"success": True, "message": "内容类型同步完成"})
         else:
             return jsonify({"success": False, "message": "没有需要同步的内容类型数据"})
     except Exception as e:
         return jsonify({"success": False, "message": f"内容类型同步失败: {str(e)}"})
 
-# 追剧日历API路由
+# 追剧日历API路由 - 缓存机制
+_calendar_tasks_cache = {}
+_calendar_tasks_cache_lock = Lock()
+_calendar_tasks_cache_ttl = 30  # 缓存30秒
+_last_sync_time = 0
+_sync_interval = 300  # 同步操作每5分钟执行一次
+
 @app.route("/api/calendar/tasks")
 def get_calendar_tasks():
-    """获取追剧日历任务信息"""
+    """获取追剧日历任务信息（优化版：添加缓存和减少同步频率）"""
+    global _calendar_tasks_cache, _last_sync_time
+    
     try:
+        # 检查缓存是否有效
+        current_time = time.time()
+        cache_key = 'tasks_data'
+        
+        with _calendar_tasks_cache_lock:
+            # 检查缓存是否存在且未过期
+            if cache_key in _calendar_tasks_cache:
+                cache_data, cache_time = _calendar_tasks_cache[cache_key]
+                if current_time - cache_time < _calendar_tasks_cache_ttl:
+                    # 缓存有效，直接返回
+                    return jsonify(cache_data)
+        
         # 获取任务列表
         tasks = config_data.get('tasklist', [])
         
@@ -5479,7 +5573,7 @@ def get_calendar_tasks():
         db = RecordDB()
         cursor = db.conn.cursor()
         
-        # 获取所有任务的最新转存时间
+        # 获取所有任务的最新转存时间（优化：使用单个查询）
         query = """
         SELECT task_name, MAX(transfer_time) as latest_transfer_time
         FROM transfer_records
@@ -5491,6 +5585,7 @@ def get_calendar_tasks():
         
         task_latest_files = {}
         
+        # 批量查询文件信息，减少数据库查询次数
         for task_name, latest_time in latest_times:
             if latest_time:
                 # 获取该任务在最新转存时间附近的所有文件
@@ -5500,6 +5595,7 @@ def get_calendar_tasks():
                 FROM transfer_records
                 WHERE task_name = ? AND transfer_time >= ? AND transfer_time <= ?
                 ORDER BY id DESC
+                LIMIT 10
                 """
                 cursor.execute(query, (task_name, latest_time - time_window, latest_time + time_window))
                 files = cursor.fetchall()
@@ -5538,11 +5634,29 @@ def get_calendar_tasks():
         except Exception as e:
             raise
         
-        # 首先同步数据库绑定关系到任务配置
-        sync_task_config_with_database_bindings()
+        # 优化：减少同步操作频率，只在必要时执行（每5分钟最多执行一次）
+        # 这样可以避免每次请求都执行耗时的同步操作
+        should_sync = (current_time - _last_sync_time) >= _sync_interval
         
-        # 同步内容类型数据
-        sync_content_type_between_config_and_database()
+        if should_sync:
+            try:
+                # 首先同步数据库绑定关系到任务配置，如果数据有变更，清除缓存确保前端获取最新数据
+                bindings_changed = sync_task_config_with_database_bindings()
+                
+                # 同步内容类型数据，如果数据有变更，清除缓存确保前端获取最新数据
+                content_type_changed = sync_content_type_between_config_and_database()
+                
+                # 如果任何同步操作修改了数据，清除缓存确保前端获取最新数据
+                if bindings_changed or content_type_changed:
+                    try:
+                        notify_calendar_changed('edit_metadata')
+                    except Exception:
+                        pass
+                
+                _last_sync_time = current_time
+            except Exception as sync_error:
+                # 同步失败不影响数据返回，只记录日志
+                logging.debug(f"同步操作失败（不影响数据返回）: {sync_error}")
         
         # 基于 tmdb 绑定补充"实际匹配结果"（show 名称/年份/本地海报）
         try:
@@ -5742,15 +5856,30 @@ def get_calendar_tasks():
             # 若补充失败，不影响主流程
             pass
 
-        return jsonify({
+        # 构建返回数据
+        result_data = {
             'success': True,
             'data': {
                 # 返回全部任务（包括未匹配/未提取剧名的），用于内容管理页显示
                 'tasks': enrich_tasks_with_calendar_meta(tasks_info),
                 'content_types': extractor.get_content_types_with_content([t for t in tasks_info if t.get('show_name')])
             }
-        })
+        }
+        
+        # 更新缓存
+        with _calendar_tasks_cache_lock:
+            _calendar_tasks_cache[cache_key] = (result_data, current_time)
+        
+        return jsonify(result_data)
     except Exception as e:
+        # 如果出错，尝试返回缓存数据（如果有）
+        with _calendar_tasks_cache_lock:
+            if cache_key in _calendar_tasks_cache:
+                cache_data, _ = _calendar_tasks_cache[cache_key]
+                logging.warning(f'获取追剧日历任务信息失败，返回缓存数据: {str(e)}')
+                return jsonify(cache_data)
+        
+        # 没有缓存，返回错误
         return jsonify({
             'success': False,
             'message': f'获取追剧日历任务信息失败: {str(e)}',
@@ -8378,8 +8507,23 @@ def run_calendar_refresh_all_internal():
 # 本地缓存读取：获取最新一季的本地剧集数据
 @app.route("/api/calendar/episodes_local")
 def get_calendar_episodes_local():
+    """获取本地剧集数据（优化版：添加缓存机制）"""
+    global _calendar_episodes_cache
+    
     try:
+        # 检查缓存是否有效
+        current_time = time.time()
         tmdb_id = request.args.get('tmdb_id')
+        cache_key = f'episodes_data_{tmdb_id or "all"}'
+        
+        with _calendar_episodes_cache_lock:
+            # 检查缓存是否存在且未过期
+            if cache_key in _calendar_episodes_cache:
+                cache_data, cache_time = _calendar_episodes_cache[cache_key]
+                if current_time - cache_time < _calendar_episodes_cache_ttl:
+                    # 缓存有效，直接返回
+                    return jsonify(cache_data)
+        
         db = CalendarDB()
         # 建立 tmdb_id -> 任务信息 映射，用于前端筛选（任务名/类型）
         tmdb_to_taskinfo = {}
@@ -8651,7 +8795,13 @@ def get_calendar_episodes_local():
                     p = progress_by_task.get(tname)
                     if p:
                         e['task_info']['progress'] = p
-            return jsonify({'success': True, 'data': {'episodes': eps, 'total': len(eps), 'show': show}})
+            result_data = {'success': True, 'data': {'episodes': eps, 'total': len(eps), 'show': show}}
+            
+            # 更新缓存
+            with _calendar_episodes_cache_lock:
+                _calendar_episodes_cache[cache_key] = (result_data, current_time)
+            
+            return jsonify(result_data)
         else:
             # 返回全部最新季汇总（供周视图合并展示）
             eps = db.list_all_latest_episodes()
@@ -8672,8 +8822,22 @@ def get_calendar_episodes_local():
                     p = progress_by_task.get(tname)
                     if p:
                         e['task_info']['progress'] = p
-            return jsonify({'success': True, 'data': {'episodes': eps, 'total': len(eps)}})
+            result_data = {'success': True, 'data': {'episodes': eps, 'total': len(eps)}}
+            
+            # 更新缓存
+            with _calendar_episodes_cache_lock:
+                _calendar_episodes_cache[cache_key] = (result_data, current_time)
+            
+            return jsonify(result_data)
     except Exception as e:
+        # 如果出错，尝试返回缓存数据（如果有）
+        with _calendar_episodes_cache_lock:
+            if cache_key in _calendar_episodes_cache:
+                cache_data, _ = _calendar_episodes_cache[cache_key]
+                logging.warning(f'获取本地剧集数据失败，返回缓存数据: {str(e)}')
+                return jsonify(cache_data)
+        
+        # 没有缓存，返回错误
         return jsonify({'success': False, 'message': f'读取本地剧集失败: {str(e)}', 'data': {'episodes': [], 'total': 0}})
 
 
@@ -8917,6 +9081,11 @@ def update_show_content_type():
         success = cal_db.update_show_content_type(int(tmdb_id), content_type)
         
         if success:
+            # 数据变更时清除缓存，确保前端能获取最新数据
+            try:
+                notify_calendar_changed('edit_metadata')
+            except Exception:
+                pass
             return jsonify({
                 'success': True,
                 'message': '内容类型更新成功'

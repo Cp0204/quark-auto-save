@@ -10060,6 +10060,13 @@
                 this.modalLoading = false;
                 // 运行后刷新数据
                 this.fetchData();
+                // 更新已转存数相关数据（后端已清除缓存，确保获取最新数据）
+                try {
+                  await this.loadTaskLatestInfo();
+                  await this.loadTasklistMetadata();
+                } catch (e) {
+                  console.warn('更新已转存数数据失败:', e);
+                }
                 break;
               }
               partialData += decoder.decode(value);
@@ -10070,6 +10077,13 @@
                   if (eventData === '[DONE]') {
                     this.modalLoading = false;
                     this.fetchData();
+                    // 更新已转存数相关数据（后端已清除缓存，确保获取最新数据）
+                    try {
+                      await this.loadTaskLatestInfo();
+                      await this.loadTasklistMetadata();
+                    } catch (e) {
+                      console.warn('更新已转存数数据失败:', e);
+                    }
                     return;
                   }
                   this.run_log += eventData + '\n';
@@ -11636,19 +11650,29 @@
           }
         },
         // 加载任务列表的元数据信息（用于热更新海报和元数据）
-        async loadTasklistMetadata() {
+        // 优化：增加超时时间、重试机制和更好的错误处理
+        async loadTasklistMetadata(retryCount = 0) {
           // 如果正在加载，避免重复请求
           if (this.tasklist.isLoadingMetadata) {
             return;
           }
           
+          const maxRetries = 2; // 最多重试2次
+          const timeout = 30000; // 增加到30秒超时
+          
           try {
             this.tasklist.isLoadingMetadata = true;
             // 加载任务信息，获取元数据和海报信息
             const tasksResponse = await axios.get('/api/calendar/tasks', {
-              timeout: 10000 // 10秒超时
+              timeout: timeout,
+              // 添加重试配置
+              validateStatus: function (status) {
+                // 对于5xx错误，允许重试
+                return status < 500;
+              }
             });
-            if (tasksResponse.data.success) {
+            
+            if (tasksResponse.data && tasksResponse.data.success) {
               // 更新任务映射，确保海报视图能正确显示元数据，使用Vue.set确保响应式更新
               this.calendar.tasks = tasksResponse.data.data.tasks || [];
               this.$delete(this.calendar, 'taskMapByName');
@@ -11667,11 +11691,33 @@
               
               // 标记元数据已加载
               this.tasklist.hasLoadedMetadata = true;
+            } else {
+              // 响应成功但数据不成功，尝试重试
+              if (retryCount < maxRetries) {
+                console.warn(`加载任务列表元数据失败，${1000 * (retryCount + 1)}ms后重试...`);
+                await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+                this.tasklist.isLoadingMetadata = false;
+                return this.loadTasklistMetadata(retryCount + 1);
+              } else {
+                console.warn('加载任务列表元数据失败: 响应数据无效', tasksResponse.data);
+                this.tasklist.hasLoadedMetadata = true;
+              }
             }
           } catch (error) {
-            console.warn('加载任务列表元数据失败:', error);
-            // 即使失败也标记为已尝试加载，避免一直阻塞
-            this.tasklist.hasLoadedMetadata = true;
+            // 网络错误或超时，尝试重试
+            if (retryCount < maxRetries && (error.code === 'ECONNABORTED' || error.code === 'NETWORK_ERROR' || !error.response)) {
+              console.warn(`加载任务列表元数据失败（${error.message}），${1000 * (retryCount + 1)}ms后重试...`);
+              await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+              this.tasklist.isLoadingMetadata = false;
+              return this.loadTasklistMetadata(retryCount + 1);
+            } else {
+              console.warn('加载任务列表元数据失败:', error);
+              // 即使失败也标记为已尝试加载，避免一直阻塞
+              // 如果已有缓存数据，保持显示，不重置
+              if (!this.calendar.tasks || this.calendar.tasks.length === 0) {
+                this.tasklist.hasLoadedMetadata = true;
+              }
+            }
           } finally {
             this.tasklist.isLoadingMetadata = false;
           }
@@ -14553,11 +14599,14 @@
           }
         },
         // 更新任务列表的元数据（用于热更新TMDB匹配信息）
+        // 优化：增加超时时间和错误处理
         async updateTasklistMetadata(delay = 0) {
           const updateMetadata = async () => {
             try {
               // 获取最新的任务元数据，包括TMDB匹配信息
-              const tasksResponse = await axios.get('/api/calendar/tasks');
+              const tasksResponse = await axios.get('/api/calendar/tasks', {
+                timeout: 30000 // 增加到30秒超时
+              });
               if (tasksResponse.data && tasksResponse.data.success) {
                 this.calendar.tasks = tasksResponse.data.data.tasks || [];
                 this.calendar.taskNames = this.calendar.tasks.map(task => task.task_name);
@@ -14589,7 +14638,8 @@
                 console.log('任务列表元数据已更新，包含TMDB匹配信息');
               }
             } catch (error) {
-              console.error('更新任务列表元数据失败:', error);
+              // 静默处理错误，避免影响用户体验
+              console.debug('更新任务列表元数据失败（不影响功能）:', error.message);
             }
           };
           
@@ -15561,6 +15611,13 @@
                 this.modalLoading = false;
                 // 运行后刷新数据
                 this.fetchData();
+                // 更新已转存数相关数据（后端已清除缓存，确保获取最新数据）
+                try {
+                  await this.loadTaskLatestInfo();
+                  await this.loadTasklistMetadata();
+                } catch (e) {
+                  console.warn('更新已转存数数据失败:', e);
+                }
                 // 调用完成回调
                 if (callback) callback();
                 break;
@@ -15573,6 +15630,13 @@
                   if (eventData === '[DONE]') {
                     this.modalLoading = false;
                     this.fetchData();
+                    // 更新已转存数相关数据（后端已清除缓存，确保获取最新数据）
+                    try {
+                      await this.loadTaskLatestInfo();
+                      await this.loadTasklistMetadata();
+                    } catch (e) {
+                      console.warn('更新已转存数数据失败:', e);
+                    }
                     // 调用完成回调
                     if (callback) callback();
                     return;
