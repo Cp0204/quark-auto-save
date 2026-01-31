@@ -253,19 +253,29 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                             # 只有日期的情况：通过查询数据库获取对应日期的最大集数
                             air_date = parsed['air_date']
                             try:
-                                # 查找该任务对应的节目名称
+                                # 查找该任务对应的任务信息
                                 task_info = next((t for t in tasks_info if (t.get('task_name') or t.get('taskname')) == task_name), None)
                                 if task_info:
-                                    show_name = (task_info.get('matched_show_name') or task_info.get('show_name') or '').strip()
-                                    if show_name:
-                                        # 查询该节目在该日期播出的最大集数
+                                    # 获取 tmdb_id 和 season_number（与兜底逻辑保持一致）
+                                    tmdb_id = task_info.get('match_tmdb_id') or ((task_info.get('calendar_info') or {}).get('match') or {}).get('tmdb_id')
+                                    season_no = None
+                                    try:
+                                        if task_info.get('matched_latest_season_number') is not None:
+                                            v = int(task_info.get('matched_latest_season_number'))
+                                            if v > 0:
+                                                season_no = v
+                                    except Exception:
+                                        season_no = None
+                                    
+                                    # 使用 tmdb_id + season_number + air_date 查询（episodes 表中没有 show_name 字段）
+                                    if tmdb_id and season_no:
                                         cur.execute(
                                             """
                                             SELECT MAX(CAST(episode_number AS INTEGER))
                                             FROM episodes
-                                            WHERE show_name = ? AND air_date = ?
+                                            WHERE tmdb_id = ? AND season_number = ? AND air_date = ?
                                             """,
-                                            (show_name, air_date)
+                                            (int(tmdb_id), int(season_no), air_date)
                                         )
                                         result = cur.fetchone()
                                         if result and result[0] is not None:
@@ -576,8 +586,12 @@ def recompute_task_metrics_and_notify(task_name: str) -> bool:
                 if len(files) == 1:
                     latest_file = files[0][0]
                 else:
-                    # 退化：按 id DESC 已近似最新，取第一条 renamed_to
-                    latest_file = files[0][0]
+                    # 使用 sort_file_by_name 排序选择最新文件（与 enrich_tasks_with_calendar_meta 保持一致）
+                    file_list = [{'file_name': f[0], 'original_name': f[1], 'updated_at': f[2]} for f in files]
+                    try:
+                        latest_file = sorted(file_list, key=sort_file_by_name)[-1]['file_name']
+                    except Exception:
+                        latest_file = files[0][0]
         rdb.close()
 
         ep_no = None
@@ -585,7 +599,10 @@ def recompute_task_metrics_and_notify(task_name: str) -> bool:
         if latest_file:
             try:
                 extractor = TaskExtractor()
-                parsed = extractor.extract_progress_from_latest_file((latest_file or '').split('.')[0])
+                # 使用 process_season_episode_info 处理文件名（与 enrich_tasks_with_calendar_meta 保持一致）
+                name_wo_ext = os.path.splitext(latest_file)[0]
+                processed = process_season_episode_info(name_wo_ext, task_name)
+                parsed = extractor.extract_progress_from_latest_file(processed)
                 if parsed and parsed.get('episode_number') is not None:
                     ep_no = int(parsed.get('episode_number'))
                 elif parsed and parsed.get('air_date'):
