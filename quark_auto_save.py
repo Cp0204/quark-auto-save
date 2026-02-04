@@ -1113,6 +1113,8 @@ def do_sign(account):
                     add_notify(message)
             else:
                 print(f"📅 签到异常: {sign_return}")
+    else:
+        print("⏭️ 签到进度读取异常，可能登录失效，跳过签到")
     print()
 
 
