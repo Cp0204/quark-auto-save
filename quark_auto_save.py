@@ -1151,6 +1151,13 @@ def do_save(account, tasklist=[]):
     for index, task in enumerate(tasklist):
         print()
         print(f"#{index+1}------------------")
+        
+        # 判断任务周期
+        if not is_time(task):
+            print(f"任务名称: {task['taskname']} - 不在运行周期内，跳过")
+            continue
+        
+        # 显示详细任务信息
         print(f"任务名称: {task['taskname']}")
         print(f"分享链接: {task['shareurl']}")
         print(f"保存路径: {task['savepath']}")
@@ -1165,10 +1172,8 @@ def do_save(account, tasklist=[]):
                 f"运行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')}"
             )
         print()
-        # 判断任务周期
-        if not is_time(task):
-            print(f"任务不在运行周期内，跳过")
-        else:
+        
+        try:
             is_new_tree = account.do_save_task(task)
 
             # 补充任务的插件配置
@@ -1196,6 +1201,16 @@ def do_save(account, tasklist=[]):
                         task = (
                             plugin.run(task, account=account, tree=is_new_tree) or task
                         )
+        except Exception as e:
+            print(f"❌ 任务执行失败: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+        
+        # 任务间延迟,避免风控
+        if index < len(tasklist) - 1:  # 不是最后一个任务
+            import time
+            print(f"⏳ 等待20秒后执行下一个任务...")
+            time.sleep(20)
     print()
     print(f"===============插件收尾===============")
     for plugin_name, plugin in plugins.items():

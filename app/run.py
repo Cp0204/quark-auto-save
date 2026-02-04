@@ -486,36 +486,75 @@ def add_task():
 
 # 定时任务执行的函数
 def run_python(args):
-    logging.info(f">>> 定时运行任务")
+    logging.info(f">>> 定时运行任务 (超时设置: {TASK_TIMEOUT}秒)")
+    
+    # 使用 -u 参数禁用 Python 输出缓冲,实现真正的实时输出
+    process = subprocess.Popen(
+        f"{PYTHON_PATH} -u {args}",
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+        encoding="utf-8",
+        errors="replace",
+        bufsize=1,
+    )
+    
     try:
-        result = subprocess.run(
-            f"{PYTHON_PATH} {args}",
-            shell=True,
-            timeout=TASK_TIMEOUT,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        # 输出执行日志
-        if result.stdout:
-            for line in result.stdout.strip().split("\n"):
-                if line.strip():
-                    logging.info(line)
-
-        if result.returncode == 0:
+        # 实时输出日志
+        import threading
+        import time
+        
+        start_time = time.time()
+        output_thread_running = True
+        
+        def read_output():
+            """读取并输出进程的标准输出"""
+            try:
+                for line in iter(process.stdout.readline, ""):
+                    if line.strip():
+                        logging.info(line.rstrip())
+                        # 强制刷新日志输出
+                        sys.stdout.flush()
+                        sys.stderr.flush()
+            except Exception as e:
+                logging.error(f"读取输出异常: {str(e)}")
+            finally:
+                if process.stdout:
+                    process.stdout.close()
+        
+        # 启动输出线程
+        output_thread = threading.Thread(target=read_output, daemon=True)
+        output_thread.start()
+        
+        # 等待进程完成或超时
+        while process.poll() is None:
+            elapsed = time.time() - start_time
+            if elapsed > TASK_TIMEOUT:
+                process.kill()
+                process.wait()
+                logging.error(f">>> 任务执行超时(>{TASK_TIMEOUT}s)，强制终止")
+                return
+            time.sleep(0.1)
+        
+        # 等待输出线程完成
+        output_thread.join(timeout=2)
+        
+        if process.returncode == 0:
             logging.info(f">>> 任务执行成功")
         else:
-            logging.error(f">>> 任务执行失败，返回码: {result.returncode}")
-            if result.stderr:
-                logging.error(f"错误信息: {result.stderr[:500]}")
-    except subprocess.TimeoutExpired as e:
-        logging.error(f">>> 任务执行超时(>{TASK_TIMEOUT}s)，强制终止")
+            logging.error(f">>> 任务执行失败，返回码: {process.returncode}")
+    
     except Exception as e:
         logging.error(f">>> 任务执行异常: {str(e)}")
         logging.error(traceback.format_exc())
+        try:
+            process.kill()
+            process.wait()
+        except:
+            pass
+    
     finally:
-        # 确保函数能够正常返回
         logging.debug(f">>> run_python 函数执行完成")
 
 
