@@ -363,9 +363,23 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                         aired_count = _metrics.get('aired_count')
                         _cached_transferred = _metrics.get('transferred_count')
                         _updated_at = _metrics.get('updated_at')
-                        # fallback：无缓存则用即时计算（按匹配季）
-                        if total_count in (None, 0):
-                            total_count = sm.get('episode_count')
+                        # 一致性修复：总集数以 seasons 表为准（只要有值就覆盖/校正缓存）
+                        # 说明：seasons.episode_count 会在 refresh_latest_season / refresh_season 等刷新逻辑中更新，
+                        # 而 season_metrics.total_count 可能因历史缓存或未触发写回而滞后，导致任务列表显示旧值。
+                        try:
+                            _season_total = int(sm.get('episode_count') or 0)
+                        except Exception:
+                            _season_total = 0
+                        try:
+                            _metrics_total = int(total_count or 0)
+                        except Exception:
+                            _metrics_total = 0
+                        if _season_total > 0:
+                            # seasons 有值则强制使用，避免 stale
+                            total_count = _season_total
+                        else:
+                            # seasons 无值时，回退到 metrics（可能为 0）
+                            total_count = _metrics_total
                         # 一致性强化：在“未到刷新时间”时，始终使用按有效日期统计的值覆盖/校正缓存，
                         # 避免出现提前计入当日集数的展示偏差
                         try:
