@@ -64,7 +64,7 @@ class Aria2:
                         ],
                         "out": os.path.basename(local_path),
                         "dir": os.path.dirname(local_path),
-                        "pause": task_config.get("pause"),
+                        "pause": str(task_config.get("pause")).lower(),
                     },
                 ]
                 self.add_uri(aria2_params)
