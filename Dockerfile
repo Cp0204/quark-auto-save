@@ -15,7 +15,9 @@ COPY . /app
 
 # 安装依赖
 RUN pip install --no-cache-dir -r requirements.txt && \
-    echo "{\"BUILD_SHA\":\"$BUILD_SHA\", \"BUILD_TAG\":\"$BUILD_TAG\"}" > build.json
+    echo "{\"BUILD_SHA\":\"$BUILD_SHA\", \"BUILD_TAG\":\"$BUILD_TAG\"}" > build.json && \
+    python ./app/_clean_plugins.py && \
+    rm ./app/_clean_plugins.py
 
 # 时区
 ENV TZ="Asia/Shanghai"

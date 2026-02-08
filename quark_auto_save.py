@@ -1,6 +1,6 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Modify: 2025-09-05
+# Modify: 2026-02-04
 # Repo: https://github.com/Cp0204/quark_auto_save
 # ConfigFile: quark_config.json
 """
@@ -13,6 +13,7 @@ import sys
 import json
 import time
 import random
+import platform
 import requests
 import importlib
 import traceback
@@ -93,15 +94,16 @@ class Config:
             return False
 
     def load_plugins(plugins_config={}, plugins_dir="plugins"):
-        PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "").split(",")
+        PLUGIN_FLAGS = os.environ.get("PsLUGIN_FLAGS", "").split(",")
         plugins_available = {}
         task_plugins_config = {}
         # 获取所有模块
-        py_ext = [".py", ".pyd"] if sys.platform == "win32" else [".py", ".so"]
+        sys_ext = "pyd" if platform.system() == "Windows" else "so"
+        module_ext = [".py", f".{sys_ext}"]
         all_modules = [
             f.replace(ext, "")
             for f in os.listdir(plugins_dir)
-            for ext in py_ext
+            for ext in module_ext
             if f.endswith(ext)
         ]
         # 调整模块优先级
