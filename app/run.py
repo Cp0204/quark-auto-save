@@ -6197,9 +6197,152 @@ def process_single_task_async(task, tmdb_service, cal_db):
                     except Exception:
                         pass
                 else:
-                    # 没有找到任何匹配结果
-                    year_info = f", 年份={year}" if year else ""
-                    logging.warning(f"TMDB 匹配失败 - 任务名称: {task.get('taskname', '')}, 搜索的节目名称: {show_name}{year_info}, 失败原因: TMDB 搜索无结果，可能节目名称不匹配或 TMDB 中不存在该节目")
+                    # 没有找到任何匹配结果，尝试备用逻辑：从任务名称中提取剧名进行匹配
+                    task_name = task.get('taskname') or task.get('task_name') or ''
+                    task_name_extracted = None
+                    if task_name:
+                        extractor = TaskExtractor()
+                        task_name_extracted = extractor.extract_show_name_from_taskname(task_name)
+                    
+                    # 如果从任务名称提取到了不同的剧名，再次尝试 TMDB 匹配
+                    if task_name_extracted and task_name_extracted != show_name and task_name_extracted.strip():
+                        logging.debug(f"尝试备用匹配逻辑 - 任务名称: {task_name}, 从任务名称提取的剧名: {task_name_extracted}, 原保存路径提取的剧名: {show_name}")
+                        backup_show_name = task_name_extracted
+                        backup_year = year  # 复用保存路径提取的年份
+                        backup_search_result = None
+                        backup_match_type = None
+                        
+                        # 优先级匹配逻辑：先尝试精准匹配（名称+年份），无结果时再按名称匹配
+                        if backup_year:
+                            # 第一步：尝试精准匹配（名称+年份）
+                            backup_search_results = tmdb_service.search_tv_show_all(backup_show_name, backup_year)
+                            if backup_search_results:
+                                # 从结果中找到年份完全匹配的
+                                for result in backup_search_results:
+                                    result_year = None
+                                    first_air_date = result.get('first_air_date', '')
+                                    if first_air_date:
+                                        try:
+                                            result_year = first_air_date[:4] if len(first_air_date) >= 4 else None
+                                        except Exception:
+                                            pass
+                                    
+                                    if result_year == backup_year and result.get('id'):
+                                        backup_search_result = result
+                                        backup_match_type = 'exact'
+                                        logging.debug(f"TMDB 备用匹配成功（从任务名称）: 任务名称={task_name}, 节目名称={backup_show_name}, 年份={backup_year}")
+                                        break
+                        
+                        # 第二步：如果精准匹配没有结果，尝试仅名称匹配
+                        if not backup_search_result:
+                            backup_search_results = tmdb_service.search_tv_show_all(backup_show_name, None)
+                            if backup_search_results:
+                                # 如果有年份信息，选择年份最接近的结果
+                                if backup_year:
+                                    try:
+                                        target_year = int(backup_year)
+                                        best_match = None
+                                        min_year_diff = float('inf')
+                                        
+                                        for result in backup_search_results:
+                                            if not result.get('id'):
+                                                continue
+                                            result_year = None
+                                            first_air_date = result.get('first_air_date', '')
+                                            if first_air_date:
+                                                try:
+                                                    result_year = int(first_air_date[:4]) if len(first_air_date) >= 4 else None
+                                                except Exception:
+                                                    pass
+                                            
+                                            if result_year:
+                                                year_diff = abs(result_year - target_year)
+                                                if year_diff < min_year_diff:
+                                                    min_year_diff = year_diff
+                                                    best_match = result
+                                        
+                                        if best_match:
+                                            backup_search_result = best_match
+                                            backup_match_type = 'name_only'
+                                            matched_year = best_match.get('first_air_date', '')[:4] if best_match.get('first_air_date') else '未知'
+                                            logging.debug(f"TMDB 备用匹配成功（从任务名称，年份不一致）: 任务名称={task_name}, 节目名称={backup_show_name}, 期望年份={backup_year}, 匹配年份={matched_year}, 年份差异={min_year_diff}")
+                                    except (ValueError, TypeError) as e:
+                                        # 年份解析失败，使用第一个结果
+                                        backup_search_result = backup_search_results[0] if backup_search_results else None
+                                        backup_match_type = 'name_only'
+                                        logging.debug(f"TMDB 备用匹配成功（从任务名称，年份解析失败）: 任务名称={task_name}, 节目名称={backup_show_name}, 错误={e}")
+                                else:
+                                    # 没有年份信息，直接使用第一个结果
+                                    backup_search_result = backup_search_results[0] if backup_search_results else None
+                                    backup_match_type = 'name_only'
+                                    logging.debug(f"TMDB 备用匹配成功（从任务名称，无年份信息）: 任务名称={task_name}, 节目名称={backup_show_name}")
+                        
+                        # 如果备用匹配找到了结果，使用备用匹配的结果并执行处理逻辑
+                        if backup_search_result and backup_search_result.get('id'):
+                            search_result = backup_search_result
+                            match_type = backup_match_type
+                            show_name = backup_show_name  # 更新为从任务名称提取的剧名
+                            
+                            # 执行处理逻辑（复用第6150-6198行的逻辑）
+                            tmdb_id = search_result['id']
+                            details = tmdb_service.get_tv_show_details(tmdb_id) or {}
+                            seasons = details.get('seasons', [])
+                            
+                            # 选择已播出的季中最新的一季
+                            from datetime import datetime as _dt
+                            today_date = _dt.now().date()
+                            latest_season_number = 0
+                            latest_air_date = None
+                            
+                            for s in seasons:
+                                sn = s.get('season_number', 0)
+                                air_date = s.get('air_date')
+                                
+                                # 只考虑已播出的季（有air_date且早于或等于今天的日期）
+                                if sn and sn > 0 and air_date:  # 排除第0季（特殊季）
+                                    try:
+                                        season_air_date = datetime.strptime(air_date, '%Y-%m-%d').date()
+                                        if season_air_date <= today_date:
+                                            # 选择播出日期最新的季
+                                            if latest_air_date is None or season_air_date > latest_air_date:
+                                                latest_season_number = sn
+                                                latest_air_date = season_air_date
+                                    except (ValueError, TypeError):
+                                        # 日期格式错误，跳过
+                                        continue
+                            
+                            # 如果没有找到已播出的季，回退到第1季
+                            if latest_season_number == 0:
+                                latest_season_number = 1
+
+                            # 更新 extracted 字典，使用从任务名称提取的剧名
+                            extracted['show_name'] = show_name
+                            cal['extracted'] = extracted
+
+                            chinese_title = tmdb_service.get_chinese_title_with_fallback(tmdb_id, show_name)
+                            
+                            cal['match'] = {
+                                'matched_show_name': chinese_title,
+                                'matched_year': (details.get('first_air_date') or '')[:4],
+                                'tmdb_id': tmdb_id,
+                                'latest_season_number': latest_season_number,
+                                'latest_season_fetch_url': f"/tv/{tmdb_id}/season/{latest_season_number}",
+                            }
+                            task['calendar_info'] = cal
+                            
+                            # 立即通知前端元数据匹配完成
+                            try:
+                                notify_calendar_changed('edit_metadata')
+                            except Exception:
+                                pass
+                        else:
+                            # 备用匹配也失败
+                            year_info = f", 年份={year}" if year else ""
+                            logging.warning(f"TMDB 匹配失败（包括备用匹配） - 任务名称: {task_name}, 保存路径提取的节目名称: {show_name}{year_info}, 任务名称提取的节目名称: {task_name_extracted}, 失败原因: TMDB 搜索无结果，可能节目名称不匹配或 TMDB 中不存在该节目")
+                    else:
+                        # 没有从任务名称提取到不同的剧名，或者提取的剧名与保存路径提取的相同
+                        year_info = f", 年份={year}" if year else ""
+                        logging.warning(f"TMDB 匹配失败 - 任务名称: {task.get('taskname', '')}, 搜索的节目名称: {show_name}{year_info}, 失败原因: TMDB 搜索无结果，可能节目名称不匹配或 TMDB 中不存在该节目")
                         
             except Exception as e:
                 # 捕获异常并输出详细的失败原因
