@@ -768,8 +768,17 @@ class Quark:
     def do_save_check(self, shareurl, savepath):
         try:
             pwd_id, passcode, pdir_fid, _ = self.extract_url(shareurl)
-            stoken = self.get_stoken(pwd_id, passcode)["data"]["stoken"]
-            share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["data"]["list"]
+            stoken_result = self.get_stoken(pwd_id, passcode)
+            if stoken_result.get("code") != 0 or "data" not in stoken_result:
+                print(f"❌ 获取 stoken 失败: {stoken_result.get('message', '未知错误')}")
+                return None
+            stoken = stoken_result["data"]["stoken"]
+            
+            detail_result = self.get_detail(pwd_id, stoken, pdir_fid)
+            if detail_result.get("code") != 0 or "data" not in detail_result:
+                print(f"❌ 获取分享文件列表失败: {detail_result.get('message', '未知错误')}")
+                return None
+            share_file_list = detail_result["data"]["list"]
             print(f"获取分享: {share_file_list}")
             fid_list = [item["fid"] for item in share_file_list]
             fid_token_list = [item["share_fid_token"] for item in share_file_list]
@@ -842,7 +851,11 @@ class Quark:
     def dir_check_and_save(self, task, pwd_id, stoken, pdir_fid="", subdir_path=""):
         tree = Tree()
         # 获取分享文件列表
-        share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["data"]["list"]
+        detail_result = self.get_detail(pwd_id, stoken, pdir_fid)
+        if detail_result.get("code") != 0 or "data" not in detail_result:
+            print(f"❌ 获取分享文件列表失败: {detail_result.get('message', '未知错误')}")
+            return tree
+        share_file_list = detail_result["data"]["list"]
         # print("share_file_list: ", share_file_list)
 
         if not share_file_list:
@@ -856,9 +869,13 @@ class Quark:
             and subdir_path == ""
         ):  # 仅有一个文件夹
             print("🧠 该分享是一个文件夹，读取文件夹内列表")
-            share_file_list = self.get_detail(
+            detail_result2 = self.get_detail(
                 pwd_id, stoken, share_file_list[0]["fid"]
-            )["data"]["list"]
+            )
+            if detail_result2.get("code") != 0 or "data" not in detail_result2:
+                print(f"❌ 获取文件夹内容失败: {detail_result2.get('message', '未知错误')}")
+                return tree
+            share_file_list = detail_result2["data"]["list"]
 
         # 获取目标目录文件列表
         savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
@@ -869,7 +886,11 @@ class Quark:
                 print(f"❌ 目录 {savepath} fid获取失败，跳过转存")
                 return tree
         to_pdir_fid = self.savepath_fid[savepath]
-        dir_file_list = self.ls_dir(to_pdir_fid)["data"]["list"]
+        ls_result = self.ls_dir(to_pdir_fid)
+        if ls_result.get("code") != 0 or "data" not in ls_result:
+            print(f"❌ 获取目录列表失败: {ls_result.get('message', '未知错误')}")
+            return tree
+        dir_file_list = ls_result["data"]["list"]
         dir_filename_list = [dir_file["file_name"] for dir_file in dir_file_list]
         # print("dir_file_list: ", dir_file_list)
 
@@ -1153,6 +1174,13 @@ def do_save(account, tasklist=[]):
     for index, task in enumerate(tasklist):
         print()
         print(f"#{index+1}------------------")
+        
+        # 判断任务周期
+        if not is_time(task):
+            print(f"任务名称: {task['taskname']} - 不在运行周期内，跳过")
+            continue
+        
+        # 显示详细任务信息
         print(f"任务名称: {task['taskname']}")
         print(f"分享链接: {task['shareurl']}")
         print(f"保存路径: {task['savepath']}")
@@ -1167,10 +1195,8 @@ def do_save(account, tasklist=[]):
                 f"运行周期: WK{task.get('runweek',[])} ~ {task.get('enddate','forever')}"
             )
         print()
-        # 判断任务周期
-        if not is_time(task):
-            print(f"任务不在运行周期内，跳过")
-        else:
+        
+        try:
             is_new_tree = account.do_save_task(task)
 
             # 补充任务的插件配置
@@ -1198,6 +1224,16 @@ def do_save(account, tasklist=[]):
                         task = (
                             plugin.run(task, account=account, tree=is_new_tree) or task
                         )
+        except Exception as e:
+            print(f"❌ 任务执行失败: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+        
+        # 任务间延迟,避免风控
+        if index < len(tasklist) - 1:  # 不是最后一个任务
+            import time
+            print(f"⏳ 等待20秒后执行下一个任务...")
+            time.sleep(20)
     print()
     print(f"===============插件收尾===============")
     for plugin_name, plugin in plugins.items():
