@@ -6209,7 +6209,7 @@
           // 先进行基础筛选
           let filteredEpisodes = this.calendar.episodes.filter(episode => {
             // 根据筛选条件过滤
-            const matchedTask = this.findTaskByShowName(episode.show_name);
+            const matchedTask = this.getCalendarTaskForEpisode(episode);
             if (this.calendar.selectedType !== 'all') {
               const episodeContentType = matchedTask ? (matchedTask.content_type || 'other') : 'other';
               if (episodeContentType !== this.calendar.selectedType) {
@@ -6348,7 +6348,41 @@
           return result;
         },
         
-        // 根据剧集名称查找对应的任务
+        // 根据剧集对象查找对应的任务（优先使用 task_info / tmdb_id，最后才回退到名称匹配）
+        getCalendarTaskForEpisode(episode) {
+          try {
+            if (!episode || !this.calendar || !Array.isArray(this.calendar.tasks)) return null;
+            
+            // 1. 优先根据后端注入的 task_info.task_name 精确匹配任务
+            const taskInfo = episode.task_info || {};
+            const taskNameFromInfo = (taskInfo.task_name || taskInfo.taskname || '').trim();
+            if (taskNameFromInfo) {
+              const exactByName = this.calendar.tasks.find(t => 
+                (t.task_name || t.taskname || '').trim() === taskNameFromInfo
+              );
+              if (exactByName) return exactByName;
+            }
+            
+            // 2. 其次根据 tmdb_id 与任务中的 calendar_info.match.tmdb_id 进行匹配
+            const tmdbId = episode.tmdb_id;
+            if (tmdbId) {
+              const byTmdb = this.calendar.tasks.find(t => {
+                const cal = (t.calendar_info || {});
+                const match = (cal.match || {});
+                const tTmdb = match.tmdb_id || cal.tmdb_id;
+                return tTmdb && String(tTmdb) === String(tmdbId);
+              });
+              if (byTmdb) return byTmdb;
+            }
+            
+            // 3. 兜底：回退到按节目名称匹配（与旧逻辑保持兼容）
+            return this.findTaskByShowName(episode.show_name);
+          } catch (e) {
+            return null;
+          }
+        },
+        
+        // 根据剧集名称查找对应的任务（名称级别匹配，可能存在同名冲突，仅作兜底使用）
         findTaskByShowName(showName) {
           if (!this.calendar.tasks || !showName) return null;
           
@@ -6390,7 +6424,7 @@
         getEpisodeFinaleStatus(episode) {
           try {
             if (!this.isFinaleEpisode(episode)) return '';
-            const task = this.findTaskByShowName(episode && episode.show_name);
+            const task = this.getCalendarTaskForEpisode(episode);
             const status = task && task.matched_status ? String(task.matched_status).trim() : '';
             // 规范：若节目为“已完结/已取消”，则在 finale 集显示对应状态；否则显示“本季终”
             if (status === '已完结' || status === '已取消') return status;
