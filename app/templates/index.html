@@ -3491,12 +3491,14 @@
           manageMode: false,
           layoutTick: 0,
           contentTypes: [],
-          // 仅用于“已转存”判定的进度映射（来源：/task_latest_info.latest_files）
+          // 仅用于"已转存"判定的进度映射（来源：/task_latest_info.latest_files）
           progressByTaskName: {},
           progressByShowName: {},
           // 当日更新数据（来源：/api/calendar/today_updates_local）
           todayUpdatesByTaskName: {}, // { [task_name]: true }
           todayUpdatesByShow: {},     // { [show_name]: Set(keys) }，key: 'S01E02' 或 'D:YYYY-MM-DD'
+          // 按 tmdb_id 缓存 content_type，避免为每集重复查询（性能优化）
+          contentTypeByTmdbId: {}, // { [tmdb_id]: content_type }
           // 从本地存储读取已选择的类型，默认 all
           selectedType: (localStorage.getItem('calendar_selected_type') || 'all'),
           nameFilter: '',
@@ -6054,6 +6056,46 @@
             const res = await axios.get('/api/calendar/episodes_local');
             if (res.data && res.data.success) {
               this.calendar.episodes = res.data.data.episodes || [];
+              // 建立按 tmdb_id 缓存 content_type 的映射（性能优化：避免为每集重复查询）
+              // 策略：1. 优先使用 episode.task_info.content_type（后端已注入）
+              //       2. 其次从任务列表中按 tmdb_id 查找（批量建立，避免重复）
+              //       3. 最后才回退到按名称匹配（仅作为兜底）
+              this.calendar.contentTypeByTmdbId = {};
+              const processedTmdbIds = new Set(); // 记录已处理的 tmdb_id，避免重复处理
+              this.calendar.episodes.forEach(episode => {
+                if (episode.tmdb_id) {
+                  const tmdbId = String(episode.tmdb_id);
+                  // 如果该 tmdb_id 已经处理过，跳过
+                  if (processedTmdbIds.has(tmdbId)) {
+                    return;
+                  }
+                  
+                  // 优先使用 episode.task_info.content_type（后端已注入）
+                  if (episode.task_info && episode.task_info.content_type) {
+                    this.calendar.contentTypeByTmdbId[tmdbId] = episode.task_info.content_type;
+                    processedTmdbIds.add(tmdbId);
+                    return;
+                  }
+                  
+                  // 从任务列表中按 tmdb_id 查找（批量建立，避免重复）
+                  if (this.calendar.tasks && Array.isArray(this.calendar.tasks)) {
+                    const matchedTask = this.calendar.tasks.find(t => {
+                      const cal = (t.calendar_info || {});
+                      const match = (cal.match || {});
+                      const tTmdb = match.tmdb_id || cal.tmdb_id;
+                      return tTmdb && String(tTmdb) === tmdbId;
+                    });
+                    if (matchedTask) {
+                      this.calendar.contentTypeByTmdbId[tmdbId] = matchedTask.content_type || 'other';
+                      processedTmdbIds.add(tmdbId);
+                      return;
+                    }
+                  }
+                  
+                  // 最后才回退到按名称匹配（仅作为兜底，但标记为已处理，避免重复）
+                  processedTmdbIds.add(tmdbId);
+                }
+              });
               return this.calendar.episodes.length;
             }
             return 0;
@@ -6208,10 +6250,29 @@
           
           // 先进行基础筛选
           let filteredEpisodes = this.calendar.episodes.filter(episode => {
-            // 根据筛选条件过滤
-            const matchedTask = this.getCalendarTaskForEpisode(episode);
+            // 类型筛选：优先使用 episode.task_info.content_type 或缓存，避免为每集都调用 getCalendarTaskForEpisode
             if (this.calendar.selectedType !== 'all') {
-              const episodeContentType = matchedTask ? (matchedTask.content_type || 'other') : 'other';
+              let episodeContentType = 'other';
+              // 1. 优先使用 episode.task_info.content_type（后端已注入）
+              if (episode.task_info && episode.task_info.content_type) {
+                episodeContentType = episode.task_info.content_type;
+              } 
+              // 2. 其次从缓存中获取（按 tmdb_id 缓存，同一剧集只需查询一次）
+              else if (episode.tmdb_id) {
+                const cachedType = this.calendar.contentTypeByTmdbId[String(episode.tmdb_id)];
+                if (cachedType) {
+                  episodeContentType = cachedType;
+                } else {
+                  // 缓存未命中，查找任务并更新缓存（仅查找一次）
+                  const matchedTask = this.getCalendarTaskForEpisode(episode);
+                  if (matchedTask) {
+                    episodeContentType = matchedTask.content_type || 'other';
+                    // 更新缓存，供后续集使用
+                    this.calendar.contentTypeByTmdbId[String(episode.tmdb_id)] = episodeContentType;
+                  }
+                }
+              }
+              
               if (episodeContentType !== this.calendar.selectedType) {
                 return false;
               }
@@ -6226,8 +6287,10 @@
               }
             }
             
-            // 任务筛选：检查任务名称
+            // 任务筛选和状态筛选：只有在需要完整任务对象时才调用 getCalendarTaskForEpisode
+            let matchedTask = null;
             if (this.calendar.taskFilter && this.calendar.taskFilter.trim() !== '') {
+              matchedTask = this.getCalendarTaskForEpisode(episode);
               const taskName = matchedTask ? (matchedTask.task_name || matchedTask.taskname || '') : '';
               if (taskName !== this.calendar.taskFilter) {
                 return false;
@@ -6235,8 +6298,13 @@
             }
 
             // 状态筛选：复用任务列表逻辑
-            if (!this.filterTaskByStatus(matchedTask, this.calendar.statusFilter)) {
-              return false;
+            if (this.calendar.statusFilter && this.calendar.statusFilter.trim() !== '') {
+              if (!matchedTask) {
+                matchedTask = this.getCalendarTaskForEpisode(episode);
+              }
+              if (!this.filterTaskByStatus(matchedTask, this.calendar.statusFilter)) {
+                return false;
+              }
             }
             
             // 优先使用 display_air_date（根据 calendar_timezone_mode 设置），否则使用 air_date
@@ -7087,6 +7155,37 @@
                       this.tasklist.selectedType = 'all';
                     }
                   } catch (e) { /* 忽略类型热更新异常 */ }
+                  
+                  // 热更新 contentTypeByTmdbId 缓存：如果类型有变化，更新对应 tmdb_id 的缓存
+                  try {
+                    const originalTaskName = (this.editMetadata.original && this.editMetadata.original.task_name) || '';
+                    const newTaskName = (this.editMetadata.form && this.editMetadata.form.task_name) || originalTaskName;
+                    const newContentType = (this.editMetadata.form && this.editMetadata.form.content_type) || '';
+                    // 如果类型有变化（!noTypeChange 为 true），更新缓存
+                    if (newContentType && !noTypeChange) {
+                      let tmdbId = null;
+                      // 优先使用后端返回的 tmdb_id（如果有）
+                      if (res.data && res.data.tmdb_id) {
+                        tmdbId = res.data.tmdb_id;
+                      } else {
+                        // 从更新后的任务列表中找到对应的任务（使用新的任务名称）
+                        const updatedTask = (this.calendar.tasks || []).find(t => {
+                          const tName = (t.task_name || t.taskname || '').trim();
+                          return tName === newTaskName || (originalTaskName && tName === originalTaskName);
+                        });
+                        if (updatedTask) {
+                          // 获取任务的 tmdb_id
+                          const cal = (updatedTask.calendar_info || {});
+                          const match = (cal.match || {});
+                          tmdbId = match.tmdb_id || cal.tmdb_id || updatedTask.match_tmdb_id;
+                        }
+                      }
+                      if (tmdbId) {
+                        // 更新缓存，确保后续筛选使用最新的类型
+                        this.$set(this.calendar.contentTypeByTmdbId, String(tmdbId), newContentType);
+                      }
+                    }
+                  } catch (e) { /* 忽略缓存热更新异常 */ }
                 }
                 await refreshPromise;
                 // 再次触发缓存穿透，保证刷新后的数据也使用新时间戳
