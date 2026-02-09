@@ -14570,9 +14570,10 @@
             this.createTask.taskData.execution_mode = this.formData.execution_mode || 'manual';
             
             // 如果有上一个任务，继承保存路径和命名规则
+            let lastTask = null;
             if (this.formData.tasklist && this.formData.tasklist.length > 0) {
               // 使用新的筛选逻辑：根据当前视图筛选条件获取对应类型中编号最大的任务
-              const lastTask = this.getLastTaskByCurrentFilter();
+              lastTask = this.getLastTaskByCurrentFilter();
               if (lastTask) {
                 this.createTask.taskData.savepath = lastTask.savepath || "";
                 this.createTask.taskData.pattern = lastTask.pattern || "";
@@ -14583,6 +14584,34 @@
                 this.createTask.taskData.use_episode_naming = lastTask.use_episode_naming || false;
                 this.createTask.taskData.sequence_naming = lastTask.sequence_naming || "";
                 this.createTask.taskData.episode_naming = lastTask.episode_naming || "";
+              }
+            }
+
+            // 根据当前视图筛选条件设置新任务的内容类型（与 addTask 保持一致）
+            if (this.tasklist && this.tasklist.selectedType && this.tasklist.selectedType !== 'all') {
+              if (!this.createTask.taskData.calendar_info) {
+                this.createTask.taskData.calendar_info = {};
+              }
+              if (!this.createTask.taskData.calendar_info.extracted) {
+                this.createTask.taskData.calendar_info.extracted = {};
+              }
+              this.createTask.taskData.calendar_info.extracted.content_type = this.tasklist.selectedType;
+              this.createTask.taskData.content_type = this.tasklist.selectedType;
+            } else if (lastTask) {
+              // 如果当前未按类型筛选，则继承最后一个任务的内容类型（如果有）
+              const inheritedType =
+                ((lastTask.calendar_info || {}).extracted || {}).content_type ||
+                lastTask.content_type ||
+                '';
+              if (inheritedType) {
+                if (!this.createTask.taskData.calendar_info) {
+                  this.createTask.taskData.calendar_info = {};
+                }
+                if (!this.createTask.taskData.calendar_info.extracted) {
+                  this.createTask.taskData.calendar_info.extracted = {};
+                }
+                this.createTask.taskData.calendar_info.extracted.content_type = inheritedType;
+                this.createTask.taskData.content_type = inheritedType;
               }
             }
             
@@ -14728,6 +14757,17 @@
           } else if (currentRanking.includes('纪录片')) {
             contentType = 'documentary';
           }
+
+          // 设置内容类型到任务数据
+          this.createTask.taskData.content_type = contentType;
+          // 确保 calendar_info 结构存在
+          if (!this.createTask.taskData.calendar_info) {
+            this.createTask.taskData.calendar_info = {};
+          }
+          if (!this.createTask.taskData.calendar_info.extracted) {
+            this.createTask.taskData.calendar_info.extracted = {};
+          }
+          this.createTask.taskData.calendar_info.extracted.content_type = contentType;
 
           // 检查当前内容类型是否使用了自定义设置
           const isCustomSettings = this.isUsingCustomTaskSettingsForType(taskSettings, contentType);

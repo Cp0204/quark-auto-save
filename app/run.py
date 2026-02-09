@@ -2780,10 +2780,10 @@ def sync_content_type_between_config_and_database() -> bool:
             if not task_name:
                 continue
                 
-            # 获取任务配置中的内容类型
+            # 获取任务配置中的内容类型（优先使用 task.content_type，其次使用 extracted.content_type）
             cal = task.get('calendar_info') or {}
             extracted = cal.get('extracted') or {}
-            config_content_type = extracted.get('content_type', '')
+            config_content_type = task.get('content_type') or extracted.get('content_type', '')
             
             # 通过任务名称查找绑定的节目
             bound_show = cal_db.get_show_by_task_name(task_name)
@@ -2808,6 +2808,8 @@ def sync_content_type_between_config_and_database() -> bool:
                     logging.debug(f"覆盖数据库内容类型为任务配置值 - 任务: '{task_name}', 配置: '{config_content_type}', 原DB: '{db_content_type}', tmdb_id: {tmdb_id}")
                 # 如果数据库有类型但任务配置没有，则回填到配置
                 elif db_content_type and not config_content_type:
+                    # 同时设置到 task.content_type 和 extracted.content_type，保持数据一致性
+                    task['content_type'] = db_content_type
                     if 'calendar_info' not in task:
                         task['calendar_info'] = {}
                     if 'extracted' not in task['calendar_info']:
@@ -2977,10 +2979,12 @@ def ensure_calendar_info_for_tasks() -> bool:
         need_extract = not extracted or not extracted.get('show_name')
         if need_extract:
             info = extractor.extract_show_info_from_path(save_path)
+            # 优先使用任务已有的 content_type（从创建位置判定），如果没有则使用从保存路径判定的类型
+            existing_content_type = task.get('content_type') or extracted.get('content_type') or info.get('type', 'other')
             extracted = {
                 'show_name': info.get('show_name', ''),
                 'year': info.get('year', ''),
-                'content_type': info.get('type', 'other'),
+                'content_type': existing_content_type,
             }
             cal['extracted'] = extracted
             changed = True
@@ -3048,6 +3052,17 @@ def ensure_calendar_info_for_tasks() -> bool:
                         'latest_season_fetch_url': f"/tv/{tmdb_id}/season/{latest_season_number}",
                     }
                     changed = True
+                else:
+                    # 未匹配到任何 TMDB 节目时，将类型矫正为 other
+                    # 但如果用户手动设置了类型（user_manual_content_type），则保留用户设置，不进行自动矫正
+                    user_manual_content_type = cal.get('user_manual_content_type', False)
+                    if not user_manual_content_type:
+                        extracted['content_type'] = 'other'
+                        cal['extracted'] = extracted
+                        task['content_type'] = 'other'
+                        changed = True
+                        # 清除缓存，确保前端能获取到最新的类型信息
+                        clear_calendar_tasks_cache()
             except Exception as e:
                 logging.warning(f"TMDB 匹配失败: task={task_name}, err={e}")
 
@@ -6065,10 +6080,12 @@ def process_single_task_async(task, tmdb_service, cal_db):
             task_name = task.get('taskname') or task.get('task_name') or ''
             save_path = task.get('savepath', '')
             info = extractor.extract_show_info_from_path(save_path)
+            # 优先使用任务已有的 content_type（从创建位置判定），如果没有则使用从保存路径判定的类型
+            existing_content_type = task.get('content_type') or extracted.get('content_type') or info.get('type', 'other')
             extracted = {
                 'show_name': info.get('show_name', ''),
                 'year': info.get('year', ''),
-                'content_type': info.get('type', 'other'),
+                'content_type': existing_content_type,
             }
             cal['extracted'] = extracted
             task['calendar_info'] = cal
@@ -6315,8 +6332,18 @@ def process_single_task_async(task, tmdb_service, cal_db):
                             if latest_season_number == 0:
                                 latest_season_number = 1
 
-                            # 更新 extracted 字典，使用从任务名称提取的剧名
+                            # 更新 extracted 字典，使用从任务名称提取的剧名，保留原有的 content_type
                             extracted['show_name'] = show_name
+                            # 保留原有的 content_type（从创建位置判定），如果不存在或是 'other' 则从任务配置中获取
+                            current_content_type = extracted.get('content_type', '')
+                            if not current_content_type or current_content_type == 'other':
+                                # 优先使用任务配置中的 content_type（从创建位置判定）
+                                task_content_type = task.get('content_type')
+                                if task_content_type:
+                                    extracted['content_type'] = task_content_type
+                                elif not current_content_type:
+                                    # 如果任务配置中也没有，保持 'other'
+                                    extracted['content_type'] = 'other'
                             cal['extracted'] = extracted
 
                             chinese_title = tmdb_service.get_chinese_title_with_fallback(tmdb_id, show_name)
@@ -6357,6 +6384,34 @@ def process_single_task_async(task, tmdb_service, cal_db):
                 tb_lines = traceback.format_exc().split('\n')
                 tb_summary = '; '.join([line.strip() for line in tb_lines[:3] if line.strip()][:2])
                 logging.warning(f"TMDB 匹配失败 - 任务名称: {task_name}, 搜索的节目名称: {show_name}{year_info}, 失败原因: 异常类型={error_type}, 错误信息={error_detail}, 堆栈摘要={tb_summary}")
+
+        # 如果启用了 TMDB 服务但最终仍未匹配到任何节目，则将类型矫正为 other
+        # 这里仅在本次流程中始终没有获得 tmdb_id 时生效，不影响已匹配成功的任务
+        # 但如果用户手动设置了类型（user_manual_content_type），则保留用户设置，不进行自动矫正
+        if tmdb_service and not tmdb_id and extracted.get('show_name'):
+            # 检查是否为用户手动设置的类型
+            user_manual_content_type = cal.get('user_manual_content_type', False)
+            if not user_manual_content_type:
+                try:
+                    # 矫正 extracted 中的类型
+                    extracted['content_type'] = 'other'
+                    cal['extracted'] = extracted
+                    # 同步任务自身的类型，避免任务列表类型筛选出现误差
+                    task['content_type'] = 'other'
+                    task['calendar_info'] = cal
+                    
+                    # 保存配置并清除缓存，确保前端能获取到最新的类型信息
+                    global config_data
+                    Config.write_json(CONFIG_PATH, config_data)
+                    clear_calendar_tasks_cache()
+                    # 通知前端更新
+                    try:
+                        notify_calendar_changed('edit_metadata')
+                    except Exception:
+                        pass
+                except Exception:
+                    # 类型矫正失败不影响主流程
+                    pass
 
         # 如果现在有 TMDB ID，下载海报并更新数据库，并在可能的情况下同步 Trakt 播出时间信息
         if tmdb_id:
@@ -7995,6 +8050,8 @@ def calendar_edit_metadata():
                 # 同步到任务配置中的 extracted 与顶层 content_type，保证前端与其他逻辑可见
                 extracted['content_type'] = new_content_type
                 target['content_type'] = new_content_type
+                # 标记为用户手动设置的类型，避免被自动矫正为 other
+                target['calendar_info']['user_manual_content_type'] = True
                 # 未匹配任务：没有 old_tmdb_id 时，不访问数据库，仅更新配置
                 # 已匹配任务：若已有绑定的 tmdb_id，则立即同步到数据库
                 try:
