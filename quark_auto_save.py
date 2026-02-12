@@ -94,7 +94,7 @@ class Config:
             return False
 
     def load_plugins(plugins_config={}, plugins_dir="plugins"):
-        PLUGIN_FLAGS = os.environ.get("PsLUGIN_FLAGS", "").split(",")
+        PLUGIN_FLAGS = os.environ.get("PLUGIN_FLAGS", "").split(",")
         plugins_available = {}
         task_plugins_config = {}
         # 获取所有模块
