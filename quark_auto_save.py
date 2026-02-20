@@ -1758,6 +1758,243 @@ class Quark:
                 time.sleep(0.500)
         return response
 
+    def cloud_unarchive(self, fid, to_pdir_fid="0"):
+        """
+        云解压压缩文件（需要夸克高级会员）
+        
+        参数:
+            fid: 压缩文件的 fid
+            to_pdir_fid: 解压目标目录 fid，'0' 表示根目录
+        
+        返回:
+            解压结果，包含 task_id 和解压后的文件信息
+        """
+        url = f"{self.BASE_URL}/1/clouddrive/archive/unarchive"
+        querystring = {
+            "pr": "ucpro",
+            "fr": "pc",
+            "uc_param_str": "",
+        }
+        payload = {
+            "fid": fid,
+            "select_mode": 1,  # 1 表示全部解压
+            "to_pdir_fid": to_pdir_fid,
+        }
+        response = self._send_request("POST", url, json=payload, params=querystring).json()
+        
+        if response.get("code") == 0:
+            return response
+        
+        # 错误处理
+        error_code = response.get("code")
+        error_msg = response.get("message", "")
+        
+        if error_code == 23008 and "doloading" in error_msg:
+            # 文件正在处理中
+            return {"code": 23008, "message": "文件正在处理中，请稍后重试"}
+        elif error_code == 31001:
+            # 非 SVIP 会员
+            return {"code": 31001, "message": "云解压需要夸克 88VIP、SVIP、SVIP+ 等高级会员"}
+        else:
+            return response
+
+    def query_unarchive_task(self, task_id, timeout=300):
+        """
+        查询解压任务状态
+        
+        参数:
+            task_id: 解压任务 ID
+            timeout: 超时时间（秒）
+        
+        返回:
+            解压任务结果，包含解压后的文件信息
+        """
+        start_time = time.time()
+        retry_index = 0
+        
+        while time.time() - start_time < timeout:
+            url = f"{self.BASE_URL}/1/clouddrive/task"
+            querystring = {
+                "pr": "ucpro",
+                "fr": "pc",
+                "uc_param_str": "",
+                "task_id": task_id,
+                "retry_index": retry_index,
+            }
+            response = self._send_request("GET", url, params=querystring).json()
+            
+            if response.get("code") == 0:
+                data = response.get("data", {})
+                status = data.get("status")
+                
+                if status == 2:  # 完成
+                    return {"code": 0, "data": data}
+                elif status == 4:  # 失败
+                    return {"code": -1, "message": "解压任务失败", "data": data}
+                else:
+                    # 任务进行中
+                    retry_index += 1
+                    time.sleep(1)
+            else:
+                return response
+        
+        return {"code": -1, "message": "解压任务超时"}
+
+    def is_archive_file(self, filename):
+        """判断是否为压缩文件"""
+        lower_name = filename.lower()
+        archive_extensions = ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.tar.gz', '.tar.bz2']
+        return any(lower_name.endswith(ext) for ext in archive_extensions)
+
+    def process_auto_extract(self, archive_fid, archive_name, target_pdir_fid, extract_mode, task=None):
+        """
+        处理压缩文件的自动解压
+        
+        参数:
+            archive_fid: 压缩文件的 fid
+            archive_name: 压缩文件名
+            target_pdir_fid: 目标目录的 fid
+            extract_mode: 解压模式 (keep_structure_keep_archive, flat_files_keep_archive, 
+                          keep_structure_delete_archive, flat_files_delete_archive)
+            task: 任务信息（用于日志）
+        
+        返回:
+            dict: 包含解压结果信息
+        """
+        task_name = task.get("taskname", "未知任务") if task else "未知任务"
+        
+        # 解析解压模式
+        keep_structure = "keep_structure" in extract_mode
+        delete_archive = "delete_archive" in extract_mode
+        
+        # 第一步：执行云解压（解压到根目录）
+        unarchive_result = self.cloud_unarchive(archive_fid, "0")
+        
+        if unarchive_result.get("code") == 23008:
+            # 文件正在处理中，等待后重试
+            print(f"  ⏳ 文件正在处理中，等待 15 秒后重试...")
+            time.sleep(15)
+            unarchive_result = self.cloud_unarchive(archive_fid, "0")
+        
+        if unarchive_result.get("code") != 0:
+            error_msg = unarchive_result.get("message", "未知错误")
+            print(f"  ❌ 云解压失败: {error_msg}")
+            return {"success": False, "message": error_msg}
+        
+        # 获取解压任务 ID
+        unarchive_task_id = unarchive_result.get("data", {}).get("task_id")
+        if not unarchive_task_id:
+            print(f"  ❌ 未获取到解压任务 ID")
+            return {"success": False, "message": "未获取到解压任务 ID"}
+        
+        # 第二步：等待解压任务完成
+        task_result = self.query_unarchive_task(unarchive_task_id)
+        
+        if task_result.get("code") != 0:
+            error_msg = task_result.get("message", "解压任务失败")
+            print(f"  ❌ {error_msg}")
+            return {"success": False, "message": error_msg}
+        
+        # 获取解压后的文件夹信息
+        unarchive_data = task_result.get("data", {})
+        unarchive_result_info = unarchive_data.get("unarchive_result", {})
+        extracted_list = unarchive_result_info.get("list", [])
+        
+        if not extracted_list:
+            print(f"  ⚠️ 未获取到解压结果")
+            return {"success": False, "message": "未获取到解压结果"}
+        
+        # 解压后的文件夹（在根目录）
+        extracted_folder = extracted_list[0]
+        extracted_folder_fid = extracted_folder.get("fid")
+        extracted_folder_name = extracted_folder.get("file_name")
+        
+        # 第三步：获取解压后的所有文件
+        extracted_files = self.ls_dir(extracted_folder_fid)
+        
+        # 收集所有需要处理的文件（递归获取）
+        all_files = []
+        folders_to_delete = [extracted_folder_fid]  # 需要删除的文件夹列表
+        
+        def collect_files_recursive(folder_fid, relative_path=""):
+            """递归收集文件夹内的所有文件"""
+            files = self.ls_dir(folder_fid)
+            for f in files:
+                file_relative_path = f"{relative_path}/{f['file_name']}" if relative_path else f['file_name']
+                if f.get("dir"):
+                    folders_to_delete.append(f["fid"])
+                    collect_files_recursive(f["fid"], file_relative_path)
+                else:
+                    all_files.append({
+                        "fid": f["fid"],
+                        "file_name": f["file_name"],
+                        "relative_path": file_relative_path,
+                        "size": f.get("size", 0),
+                        "parent_fid": folder_fid,
+                    })
+        
+        collect_files_recursive(extracted_folder_fid)
+        
+        # 第四步：根据模式移动文件
+        moved_files = []
+        
+        if keep_structure:
+            # 保持原目录结构：将整个解压文件夹移动到目标目录
+            move_result = self.move([extracted_folder_fid], target_pdir_fid)
+            if move_result.get("code") == 0:
+                moved_files = all_files
+                folders_to_delete = []  # 不需要删除，因为已经移动了
+                # 记录需要后续重命名的子目录（与顶层相同规则）
+                if task is not None:
+                    subdir_path = f"/{extracted_folder_name}"
+                    auto_subdirs = task.get("_auto_extract_subdirs") or []
+                    if subdir_path not in auto_subdirs:
+                        auto_subdirs.append(subdir_path)
+                        task["_auto_extract_subdirs"] = auto_subdirs
+            else:
+                print(f"  ❌ 移动文件夹失败: {move_result.get('message')}")
+        else:
+            # 仅保留文件：将所有文件移动到目标目录（扁平化）
+            for f in all_files:
+                move_result = self.move([f["fid"]], target_pdir_fid)
+                if move_result.get("code") == 0:
+                    moved_files.append(f)
+                else:
+                    print(f"    ❌ {f['file_name']}: {move_result.get('message')}")
+            
+            # 删除解压后的空文件夹（从最深层开始删除）
+            for folder_fid in reversed(folders_to_delete):
+                self.delete([folder_fid])
+        
+        # 第五步：根据模式处理原压缩文件
+        archive_deleted = False
+        if delete_archive:
+            # 等待一小段时间确保之前的操作完成
+            time.sleep(0.5)
+            delete_result = self.delete([archive_fid])
+            if delete_result.get("code") == 0:
+                archive_deleted = True
+            else:
+                error_msg = delete_result.get('message', '未知错误')
+                print(f"  ⚠️ 删除压缩文件失败: {error_msg}")
+                # 重试一次
+                time.sleep(1)
+                delete_result = self.delete([archive_fid])
+                if delete_result.get("code") == 0:
+                    archive_deleted = True
+                else:
+                    print(f"  ❌ 重试删除仍然失败")
+
+        return {
+            "success": True,
+            "extracted_folder_name": extracted_folder_name,
+            "extracted_folder_fid": extracted_folder_fid if keep_structure else None,
+            "moved_files": moved_files,
+            "total_files": len(all_files),
+            "archive_deleted": archive_deleted,
+            "delete_requested": delete_archive,
+        }
+
     def download(self, fids):
         url = f"{self.BASE_URL}/1/clouddrive/file/download"
         querystring = {"pr": "ucpro", "fr": "pc", "uc_param_str": ""}
@@ -3443,6 +3680,63 @@ class Quark:
                 task_id = save_file_return["data"]["task_id"]
                 query_task_return = self.query_task(task_id)
                 if query_task_return["code"] == 0:
+                    # 等待文件保存完成
+                    time.sleep(1)
+                    
+                    # 检查是否需要自动解压压缩文件
+                    auto_extract_mode = task.get("auto_extract_archive", "disabled")
+                    if auto_extract_mode != "disabled":
+                        # 获取刚转存的文件列表
+                        fresh_files = self.ls_dir(to_pdir_fid)
+
+                        # 检查是否有压缩文件需要解压
+                        items_to_remove = []
+                        items_to_add = []
+                        
+                        for saved_item in need_save_list:
+                            if not saved_item.get("dir", False) and self.is_archive_file(saved_item["file_name"]):
+                                # 在目标目录中找到对应的压缩文件
+                                archive_file = None
+                                for f in fresh_files:
+                                    if f["file_name"] == saved_item["file_name"]:
+                                        archive_file = f
+                                        break
+                                
+                                if archive_file:
+                                    # 执行自动解压
+                                    extract_result = self.process_auto_extract(
+                                        archive_fid=archive_file["fid"],
+                                        archive_name=archive_file["file_name"],
+                                        target_pdir_fid=to_pdir_fid,
+                                        extract_mode=auto_extract_mode,
+                                        task=task
+                                    )
+                                    
+                                    if extract_result.get("success"):
+                                        # 只有在压缩文件确实被删除时，才从列表中移除它
+                                        # 这样可以避免后续重命名操作处理不存在的文件
+                                        if extract_result.get("archive_deleted", False):
+                                            items_to_remove.append(saved_item)
+                                        # 添加解压出的文件到列表
+                                        for moved_file in extract_result.get("moved_files", []):
+                                            items_to_add.append({
+                                                "fid": moved_file["fid"],
+                                                "file_name": moved_file["file_name"],
+                                                "save_name": moved_file["file_name"],
+                                                "original_name": moved_file["file_name"],
+                                                "size": moved_file["size"],
+                                                "dir": False,
+                                                "obj_category": "default",
+                                                "share_fid_token": "",
+                                                "_from_extraction": True,  # 标记来自解压
+                                            })
+                        
+                        # 更新 need_save_list
+                        for item in items_to_remove:
+                            if item in need_save_list:
+                                need_save_list.remove(item)
+                        need_save_list.extend(items_to_add)
+                    
                     # 建立目录树
                     saved_files = []
 
@@ -4011,6 +4305,74 @@ class Quark:
                                 # 进行重命名操作，确保文件按照预览名称保存
                                 time.sleep(1)  # 等待文件保存完成
                                 
+                                # 检查是否需要自动解压压缩文件
+                                auto_extract_mode = task.get("auto_extract_archive", "disabled")
+                                if auto_extract_mode != "disabled":
+                                    # 获取刚转存的文件列表
+                                    fresh_files = self.ls_dir(self.savepath_fid[savepath])
+                                    
+                                    # 用于安全更新 need_save_list 的临时列表
+                                    items_to_remove_ep = []
+                                    items_to_add_ep = []
+                                    
+                                    # 检查是否有压缩文件需要解压
+                                    for saved_item in need_save_list:
+                                        if not saved_item.get("dir", False) and self.is_archive_file(saved_item["file_name"]):
+                                            # 在目标目录中找到对应的压缩文件
+                                            archive_file = None
+                                            for f in fresh_files:
+                                                if f["file_name"] == saved_item["file_name"]:
+                                                    archive_file = f
+                                                    break
+                                            
+                                            if archive_file:
+                                                # 执行自动解压
+                                                extract_result = self.process_auto_extract(
+                                                    archive_fid=archive_file["fid"],
+                                                    archive_name=archive_file["file_name"],
+                                                    target_pdir_fid=self.savepath_fid[savepath],
+                                                    extract_mode=auto_extract_mode,
+                                                    task=task
+                                                )
+                                                
+                                                if extract_result.get("success"):
+                                                    # 只有在压缩文件确实被删除时，才从列表中移除它
+                                                    if extract_result.get("archive_deleted", False):
+                                                        items_to_remove_ep.append(saved_item)
+                                                    # 添加解压后的文件到待添加列表
+                                                    for moved_file in extract_result.get("moved_files", []):
+                                                        # 关键修复：为解压出的文件生成正确的 save_name（根据剧集命名规则）
+                                                        moved_file_name = moved_file["file_name"]
+                                                        episode_num = extract_episode_number_local(moved_file_name)
+                                                        if episode_num is not None:
+                                                            # 根据剧集命名规则生成 save_name
+                                                            file_ext = os.path.splitext(moved_file_name)[1]
+                                                            if episode_pattern == "[]":
+                                                                save_name = f"{episode_num:02d}{file_ext}"
+                                                            else:
+                                                                save_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                                                            # 应用字幕命名规则
+                                                            save_name = apply_subtitle_naming_rule(save_name, task)
+                                                        else:
+                                                            # 无法提取剧集号，使用原文件名
+                                                            save_name = moved_file_name
+                                                        
+                                                        items_to_add_ep.append({
+                                                            "fid": moved_file["fid"],
+                                                            "file_name": moved_file_name,
+                                                            "original_name": moved_file_name,
+                                                            "save_name": save_name,
+                                                            "size": moved_file["size"],
+                                                            "dir": False,
+                                                            "_from_extraction": True,
+                                                        })
+                                    
+                                    # 应用解压后的列表更新
+                                    for item in items_to_remove_ep:
+                                        if item in need_save_list:
+                                            need_save_list.remove(item)
+                                    need_save_list.extend(items_to_add_ep)
+                                
                                 # 保存转存记录到数据库
                                 for saved_item in need_save_list:
                                     if not saved_item.get("dir", False):  # 只记录文件，不记录文件夹
@@ -4050,6 +4412,12 @@ class Quark:
                                         for saved_item in need_save_list:
                                             saved_episode_num = extract_episode_number_local(saved_item["original_name"])
                                             if saved_episode_num == episode_num:
+                                                # 关键修复：防止将视频文件错误匹配到压缩文件项
+                                                # 如果目录中的文件是视频文件，而保存项是压缩文件，则跳过匹配
+                                                if self.is_archive_file(dir_file["file_name"]) != self.is_archive_file(saved_item["original_name"]):
+                                                    # 文件类型不匹配，跳过
+                                                    continue
+                                                
                                                 # 匹配到对应的剧集号
                                                 target_name = saved_item["save_name"]
                                                 # 确保目标名称不重复
@@ -4078,6 +4446,12 @@ class Quark:
                                     # 尝试精确匹配
                                     if dir_file["file_name"] in original_name_to_item:
                                         saved_item = original_name_to_item[dir_file["file_name"]]
+                                        # 关键修复：防止将视频文件错误匹配到压缩文件项
+                                        # 如果目录中的文件是视频文件，而保存项是压缩文件，则跳过匹配
+                                        if self.is_archive_file(dir_file["file_name"]) != self.is_archive_file(saved_item["original_name"]):
+                                            # 文件类型不匹配，跳过
+                                            continue
+                                        
                                         target_name = saved_item["save_name"]
                                         episode_num = extract_episode_number_local(saved_item["original_name"]) or 9999
                                         
@@ -4090,6 +4464,12 @@ class Quark:
                                     dir_file_prefix = dir_file["file_name"].split(".")[0]
                                     for prefix, saved_item in list(original_name_to_item.items()):
                                         if prefix in dir_file_prefix or dir_file_prefix in prefix:
+                                            # 关键修复：防止将视频文件错误匹配到压缩文件项
+                                            # 如果目录中的文件是视频文件，而保存项是压缩文件，则跳过匹配
+                                            if self.is_archive_file(dir_file["file_name"]) != self.is_archive_file(saved_item["original_name"]):
+                                                # 文件类型不匹配，跳过
+                                                continue
+                                            
                                             # 找到相似的文件名
                                             target_name = saved_item["save_name"]
                                             episode_num = extract_episode_number_local(saved_item["original_name"]) or 9999
@@ -4637,6 +5017,11 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
             global NOTIFYS
             notifys_before = NOTIFYS.copy()
             
+            # 将全局的自动解压设置添加到任务中
+            task_settings = CONFIG_DATA.get("task_settings", {})
+            if "auto_extract_archive" not in task:
+                task["auto_extract_archive"] = task_settings.get("auto_extract_archive", "disabled")
+            
             # 执行保存任务
             is_new_tree = account.do_save_task(task)
             
@@ -4648,6 +5033,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
             
             # 执行重命名任务，但收集日志而不是立即打印
             is_rename, rename_logs = account.do_rename_task(task)
+
             
             # 处理子目录重命名 - 如果配置了更新目录且使用正则命名模式
             if task.get("update_subdir") and task.get("pattern") is not None:
@@ -4713,6 +5099,25 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                     
                     # 从根目录开始递归处理
                     process_subdirs(savepath)
+            
+            # 处理云解压后“保持原目录结构”的子目录重命名
+            # 与顶层目录使用相同的重命名规则
+            auto_extract_subdirs = task.get("_auto_extract_subdirs") or []
+            for subdir_path in auto_extract_subdirs:
+                try:
+                    subtask = task.copy()
+                    subdir_is_rename, subdir_rename_logs = account.do_rename_task(subtask, subdir_path)
+                    if subdir_is_rename and subdir_rename_logs:
+                        # 过滤掉失败日志，只保留成功的
+                        clean_logs = []
+                        for log in subdir_rename_logs:
+                            if "失败" not in log:
+                                clean_logs.append(log)
+                        rename_logs.extend(clean_logs)
+                        is_rename = is_rename or subdir_is_rename
+                except Exception as e:
+                    # 防御性处理，避免子目录异常影响主流程
+                    print(f"⚠️ 自动解压子目录重命名出错（{subdir_path}）: {e}")
             
             # 简化日志处理 - 只保留成功的重命名消息
             if rename_logs:
@@ -4794,9 +5199,6 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
             if is_new_tree and isinstance(is_new_tree, Tree) and is_new_tree.size() > 1:
                 # 获取所有文件（非目录）节点
                 file_nodes = [node for node in is_new_tree.all_nodes_itr() if node.data.get("is_dir") == False]
-                
-                # 计算文件数量
-                file_count = len(file_nodes)
                 
                 # 创建一个映射列表，包含需要显示的文件名
                 display_files = []
@@ -5340,6 +5742,17 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                         # 虽然标记为首次运行，但没有新增子目录，不应展示子目录内容
                         has_update_in_subdir = False
                     
+                    # 构建重命名映射（用于更新文件树中的文件名）
+                    rename_mapping = {}
+                    if rename_logs:
+                        for log in rename_logs:
+                            # 格式：重命名: 旧名 → 新名
+                            match = re.search(r'重命名: (.*?) → (.+?)($|\s|，|失败)', log)
+                            if match:
+                                old_name = match.group(1).strip()
+                                new_name = match.group(2).strip()
+                                rename_mapping[old_name] = new_name
+                    
                     # 构建完整的目录树结构（支持多层级嵌套）
                     def build_directory_tree():
                         # 创建目录树结构
@@ -5394,7 +5807,6 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                             # 添加该目录的文件
                             if dir_id in subdir_new_files:
                                 # 处理嵌套目录下的文件
-                                nested_files = []
                                 non_nested_files = []
                                 
                                 for file_node in subdir_new_files[dir_id]:
@@ -5430,7 +5842,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                         return dir_tree
                     
                     # 递归显示目录树
-                    def display_tree(node, prefix="", is_last=True, depth=0):
+                    def display_tree(node, prefix="", depth=0):
                         # 获取目录和文件列表
                         dirs = sorted(node["dirs"].items())
                         files = node.get("files", [])
@@ -5445,16 +5857,25 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                             # 在根目录级别，如果只有根目录有更新，则过滤掉所有子目录
                             dirs = []
                         
-                        # 计算总项数（目录+文件）
-                        total_items = len(dirs) + len(files)
+                        # 先过滤掉空的目录，避免影响后续计算
+                        valid_dirs = []
+                        for dir_name, dir_data in dirs:
+                            dir_files = dir_data.get("files", [])
+                            dir_subdirs = dir_data.get("dirs", {})
+                            # 如果目录既没有文件也没有子目录，跳过
+                            if len(dir_files) == 0 and len(dir_subdirs) == 0:
+                                continue
+                            # 检查目录是否在新增目录列表中或有子文件更新
+                            if is_first_run and dir_name not in new_added_dirs and len(dir_files) == 0:
+                                continue
+                            valid_dirs.append((dir_name, dir_data))
+                        
+                        # 计算总项数（有效目录+文件）
+                        total_items = len(valid_dirs) + len(files)
                         current_item = 0
                         
                         # 处理目录
-                        for i, (dir_name, dir_data) in enumerate(dirs):
-                            # 检查目录是否在新增目录列表中或有子文件更新
-                            if is_first_run and dir_name not in new_added_dirs and len(dir_data.get("files", [])) == 0:
-                                continue
-                                
+                        for i, (dir_name, dir_data) in enumerate(valid_dirs):
                             current_item += 1
                             is_dir_last = current_item == total_items
                             
@@ -5484,7 +5905,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                                         new_prefix = prefix + "│   "  # 非最后一项，使用竖线
                                 
                                 # 递归显示子目录
-                                display_tree(dir_data, new_prefix, is_dir_last, depth + 1)
+                                display_tree(dir_data, new_prefix, depth + 1)
                         
                         # 处理文件
                         sorted_files = sort_nodes(files) if files else []
@@ -5495,6 +5916,9 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                             # 显示文件
                             file_prefix = prefix + ("└── " if is_file_last else "├── ")
                             file_name = remove_file_icons(file_node.tag)
+                            # 关键修复：如果文件被重命名了，使用重命名后的文件名
+                            if file_name in rename_mapping:
+                                file_name = rename_mapping[file_name]
                             icon = get_file_icon(file_name, is_dir=False)
                             add_notify(format_file_display(file_prefix, icon, file_name))
                     
@@ -5915,7 +6339,24 @@ def main():
         print()
     # 通知
     if NOTIFYS:
-        notify_body = "\n".join(NOTIFYS)
+        # 为推送通知做一次轻量清洗，避免文件树中出现多余空行
+        def _clean_notify_lines(lines):
+            cleaned = []
+            total = len(lines)
+            for i, line in enumerate(lines):
+                # 跳过仅用于分隔的空行（例如出现在树形文件项之间）
+                if not line.strip():
+                    prev_line = lines[i - 1] if i > 0 else ""
+                    next_line = lines[i + 1] if i + 1 < total else ""
+                    # 如果前后都是树形文件行，则认为这是多余的空行，只保留在转存日志中，不进入推送正文
+                    if (prev_line.strip().startswith(("├──", "└──")) and
+                        next_line.strip().startswith(("├──", "└──"))):
+                        continue
+                cleaned.append(line)
+            return cleaned
+
+        notify_lines = _clean_notify_lines(NOTIFYS)
+        notify_body = "\n".join(notify_lines)
         print(f"===============推送通知===============")
         send_ql_notify("【夸克自动转存】", notify_body)
         print()

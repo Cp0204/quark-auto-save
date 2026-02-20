@@ -826,8 +826,23 @@
                   <span class="input-group-text">自动搜索资源</span>
                 </div>
                 <select class="form-control" v-model="formData.task_settings.auto_search_resources" title="启用后，在影视发现页面点击海报创建任务时，如果配置了有效的CloudSaver信息，将自动触发资源搜索功能">
-                  <option value="disabled">禁用</option>
                   <option value="enabled">启用</option>
+                  <option value="disabled">禁用</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="input-group">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">自动解压压缩包</span>
+                </div>
+                <select class="form-control" v-model="formData.task_settings.auto_extract_archive" title="启用后，转存压缩包时将自动进行云解压，支持zip、rar、7z、tar、gz等格式（仅限夸克高级会员），若压缩包过大无法完成云解压，可通过夸克客户端进行解压">
+                  <option value="keep_structure_keep_archive">保持原目录结构，保留压缩包</option>
+                  <option value="flat_files_keep_archive">扁平化提取文件，保留压缩包</option>
+                  <option value="keep_structure_delete_archive">保持原目录结构，删除压缩包</option>
+                  <option value="flat_files_delete_archive">扁平化提取文件，删除压缩包</option>
+                  <option value="disabled">禁用</option>
                 </select>
               </div>
             </div>
@@ -9038,7 +9053,8 @@
                   tv_ignore_extension: true,
                   subtitle_naming_rule: "zh",
                   subtitle_add_language_code: false,
-                  auto_search_resources: "enabled"
+                  auto_search_resources: "enabled",
+                  auto_extract_archive: "disabled"
                 };
               }
               // 确保电影命名规则字段存在，只在字段不存在时设置默认值，允许用户设置为空字符串
@@ -9062,6 +9078,10 @@
               // 确保自动搜索资源设置存在
               if (!config_data.task_settings.auto_search_resources) {
                 config_data.task_settings.auto_search_resources = "enabled";
+              }
+              // 确保自动解压压缩文件设置存在
+              if (!config_data.task_settings.auto_extract_archive) {
+                config_data.task_settings.auto_extract_archive = "disabled";
               }
               // 确保按钮显示配置存在
               if (!config_data.button_display) {
