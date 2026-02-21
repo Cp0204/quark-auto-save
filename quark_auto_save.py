@@ -1935,7 +1935,26 @@ class Quark:
         
         collect_files_recursive(extracted_folder_fid)
         
-        # 第四步：根据模式移动文件
+        # 第四步：应用过滤规则并删除被过滤掉的文件
+        if task and task.get("filterwords"):
+            # 应用过滤规则，获取通过过滤的文件列表
+            filtered_files = advanced_filter_files(all_files, task["filterwords"])
+            
+            # 找出被过滤掉的文件（不在过滤后的列表中）
+            filtered_file_fids = {f["fid"] for f in filtered_files}
+            files_to_delete = [f for f in all_files if f["fid"] not in filtered_file_fids]
+            
+            # 删除被过滤掉的文件
+            if files_to_delete:
+                for file_to_delete in files_to_delete:
+                    delete_result = self.delete([file_to_delete["fid"]])
+                    if delete_result.get("code") != 0:
+                        print(f"    ⚠️ 删除被过滤文件失败: {file_to_delete['file_name']} - {delete_result.get('message', '未知错误')}")
+                
+                # 更新 all_files 列表，只保留通过过滤的文件
+                all_files = filtered_files
+        
+        # 第五步：根据模式移动文件
         moved_files = []
         
         if keep_structure:
@@ -1966,7 +1985,7 @@ class Quark:
             for folder_fid in reversed(folders_to_delete):
                 self.delete([folder_fid])
         
-        # 第五步：根据模式处理原压缩文件
+        # 第六步：根据模式处理原压缩文件
         archive_deleted = False
         if delete_archive:
             # 等待一小段时间确保之前的操作完成
