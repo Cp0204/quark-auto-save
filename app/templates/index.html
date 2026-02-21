@@ -3007,6 +3007,7 @@
                       <option value="anime">动画</option>
                       <option value="variety">综艺</option>
                       <option value="documentary">纪录片</option>
+                      <option value="movie">电影</option>
                       <option value="other">其他</option>
                     </select>
                   </div>
@@ -5965,7 +5966,7 @@
 
         // 内容类型中文名
         getContentTypeCN(type) {
-          const map = { tv: '剧集', anime: '动画', variety: '综艺', documentary: '纪录片', other: '其他' };
+          const map = { tv: '剧集', anime: '动画', variety: '综艺', documentary: '纪录片', movie: '电影', other: '其他' };
           return map[type] || '其他';
         },
 
@@ -6643,6 +6644,7 @@
             'anime': '动画',
             'variety': '综艺',
             'documentary': '纪录片',
+            'movie': '电影',
             'other': '其他'
           };
           return typeNames[type] || type;
@@ -7155,7 +7157,7 @@
                     if (!rawTypes || rawTypes.length === 0) {
                       rawTypes = Array.from(new Set((this.calendar.tasks || []).map(t => (t && t.content_type) || '').filter(Boolean)));
                     }
-                    const known = ['tv','anime','variety','documentary'];
+                    const known = ['tv','anime','variety','documentary','movie'];
                     const uniq = Array.from(new Set(rawTypes.filter(Boolean)));
                     const ordered = uniq.sort((a,b) => {
                       const ia = known.indexOf(a); const ib = known.indexOf(b);
@@ -8995,8 +8997,8 @@
                     // 同步任务列表可用类型集合（复用日历的类型热更新逻辑）
                     try {
                       const rawTypes = (res.data.data && res.data.data.content_types) || [];
-                      // 与日历相同的排序：tv、anime、variety、documentary、other（其他最后）
-                      const known = ['tv','anime','variety','documentary'];
+                      // 与日历相同的排序：tv、anime、variety、documentary、movie、other（其他最后）
+                      const known = ['tv','anime','variety','documentary','movie'];
                       const uniq = Array.from(new Set(rawTypes.filter(Boolean)));
                       const ordered = uniq.sort((a,b) => {
                         const ia = known.indexOf(a); const ib = known.indexOf(b);
