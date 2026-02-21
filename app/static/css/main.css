@@ -5755,15 +5755,14 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   width: 100%;
 }
 
-/* 四个模式按钮：约一半宽度、最小宽度保证窄屏时单列显示，文本居左 */
+/* 四个模式按钮：约一半宽度、最小宽度保证窄屏时单列显示，文本居左，左边距与类型按钮(calendar-category-btn)一致 */
 #extractFileModal .extract-mode-btn {
   flex: 1 1 calc(50% - 4px);
   min-width: min(220px, 100%);
   margin-bottom: 0;
   justify-content: flex-start;
   text-align: left;
-  padding-left: 12px;
-  padding-right: 12px;
+  padding: -5px 12px; /* 与 calendar-category-btn 保持一致 */
   box-sizing: border-box;
 }
 
