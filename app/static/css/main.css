@@ -1548,7 +1548,8 @@ button.close:focus,
 /* 文件选择弹窗整体样式 */
 #fileSelectModal .modal-dialog,
 #createTaskModal .modal-dialog,
-#editMetadataModal .modal-dialog {
+#editMetadataModal .modal-dialog,
+#extractFileModal .modal-dialog {
   max-width: 1080px;
   margin: 4rem auto;
   width: calc(100% - 1.25rem); /* 左右各保留1.5rem的最小边距 */
@@ -1556,7 +1557,8 @@ button.close:focus,
 
 #fileSelectModal .modal-content,
 #createTaskModal .modal-content,
-#editMetadataModal .modal-content {
+#editMetadataModal .modal-content,
+#extractFileModal .modal-content {
   border-radius: var(--modal-border-radius);
   border: 1px solid var(--border-color);
   box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
@@ -1565,7 +1567,8 @@ button.close:focus,
 /* 弹窗头部样式 */
 #fileSelectModal .modal-header,
 #createTaskModal .modal-header,
-#editMetadataModal .modal-header {
+#editMetadataModal .modal-header,
+#extractFileModal .modal-header {
   background-color: #fff;
   border-bottom: 1px solid var(--border-color);
   padding: 11px 16px;
@@ -1573,9 +1576,15 @@ button.close:focus,
   border-top-right-radius: var(--modal-border-radius);
 }
 
+/* 云解压模态框标题栏内高与编辑元数据等保持一致 */
+#extractFileModal .modal-header {
+  padding: 10.5px 16px;
+}
+
 #fileSelectModal .modal-title,
 #createTaskModal .modal-title,
-#editMetadataModal .modal-title {
+#editMetadataModal .modal-title,
+#extractFileModal .modal-title {
   font-size: 1.2rem;
   font-weight: 500;
   color: var(--dark-text-color);
@@ -1592,7 +1601,8 @@ button.close:focus,
 /* 弹窗关闭按钮 */
 #fileSelectModal .close,
 #createTaskModal .close,
-#editMetadataModal .close {
+#editMetadataModal .close,
+#extractFileModal .close {
   font-size: 1.4rem;
   padding: 8px;
   margin: -8px -8px -8px auto;
@@ -1605,6 +1615,7 @@ button.close:focus,
 #fileSelectModal .close .bi-x-lg,
 #createTaskModal .close .bi-x-lg,
 #editMetadataModal .close .bi-x-lg,
+#extractFileModal .close .bi-x-lg,
 .modal .close .bi-x-lg {
   font-size: 1.2rem;
   color: var(--dark-text-color);
@@ -1616,7 +1627,8 @@ button.close:focus,
 
 #fileSelectModal .close:hover,
 #createTaskModal .close:hover,
-#editMetadataModal .close:hover {
+#editMetadataModal .close:hover,
+#extractFileModal .close:hover {
   opacity: 1;
   color: var(--dark-text-color);
 }
@@ -1624,20 +1636,28 @@ button.close:focus,
 /* 弹窗主体样式 */
 #fileSelectModal .modal-body,
 #createTaskModal .modal-body,
-#editMetadataModal .modal-body {
+#editMetadataModal .modal-body,
+#extractFileModal .modal-body {
   padding: 16px;
   font-size: 0.875rem;
 }
 
-/* 创建任务模态框主内容区相对定位 */
+/* 创建任务/编辑元数据/云解压模态框主内容区相对定位 */
 #createTaskModal .modal-body,
-#editMetadataModal .modal-body {
+#editMetadataModal .modal-body,
+#extractFileModal .modal-body {
   position: relative;
 }
 
-/* 创建任务模态框主内容区底部分割线 */
+/* 云解压模态框四个按钮与底部分割线的距离减少 8px */
+#extractFileModal .modal-body {
+  padding-bottom: 8px;
+}
+
+/* 创建任务/编辑元数据/云解压模态框主内容区底部分割线 */
 #createTaskModal .modal-body::after,
-#editMetadataModal .modal-body::after {
+#editMetadataModal .modal-body::after,
+#extractFileModal .modal-body::after {
   content: '';
   position: absolute;
   bottom: 7px;
@@ -1972,7 +1992,8 @@ button.close:focus,
 /* 弹窗底部样式 */
 #fileSelectModal .modal-footer,
 #createTaskModal .modal-footer,
-#editMetadataModal .modal-footer {
+#editMetadataModal .modal-footer,
+#extractFileModal .modal-footer {
   border-top: none; /* 隐藏底部分割线 */
   padding: 0px 16px 12px 16px; /* 上 右 下 左：设置上内边距为0 */
   margin-top: -4px; /* 使用负margin使整个底部区域向上移动 */
@@ -1985,14 +2006,16 @@ button.close:focus,
 /* 添加文件选择模态框左下角文件信息文本的左边距样式 */
 #fileSelectModal .modal-footer .file-selection-info,
 #createTaskModal .modal-footer .file-selection-info,
-#editMetadataModal .modal-footer .file-selection-info {
+#editMetadataModal .modal-footer .file-selection-info,
+#extractFileModal .modal-footer .file-selection-info {
   margin-left: 0px; /* 与表格左边距保持一致 */
   font-size: 0.85rem !important; /* 覆盖内联样式 */
 }
 
 #fileSelectModal .modal-footer span,
 #createTaskModal .modal-footer span,
-#editMetadataModal .modal-footer span {
+#editMetadataModal .modal-footer span,
+#extractFileModal .modal-footer span {
   font-size: 0.85rem;
   color: var(--dark-text-color);
   margin-right: auto;
@@ -2001,7 +2024,8 @@ button.close:focus,
 /* 弹窗底部按钮样式 */
 #fileSelectModal .btn-primary,
 #createTaskModal .btn-primary,
-#editMetadataModal .btn-primary {
+#editMetadataModal .btn-primary,
+#extractFileModal .btn-primary {
   background-color: var(--focus-border-color);
   border-color: var(--focus-border-color);
   font-size: 0.85rem;
@@ -2017,7 +2041,8 @@ button.close:focus,
 /* 弹窗底部按钮内的标记样式 */
 #fileSelectModal .btn-primary .badge,
 #createTaskModal .btn-primary .badge,
-#editMetadataModal .btn-primary .badge {
+#editMetadataModal .btn-primary .badge,
+#extractFileModal .btn-primary .badge {
   margin-left: 5px;
   display: flex;
   align-items: center;
@@ -2025,7 +2050,8 @@ button.close:focus,
 
 #fileSelectModal .btn-primary:hover,
 #createTaskModal .btn-primary:hover,
-#editMetadataModal .btn-primary:hover {
+#editMetadataModal .btn-primary:hover,
+#extractFileModal .btn-primary:hover {
   background-color: #0A42CC !important;
   border-color: #0A42CC !important;
 }
@@ -2037,13 +2063,15 @@ button.close:focus,
 
 /* 弹窗底部有文本内容的按钮样式 */
 #fileSelectModal .btn-primary:has(span),
-#createTaskModal .btn-primary:has(span) {
+#createTaskModal .btn-primary:has(span),
+#extractFileModal .btn-primary:has(span) {
   width: auto;
   padding: 0 8px;
 }
 
 #fileSelectModal .btn-primary:not(:has(span)),
-#createTaskModal .btn-primary:not(:has(span)) {
+#createTaskModal .btn-primary:not(:has(span)),
+#extractFileModal .btn-primary:not(:has(span)) {
   width: auto;
   min-width: 32px;
   padding: 0 8px;
@@ -5218,6 +5246,11 @@ table.selectable-files .move-record-btn:hover {
   color: #0A42CC !important;
 }
 
+/* 文件整理页面云解压按钮悬停效果 */
+table.selectable-files .extract-record-btn:hover {
+  color: #0A42CC !important;
+}
+
 /* 文件整理页面删除按钮悬停效果 */
 table.selectable-files .delete-record-btn:hover {
   color: #b02a37 !important;
@@ -5456,7 +5489,7 @@ tr.selected-record .file-size-cell .delete-record-btn,
   left: 0.5px;
 }
 
-/* 移动按钮样式 */
+/* 移动按钮样式（无云解压时在重命名右侧 32px，有云解压时在云解压右侧 59px） */
 .selectable-files .move-record-btn {
   color: var(--focus-border-color);
   cursor: pointer;
@@ -5467,10 +5500,14 @@ tr.selected-record .file-size-cell .delete-record-btn,
   height: 24px;
   border-radius: 4px;
   position: absolute;
-  left: 32px; /* 在重命名按钮右侧，调整间距 */
+  left: 32px;
   top: 50%;
   transform: translateY(-50%);
   font-size: 14px;
+}
+
+.selectable-files .file-size-cell .extract-record-btn ~ .move-record-btn {
+  left: 59px;
 }
 
 /* 文件整理页面的移动文件按钮图标大小 */
@@ -5491,16 +5528,21 @@ tr.selected-record .file-size-cell .delete-record-btn,
   border-radius: 4px;
   position: absolute;
   right: auto; /* 移除右对齐 */
-  left: 59px; /* 在移动按钮右侧，调整间距 */
+  left: 59px; /* 在移动按钮右侧，调整间距；当有云解压按钮时由下方规则覆盖为86px */
   top: 50%;
   transform: translateY(-50%);
   font-size: 14px;
 }
 
-/* 文件大小单元格需要相对定位以容纳绝对定位的按钮 */
+/* 当存在云解压按钮时，删除按钮右移 */
+.selectable-files .file-size-cell .extract-record-btn ~ .delete-record-btn {
+  left: 86px;
+}
+
+/* 文件大小单元格需要相对定位以容纳绝对定位的按钮（四个按钮：重命名、云解压、移动、删除，最右至 110px，故 min-width 需 ≥120px） */
 .selectable-files .file-size-cell {
   position: relative;
-  min-width: 80px;
+  min-width: 120px;
 }
 
 /* 修复：确保在悬停和选中状态下重命名、移动和删除按钮显示 */
@@ -5594,6 +5636,12 @@ body .selectable-files tr.selected-file .file-size-cell .delete-record-btn {
   opacity: 1 !important;
 }
 
+/* 当存在云解压按钮时，删除按钮右移 - 最高优先级 */
+body .selectable-files tbody tr:hover .file-size-cell .extract-record-btn ~ .delete-record-btn,
+body .selectable-files tr.selected-file .file-size-cell .extract-record-btn ~ .delete-record-btn {
+  left: 86px !important;
+}
+
 /* 展开状态下的重命名按钮悬停和选中状态 - 最高优先级 */
 body .selectable-files tbody tr:hover:has([style*="white-space: normal"]) .file-size-cell .rename-record-btn,
 body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .file-size-cell .rename-record-btn {
@@ -5628,6 +5676,117 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   opacity: 1 !important;
 }
 
+/* 云解压按钮样式 */
+.selectable-files .extract-record-btn {
+  color: var(--focus-border-color);
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  position: absolute;
+  left: 32px; /* 在重命名按钮右侧、移动按钮左侧 */
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+}
+
+/* 文件整理页面的云解压文件按钮图标大小 */
+.selectable-files .extract-record-btn .bi-file-zip {
+  font-size: 1rem;
+  position: relative;
+}
+
+/* 确保文件整理页面的云解压按钮在悬停和选中状态下始终可见 - 最高优先级 */
+body .selectable-files tbody tr:hover .file-size-cell .extract-record-btn,
+body .selectable-files tr.selected-file .file-size-cell .extract-record-btn {
+  display: inline-flex !important;
+  visibility: visible !important;
+  position: absolute !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  left: 32px !important;
+  width: 24px !important;
+  height: 24px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 5 !important;
+  opacity: 1 !important;
+}
+
+/* 有云解压时移动按钮在 59px */
+body .selectable-files tbody tr:hover .file-size-cell .extract-record-btn ~ .move-record-btn,
+body .selectable-files tr.selected-file .file-size-cell .extract-record-btn ~ .move-record-btn {
+  left: 59px !important;
+}
+
+/* 展开状态下的云解压按钮悬停和选中状态 - 最高优先级 */
+body .selectable-files tbody tr:hover:has([style*="white-space: normal"]) .file-size-cell .extract-record-btn,
+body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .file-size-cell .extract-record-btn {
+  display: inline-flex !important;
+  visibility: visible !important;
+  position: absolute !important;
+  top: 8px !important;
+  transform: none !important;
+  left: 32px !important;
+  width: 24px !important;
+  height: 24px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 5 !important;
+  opacity: 1 !important;
+}
+
+/* 修复：确保在悬停和选中状态下云解压按钮显示 */
+.selectable-files tr:hover .file-size-cell .extract-record-btn,
+.selectable-files tr.selected-file .file-size-cell .extract-record-btn {
+  display: inline-flex !important;
+  visibility: visible !important;
+}
+
+/* 云解压模态框样式：宽度够时两行两列，不够时自动换行为四行一列 */
+.extract-mode-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 0;
+  width: 100%;
+}
+
+/* 四个模式按钮：约一半宽度、最小宽度保证窄屏时单列显示，文本居左 */
+#extractFileModal .extract-mode-btn {
+  flex: 1 1 calc(50% - 4px);
+  min-width: min(220px, 100%);
+  margin-bottom: 0;
+  justify-content: flex-start;
+  text-align: left;
+  padding-left: 12px;
+  padding-right: 12px;
+  box-sizing: border-box;
+}
+
+/* 更改解压位置按钮样式 */
+.change-extract-folder-btn {
+  color: var(--focus-border-color);
+  cursor: pointer;
+  margin-left: 10px;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.change-extract-folder-btn:hover {
+  color: var(--focus-border-color);
+  text-decoration: none;
+}
+
+/* 云解压模态框内「更改」悬停需高于 .modal-footer span 的 color，故单独提高优先级 */
+#extractFileModal .modal-footer .change-extract-folder-btn:hover {
+  color: var(--focus-border-color) !important;
+  text-decoration: none;
+}
+
 /* 展开状态下的删除按钮悬停和选中状态 - 最高优先级 */
 body .selectable-files tbody tr:hover:has([style*="white-space: normal"]) .file-size-cell .delete-record-btn,
 body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .file-size-cell .delete-record-btn {
@@ -5643,6 +5802,16 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   justify-content: center !important;
   z-index: 5 !important;
   opacity: 1 !important;
+}
+
+/* 展开状态下当存在云解压时，移动按钮 59px、删除按钮 86px */
+body .selectable-files tbody tr:hover:has([style*="white-space: normal"]) .file-size-cell .extract-record-btn ~ .move-record-btn,
+body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .file-size-cell .extract-record-btn ~ .move-record-btn {
+  left: 59px !important;
+}
+body .selectable-files tbody tr:hover:has([style*="white-space: normal"]) .file-size-cell .extract-record-btn ~ .delete-record-btn,
+body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .file-size-cell .extract-record-btn ~ .delete-record-btn {
+  left: 86px !important;
 }
 
 /* 文件整理页面的文件名单元格样式 */
@@ -5933,14 +6102,16 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 
 /* 创建任务模态框的取消按钮样式 */
 #createTaskModal .modal-footer .btn-cancel,
-#editMetadataModal .modal-footer .btn-cancel {
+#editMetadataModal .modal-footer .btn-cancel,
+#extractFileModal .modal-footer .btn-cancel {
   background-color: var(--button-gray-background-color) !important;
   border-color: var(--button-gray-background-color) !important;
   color: var(--dark-text-color) !important;
 }
 
 #createTaskModal .modal-footer .btn-cancel:hover,
-#editMetadataModal .modal-footer .btn-cancel:hover {
+#editMetadataModal .modal-footer .btn-cancel:hover,
+#extractFileModal .modal-footer .btn-cancel:hover {
   background-color: #e0e2e6 !important;
   border-color: #e0e2e6 !important;
   color: var(--dark-text-color) !important;
@@ -5971,9 +6142,10 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 
 /* --------------- 创建任务模态框使用任务列表样式 --------------- */
 
-/* 创建任务模态框底部间距调整 */
+/* 创建任务/编辑元数据/云解压模态框底部间距调整 */
 #createTaskModal .modal-footer,
-#editMetadataModal .modal-footer {
+#editMetadataModal .modal-footer,
+#extractFileModal .modal-footer {
   margin-top: 5px; /* 调整为5px，让分割线距离按钮16px */
 }
 
@@ -7943,6 +8115,14 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
 }
 /* 取消按钮维持原有深色文字，不随主按钮白色规则变化 */
 #editMetadataModal .modal-footer .btn.btn-primary.btn-cancel .btn-text {
+  color: var(--dark-text-color);
+}
+
+/* 云解压模态框主按钮（云解压、云解压并前往解压位置）文字白色，取消按钮保持深色 */
+#extractFileModal .modal-footer .btn.btn-primary .btn-text {
+  color: #fff;
+}
+#extractFileModal .modal-footer .btn.btn-primary.btn-cancel .btn-text {
   color: var(--dark-text-color);
 }
 

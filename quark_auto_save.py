@@ -1833,7 +1833,11 @@ class Quark:
                 if status == 2:  # 完成
                     return {"code": 0, "data": data}
                 elif status == 4:  # 失败
-                    return {"code": -1, "message": "解压任务失败", "data": data}
+                    # 尝试从任务结果中提取更具体的失败原因
+                    unarchive_result = data.get("unarchive_result", {})
+                    task_msg = unarchive_result.get("message") or data.get("message") or response.get("message", "")
+                    error_msg = task_msg if task_msg else "解压任务失败"
+                    return {"code": -1, "message": error_msg, "data": data}
                 else:
                     # 任务进行中
                     retry_index += 1
@@ -1842,6 +1846,14 @@ class Quark:
                 return response
         
         return {"code": -1, "message": "解压任务超时"}
+
+    def _is_file_size_extract_error(self, error_msg):
+        """判断是否为文件大小/限制导致的解压失败，此类情况建议使用夸克客户端解压"""
+        if not error_msg:
+            return False
+        msg_lower = error_msg.lower()
+        size_keywords = ("大小", "超限", "超过", "限制", "过大", "size", "limit", "mb", "gb", "不支持")
+        return any(kw in msg_lower for kw in size_keywords)
 
     def is_archive_file(self, filename):
         """判断是否为压缩文件"""
@@ -1882,7 +1894,8 @@ class Quark:
         if unarchive_result.get("code") != 0:
             error_msg = unarchive_result.get("message", "未知错误")
             print(f"  ❌ 云解压失败: {error_msg}")
-            return {"success": False, "message": error_msg}
+            suggest_client = self._is_file_size_extract_error(error_msg)
+            return {"success": False, "message": error_msg, "suggest_client": suggest_client}
         
         # 获取解压任务 ID
         unarchive_task_id = unarchive_result.get("data", {}).get("task_id")
@@ -1900,7 +1913,8 @@ class Quark:
                 print()
             else:
                 print(f"  ❌ {error_msg}")
-            return {"success": False, "message": error_msg}
+            suggest_client = self._is_file_size_extract_error(error_msg)
+            return {"success": False, "message": error_msg, "suggest_client": suggest_client}
         
         # 获取解压后的文件夹信息
         unarchive_data = task_result.get("data", {})
