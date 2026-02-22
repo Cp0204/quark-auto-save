@@ -3900,6 +3900,9 @@ def get_savepath_detail():
                 return jsonify({"success": False, "data": {"error": "获取fid失败"}})
     else:
         fid = request.args.get("fid", "0")
+        # 仅传 fid 时也拉取完整路径，供面包屑显示
+        if fid and str(fid) != "0":
+            paths = account.get_paths(fid)
 
     # 获取文件列表
     files = account.ls_dir(fid)
@@ -4052,6 +4055,68 @@ def move_file():
         return jsonify({
             "success": False,
             "message": f"移动文件时出错: {str(e)}"
+        })
+
+
+@app.route("/extract_file", methods=["POST"])
+def extract_file():
+    """云解压压缩文件（文件整理页面使用）"""
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+
+    account_index = int(request.json.get("account_index", 0))
+    file_id = request.json.get("file_id")
+    file_name = request.json.get("file_name", "")
+    extract_mode = request.json.get("extract_mode", "keep_structure_keep_archive")
+    target_folder_id = request.json.get("target_folder_id", "0")
+
+    if not file_id:
+        return jsonify({"success": False, "message": "缺少文件ID"})
+
+    if account_index < 0 or account_index >= len(config_data["cookie"]):
+        return jsonify({"success": False, "message": "账号索引无效"})
+
+    # 校验解压模式
+    valid_modes = (
+        "keep_structure_keep_archive",
+        "flat_files_keep_archive",
+        "keep_structure_delete_archive",
+        "flat_files_delete_archive",
+    )
+    if extract_mode not in valid_modes:
+        return jsonify({"success": False, "message": "无效的解压模式"})
+
+    try:
+        account = Quark(config_data["cookie"][account_index], account_index)
+        if not account.is_archive_file(file_name):
+            return jsonify({"success": False, "message": "该文件不是支持的压缩格式"})
+
+        result = account.process_auto_extract(
+            archive_fid=file_id,
+            archive_name=file_name,
+            target_pdir_fid=str(target_folder_id),
+            extract_mode=extract_mode,
+            task=None,
+        )
+
+        if result.get("success"):
+            return jsonify({
+                "success": True,
+                "message": "解压成功",
+                "total_files": result.get("total_files", 0),
+            })
+        resp = {
+            "success": False,
+            "message": result.get("message", "解压失败"),
+        }
+        if result.get("suggest_client"):
+            resp["suggest_client"] = True  # 建议使用夸克客户端解压（如文件过大等）
+        return jsonify(resp)
+    except Exception as e:
+        logging.exception("云解压失败")
+        return jsonify({
+            "success": False,
+            "message": f"解压时出错: {str(e)}",
         })
 
 

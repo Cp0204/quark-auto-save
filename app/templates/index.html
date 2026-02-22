@@ -160,6 +160,19 @@
     return 'bi-file-earmark';
   }
 
+  // 判断是否为压缩文件
+  function isArchiveFile(fileName) {
+    if (!fileName) return false;
+    const ext = fileName.toLowerCase().split('.').pop();
+    const archiveExts = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'lzma', 'cab', 'iso'];
+    // 处理.tar.gz和.tar.bz2等复合扩展名
+    const lowerName = fileName.toLowerCase();
+    if (lowerName.endsWith('.tar.gz') || lowerName.endsWith('.tar.bz2')) {
+      return true;
+    }
+    return archiveExts.includes(ext);
+  }
+
   // 添加检测文件整理页面文件名溢出的自定义指令
   Vue.directive('check-file-overflow', {
     inserted: function(el, binding, vnode) {
@@ -826,8 +839,23 @@
                   <span class="input-group-text">自动搜索资源</span>
                 </div>
                 <select class="form-control" v-model="formData.task_settings.auto_search_resources" title="启用后，在影视发现页面点击海报创建任务时，如果配置了有效的CloudSaver信息，将自动触发资源搜索功能">
-                  <option value="disabled">禁用</option>
                   <option value="enabled">启用</option>
+                  <option value="disabled">禁用</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="input-group">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">自动解压压缩包</span>
+                </div>
+                <select class="form-control" v-model="formData.task_settings.auto_extract_archive" title="启用后，转存压缩包时将自动进行云解压，支持zip、rar、7z、tar、gz等格式（仅限夸克高级会员），若压缩包过大无法完成云解压，可通过夸克客户端进行解压">
+                  <option value="keep_structure_keep_archive">保持原目录结构，保留压缩包</option>
+                  <option value="flat_files_keep_archive">扁平化提取文件，保留压缩包</option>
+                  <option value="keep_structure_delete_archive">保持原目录结构，删除压缩包</option>
+                  <option value="flat_files_delete_archive">扁平化提取文件，删除压缩包</option>
+                  <option value="disabled">禁用</option>
                 </select>
               </div>
             </div>
@@ -1852,7 +1880,7 @@
                 <thead>
                   <tr>
                     <th style="width:80%" class="cursor-pointer" @click="sortFiles('file_name')">文件名 <i v-if="fileManager.sortBy === 'file_name'" :class="fileManager.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
-                    <th style="width:10%; min-width: 80px;" class="cursor-pointer" @click="sortFiles('file_size')">大小 <i v-if="fileManager.sortBy === 'file_size'" :class="fileManager.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
+                    <th style="width:10%; min-width: 120px;" class="cursor-pointer" @click="sortFiles('file_size')">大小 <i v-if="fileManager.sortBy === 'file_size'" :class="fileManager.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
                     <th style="width:10%" class="cursor-pointer" @click="sortFiles('updated_at')">修改日期 <i v-if="fileManager.sortBy === 'updated_at'" :class="fileManager.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
                   </tr>
                 </thead>
@@ -1909,6 +1937,9 @@
                         <span class="file-size-value">{{ file.dir ? (file.include_items + ' 项') : formatFileSize(file.size || file.file_size) }}</span>
                         <span class="rename-record-btn" @click.stop="startRenameFile(file)" title="重命名文件">
                           <i class="bi bi-pencil"></i>
+                        </span>
+                        <span v-if="!file.dir && isArchiveFile(file.file_name)" class="extract-record-btn" @click.stop="startExtractFile(file)" title="云解压">
+                          <i class="bi bi-file-zip"></i>
                         </span>
                         <span class="move-record-btn" @click.stop="startMoveFile(file)" title="移动文件">
                           <i class="bi bi-arrow-up-right-circle"></i>
@@ -2518,7 +2549,7 @@
               <span v-if="fileSelect.previewRegex && fileSelect.index >= 0 && formData.tasklist[fileSelect.index]" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">{{ formData.tasklist[fileSelect.index].use_sequence_naming ? '顺序命名预览' : (formData.tasklist[fileSelect.index].use_episode_naming ? '剧集命名预览' : '正则命名预览') }}</span>
               <span v-else-if="fileSelect.previewRegex && fileSelect.index === -1 && document.getElementById('fileSelectModal').getAttribute('data-modal-type') === 'preview'" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">{{ createTask.taskData.use_sequence_naming ? '顺序命名预览' : (createTask.taskData.use_episode_naming ? '剧集命名预览' : '正则命名预览') }}</span>
               <span v-else-if="fileSelect.previewRegex && fileSelect.index === -1 && document.getElementById('fileSelectModal').getAttribute('data-modal-type') === 'preview-filemanager'" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">{{ fileManager.use_sequence_naming ? '顺序命名预览' : (fileManager.use_episode_naming ? '剧集命名预览' : '正则命名预览') }}</span>
-              <span v-else-if="fileSelect.selectDir" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">选择{{fileSelect.moveMode ? '移动到的' : (fileSelect.selectShare ? '需转存的' : '保存到的')}}文件夹</span>
+              <span v-else-if="fileSelect.selectDir" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">选择{{fileManager.extract.selectExtractFolderMode ? '解压到的' : (fileSelect.moveMode ? '移动到的' : (fileSelect.selectShare ? '需转存的' : '保存到的'))}}文件夹</span>
               <span v-else style="font-weight: 600; font-family: inherit; letter-spacing: normal;">选择起始文件</span>
               <div v-if="modalLoading" class="spinner-border spinner-border-sm m-1" role="status"></div>
             </h5>
@@ -2718,7 +2749,8 @@
               </button>
             </div>
             <button type="button" class="btn btn-primary btn-sm" @click="selectCurrentFolder()">
-              <span v-if="fileSelect.moveMode">移动到当前文件夹</span>
+              <span v-if="fileManager.extract.selectExtractFolderMode">解压到当前文件夹</span>
+              <span v-else-if="fileSelect.moveMode">移动到当前文件夹</span>
               <span v-else>{{fileSelect.selectShare ? '转存当前文件夹' : '保存到当前文件夹'}}</span>
             </button>
             <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && fileSelect.index === -1 && createTask.taskData.taskname" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="generateCustomFolderPath(createTask.taskData)"></span>」文件夹</button>
@@ -2992,6 +3024,7 @@
                       <option value="anime">动画</option>
                       <option value="variety">综艺</option>
                       <option value="documentary">纪录片</option>
+                      <option value="movie">电影</option>
                       <option value="other">其他</option>
                     </select>
                   </div>
@@ -3071,6 +3104,62 @@
             <div class="file-selection-info mr-auto" v-html="editMetadata.hint" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;"></div>
             <button type="button" class="btn btn-primary btn-cancel" data-dismiss="modal"><span class="btn-text">取消</span></button>
             <button type="button" class="btn btn-primary" @click="saveEditMetadata"><span class="btn-text">保存</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 云解压模态框 -->
+    <div class="modal" tabindex="-1" id="extractFileModal">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" style="font-weight: 600; font-family: inherit; letter-spacing: normal;">云解压</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+          <div class="modal-body small">
+            <div class="row mb-3">
+              <div class="col-12">
+                <!-- 解压模式选项按钮：宽度够时两行，不够时自动换行为四行 -->
+                <div class="extract-mode-buttons">
+                  <button type="button"
+                          class="btn btn-outline-secondary calendar-category-btn extract-mode-btn"
+                          :class="{ active: fileManager.extract.extractMode === 'keep_structure_keep_archive' }"
+                          @click="fileManager.extract.extractMode = 'keep_structure_keep_archive'; saveExtractMode()">
+                    保持原目录结构，保留压缩包
+                  </button>
+                  <button type="button"
+                          class="btn btn-outline-secondary calendar-category-btn extract-mode-btn"
+                          :class="{ active: fileManager.extract.extractMode === 'flat_files_keep_archive' }"
+                          @click="fileManager.extract.extractMode = 'flat_files_keep_archive'; saveExtractMode()">
+                    扁平化提取文件，保留压缩包
+                  </button>
+                  <button type="button"
+                          class="btn btn-outline-secondary calendar-category-btn extract-mode-btn"
+                          :class="{ active: fileManager.extract.extractMode === 'keep_structure_delete_archive' }"
+                          @click="fileManager.extract.extractMode = 'keep_structure_delete_archive'; saveExtractMode()">
+                    保持原目录结构，删除压缩包
+                  </button>
+                  <button type="button"
+                          class="btn btn-outline-secondary calendar-category-btn extract-mode-btn"
+                          :class="{ active: fileManager.extract.extractMode === 'flat_files_delete_archive' }"
+                          @click="fileManager.extract.extractMode = 'flat_files_delete_archive'; saveExtractMode()">
+                    扁平化提取文件，删除压缩包
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+              <span v-if="(fileManager.extract.files && fileManager.extract.files.length > 1)">将 {{ fileManager.extract.files.length }} 个压缩包解压到：</span><span v-else>解压到：</span><span v-if="fileManager.extract.targetFolderPath">{{ fileManager.extract.targetFolderPath }}</span><span v-else>{{ getCurrentFolderPath() }}</span>
+              <span class="change-extract-folder-btn" @click="showSelectExtractFolderModal()">更改</span>
+            </div>
+            <button type="button" class="btn btn-primary btn-cancel" @click="$('#extractFileModal').modal('hide')"><span class="btn-text">取消</span></button>
+            <button type="button" class="btn btn-primary" @click="performExtract(false)"><span class="btn-text">云解压</span></button>
+            <button type="button" class="btn btn-primary" @click="performExtract(true)"><span class="btn-text">云解压并前往解压位置</span></button>
           </div>
         </div>
       </div>
@@ -3407,7 +3496,23 @@
           // 上次选中的文件索引
           lastSelectedFileIndex: -1,
           // 跳转到页码
-          gotoPage: 1
+          gotoPage: 1,
+          // 云解压相关数据
+          extract: {
+            showModal: false,
+            file: null,
+            files: [], // 待解压的压缩文件列表，支持多选批量解压
+            extractMode: (() => {
+              try {
+                return localStorage.getItem('quarkAutoSave_extractMode') || 'keep_structure_keep_archive';
+              } catch (e) {
+                return 'keep_structure_keep_archive';
+              }
+            })(),
+            targetFolderId: null, // 解压目标文件夹ID，null表示使用压缩文件所在文件夹
+            targetFolderPath: '', // 解压目标文件夹路径（用于显示）
+            selectExtractFolderMode: false // 是否在选择解压目标文件夹模式
+          }
         },
         batchRename: {
           loading: false,
@@ -4513,6 +4618,8 @@
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
           this.fileSelect.moveFileIds = [];
+          // 重置选择解压目标文件夹模式
+          this.fileManager.extract.selectExtractFolderMode = false;
           // 重置z-index
           document.getElementById('fileSelectModal').style.zIndex = '';
           
@@ -4622,6 +4729,8 @@
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
           this.fileSelect.moveFileIds = [];
+          // 重置选择解压目标文件夹模式
+          this.fileManager.extract.selectExtractFolderMode = false;
           // 重置z-index
           document.getElementById('fileSelectModal').style.zIndex = '';
           // 重置资源浏览索引
@@ -5950,7 +6059,7 @@
 
         // 内容类型中文名
         getContentTypeCN(type) {
-          const map = { tv: '剧集', anime: '动画', variety: '综艺', documentary: '纪录片', other: '其他' };
+          const map = { tv: '剧集', anime: '动画', variety: '综艺', documentary: '纪录片', movie: '电影', other: '其他' };
           return map[type] || '其他';
         },
 
@@ -6628,6 +6737,7 @@
             'anime': '动画',
             'variety': '综艺',
             'documentary': '纪录片',
+            'movie': '电影',
             'other': '其他'
           };
           return typeNames[type] || type;
@@ -7140,7 +7250,7 @@
                     if (!rawTypes || rawTypes.length === 0) {
                       rawTypes = Array.from(new Set((this.calendar.tasks || []).map(t => (t && t.content_type) || '').filter(Boolean)));
                     }
-                    const known = ['tv','anime','variety','documentary'];
+                    const known = ['tv','anime','variety','documentary','movie'];
                     const uniq = Array.from(new Set(rawTypes.filter(Boolean)));
                     const ordered = uniq.sort((a,b) => {
                       const ia = known.indexOf(a); const ib = known.indexOf(b);
@@ -8980,8 +9090,8 @@
                     // 同步任务列表可用类型集合（复用日历的类型热更新逻辑）
                     try {
                       const rawTypes = (res.data.data && res.data.data.content_types) || [];
-                      // 与日历相同的排序：tv、anime、variety、documentary、other（其他最后）
-                      const known = ['tv','anime','variety','documentary'];
+                      // 与日历相同的排序：tv、anime、variety、documentary、movie、other（其他最后）
+                      const known = ['tv','anime','variety','documentary','movie'];
                       const uniq = Array.from(new Set(rawTypes.filter(Boolean)));
                       const ordered = uniq.sort((a,b) => {
                         const ia = known.indexOf(a); const ib = known.indexOf(b);
@@ -9038,7 +9148,8 @@
                   tv_ignore_extension: true,
                   subtitle_naming_rule: "zh",
                   subtitle_add_language_code: false,
-                  auto_search_resources: "enabled"
+                  auto_search_resources: "enabled",
+                  auto_extract_archive: "disabled"
                 };
               }
               // 确保电影命名规则字段存在，只在字段不存在时设置默认值，允许用户设置为空字符串
@@ -9062,6 +9173,10 @@
               // 确保自动搜索资源设置存在
               if (!config_data.task_settings.auto_search_resources) {
                 config_data.task_settings.auto_search_resources = "enabled";
+              }
+              // 确保自动解压压缩文件设置存在
+              if (!config_data.task_settings.auto_extract_archive) {
+                config_data.task_settings.auto_extract_archive = "disabled";
               }
               // 确保按钮显示配置存在
               if (!config_data.button_display) {
@@ -10754,9 +10869,9 @@
 
           // 根据模态框类型决定使用哪个账号
           // 任务配置相关的模态框始终使用主账号（索引0）
-          // 文件整理页面的预览模态框和移动文件模态框使用选中的账号
+          // 文件整理页面的预览、移动、选择解压目标使用选中的账号
           const modalType = document.getElementById('fileSelectModal').getAttribute('data-modal-type');
-          const accountIndex = (modalType === 'preview-filemanager' || modalType === 'move') ? this.fileManager.selectedAccountIndex : 0;
+          const accountIndex = (modalType === 'preview-filemanager' || modalType === 'move' || modalType === 'extract-target') ? this.fileManager.selectedAccountIndex : 0;
 
           // 添加账号索引参数
           if (typeof params === 'object' && params !== null) {
@@ -11102,7 +11217,25 @@
           }
         },
         selectCurrentFolder(addTaskname = false) {
-          if (this.fileSelect.moveMode) {
+          if (this.fileManager.extract.selectExtractFolderMode) {
+            // 解压目标文件夹选择模式
+            const targetFolderId = this.fileSelect.paths.length > 0
+              ? this.fileSelect.paths[this.fileSelect.paths.length - 1].fid
+              : "0";
+            const targetFolderPath = this.fileSelect.paths.length > 0
+              ? this.fileSelect.paths.map(p => p.name).join('/')
+              : '根目录';
+            
+            // 保存选择的解压目标文件夹
+            this.fileManager.extract.targetFolderId = targetFolderId;
+            this.fileManager.extract.targetFolderPath = targetFolderPath;
+            
+            // 关闭文件选择模态框
+            $('#fileSelectModal').modal('hide');
+            
+            // 重置选择解压目标文件夹模式
+            this.fileManager.extract.selectExtractFolderMode = false;
+          } else if (this.fileSelect.moveMode) {
             // 移动文件模式
             this.moveFilesToCurrentFolder();
           } else if (this.fileSelect.selectShare) {
@@ -13772,6 +13905,176 @@
           // 加载根目录
           this.getSavepathDetail(0);
         },
+        // 判断是否为压缩文件
+        isArchiveFile(fileName) {
+          return isArchiveFile(fileName);
+        },
+        // 开始云解压文件（支持多选：选中多个压缩文件时，点击任意一个的云解压按钮将解压全部选中的压缩包）
+        startExtractFile(file) {
+          // 如果是文件夹，不允许解压
+          if (file.dir) {
+            this.showToast('暂不支持解压文件夹');
+            return;
+          }
+
+          // 检查是否为压缩文件
+          if (!this.isArchiveFile(file.file_name)) {
+            this.showToast('该文件不是压缩文件');
+            return;
+          }
+
+          // 确定待解压文件列表：若当前行在选中列表中且选中了多个压缩文件，则解压全部选中的压缩包；否则只解压当前文件
+          let filesToExtract = [file];
+          if (this.fileManager.selectedFiles.length > 0 && this.fileManager.selectedFiles.includes(file.fid)) {
+            const selectedArchives = this.fileManager.fileList.filter(
+              f => !f.dir && this.isArchiveFile(f.file_name) && this.fileManager.selectedFiles.includes(f.fid)
+            );
+            if (selectedArchives.length > 0) {
+              filesToExtract = selectedArchives;
+            }
+          }
+
+          // 设置解压文件信息
+          this.fileManager.extract.file = filesToExtract[0];
+          this.fileManager.extract.files = filesToExtract;
+          this.fileManager.extract.targetFolderId = null; // 默认解压到压缩文件所在文件夹
+          this.fileManager.extract.targetFolderPath = ''; // 重置路径显示
+
+          // 打开云解压模态框
+          $('#extractFileModal').modal('show');
+        },
+        // 保存解压模式到localStorage
+        saveExtractMode() {
+          try {
+            localStorage.setItem('quarkAutoSave_extractMode', this.fileManager.extract.extractMode);
+          } catch (e) {
+            console.error('保存解压模式失败:', e);
+          }
+        },
+        // 获取当前文件夹路径（用于显示）
+        getCurrentFolderPath() {
+          if (this.fileManager.extract.targetFolderPath) {
+            return this.fileManager.extract.targetFolderPath;
+          }
+          if (this.fileManager.paths && this.fileManager.paths.length > 0) {
+            return this.fileManager.paths.map(p => p.name).join('/');
+          }
+          return '根目录';
+        },
+        // 显示选择解压目标文件夹模态框
+        showSelectExtractFolderModal() {
+          // 设置选择解压目标文件夹模式
+          this.fileManager.extract.selectExtractFolderMode = true;
+          this.fileSelect.selectShare = false;
+          this.fileSelect.selectDir = true;
+          this.fileSelect.previewRegex = false;
+          this.fileSelect.error = undefined;
+          this.fileSelect.fileList = [];
+          this.fileSelect.paths = [];
+          this.fileSelect.index = -1;
+          this.fileSelect.moveMode = false;
+          this.fileSelect.moveFileIds = [];
+
+          // 重置排序状态为默认值
+          this.fileSelect.sortBy = "updated_at";
+          this.fileSelect.sortOrder = "desc";
+
+          // 设置模态框类型为extract-target（解压目标文件夹）
+          document.getElementById('fileSelectModal').setAttribute('data-modal-type', 'extract-target');
+
+          // 从云解压模态框打开时，提高文件选择模态框的 z-index，使其显示在云解压之上
+          const extractFileModal = document.getElementById('extractFileModal');
+          const fileSelectModal = document.getElementById('fileSelectModal');
+          if (extractFileModal && extractFileModal.classList.contains('show')) {
+            fileSelectModal.style.zIndex = '1060';
+            setTimeout(() => {
+              const backdrop = document.querySelector('.modal-backdrop:last-child');
+              if (backdrop) {
+                backdrop.style.zIndex = '1055';
+              }
+            }, 50);
+          }
+
+          // 如果之前有选择过解压位置，打开到那个位置
+          let targetFolderId = this.fileManager.extract.targetFolderId || this.fileManager.currentFolder || "0";
+          if (targetFolderId === 'root') targetFolderId = '0';
+          $('#fileSelectModal').modal('show');
+          this.getSavepathDetail(targetFolderId);
+        },
+        // 执行云解压（支持批量，按相同设置依次解压每个选中的压缩包）
+        async performExtract(navigateToTarget) {
+          const files = this.fileManager.extract.files && this.fileManager.extract.files.length > 0
+            ? this.fileManager.extract.files
+            : (this.fileManager.extract.file ? [this.fileManager.extract.file] : []);
+
+          if (files.length === 0) {
+            this.showToast('未选择要解压的文件');
+            return;
+          }
+
+          const extractMode = this.fileManager.extract.extractMode;
+          let targetFolderId = this.fileManager.extract.targetFolderId || this.fileManager.currentFolder || "0";
+          if (targetFolderId === 'root') targetFolderId = '0';
+
+          // 关闭云解压模态框
+          $('#extractFileModal').modal('hide');
+
+          const total = files.length;
+          this.showToast(total > 1 ? `正在解压 ${total} 个压缩包，请稍候` : '正在解压，请稍候');
+
+          let successCount = 0;
+          let failCount = 0;
+          let lastFailMessage = '';
+          let anySuggestClient = false;
+
+          for (const file of files) {
+            try {
+              const response = await axios.post('/extract_file', {
+                file_id: file.fid,
+                file_name: file.file_name,
+                extract_mode: extractMode,
+                target_folder_id: targetFolderId,
+                account_index: this.fileManager.selectedAccountIndex
+              });
+              if (response.data.success) {
+                successCount++;
+              } else {
+                failCount++;
+                lastFailMessage = response.data.message || '解压失败';
+                if (response.data.suggest_client) anySuggestClient = true;
+                console.error('解压失败:', file.file_name, lastFailMessage);
+              }
+            } catch (error) {
+              failCount++;
+              lastFailMessage = error.response?.data?.message || error.message || '网络或服务器异常';
+              console.error('解压文件失败:', file.file_name, error);
+            }
+          }
+
+          // 判断是否为文件大小限制导致的失败（统一友好显示，不展示原始错误码）
+          const isFileSizeError = anySuggestClient || /大小|超限|超过|限制|过大|size|limit|exceed/i.test(lastFailMessage || '');
+          const fileSizeFailMsg = '文件大小超过限制，请使用夸克客户端解压';
+
+          if (failCount === 0) {
+            this.showToast(total > 1 ? `成功解压 ${successCount} 个压缩包` : '解压成功');
+          } else if (successCount > 0) {
+            let msg = `成功 ${successCount} 个，失败 ${failCount} 个`;
+            msg += isFileSizeError ? `：${fileSizeFailMsg}` : (lastFailMessage ? `：${lastFailMessage}` : '');
+            this.showToast(msg);
+          } else {
+            let msg = isFileSizeError ? fileSizeFailMsg : (lastFailMessage || '解压失败');
+            this.showToast(msg);
+          }
+
+          // 延迟刷新以确保后端处理完成
+          setTimeout(() => {
+            if (navigateToTarget) {
+              const navId = targetFolderId === '0' ? 'root' : targetFolderId;
+              this.navigateToFolder(navId, '');
+            }
+            this.refreshCurrentFolderCache();
+          }, 500);
+        },
         // 保存重命名
         saveRenameFile(file) {
           if (!file._editing) return;
@@ -15962,6 +16265,8 @@
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
           this.fileSelect.moveFileIds = [];
+          // 重置选择解压目标文件夹模式
+          this.fileManager.extract.selectExtractFolderMode = false;
           // 重置z-index
           document.getElementById('fileSelectModal').style.zIndex = '';
           
@@ -16048,6 +16353,8 @@
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
           this.fileSelect.moveFileIds = [];
+          // 重置选择解压目标文件夹模式
+          this.fileManager.extract.selectExtractFolderMode = false;
           // 重置z-index
           document.getElementById('fileSelectModal').style.zIndex = '';
           
