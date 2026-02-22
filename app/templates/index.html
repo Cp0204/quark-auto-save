@@ -850,7 +850,7 @@
                 <div class="input-group-prepend">
                   <span class="input-group-text">自动解压压缩包</span>
                 </div>
-                <select class="form-control" v-model="formData.task_settings.auto_extract_archive" title="启用后，转存压缩包时将自动进行云解压，支持zip、rar、7z、tar、gz等格式（仅限夸克高级会员），若压缩包过大无法完成云解压，可通过夸克客户端进行解压">
+                <select class="form-control" v-model="formData.task_settings.auto_extract_archive" title="启用后，转存压缩包时将自动进行云解压（仅限夸克高级会员），支持zip、rar、7z、tar、gz等格式，若压缩包过大无法完成云解压，可通过夸克客户端进行解压">
                   <option value="keep_structure_keep_archive">保持原目录结构，保留压缩包</option>
                   <option value="flat_files_keep_archive">扁平化提取文件，保留压缩包</option>
                   <option value="keep_structure_delete_archive">保持原目录结构，删除压缩包</option>
