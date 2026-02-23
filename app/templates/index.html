@@ -2728,7 +2728,7 @@
           <div class="modal-footer" v-if="fileSelect.selectDir && !fileSelect.previewRegex">
             <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
               <span v-if="fileSelect.selectShare && smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length > 1 && isCurrentResourceInSearchResults()">
-                第 {{ smart_param.currentResourceIndex + 1 }} 个资源，
+                第 {{ smart_param.currentResourceIndex + 1 }}/{{ smart_param.taskSuggestions.data.length }} 个资源，
               </span>
               共 {{ fileSelect.fileList.length }} 个项目<span v-if="fileSelect.selectedFiles.length > 0">，已选中 {{ fileSelect.selectedFiles.length }} 个项目</span>
             </div>
