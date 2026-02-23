@@ -1285,7 +1285,15 @@
                           <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
                             {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
                           </div>
-                          <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(task.__originalIndex !== undefined ? task.__originalIndex : index, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
+                          <div
+                            v-for="suggestion in smart_param.taskSuggestions.data || []"
+                            :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')"
+                            class="dropdown-item cursor-pointer"
+                            :class="{ 'current-suggestion': isCurrentSuggestion(suggestion) }"
+                            @click.prevent="selectSuggestion(task.__originalIndex !== undefined ? task.__originalIndex : index, suggestion)"
+                            style="font-size: 14px;"
+                            :title="getSuggestionHoverTitle(suggestion)"
+                          >
                             <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                             <small class="text-muted">
                               <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '').split('#')[0] }}</a>
@@ -2822,7 +2830,15 @@
                       <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
                         {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
                       </div>
-                      <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(-1, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
+                      <div
+                        v-for="suggestion in smart_param.taskSuggestions.data || []"
+                        :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')"
+                        class="dropdown-item cursor-pointer"
+                        :class="{ 'current-suggestion': isCurrentSuggestion(suggestion) }"
+                        @click.prevent="selectSuggestion(-1, suggestion)"
+                        style="font-size: 14px;"
+                        :title="getSuggestionHoverTitle(suggestion)"
+                      >
                         <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                         <small class="text-muted">
                           <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '').split('#')[0] }}</a>
@@ -10740,6 +10756,44 @@
           });
           
           return isInResults;
+        },
+        // 判断某个搜索结果是否为当前资源（用于下拉框高亮）
+        // 只以“分享链接”输入框中的链接为准，不跟随临时预览的资源
+        isCurrentSuggestion(suggestion) {
+          if (!suggestion || !this.smart_param) {
+            return false;
+          }
+
+          let currentShareurl = null;
+
+          // 创建任务场景（index 为 -1）：使用创建任务表单里的分享链接
+          if (this.smart_param.index === -1 && this.createTask && this.createTask.taskData) {
+            currentShareurl = this.createTask.taskData.shareurl;
+          }
+          // 编辑已有任务场景（index 为具体任务下标）：使用对应任务行里的分享链接
+          else if (
+            this.smart_param.index !== undefined &&
+            this.smart_param.index !== null &&
+            this.smart_param.index >= 0 &&
+            this.formData &&
+            this.formData.tasklist &&
+            this.formData.tasklist[this.smart_param.index]
+          ) {
+            currentShareurl = this.formData.tasklist[this.smart_param.index].shareurl;
+          }
+
+          if (!currentShareurl) {
+            return false;
+          }
+
+          // 使用资源ID判断，仅当资源ID一致时才高亮
+          const currentResourceId = this.getResourceIdFromUrl(currentShareurl);
+          if (!currentResourceId) {
+            return false;
+          }
+
+          const suggestionId = this.getResourceIdFromUrl(suggestion.shareurl);
+          return suggestionId && suggestionId === currentResourceId;
         },
         // 从分享链接中提取资源ID
         getResourceIdFromUrl(shareurl) {
