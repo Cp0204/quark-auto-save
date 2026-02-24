@@ -1187,9 +1187,16 @@
                   <!-- 任务数量显示 -->
                   <div
                     class="tasklist-count-indicator ml-2"
-                    :class="{'tasklist-count-single-digit': tasklistVisibleCount < 10}"
-                    :title="`共${tasklistVisibleCount}个任务`">
-                    <span class="tasklist-count-number">{{ tasklistVisibleCount }}</span>
+                    :class="{'tasklist-count-single-digit': tasklistVisibleCount < 10 && tasklistOverallProgress === null}"
+                    :title="tasklistOverallProgress !== null ? `共${tasklistVisibleCount}个任务，整体进度：${tasklistOverallProgress}%` : `共${tasklistVisibleCount}个任务`">
+                    <span class="tasklist-count-number">
+                      <template v-if="tasklistOverallProgress !== null">
+                        {{ tasklistVisibleCount }} · {{ tasklistOverallProgress }}%
+                      </template>
+                      <template v-else>
+                        {{ tasklistVisibleCount }}
+                      </template>
+                    </span>
                   </div>
                   <!-- 视图切换按钮：列表视图 与 海报视图 -->
                   <div class="ml-2">
@@ -3959,6 +3966,40 @@
             return this.tasklistVisibleTasks.length;
           } catch (e) {
             return 0;
+          }
+        },
+
+        // 任务列表：整体进度（100% 任务 / 所有存在任务进度的任务）
+        tasklistOverallProgress() {
+          try {
+            const tasks = this.tasklistVisibleTasks || [];
+            if (!Array.isArray(tasks) || tasks.length === 0) return null;
+
+            let withProgressCount = 0;
+            let completedCount = 0;
+
+            tasks.forEach(task => {
+              if (!task) return;
+              const name = task.taskname || task.task_name;
+              if (!name) return;
+
+              const p = this.getTaskProgress ? this.getTaskProgress(name) : null;
+              if (p === null || p === undefined) return;
+
+              withProgressCount += 1;
+              if (Number(p) >= 100) {
+                completedCount += 1;
+              }
+            });
+
+            // 若所有任务都不存在任务进度，则不显示整体进度
+            if (withProgressCount === 0) return null;
+
+            // 与单个任务进度保持一致，使用向下取整
+            const pct = Math.floor((completedCount / withProgressCount) * 100);
+            return Math.max(0, Math.min(100, pct));
+          } catch (e) {
+            return null;
           }
         },
 
