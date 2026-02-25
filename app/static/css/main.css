@@ -6424,6 +6424,16 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   margin-right: 0; /* 图标与文字间距 */
 }
 
+/* --------------- 资源搜索结果当前选中项高亮样式 --------------- */
+.task-suggestions .dropdown-item.current-suggestion {
+  background-color: var(--focus-border-color);
+  color: #fff;
+}
+
+.task-suggestions .dropdown-item.current-suggestion small a {
+  color: #fff;
+}
+
 /* 创建任务模态框移动端响应式样式 */
 @media (max-width: 767.98px) {
   #createTaskModal .form-group.row .col-sm-2 {

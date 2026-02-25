@@ -850,7 +850,7 @@
                 <div class="input-group-prepend">
                   <span class="input-group-text">自动解压压缩包</span>
                 </div>
-                <select class="form-control" v-model="formData.task_settings.auto_extract_archive" title="启用后，转存压缩包时将自动进行云解压，支持zip、rar、7z、tar、gz等格式（仅限夸克高级会员），若压缩包过大无法完成云解压，可通过夸克客户端进行解压">
+                <select class="form-control" v-model="formData.task_settings.auto_extract_archive" title="启用后，转存压缩包时将自动进行云解压（仅限夸克高级会员），支持zip、rar、7z、tar、gz等格式，若压缩包过大无法完成云解压，可通过夸克客户端进行解压">
                   <option value="keep_structure_keep_archive">保持原目录结构，保留压缩包</option>
                   <option value="flat_files_keep_archive">扁平化提取文件，保留压缩包</option>
                   <option value="keep_structure_delete_archive">保持原目录结构，删除压缩包</option>
@@ -1187,9 +1187,16 @@
                   <!-- 任务数量显示 -->
                   <div
                     class="tasklist-count-indicator ml-2"
-                    :class="{'tasklist-count-single-digit': tasklistVisibleCount < 10}"
-                    :title="`共${tasklistVisibleCount}个任务`">
-                    <span class="tasklist-count-number">{{ tasklistVisibleCount }}</span>
+                    :class="{'tasklist-count-single-digit': tasklistVisibleCount < 10 && tasklistOverallProgress === null}"
+                    :title="tasklistOverallProgress !== null ? `共${tasklistVisibleCount}个任务，整体进度：${tasklistOverallProgress}%` : `共${tasklistVisibleCount}个任务`">
+                    <span class="tasklist-count-number">
+                      <template v-if="tasklistOverallProgress !== null">
+                        {{ tasklistVisibleCount }} · {{ tasklistOverallProgress }}%
+                      </template>
+                      <template v-else>
+                        {{ tasklistVisibleCount }}
+                      </template>
+                    </span>
                   </div>
                   <!-- 视图切换按钮：列表视图 与 海报视图 -->
                   <div class="ml-2">
@@ -1285,7 +1292,15 @@
                           <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
                             {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
                           </div>
-                          <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(task.__originalIndex !== undefined ? task.__originalIndex : index, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
+                          <div
+                            v-for="suggestion in smart_param.taskSuggestions.data || []"
+                            :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')"
+                            class="dropdown-item cursor-pointer"
+                            :class="{ 'current-suggestion': isCurrentSuggestion(suggestion) }"
+                            @click.prevent="selectSuggestion(task.__originalIndex !== undefined ? task.__originalIndex : index, suggestion)"
+                            style="font-size: 14px;"
+                            :title="getSuggestionHoverTitle(suggestion)"
+                          >
                             <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                             <small class="text-muted">
                               <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '').split('#')[0] }}</a>
@@ -2728,7 +2743,7 @@
           <div class="modal-footer" v-if="fileSelect.selectDir && !fileSelect.previewRegex">
             <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
               <span v-if="fileSelect.selectShare && smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length > 1 && isCurrentResourceInSearchResults()">
-                第 {{ smart_param.currentResourceIndex + 1 }} 个资源，
+                第 {{ smart_param.currentResourceIndex + 1 }}/{{ smart_param.taskSuggestions.data.length }} 个资源，
               </span>
               共 {{ fileSelect.fileList.length }} 个项目<span v-if="fileSelect.selectedFiles.length > 0">，已选中 {{ fileSelect.selectedFiles.length }} 个项目</span>
             </div>
@@ -2822,7 +2837,15 @@
                       <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
                         {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
                       </div>
-                      <div v-for="suggestion in smart_param.taskSuggestions.data || []" :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(-1, suggestion)" style="font-size: 14px;" :title="getSuggestionHoverTitle(suggestion)">
+                      <div
+                        v-for="suggestion in smart_param.taskSuggestions.data || []"
+                        :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')"
+                        class="dropdown-item cursor-pointer"
+                        :class="{ 'current-suggestion': isCurrentSuggestion(suggestion) }"
+                        @click.prevent="selectSuggestion(-1, suggestion)"
+                        style="font-size: 14px;"
+                        :title="getSuggestionHoverTitle(suggestion)"
+                      >
                         <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                         <small class="text-muted">
                           <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '').split('#')[0] }}</a>
@@ -3943,6 +3966,40 @@
             return this.tasklistVisibleTasks.length;
           } catch (e) {
             return 0;
+          }
+        },
+
+        // 任务列表：整体进度（100% 任务 / 所有存在任务进度的任务）
+        tasklistOverallProgress() {
+          try {
+            const tasks = this.tasklistVisibleTasks || [];
+            if (!Array.isArray(tasks) || tasks.length === 0) return null;
+
+            let withProgressCount = 0;
+            let completedCount = 0;
+
+            tasks.forEach(task => {
+              if (!task) return;
+              const name = task.taskname || task.task_name;
+              if (!name) return;
+
+              const p = this.getTaskProgress ? this.getTaskProgress(name) : null;
+              if (p === null || p === undefined) return;
+
+              withProgressCount += 1;
+              if (Number(p) >= 100) {
+                completedCount += 1;
+              }
+            });
+
+            // 若所有任务都不存在任务进度，则不显示整体进度
+            if (withProgressCount === 0) return null;
+
+            // 与单个任务进度保持一致，使用向下取整
+            const pct = Math.floor((completedCount / withProgressCount) * 100);
+            return Math.max(0, Math.min(100, pct));
+          } catch (e) {
+            return null;
           }
         },
 
@@ -10740,6 +10797,44 @@
           });
           
           return isInResults;
+        },
+        // 判断某个搜索结果是否为当前资源（用于下拉框高亮）
+        // 只以“分享链接”输入框中的链接为准，不跟随临时预览的资源
+        isCurrentSuggestion(suggestion) {
+          if (!suggestion || !this.smart_param) {
+            return false;
+          }
+
+          let currentShareurl = null;
+
+          // 创建任务场景（index 为 -1）：使用创建任务表单里的分享链接
+          if (this.smart_param.index === -1 && this.createTask && this.createTask.taskData) {
+            currentShareurl = this.createTask.taskData.shareurl;
+          }
+          // 编辑已有任务场景（index 为具体任务下标）：使用对应任务行里的分享链接
+          else if (
+            this.smart_param.index !== undefined &&
+            this.smart_param.index !== null &&
+            this.smart_param.index >= 0 &&
+            this.formData &&
+            this.formData.tasklist &&
+            this.formData.tasklist[this.smart_param.index]
+          ) {
+            currentShareurl = this.formData.tasklist[this.smart_param.index].shareurl;
+          }
+
+          if (!currentShareurl) {
+            return false;
+          }
+
+          // 使用资源ID判断，仅当资源ID一致时才高亮
+          const currentResourceId = this.getResourceIdFromUrl(currentShareurl);
+          if (!currentResourceId) {
+            return false;
+          }
+
+          const suggestionId = this.getResourceIdFromUrl(suggestion.shareurl);
+          return suggestionId && suggestionId === currentResourceId;
         },
         // 从分享链接中提取资源ID
         getResourceIdFromUrl(shareurl) {

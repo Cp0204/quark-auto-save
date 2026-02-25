@@ -209,7 +209,9 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
             season_meta[(int(tid), int(sn))] = {'season_name': sname or '', 'episode_count': int(ecount or 0)}
 
         # 统计"已转存集数"：基于转存记录最新进度构建映射（按任务名）
+        # 同时收集“在数据库中存在转存记录的任务名”集合，用于区分“真实归零”与“获取异常”
         transferred_by_task = {}
+        task_names_with_records = set()
         try:
             rdb = RecordDB()
             cursor = rdb.conn.cursor()
@@ -222,6 +224,7 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                 """
             )
             latest_times = cursor.fetchall() or []
+            task_names_with_records = set(t[0] for t in latest_times)
             extractor = TaskExtractor()
             for task_name, latest_time in latest_times:
                 if latest_time:
@@ -285,6 +288,7 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
             rdb.close()
         except Exception:
             transferred_by_task = {}
+            task_names_with_records = set()
 
         # 统计"已播出集数"：使用 is_episode_aired 逐集判断（考虑播出时间）
         # 修复：不再使用简单的日期比较，而是逐集调用 is_episode_aired 判断是否已播出
@@ -460,11 +464,13 @@ def enrich_tasks_with_calendar_meta(tasks_info: list) -> list:
                 _effective_transferred = 0
 
             # 保护：如果本次解析不到有效集数（_effective_transferred 为 0），
-            # 且 metrics 中已经有缓存的 transferred_count > 0，则优先保留缓存值，
-            # 避免实时刷新时短暂把已转存集数回落为 0。
+            # 且 metrics 中已经有缓存的 transferred_count > 0，则仅在「该任务在数据库中仍有转存记录」时
+            # 才使用缓存（视为获取/解析异常）；若该任务已无任何转存记录（用户清空/删除/重置文件夹），
+            # 则显示 0 并依赖下方写回把缓存的已转存集数刷新为 0。
             try:
                 if (not _effective_transferred) and (locals().get('_cached_transferred') not in (None, 0)):
-                    _effective_transferred = int(locals().get('_cached_transferred') or 0)
+                    if task_name in task_names_with_records:
+                        _effective_transferred = int(locals().get('_cached_transferred') or 0)
             except Exception:
                 pass
 
