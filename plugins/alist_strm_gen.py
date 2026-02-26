@@ -18,6 +18,7 @@ class Alist_strm_gen:
 
     video_exts = ["mp4", "mkv", "flv", "mov", "m4v", "avi", "webm", "wmv"]
     default_config = {
+        "tips_alist_refresh": "该插件需与 alist 刷新插件配合使用，否则可能出现 alist 未刷新导致无法生成 strm 的问题！",
         "url": "",  # Alist 服务器 URL
         "token": "",  # Alist 服务器 Token
         "storage_id": "",  # Alist 服务器夸克存储 ID

@@ -582,7 +582,13 @@ def init():
 
     # 初始化插件配置
     _, plugins_config_default, task_plugins_config_default = Config.load_plugins()
-    plugins_config_default.update(config_data.get("plugins", {}))
+    for name, config in plugins_config_default.items():
+        for key, value in config.items():
+            config[key] = (
+                config_data.setdefault("plugins", {})
+                .setdefault(name, {})
+                .get(key, value)
+            )
     config_data["plugins"] = plugins_config_default
 
     # 更新配置
