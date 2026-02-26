@@ -150,7 +150,7 @@
                   <div v-else class="form-group row">
                     <label class="col-sm-2 col-form-label" v-html="key"></label>
                     <div class="col-sm-10">
-                      <input type="text" v-model="formData.plugins[pluginName][key]" class="form-control">
+                      <input :type="key.includes('password') || key.includes('token') || key.includes('secret') ? 'password' : 'text'" v-model="formData.plugins[pluginName][key]" class="form-control">
                     </div>
                   </div>
                 </template>
