@@ -5,7 +5,7 @@ import requests
 class Aria2:
 
     default_config = {
-        "host_port": "172.17.0.1:6800",  # Aria2 RPC地址
+        "host_port": "172.17.0.1:6800",  # Aria2 RPC地址，填入格式支持：host:port 或 http(s)://host:port
         "secret": "",  # Aria2 RPC 密钥
         "dir": "/Downloads",  # 下载目录，需要Aria2有权限访问
     }
@@ -26,9 +26,21 @@ class Aria2:
                 else:
                     print(f"{self.plugin_name} 模块缺少必要参数: {key}")
             if self.host_port and self.secret:
-                self.rpc_url = f"http://{self.host_port}/jsonrpc"
+                self.rpc_url = self._get_rpc_url(self.host_port)
                 if self.get_version():
                     self.is_active = True
+
+    def _get_rpc_url(self, endpoint):
+        """获取 RPC URL"""
+        if "://" in endpoint:
+            scheme, url_part = endpoint.split("://", 1)
+            parts = url_part.split("/", 1)
+            host_port = parts[0]
+            path = parts[1] if len(parts) > 1 and parts[1] else "jsonrpc"
+            return f"{scheme.lower()}://{host_port}/{path}"
+        else:
+            # 默认使用 HTTP
+            return f"http://{self.host_port}/jsonrpc"
 
     def run(self, task, **kwargs):
         task_config = task.get("addition", {}).get(
@@ -86,7 +98,9 @@ class Aria2:
         if self.secret:
             jsonrpc_data["params"].insert(0, f"token:{self.secret}")
         try:
-            response = requests.post(self.rpc_url, json=jsonrpc_data)
+            response = requests.post(
+                self.rpc_url, json=jsonrpc_data, timeout=10, verify=False
+            )
             response.raise_for_status()
             return response.json()
         except Exception as e:
