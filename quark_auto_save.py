@@ -5283,7 +5283,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
             # 这确保显示的是实际存在的文件名，而不是预期的文件名
             # 检查是否是保持原目录结构模式
             auto_extract_mode_check = task.get("auto_extract_archive", "disabled")
-            keep_structure_check = "keep_structure" in auto_extract_mode_check if self._is_auto_extract_enabled(auto_extract_mode_check) else False
+            keep_structure_check = "keep_structure" in auto_extract_mode_check if account._is_auto_extract_enabled(auto_extract_mode_check) else False
             auto_extract_subdirs_check = task.get("_auto_extract_subdirs") or []
             
             # 如果是保持原目录结构模式且有自动解压的子目录，跳过重新创建文件树
@@ -5324,7 +5324,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
 
                     # 检查是否是保持原目录结构模式
                     auto_extract_mode = task.get("auto_extract_archive", "disabled")
-                    keep_structure = "keep_structure" in auto_extract_mode if self._is_auto_extract_enabled(auto_extract_mode) else False
+                    keep_structure = "keep_structure" in auto_extract_mode if account._is_auto_extract_enabled(auto_extract_mode) else False
                     # 获取自动解压的子目录列表，用于过滤根目录中的文件
                     auto_extract_subdirs = task.get("_auto_extract_subdirs") or []
                     auto_extract_subdir_names = set()
@@ -5369,7 +5369,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                                     pass
                     
                     # 扁平化模式下，需要识别所有转存的文件（包括未重命名的）
-                    flat_mode = not keep_structure and self._is_auto_extract_enabled(auto_extract_mode)
+                    flat_mode = not keep_structure and account._is_auto_extract_enabled(auto_extract_mode)
                     current_time = int(time.time())
                     time_threshold = 600  # 10分钟 = 600秒
 
@@ -5444,7 +5444,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                 
                 # 如果是保持原目录结构模式，在开始处理文件节点之前，先过滤掉子目录中的文件
                 auto_extract_mode_prefilter = task.get("auto_extract_archive", "disabled")
-                keep_structure_prefilter = "keep_structure" in auto_extract_mode_prefilter if self._is_auto_extract_enabled(auto_extract_mode_prefilter) else False
+                keep_structure_prefilter = "keep_structure" in auto_extract_mode_prefilter if account._is_auto_extract_enabled(auto_extract_mode_prefilter) else False
                 auto_extract_subdirs_prefilter = task.get("_auto_extract_subdirs") or []
                 
                 if keep_structure_prefilter and auto_extract_subdirs_prefilter:
@@ -5769,7 +5769,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                 
                 # 如果是保持原目录结构模式，获取子目录文件列表用于过滤（递归获取所有子目录）
                 auto_extract_mode_display = task.get("auto_extract_archive", "disabled")
-                keep_structure_display = "keep_structure" in auto_extract_mode_display if self._is_auto_extract_enabled(auto_extract_mode_display) else False
+                keep_structure_display = "keep_structure" in auto_extract_mode_display if account._is_auto_extract_enabled(auto_extract_mode_display) else False
                 auto_extract_subdirs_display = task.get("_auto_extract_subdirs") or []
                 subdir_file_names_display = set()
                 # 递归获取所有子目录中的文件（包括嵌套子目录）
@@ -6126,7 +6126,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
 
                     # 如果是保持原目录结构模式且该文件来自解压，则不视为“根目录新增文件”
                     auto_extract_mode_root = task.get("auto_extract_archive", "disabled")
-                    keep_structure_root = "keep_structure" in auto_extract_mode_root if self._is_auto_extract_enabled(auto_extract_mode_root) else False
+                    keep_structure_root = "keep_structure" in auto_extract_mode_root if account._is_auto_extract_enabled(auto_extract_mode_root) else False
                     if keep_structure_root and getattr(node, "data", None) and node.data.get("from_extraction"):
                         # 这类文件已经通过解压目录结构展示，不应再次作为根目录文件显示
                         continue
@@ -6153,7 +6153,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                     if is_new_file:
                         # 如果是保持原目录结构模式，再次检查文件是否在子目录中
                         auto_extract_mode_final = task.get("auto_extract_archive", "disabled")
-                        keep_structure_final = "keep_structure" in auto_extract_mode_final if self._is_auto_extract_enabled(auto_extract_mode_final) else False
+                        keep_structure_final = "keep_structure" in auto_extract_mode_final if account._is_auto_extract_enabled(auto_extract_mode_final) else False
                         auto_extract_subdirs_final = task.get("_auto_extract_subdirs") or []
                         
                         if keep_structure_final and auto_extract_subdirs_final:
