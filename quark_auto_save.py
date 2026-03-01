@@ -1925,8 +1925,8 @@ class Quark:
             print(f"  ❌ 未获取到解压任务 ID")
             return {"success": False, "message": "未获取到解压任务 ID"}
         
-        # 第二步：等待解压任务完成（30 秒超时，超时则放弃解压，按无法解压处理）
-        task_result = self.query_unarchive_task(unarchive_task_id, timeout=30)
+        # 第二步：等待解压任务完成（60 秒超时，超时则放弃解压，按无法解压处理）
+        task_result = self.query_unarchive_task(unarchive_task_id, timeout=60)
         
         if task_result.get("code") != 0:
             error_msg = task_result.get("message", "解压任务失败")
