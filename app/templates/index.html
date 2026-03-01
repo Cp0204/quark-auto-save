@@ -1384,7 +1384,7 @@
                       </div>
                     </div>
                   </div>
-                  
+
                   <div class="form-group row" title="只转存比选中文件更新的文件，请在符合筛选条件的文件中进行选择，在更换分享链接时非常有用">
                     <label class="col-sm-2 col-form-label">起始文件</label>
                     <div class="col-sm-10">
@@ -1402,6 +1402,21 @@
                       <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如 4K|1080P">
                     </div>
                   </div>
+
+                  <div class="form-group row" title="启用后，转存压缩包时将自动进行云解压（仅限夸克高级会员），支持zip、rar、7z、tar、gz等格式，若压缩包过大无法完成云解压，可通过夸克客户端进行解压，任务级设置优先于全局设置，查阅Wiki了解详情">
+                    <label class="col-sm-2 col-form-label">自动解压</label>
+                    <div class="col-sm-10">
+                      <select class="form-control" v-model="task.auto_extract_archive" title="启用后，转存压缩包时将自动进行云解压（仅限夸克高级会员），支持zip、rar、7z、tar、gz等格式，若压缩包过大无法完成云解压，可通过夸克客户端进行解压，任务级设置优先于全局设置，查阅Wiki了解详情">
+                        <option value="">{{ getInheritAutoExtractArchiveLabel() }}</option>
+                        <option value="keep_structure_keep_archive">保持原目录结构，保留压缩包</option>
+                        <option value="flat_files_keep_archive">扁平化提取文件，保留压缩包</option>
+                        <option value="keep_structure_delete_archive">保持原目录结构，删除压缩包</option>
+                        <option value="flat_files_delete_archive">扁平化提取文件，删除压缩包</option>
+                        <option value="disabled">禁用</option>
+                      </select>
+                    </div>
+                  </div>
+
                   <div class="form-group row">
                     <label class="col-sm-2 col-form-label">截止日期</label>
                     <div class="col-sm-10">
@@ -1415,7 +1430,7 @@
                       </div>
                     </div>
                   </div>
-                  <div class="form-group row" title="只在勾选的星期时才运行，对周更的内容非常有用">
+                  <div class="form-group row" title="只在勾选的星期时才运行，对周更的内容非常有用；使用自动模式将按任务进度执行，若任务进度达到100%则跳过，未完成则会在每次定时运行全部任务时尝试执行，查阅Wiki了解详情">
                     <label class="col-sm-2 col-form-label">执行周期</label>
                     <div class="col-sm-10 col-form-label">
                       <div class="form-check form-check-inline" title="也可用作任务总开关">
@@ -2947,6 +2962,20 @@
                   <input type="text" name="update_subdir[]" class="form-control" v-model="createTask.taskData.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如 4K|1080P">
                 </div>
               </div>
+
+              <div class="form-group row" title="启用后，转存压缩包时将自动进行云解压（仅限夸克高级会员），支持zip、rar、7z、tar、gz等格式，若压缩包过大无法完成云解压，可通过夸克客户端进行解压，任务级设置优先于全局设置，查阅Wiki了解详情">
+                <label class="col-sm-2 col-form-label">自动解压</label>
+                <div class="col-sm-10">
+                  <select class="form-control" v-model="createTask.taskData.auto_extract_archive" title="启用后，转存压缩包时将自动进行云解压（仅限夸克高级会员），支持zip、rar、7z、tar、gz等格式，若压缩包过大无法完成云解压，可通过夸克客户端进行解压，任务级设置优先于全局设置，查阅Wiki了解详情">
+                    <option value="">{{ getInheritAutoExtractArchiveLabel() }}</option>
+                    <option value="keep_structure_keep_archive">保持原目录结构，保留压缩包</option>
+                    <option value="flat_files_keep_archive">扁平化提取文件，保留压缩包</option>
+                    <option value="keep_structure_delete_archive">保持原目录结构，删除压缩包</option>
+                    <option value="flat_files_delete_archive">扁平化提取文件，删除压缩包</option>
+                    <option value="disabled">禁用</option>
+                  </select>
+                </div>
+              </div>
               <div class="form-group row">
                 <label class="col-sm-2 col-form-label">截止日期</label>
                 <div class="col-sm-10">
@@ -2960,7 +2989,7 @@
                   </div>
                 </div>
               </div>
-              <div class="form-group row" title="只在勾选的星期时才运行，对周更的内容非常有用">
+              <div class="form-group row" title="只在勾选的星期时才运行，对周更的内容非常有用；使用自动模式将按任务进度执行，若任务进度达到100%则跳过，未完成则会在每次定时运行全部任务时尝试执行，查阅Wiki了解详情">
                 <label class="col-sm-2 col-form-label">执行周期</label>
                 <div class="col-sm-10 col-form-label">
                   <div class="form-check form-check-inline" title="也可用作任务总开关">
@@ -3334,7 +3363,8 @@
           use_sequence_naming: false,
           episode_naming: "",
           use_episode_naming: false,
-          execution_mode: null // 将在openCreateTaskModal中设置为formData.execution_mode
+          execution_mode: null, // 将在openCreateTaskModal中设置为formData.execution_mode
+          auto_extract_archive: "" // 空字符串表示继承全局设置
         },
         run_log: "",
         runtimeLogs: [],
@@ -5402,6 +5432,28 @@
             const items = document.querySelectorAll('#display-setting-draggable .draggable-item');
             items.forEach(el => el.classList.remove('drag-origin', 'drag-over'));
           } catch (err) {}
+        },
+        getAutoExtractArchiveLabel(mode) {
+          switch (mode) {
+            case 'keep_structure_keep_archive':
+              return '保持原目录结构，保留压缩包';
+            case 'flat_files_keep_archive':
+              return '扁平化提取文件，保留压缩包';
+            case 'keep_structure_delete_archive':
+              return '保持原目录结构，删除压缩包';
+            case 'flat_files_delete_archive':
+              return '扁平化提取文件，删除压缩包';
+            case 'disabled':
+              return '禁用';
+            default:
+              return '未设置';
+          }
+        },
+        getInheritAutoExtractArchiveLabel() {
+          const settings = this.formData && this.formData.task_settings ? this.formData.task_settings : {};
+          const mode = settings.auto_extract_archive || 'disabled';
+          const text = this.getAutoExtractArchiveLabel(mode);
+          return `继承全局设置：${text}`;
         },
         getDisplayLabel(key) {
           const map = {
@@ -15149,6 +15201,10 @@
             // 确保execution_mode有默认值
             if (!this.createTask.taskData.execution_mode) {
               this.createTask.taskData.execution_mode = this.formData.execution_mode || 'manual';
+            }
+            // 确保自动解压设置：空值显示为继承全局
+            if (this.createTask.taskData.auto_extract_archive === undefined || this.createTask.taskData.auto_extract_archive === null) {
+              this.createTask.taskData.auto_extract_archive = "";
             }
             
             // 打开模态框
