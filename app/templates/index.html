@@ -2768,8 +2768,8 @@
               <span v-else-if="fileSelect.moveMode">移动到当前文件夹</span>
               <span v-else>{{fileSelect.selectShare ? '转存当前文件夹' : '保存到当前文件夹'}}</span>
             </button>
-            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && fileSelect.index === -1 && createTask.taskData.taskname" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="generateCustomFolderPath(createTask.taskData)"></span>」文件夹</button>
-            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && fileSelect.index !== null && fileSelect.index >= 0 && formData.tasklist[fileSelect.index]" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="formData.tasklist[fileSelect.index].taskname"></span>」文件夹</button>
+            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && !fileManager.extract.selectExtractFolderMode && fileSelect.index === -1 && createTask.taskData.taskname" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="generateCustomFolderPath(createTask.taskData)"></span>」文件夹</button>
+            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && !fileManager.extract.selectExtractFolderMode && fileSelect.index !== null && fileSelect.index >= 0 && formData.tasklist[fileSelect.index]" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="formData.tasklist[fileSelect.index].taskname"></span>」文件夹</button>
           </div>
           <div class="modal-footer" v-if="!fileSelect.selectDir && !fileSelect.previewRegex">
             <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
