@@ -2089,7 +2089,8 @@
                      v-for="item in discovery.items"
                      :key="item.id">
                   <div class="discovery-poster" @mouseenter="handlePosterHover($event, item)">
-                    <img :src="(item.pic && item.pic.normal) ? getProxiedImageUrl(item.pic.normal) : '/static/images/no-poster.svg'"
+                    <img loading="lazy"
+                         :src="(item.pic && item.pic.normal) ? getProxiedImageUrl(item.pic.normal) : '/static/images/no-poster.svg'"
                          :alt="item.title"
                          referrerpolicy="no-referrer"
                          crossorigin="anonymous"

@@ -38,7 +38,7 @@ import random
 import time
 import treelib
 from functools import lru_cache
-from threading import Lock, Thread
+from threading import Lock, Thread, Semaphore
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
@@ -2043,6 +2043,10 @@ def is_login():
     else:
         return False
 DEFAULT_REFRESH_SECONDS = 21600
+
+# 豆瓣图片代理全局并发限制，避免瞬时高并发触发远端限流/断连
+DOUBAN_PROXY_MAX_CONCURRENCY = 15
+_douban_proxy_semaphore = Semaphore(DOUBAN_PROXY_MAX_CONCURRENCY)
 
 
 
@@ -9338,13 +9342,34 @@ def proxy_douban_image():
                 'Referer': 'https://movie.douban.com/'
             }
         
-        # 请求图片
-        response = requests.get(image_url, headers=headers, timeout=10, stream=True)
-        
+        # 请求图片（带全局并发限制与有限次重试，缓解瞬时高并发和临时网络抖动）
+        max_retries = 3  # 总共尝试 1 + 3 次
+        response = None
+        last_exc = None
+        # 全局信号量：限制同时向豆瓣发起的请求数量
+        with _douban_proxy_semaphore:
+            for attempt in range(max_retries + 1):
+                try:
+                    response = requests.get(image_url, headers=headers, timeout=10, stream=True)
+                    break
+                except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout) as e:
+                    last_exc = e
+                    # 最后一轮仍失败则抛出，由外层捕获并记录日志
+                    if attempt >= max_retries:
+                        raise
+                    # 简单退避等待一小段时间再重试
+                    time.sleep(0.5 * (attempt + 1))
+
+        if response is None:
+            # 理论上不应到这里，防御性处理
+            raise last_exc or Exception("未知的豆瓣图片请求错误")
+
         if response.status_code != 200:
-            return Response(f'图片加载失败: {response.status_code}', 
-                          status=response.status_code, 
-                          mimetype='text/plain')
+            return Response(
+                f'图片加载失败: {response.status_code}',
+                status=response.status_code,
+                mimetype='text/plain'
+            )
         
         # 获取图片的Content-Type
         content_type = response.headers.get('Content-Type', 'image/jpeg')
