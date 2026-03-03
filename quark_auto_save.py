@@ -1925,8 +1925,15 @@ class Quark:
             print(f"  ❌ 未获取到解压任务 ID")
             return {"success": False, "message": "未获取到解压任务 ID"}
         
-        # 第二步：等待解压任务完成（60 秒超时，超时则放弃解压，按无法解压处理）
-        task_result = self.query_unarchive_task(unarchive_task_id, timeout=60)
+        # 第二步：等待解压任务完成（由配置控制超时时间，默认100秒，超时则放弃解压，按无法解压处理）
+        timeout_seconds = getattr(self, "cloud_unarchive_timeout_seconds", 100)
+        try:
+            timeout_seconds = int(timeout_seconds)
+            if timeout_seconds <= 0:
+                timeout_seconds = 100
+        except Exception:
+            timeout_seconds = 100
+        task_result = self.query_unarchive_task(unarchive_task_id, timeout=timeout_seconds)
         
         if task_result.get("code") != 0:
             error_msg = task_result.get("message", "解压任务失败")
@@ -6923,7 +6930,22 @@ def main():
     if not cookies:
         print("❌ cookie 未配置")
         return
-    accounts = [Quark(cookie, index) for index, cookie in enumerate(cookies)]
+    # 读取云解压超时时间配置（秒），默认100
+    cloud_unarchive_timeout = 100
+    try:
+        perf_cfg = (CONFIG_DATA or {}).get("performance", {}) if isinstance(CONFIG_DATA, dict) else {}
+        value = perf_cfg.get("cloud_unarchive_timeout_seconds", 100)
+        cloud_unarchive_timeout = int(value)
+        if cloud_unarchive_timeout <= 0:
+            cloud_unarchive_timeout = 100
+    except Exception:
+        cloud_unarchive_timeout = 100
+    accounts = []
+    for index, cookie in enumerate(cookies):
+        acc = Quark(cookie, index)
+        # 将配置的云解压超时时间注入账号实例，供自动解压逻辑使用
+        acc.cloud_unarchive_timeout_seconds = cloud_unarchive_timeout
+        accounts.append(acc)
     # 签到
     print()
     print(f"===============签到任务===============")

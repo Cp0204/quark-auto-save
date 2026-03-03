@@ -60,6 +60,19 @@ from sdk.db import CalendarDB
 from sdk.db import RecordDB
 from utils.task_extractor import TaskExtractor
 
+
+def get_cloud_unarchive_timeout_seconds():
+    """获取云解压超时时间（秒），默认100秒，尽量容错配置格式"""
+    try:
+        perf = config_data.get("performance", {}) if isinstance(config_data, dict) else {}
+        value = perf.get("cloud_unarchive_timeout_seconds", 100)
+        timeout = int(value)  # 支持字符串或数字
+        if timeout <= 0:
+            return 100
+        return timeout
+    except Exception:
+        return 100
+
 def _get_local_timezone() -> str:
     """
     获取本地时区配置，用于 Trakt 播出时间转换与本地时间判断。
@@ -2158,12 +2171,18 @@ def get_data():
     # 确保有秒级刷新默认值（不做迁移逻辑）
     perf = data.get('performance') if isinstance(data, dict) else None
     if not isinstance(perf, dict):
-        data['performance'] = {'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS, 'aired_refresh_time': '00:00'}
+        data['performance'] = {
+            'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS,
+            'aired_refresh_time': '00:00',
+            'cloud_unarchive_timeout_seconds': 100,
+        }
     else:
         if 'calendar_refresh_interval_seconds' not in perf:
             data['performance']['calendar_refresh_interval_seconds'] = DEFAULT_REFRESH_SECONDS
         if 'aired_refresh_time' not in perf:
             data['performance']['aired_refresh_time'] = '00:00'
+        if 'cloud_unarchive_timeout_seconds' not in perf or perf.get('cloud_unarchive_timeout_seconds') in [None, ""]:
+            data['performance']['cloud_unarchive_timeout_seconds'] = 100
     
     # 确保海报语言有默认值
     if 'poster_language' not in data:
@@ -2566,10 +2585,16 @@ def update():
     
     # 确保性能配置包含秒级字段
     if not isinstance(config_data.get('performance'), dict):
-        config_data['performance'] = {'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS, 'aired_refresh_time': '00:00'}
+        config_data['performance'] = {
+            'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS,
+            'aired_refresh_time': '00:00',
+            'cloud_unarchive_timeout_seconds': 100,
+        }
     else:
         config_data['performance'].setdefault('calendar_refresh_interval_seconds', DEFAULT_REFRESH_SECONDS)
         config_data['performance'].setdefault('aired_refresh_time', '00:00')
+        if config_data['performance'].get('cloud_unarchive_timeout_seconds') in [None, ""]:
+            config_data['performance']['cloud_unarchive_timeout_seconds'] = 100
     Config.write_json(CONFIG_PATH, config_data)
     # 更新session token，确保当前会话在用户名密码更改后仍然有效
     session["token"] = get_login_token()
@@ -3169,6 +3194,11 @@ def refresh_filemanager_plex_library():
     # 获取夸克账号信息
     try:
         account = Quark(config_data["cookie"][account_index], account_index)
+        # 将配置中的云解压超时时间注入账号实例，供云解压/自动解压使用
+        try:
+            account.cloud_unarchive_timeout_seconds = get_cloud_unarchive_timeout_seconds()
+        except Exception:
+            pass
 
         # 将文件夹路径转换为实际的保存路径
         # folder_path是相对于夸克网盘根目录的路径
