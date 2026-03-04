@@ -987,6 +987,17 @@
                   </div>
                 </div>
               </div>
+              <div class="col-lg-3 col-md-6 mb-2">
+                <div class="input-group" title="云解压任务的等待超时时间，包含自动解压压缩包和文件整理页面的云解压操作，超时后将视为解压失败。建议值：60–300，默认值：100">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">云解压超时时间</span>
+                  </div>
+                  <input type="text" class="form-control no-spinner" v-model="formData.performance.cloud_unarchive_timeout_seconds" placeholder="100">
+                  <div class="input-group-append">
+                    <span class="input-group-text square-append">秒</span>
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="row title" title="配置与任务处理、节目元数据获取及外部服务交互相关的API访问凭证，查阅Wiki了解详情">
               <div class="col">
@@ -1384,7 +1395,7 @@
                       </div>
                     </div>
                   </div>
-                  
+
                   <div class="form-group row" title="只转存比选中文件更新的文件，请在符合筛选条件的文件中进行选择，在更换分享链接时非常有用">
                     <label class="col-sm-2 col-form-label">起始文件</label>
                     <div class="col-sm-10">
@@ -1402,6 +1413,21 @@
                       <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如 4K|1080P">
                     </div>
                   </div>
+
+                  <div class="form-group row" title="启用后，转存压缩包时将自动进行云解压（仅限夸克高级会员），支持zip、rar、7z、tar、gz等格式，若压缩包过大无法完成云解压，可通过夸克客户端进行解压，任务级设置优先于全局设置，查阅Wiki了解详情">
+                    <label class="col-sm-2 col-form-label">自动解压</label>
+                    <div class="col-sm-10">
+                      <select class="form-control" v-model="task.auto_extract_archive" title="启用后，转存压缩包时将自动进行云解压（仅限夸克高级会员），支持zip、rar、7z、tar、gz等格式，若压缩包过大无法完成云解压，可通过夸克客户端进行解压，任务级设置优先于全局设置，查阅Wiki了解详情">
+                        <option value="">{{ getInheritAutoExtractArchiveLabel() }}</option>
+                        <option value="keep_structure_keep_archive">保持原目录结构，保留压缩包</option>
+                        <option value="flat_files_keep_archive">扁平化提取文件，保留压缩包</option>
+                        <option value="keep_structure_delete_archive">保持原目录结构，删除压缩包</option>
+                        <option value="flat_files_delete_archive">扁平化提取文件，删除压缩包</option>
+                        <option value="disabled">禁用</option>
+                      </select>
+                    </div>
+                  </div>
+
                   <div class="form-group row">
                     <label class="col-sm-2 col-form-label">截止日期</label>
                     <div class="col-sm-10">
@@ -1415,7 +1441,7 @@
                       </div>
                     </div>
                   </div>
-                  <div class="form-group row" title="只在勾选的星期时才运行，对周更的内容非常有用">
+                  <div class="form-group row" title="只在勾选的星期时才运行，对周更的内容非常有用；使用自动模式将按任务进度执行，若任务进度达到100%则跳过，未完成则会在每次定时运行全部任务时尝试执行，查阅Wiki了解详情">
                     <label class="col-sm-2 col-form-label">执行周期</label>
                     <div class="col-sm-10 col-form-label">
                       <div class="form-check form-check-inline" title="也可用作任务总开关">
@@ -2074,7 +2100,8 @@
                      v-for="item in discovery.items"
                      :key="item.id">
                   <div class="discovery-poster" @mouseenter="handlePosterHover($event, item)">
-                    <img :src="(item.pic && item.pic.normal) ? getProxiedImageUrl(item.pic.normal) : '/static/images/no-poster.svg'"
+                    <img loading="lazy"
+                         :src="(item.pic && item.pic.normal) ? getProxiedImageUrl(item.pic.normal) : '/static/images/no-poster.svg'"
                          :alt="item.title"
                          referrerpolicy="no-referrer"
                          crossorigin="anonymous"
@@ -2768,8 +2795,8 @@
               <span v-else-if="fileSelect.moveMode">移动到当前文件夹</span>
               <span v-else>{{fileSelect.selectShare ? '转存当前文件夹' : '保存到当前文件夹'}}</span>
             </button>
-            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && fileSelect.index === -1 && createTask.taskData.taskname" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="generateCustomFolderPath(createTask.taskData)"></span>」文件夹</button>
-            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && fileSelect.index !== null && fileSelect.index >= 0 && formData.tasklist[fileSelect.index]" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="formData.tasklist[fileSelect.index].taskname"></span>」文件夹</button>
+            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && !fileManager.extract.selectExtractFolderMode && fileSelect.index === -1 && createTask.taskData.taskname" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="generateCustomFolderPath(createTask.taskData)"></span>」文件夹</button>
+            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && !fileManager.extract.selectExtractFolderMode && fileSelect.index !== null && fileSelect.index >= 0 && formData.tasklist[fileSelect.index]" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="formData.tasklist[fileSelect.index].taskname"></span>」文件夹</button>
           </div>
           <div class="modal-footer" v-if="!fileSelect.selectDir && !fileSelect.previewRegex">
             <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
@@ -2947,6 +2974,20 @@
                   <input type="text" name="update_subdir[]" class="form-control" v-model="createTask.taskData.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如 4K|1080P">
                 </div>
               </div>
+
+              <div class="form-group row" title="启用后，转存压缩包时将自动进行云解压（仅限夸克高级会员），支持zip、rar、7z、tar、gz等格式，若压缩包过大无法完成云解压，可通过夸克客户端进行解压，任务级设置优先于全局设置，查阅Wiki了解详情">
+                <label class="col-sm-2 col-form-label">自动解压</label>
+                <div class="col-sm-10">
+                  <select class="form-control" v-model="createTask.taskData.auto_extract_archive" title="启用后，转存压缩包时将自动进行云解压（仅限夸克高级会员），支持zip、rar、7z、tar、gz等格式，若压缩包过大无法完成云解压，可通过夸克客户端进行解压，任务级设置优先于全局设置，查阅Wiki了解详情">
+                    <option value="">{{ getInheritAutoExtractArchiveLabel() }}</option>
+                    <option value="keep_structure_keep_archive">保持原目录结构，保留压缩包</option>
+                    <option value="flat_files_keep_archive">扁平化提取文件，保留压缩包</option>
+                    <option value="keep_structure_delete_archive">保持原目录结构，删除压缩包</option>
+                    <option value="flat_files_delete_archive">扁平化提取文件，删除压缩包</option>
+                    <option value="disabled">禁用</option>
+                  </select>
+                </div>
+              </div>
               <div class="form-group row">
                 <label class="col-sm-2 col-form-label">截止日期</label>
                 <div class="col-sm-10">
@@ -2960,7 +3001,7 @@
                   </div>
                 </div>
               </div>
-              <div class="form-group row" title="只在勾选的星期时才运行，对周更的内容非常有用">
+              <div class="form-group row" title="只在勾选的星期时才运行，对周更的内容非常有用；使用自动模式将按任务进度执行，若任务进度达到100%则跳过，未完成则会在每次定时运行全部任务时尝试执行，查阅Wiki了解详情">
                 <label class="col-sm-2 col-form-label">执行周期</label>
                 <div class="col-sm-10 col-form-label">
                   <div class="form-check form-check-inline" title="也可用作任务总开关">
@@ -3334,7 +3375,8 @@
           use_sequence_naming: false,
           episode_naming: "",
           use_episode_naming: false,
-          execution_mode: null // 将在openCreateTaskModal中设置为formData.execution_mode
+          execution_mode: null, // 将在openCreateTaskModal中设置为formData.execution_mode
+          auto_extract_archive: "" // 空字符串表示继承全局设置
         },
         run_log: "",
         runtimeLogs: [],
@@ -5402,6 +5444,28 @@
             const items = document.querySelectorAll('#display-setting-draggable .draggable-item');
             items.forEach(el => el.classList.remove('drag-origin', 'drag-over'));
           } catch (err) {}
+        },
+        getAutoExtractArchiveLabel(mode) {
+          switch (mode) {
+            case 'keep_structure_keep_archive':
+              return '保持原目录结构，保留压缩包';
+            case 'flat_files_keep_archive':
+              return '扁平化提取文件，保留压缩包';
+            case 'keep_structure_delete_archive':
+              return '保持原目录结构，删除压缩包';
+            case 'flat_files_delete_archive':
+              return '扁平化提取文件，删除压缩包';
+            case 'disabled':
+              return '禁用';
+            default:
+              return '未设置';
+          }
+        },
+        getInheritAutoExtractArchiveLabel() {
+          const settings = this.formData && this.formData.task_settings ? this.formData.task_settings : {};
+          const mode = settings.auto_extract_archive || 'disabled';
+          const text = this.getAutoExtractArchiveLabel(mode);
+          return `继承全局设置：${text}`;
         },
         getDisplayLabel(key) {
           const map = {
@@ -9310,7 +9374,12 @@
               }
               // 确保性能设置存在并补默认值（单位：秒）
               if (!config_data.performance) {
-                config_data.performance = { calendar_refresh_interval_seconds: 21600, aired_refresh_time: "00:00", runtime_log_display_days: 1 };
+                config_data.performance = {
+                  calendar_refresh_interval_seconds: 21600,
+                  aired_refresh_time: "00:00",
+                  runtime_log_display_days: 1,
+                  cloud_unarchive_timeout_seconds: 100
+                };
               } else {
                 if (config_data.performance.calendar_refresh_interval_seconds === undefined || config_data.performance.calendar_refresh_interval_seconds === null) {
                   config_data.performance.calendar_refresh_interval_seconds = 21600;
@@ -9320,6 +9389,9 @@
                 }
                 if (config_data.performance.runtime_log_display_days === undefined || config_data.performance.runtime_log_display_days === null) {
                   config_data.performance.runtime_log_display_days = 1;
+                }
+                if (config_data.performance.cloud_unarchive_timeout_seconds === undefined || config_data.performance.cloud_unarchive_timeout_seconds === null) {
+                  config_data.performance.cloud_unarchive_timeout_seconds = 100;
                 }
               }
               // 确保execution_mode有默认值
@@ -15149,6 +15221,10 @@
             // 确保execution_mode有默认值
             if (!this.createTask.taskData.execution_mode) {
               this.createTask.taskData.execution_mode = this.formData.execution_mode || 'manual';
+            }
+            // 确保自动解压设置：空值显示为继承全局
+            if (this.createTask.taskData.auto_extract_archive === undefined || this.createTask.taskData.auto_extract_archive === null) {
+              this.createTask.taskData.auto_extract_archive = "";
             }
             
             // 打开模态框

@@ -38,7 +38,7 @@ import random
 import time
 import treelib
 from functools import lru_cache
-from threading import Lock, Thread
+from threading import Lock, Thread, Semaphore
 
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
@@ -59,6 +59,19 @@ from sdk.trakt_service import TraktService
 from sdk.db import CalendarDB
 from sdk.db import RecordDB
 from utils.task_extractor import TaskExtractor
+
+
+def get_cloud_unarchive_timeout_seconds():
+    """获取云解压超时时间（秒），默认100秒，尽量容错配置格式"""
+    try:
+        perf = config_data.get("performance", {}) if isinstance(config_data, dict) else {}
+        value = perf.get("cloud_unarchive_timeout_seconds", 100)
+        timeout = int(value)  # 支持字符串或数字
+        if timeout <= 0:
+            return 100
+        return timeout
+    except Exception:
+        return 100
 
 def _get_local_timezone() -> str:
     """
@@ -2044,6 +2057,10 @@ def is_login():
         return False
 DEFAULT_REFRESH_SECONDS = 21600
 
+# 豆瓣图片代理全局并发限制，避免瞬时高并发触发远端限流/断连
+DOUBAN_PROXY_MAX_CONCURRENCY = 15
+_douban_proxy_semaphore = Semaphore(DOUBAN_PROXY_MAX_CONCURRENCY)
+
 
 
 # 设置icon 及缓存静态映射
@@ -2154,12 +2171,18 @@ def get_data():
     # 确保有秒级刷新默认值（不做迁移逻辑）
     perf = data.get('performance') if isinstance(data, dict) else None
     if not isinstance(perf, dict):
-        data['performance'] = {'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS, 'aired_refresh_time': '00:00'}
+        data['performance'] = {
+            'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS,
+            'aired_refresh_time': '00:00',
+            'cloud_unarchive_timeout_seconds': 100,
+        }
     else:
         if 'calendar_refresh_interval_seconds' not in perf:
             data['performance']['calendar_refresh_interval_seconds'] = DEFAULT_REFRESH_SECONDS
         if 'aired_refresh_time' not in perf:
             data['performance']['aired_refresh_time'] = '00:00'
+        if 'cloud_unarchive_timeout_seconds' not in perf or perf.get('cloud_unarchive_timeout_seconds') in [None, ""]:
+            data['performance']['cloud_unarchive_timeout_seconds'] = 100
     
     # 确保海报语言有默认值
     if 'poster_language' not in data:
@@ -2562,10 +2585,16 @@ def update():
     
     # 确保性能配置包含秒级字段
     if not isinstance(config_data.get('performance'), dict):
-        config_data['performance'] = {'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS, 'aired_refresh_time': '00:00'}
+        config_data['performance'] = {
+            'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS,
+            'aired_refresh_time': '00:00',
+            'cloud_unarchive_timeout_seconds': 100,
+        }
     else:
         config_data['performance'].setdefault('calendar_refresh_interval_seconds', DEFAULT_REFRESH_SECONDS)
         config_data['performance'].setdefault('aired_refresh_time', '00:00')
+        if config_data['performance'].get('cloud_unarchive_timeout_seconds') in [None, ""]:
+            config_data['performance']['cloud_unarchive_timeout_seconds'] = 100
     Config.write_json(CONFIG_PATH, config_data)
     # 更新session token，确保当前会话在用户名密码更改后仍然有效
     session["token"] = get_login_token()
@@ -3165,6 +3194,11 @@ def refresh_filemanager_plex_library():
     # 获取夸克账号信息
     try:
         account = Quark(config_data["cookie"][account_index], account_index)
+        # 将配置中的云解压超时时间注入账号实例，供云解压/自动解压使用
+        try:
+            account.cloud_unarchive_timeout_seconds = get_cloud_unarchive_timeout_seconds()
+        except Exception:
+            pass
 
         # 将文件夹路径转换为实际的保存路径
         # folder_path是相对于夸克网盘根目录的路径
@@ -9338,13 +9372,34 @@ def proxy_douban_image():
                 'Referer': 'https://movie.douban.com/'
             }
         
-        # 请求图片
-        response = requests.get(image_url, headers=headers, timeout=10, stream=True)
-        
+        # 请求图片（带全局并发限制与有限次重试，缓解瞬时高并发和临时网络抖动）
+        max_retries = 3  # 总共尝试 1 + 3 次
+        response = None
+        last_exc = None
+        # 全局信号量：限制同时向豆瓣发起的请求数量
+        with _douban_proxy_semaphore:
+            for attempt in range(max_retries + 1):
+                try:
+                    response = requests.get(image_url, headers=headers, timeout=10, stream=True)
+                    break
+                except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout) as e:
+                    last_exc = e
+                    # 最后一轮仍失败则抛出，由外层捕获并记录日志
+                    if attempt >= max_retries:
+                        raise
+                    # 简单退避等待一小段时间再重试
+                    time.sleep(0.5 * (attempt + 1))
+
+        if response is None:
+            # 理论上不应到这里，防御性处理
+            raise last_exc or Exception("未知的豆瓣图片请求错误")
+
         if response.status_code != 200:
-            return Response(f'图片加载失败: {response.status_code}', 
-                          status=response.status_code, 
-                          mimetype='text/plain')
+            return Response(
+                f'图片加载失败: {response.status_code}',
+                status=response.status_code,
+                mimetype='text/plain'
+            )
         
         # 获取图片的Content-Type
         content_type = response.headers.get('Content-Type', 'image/jpeg')

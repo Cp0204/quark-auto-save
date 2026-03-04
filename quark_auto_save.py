@@ -1868,6 +1868,17 @@ class Quark:
         archive_extensions = ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.tar.gz', '.tar.bz2']
         return any(lower_name.endswith(ext) for ext in archive_extensions)
 
+    VALID_EXTRACT_MODES = frozenset([
+        "keep_structure_keep_archive", "flat_files_keep_archive",
+        "keep_structure_delete_archive", "flat_files_delete_archive"
+    ])
+
+    def _is_auto_extract_enabled(self, mode):
+        """判断自动解压是否启用：仅当模式有效且非 disabled 时返回 True"""
+        if not mode or mode == "disabled":
+            return False
+        return mode in self.VALID_EXTRACT_MODES
+
     def process_auto_extract(self, archive_fid, archive_name, target_pdir_fid, extract_mode, task=None):
         """
         处理压缩文件的自动解压
@@ -1884,6 +1895,10 @@ class Quark:
             dict: 包含解压结果信息
         """
         task_name = task.get("taskname", "未知任务") if task else "未知任务"
+        
+        # 校验解压模式有效性，无效时按失败处理
+        if not extract_mode or extract_mode not in self.VALID_EXTRACT_MODES:
+            return {"success": False, "message": f"无效的解压模式: {extract_mode}"}
         
         # 解析解压模式
         keep_structure = "keep_structure" in extract_mode
@@ -1910,8 +1925,15 @@ class Quark:
             print(f"  ❌ 未获取到解压任务 ID")
             return {"success": False, "message": "未获取到解压任务 ID"}
         
-        # 第二步：等待解压任务完成（30 秒超时，超时则放弃解压，按无法解压处理）
-        task_result = self.query_unarchive_task(unarchive_task_id, timeout=30)
+        # 第二步：等待解压任务完成（由配置控制超时时间，默认100秒，超时则放弃解压，按无法解压处理）
+        timeout_seconds = getattr(self, "cloud_unarchive_timeout_seconds", 100)
+        try:
+            timeout_seconds = int(timeout_seconds)
+            if timeout_seconds <= 0:
+                timeout_seconds = 100
+        except Exception:
+            timeout_seconds = 100
+        task_result = self.query_unarchive_task(unarchive_task_id, timeout=timeout_seconds)
         
         if task_result.get("code") != 0:
             error_msg = task_result.get("message", "解压任务失败")
@@ -3760,9 +3782,11 @@ class Quark:
                     
                     # 检查是否需要自动解压压缩文件
                     auto_extract_mode = task.get("auto_extract_archive", "disabled")
-                    if auto_extract_mode != "disabled":
-                        # 获取刚转存的文件列表
+                    if self._is_auto_extract_enabled(auto_extract_mode):
+                        # 获取刚转存的文件列表（转存后可能有延迟，支持重试）
                         fresh_files = self.ls_dir(to_pdir_fid)
+                        max_retries = 3
+                        retry_delay = 2
 
                         # 检查是否有压缩文件需要解压
                         items_to_remove = []
@@ -3776,6 +3800,21 @@ class Quark:
                                     if f["file_name"] == saved_item["file_name"]:
                                         archive_file = f
                                         break
+                                
+                                # 若未找到，可能是转存延迟，重试几次
+                                if not archive_file and max_retries > 0:
+                                    for _ in range(max_retries - 1):
+                                        time.sleep(retry_delay)
+                                        fresh_files = self.ls_dir(to_pdir_fid)
+                                        for f in fresh_files:
+                                            if f["file_name"] == saved_item["file_name"]:
+                                                archive_file = f
+                                                break
+                                        if archive_file:
+                                            break
+                                
+                                if not archive_file:
+                                    print(f"  ⚠️ 未在目标目录中找到压缩包 {saved_item['file_name']}，跳过自动解压（可能转存尚未同步）")
                                 
                                 if archive_file:
                                     # 执行自动解压
@@ -4434,9 +4473,11 @@ class Quark:
                                     is_auto_extracted_subdir = subdir_path and subdir_path in auto_extract_subdirs
                                     
                                     auto_extract_mode = task.get("auto_extract_archive", "disabled")
-                                    if auto_extract_mode != "disabled" and subdir_path and not is_auto_extracted_subdir:
-                                        # 获取刚转存的文件列表
+                                    if self._is_auto_extract_enabled(auto_extract_mode) and subdir_path and not is_auto_extracted_subdir:
+                                        # 获取刚转存的文件列表（转存后可能有延迟，支持重试）
                                         fresh_files = self.ls_dir(self.savepath_fid[savepath])
+                                        max_retries_ep = 3
+                                        retry_delay_ep = 2
                                         
                                         # 用于安全更新 need_save_list 的临时列表
                                         items_to_remove_ep = []
@@ -4451,6 +4492,21 @@ class Quark:
                                                     if f["file_name"] == saved_item["file_name"]:
                                                         archive_file = f
                                                         break
+                                                
+                                                # 若未找到，可能是转存延迟，重试几次
+                                                if not archive_file and max_retries_ep > 0:
+                                                    for _ in range(max_retries_ep - 1):
+                                                        time.sleep(retry_delay_ep)
+                                                        fresh_files = self.ls_dir(self.savepath_fid[savepath])
+                                                        for f in fresh_files:
+                                                            if f["file_name"] == saved_item["file_name"]:
+                                                                archive_file = f
+                                                                break
+                                                        if archive_file:
+                                                            break
+                                                
+                                                if not archive_file:
+                                                    print(f"  ⚠️ 未在子目录中找到压缩包 {saved_item['file_name']}，跳过自动解压（可能转存尚未同步）")
                                                 
                                                 if archive_file:
                                                     # 执行自动解压
@@ -5116,8 +5172,12 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
             notifys_before = NOTIFYS.copy()
             
             # 将全局的自动解压设置添加到任务中
+            # 任务级明确为 disabled 时保持禁用；任务级为空或无效时继承全局设置
             task_settings = CONFIG_DATA.get("task_settings", {})
-            if "auto_extract_archive" not in task:
+            task_mode = task.get("auto_extract_archive")
+            if task_mode == "disabled":
+                pass  # 明确禁用，不覆盖
+            elif not task_mode or task_mode not in Quark.VALID_EXTRACT_MODES:
                 task["auto_extract_archive"] = task_settings.get("auto_extract_archive", "disabled")
             
             # 执行保存任务
@@ -5230,7 +5290,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
             # 这确保显示的是实际存在的文件名，而不是预期的文件名
             # 检查是否是保持原目录结构模式
             auto_extract_mode_check = task.get("auto_extract_archive", "disabled")
-            keep_structure_check = "keep_structure" in auto_extract_mode_check if auto_extract_mode_check != "disabled" else False
+            keep_structure_check = "keep_structure" in auto_extract_mode_check if account._is_auto_extract_enabled(auto_extract_mode_check) else False
             auto_extract_subdirs_check = task.get("_auto_extract_subdirs") or []
             
             # 如果是保持原目录结构模式且有自动解压的子目录，跳过重新创建文件树
@@ -5271,7 +5331,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
 
                     # 检查是否是保持原目录结构模式
                     auto_extract_mode = task.get("auto_extract_archive", "disabled")
-                    keep_structure = "keep_structure" in auto_extract_mode if auto_extract_mode != "disabled" else False
+                    keep_structure = "keep_structure" in auto_extract_mode if account._is_auto_extract_enabled(auto_extract_mode) else False
                     # 获取自动解压的子目录列表，用于过滤根目录中的文件
                     auto_extract_subdirs = task.get("_auto_extract_subdirs") or []
                     auto_extract_subdir_names = set()
@@ -5316,7 +5376,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                                     pass
                     
                     # 扁平化模式下，需要识别所有转存的文件（包括未重命名的）
-                    flat_mode = not keep_structure and auto_extract_mode != "disabled"
+                    flat_mode = not keep_structure and account._is_auto_extract_enabled(auto_extract_mode)
                     current_time = int(time.time())
                     time_threshold = 600  # 10分钟 = 600秒
 
@@ -5391,7 +5451,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                 
                 # 如果是保持原目录结构模式，在开始处理文件节点之前，先过滤掉子目录中的文件
                 auto_extract_mode_prefilter = task.get("auto_extract_archive", "disabled")
-                keep_structure_prefilter = "keep_structure" in auto_extract_mode_prefilter if auto_extract_mode_prefilter != "disabled" else False
+                keep_structure_prefilter = "keep_structure" in auto_extract_mode_prefilter if account._is_auto_extract_enabled(auto_extract_mode_prefilter) else False
                 auto_extract_subdirs_prefilter = task.get("_auto_extract_subdirs") or []
                 
                 if keep_structure_prefilter and auto_extract_subdirs_prefilter:
@@ -5716,7 +5776,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                 
                 # 如果是保持原目录结构模式，获取子目录文件列表用于过滤（递归获取所有子目录）
                 auto_extract_mode_display = task.get("auto_extract_archive", "disabled")
-                keep_structure_display = "keep_structure" in auto_extract_mode_display if auto_extract_mode_display != "disabled" else False
+                keep_structure_display = "keep_structure" in auto_extract_mode_display if account._is_auto_extract_enabled(auto_extract_mode_display) else False
                 auto_extract_subdirs_display = task.get("_auto_extract_subdirs") or []
                 subdir_file_names_display = set()
                 # 递归获取所有子目录中的文件（包括嵌套子目录）
@@ -6073,7 +6133,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
 
                     # 如果是保持原目录结构模式且该文件来自解压，则不视为“根目录新增文件”
                     auto_extract_mode_root = task.get("auto_extract_archive", "disabled")
-                    keep_structure_root = "keep_structure" in auto_extract_mode_root if auto_extract_mode_root != "disabled" else False
+                    keep_structure_root = "keep_structure" in auto_extract_mode_root if account._is_auto_extract_enabled(auto_extract_mode_root) else False
                     if keep_structure_root and getattr(node, "data", None) and node.data.get("from_extraction"):
                         # 这类文件已经通过解压目录结构展示，不应再次作为根目录文件显示
                         continue
@@ -6100,7 +6160,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                     if is_new_file:
                         # 如果是保持原目录结构模式，再次检查文件是否在子目录中
                         auto_extract_mode_final = task.get("auto_extract_archive", "disabled")
-                        keep_structure_final = "keep_structure" in auto_extract_mode_final if auto_extract_mode_final != "disabled" else False
+                        keep_structure_final = "keep_structure" in auto_extract_mode_final if account._is_auto_extract_enabled(auto_extract_mode_final) else False
                         auto_extract_subdirs_final = task.get("_auto_extract_subdirs") or []
                         
                         if keep_structure_final and auto_extract_subdirs_final:
@@ -6870,7 +6930,22 @@ def main():
     if not cookies:
         print("❌ cookie 未配置")
         return
-    accounts = [Quark(cookie, index) for index, cookie in enumerate(cookies)]
+    # 读取云解压超时时间配置（秒），默认100
+    cloud_unarchive_timeout = 100
+    try:
+        perf_cfg = (CONFIG_DATA or {}).get("performance", {}) if isinstance(CONFIG_DATA, dict) else {}
+        value = perf_cfg.get("cloud_unarchive_timeout_seconds", 100)
+        cloud_unarchive_timeout = int(value)
+        if cloud_unarchive_timeout <= 0:
+            cloud_unarchive_timeout = 100
+    except Exception:
+        cloud_unarchive_timeout = 100
+    accounts = []
+    for index, cookie in enumerate(cookies):
+        acc = Quark(cookie, index)
+        # 将配置的云解压超时时间注入账号实例，供自动解压逻辑使用
+        acc.cloud_unarchive_timeout_seconds = cloud_unarchive_timeout
+        accounts.append(acc)
     # 签到
     print()
     print(f"===============签到任务===============")
