@@ -214,6 +214,40 @@ function sortFileByName(file) {
     let segment_base = 0;  // 基础值：上=1, 中=2, 下=3
     let sequence_number = 0;  // 序号值：用于处理上中下后的数字或中文数字序号
 
+    function romanToArabic(roman) {
+        // 将罗马数字转换为阿拉伯数字（用于括号内 I/II/Ⅲ/IV 等序号）
+        if (!roman) return null;
+        let s = String(roman).trim();
+        if (!s) return null;
+
+        // 逐字符归一化：允许 ASCII/Unicode 混用（例如同一括号里混着写 IⅡ）
+        // Unicode 的 Ⅱ/Ⅳ 等“单字符复合数”映射成 ASCII 'II'/'IV'，因此这里用拼接
+        const uniMap = {
+            'Ⅰ': 'I', 'Ⅱ': 'II', 'Ⅲ': 'III', 'Ⅳ': 'IV', 'Ⅴ': 'V', 'Ⅵ': 'VI',
+            'Ⅶ': 'VII', 'Ⅷ': 'VIII', 'Ⅸ': 'IX', 'Ⅹ': 'X', 'Ⅺ': 'XI', 'Ⅻ': 'XII',
+            'ⅰ': 'I', 'ⅱ': 'II', 'ⅲ': 'III', 'ⅳ': 'IV', 'ⅴ': 'V', 'ⅵ': 'VI',
+            'ⅶ': 'VII', 'ⅷ': 'VIII', 'ⅸ': 'IX', 'ⅹ': 'X', 'ⅺ': 'XI', 'ⅻ': 'XII',
+        };
+        let normalized = '';
+        for (const ch of s) {
+            normalized += (uniMap[ch] || ch);
+        }
+        s = normalized.toUpperCase();
+        if (!/^[IVXLCDM]+$/.test(s)) return null;
+
+        const values = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
+        let total = 0;
+        let prev = 0;
+        for (let i = s.length - 1; i >= 0; i--) {
+            const ch = s[i];
+            const v = values[ch];
+            if (!v) return null;
+            if (v < prev) total -= v;
+            else { total += v; prev = v; }
+        }
+        return total > 0 ? total : null;
+    }
+
     // 严格匹配上中下标记：只有当上中下与集期话部篇相邻时才认为是段落标记
     // 避免误匹配文件内容中偶然出现的上中下字符
     if (/上[集期话部篇]|[集期话部篇]上/.test(filename)) {
@@ -222,6 +256,14 @@ function sortFileByName(file) {
         segment_base = 2;
     } else if (/下[集期话部篇]|[集期话部篇]下/.test(filename)) {
         segment_base = 3;
+    }
+
+    // 补充：独立的（上/中/下）标记（不带“期/集/话/部/篇”）
+    // 例如：焰火镇谜案Ⅱ（上）、焰火镇谜案Ⅱ（下）
+    if (segment_base === 0) {
+        if (/[（(]\s*上\s*[）)]/.test(filename)) segment_base = 1;
+        else if (/[（(]\s*中\s*[）)]/.test(filename)) segment_base = 2;
+        else if (/[（(]\s*下\s*[）)]/.test(filename)) segment_base = 3;
     }
 
     // 统一的序号提取逻辑，支持多种分隔符和格式
@@ -292,6 +334,19 @@ function sortFileByName(file) {
                     segment_base = 1;
                 }
                 break;
+            }
+        }
+    }
+
+    // 补充：括号中的罗马数字序号（例如：（I）、（II）、（Ⅲ）、（IV））
+    // 用于同一期/同一案的多段内容排序
+    if (sequence_number === 0) {
+        const m = filename.match(/[（(]\s*([IVXLCDMⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫⅰⅱⅲⅳⅴⅵⅶⅷⅸⅹⅺⅻ]+)\s*[）)]/i);
+        if (m) {
+            const v = romanToArabic(m[1]);
+            if (v !== null) {
+                sequence_number = v;
+                if (segment_base === 0) segment_base = 1;
             }
         }
     }
