@@ -376,6 +376,51 @@ def sort_file_by_name(file):
     segment_base = 0  # 基础值：上=1, 中=2, 下=3
     sequence_number = 0  # 序号值：用于处理上中下后的数字或中文数字序号
 
+    def roman_to_arabic(roman: str):
+        """
+        将罗马数字转换为阿拉伯数字（用于括号内的 I/II/Ⅲ/IV 等序号）。
+        支持：
+        - ASCII：I, II, IV, V, VI, IX, X...（不区分大小写）
+        - Unicode：ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫ（以及小写 ⅰ...）
+        """
+        if not roman:
+            return None
+        s = str(roman).strip()
+        if not s:
+            return None
+
+        # 逐字符归一化：允许 ASCII/Unicode 混用（例如同一括号里混着写）
+        # 说明：Unicode 的 Ⅱ/Ⅳ 等“单字符复合数”会被映射成 ASCII 的 'II'/'IV'，因此这里用拼接
+        uni_map = {
+            'Ⅰ': 'I', 'Ⅱ': 'II', 'Ⅲ': 'III', 'Ⅳ': 'IV', 'Ⅴ': 'V', 'Ⅵ': 'VI',
+            'Ⅶ': 'VII', 'Ⅷ': 'VIII', 'Ⅸ': 'IX', 'Ⅹ': 'X', 'Ⅺ': 'XI', 'Ⅻ': 'XII',
+            'ⅰ': 'I', 'ⅱ': 'II', 'ⅲ': 'III', 'ⅳ': 'IV', 'ⅴ': 'V', 'ⅵ': 'VI',
+            'ⅶ': 'VII', 'ⅷ': 'VIII', 'ⅸ': 'IX', 'ⅹ': 'X', 'ⅺ': 'XI', 'ⅻ': 'XII',
+        }
+        normalized = []
+        for ch in s:
+            if ch in uni_map:
+                normalized.append(uni_map[ch])
+            else:
+                normalized.append(ch)
+        s = ''.join(normalized).upper()
+        if not re.fullmatch(r'[IVXLCDM]+', s):
+            return None
+
+        values = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
+        total = 0
+        prev = 0
+        for ch in reversed(s):
+            v = values.get(ch)
+            if v is None:
+                return None
+            if v < prev:
+                total -= v
+            else:
+                total += v
+                prev = v
+        return total if total > 0 else None
+
     # 严格匹配上中下标记：支持多种格式
     # 1. 直接相邻：上集、期上
     # 2. 括号分隔：期（上）、集（中）
@@ -386,6 +431,16 @@ def sort_file_by_name(file):
         segment_base = 2
     elif re.search(r'下[集期话部篇]|[集期话部篇]下|[集期话部篇]\s*[（(]\s*下\s*[）)]|[集期话部篇]\s*[-_·丨]\s*下', filename):
         segment_base = 3
+
+    # 补充：独立的（上/中/下）标记（不带“期/集/话/部/篇”）
+    # 例如：焰火镇谜案Ⅱ（上）、焰火镇谜案Ⅱ（下）
+    if segment_base == 0:
+        if re.search(r'[（(]\s*上\s*[）)]', filename):
+            segment_base = 1
+        elif re.search(r'[（(]\s*中\s*[）)]', filename):
+            segment_base = 2
+        elif re.search(r'[（(]\s*下\s*[）)]', filename):
+            segment_base = 3
 
     # 统一的序号提取逻辑，支持多种分隔符和格式
     # 无论是否有上中下标记，都使用相同的序号提取逻辑
@@ -452,6 +507,18 @@ def sort_file_by_name(file):
                 if segment_base == 0:
                     segment_base = 1
                 break
+
+    # 补充：括号中的罗马数字序号（例如：（I）、（II）、（Ⅲ）、（IV））
+    # 用于同一期/同一案的多段内容排序
+    if sequence_number == 0:
+        roman_match = re.search(r'[（(]\s*([IVXLCDMⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫⅰⅱⅲⅳⅴⅵⅶⅷⅸⅹⅺⅻ]+)\s*[）)]', filename, flags=re.IGNORECASE)
+        if roman_match:
+            roman_value = roman_to_arabic(roman_match.group(1))
+            if roman_value is not None:
+                sequence_number = int(roman_value)
+                if segment_base == 0:
+                    # 没有上中下时，给一个基础值，让罗马序号能参与第三级排序
+                    segment_base = 1
 
     # 组合segment_value：基础值*1000 + 序号值，确保排序正确
     segment_value = segment_base * 1000 + sequence_number
