@@ -11,6 +11,7 @@ class Aria2:
     }
     default_task_config = {
         "auto_download": False,  # 是否自动添加下载任务
+        "download_subdir": False,  # 是否递归下载子目录和文件
         "save_path": "",  # 留空时跟随夸克网盘目录结构（dir/夸克路径），填写时下载到 dir/save_path/
         "pause": False,  # 添加任务后为暂停状态，不自动开始（手动下载）
     }
@@ -42,6 +43,20 @@ class Aria2:
             # 默认使用 HTTP
             return f"http://{self.host_port}/jsonrpc"
 
+    def _recursive_dir(self, account, fid, parent_path, file_fids, file_paths):
+        """递归遍历目录，获取所有文件和子目录"""
+        print(f"Aria2下载: 递归目录 {parent_path}")
+        for item in account.ls_dir(fid)["data"]["list"]:
+            item_fid = item["fid"]
+            item_name = item["file_name"]
+            item_path = f"{parent_path}/{item_name}" if parent_path else item_name
+
+            if item["dir"]:
+                self._recursive_dir(account, item_fid, item_path, file_fids, file_paths)
+            else:
+                file_fids.append(item_fid)
+                file_paths.append(item_path)
+
     def run(self, task, **kwargs):
         task_config = task.get("addition", {}).get(
             self.plugin_name, self.default_task_config
@@ -59,6 +74,8 @@ class Aria2:
                 if not node.data.get("is_dir", True):
                     file_fids.append(node.data.get("fid"))
                     file_paths.append(node.data.get("path"))
+                elif not node.is_root() and task_config.get("download_subdir"):
+                    self._recursive_dir(account, node.data.get("fid"), node.data.get("path"), file_fids, file_paths)
             if not file_fids:
                 print(f"Aria2下载: 没有下载任务，跳过")
                 return
