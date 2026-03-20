@@ -44,6 +44,8 @@ class Aria2:
             return f"http://{self.host_port}/jsonrpc"
 
     def _recursive_dir(self, account, fid, parent_path, file_fids, file_paths):
+        """递归遍历目录，获取所有文件和子目录"""
+        print(f"Aria2下载: 递归目录 {parent_path}")
         for item in account.ls_dir(fid)["data"]["list"]:
             item_fid = item["fid"]
             item_name = item["file_name"]
