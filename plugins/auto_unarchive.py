@@ -152,8 +152,10 @@ class Auto_unarchive:
             time.sleep(2)
 
         for item in items:
-            ext = os.path.splitext(item["file_name"])[1]
-            new_name = f"{p_task['main_name']}{ext}"
-            account.rename(item["fid"], new_name)
             move_list.append(item["fid"])
-            print(f"    └─ 重命名: {new_name}")
+            # 重命名文件 /zip1/xx.mp4 -> /zip1/zip1.mp4
+            # 默认压缩包里只有一个文件，但有多个文件时会报错，故注释掉不执行重命名操作
+            # ext = os.path.splitext(item["file_name"])[1]
+            # new_name = f"{p_task['main_name']}{ext}"
+            # account.rename(item["fid"], new_name)
+            # print(f"    └─ 重命名: {new_name}")
