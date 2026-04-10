@@ -352,6 +352,30 @@
                       </div>
                     </div>
                   </div>
+                  <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">深度搜索</label>
+                    <div class="col-sm-10">
+                      <div class="input-group">
+                        <div class="input-group-prepend">
+                          <span class="input-group-text">src</span>
+                        </div>
+                        <select class="form-control" v-model="task.pansou_src">
+                          <option value="">默认(all)</option>
+                          <option value="all">all</option>
+                          <option value="tg">tg</option>
+                          <option value="plugin">plugin</option>
+                        </select>
+                        <div class="input-group-prepend">
+                          <span class="input-group-text">plugins</span>
+                        </div>
+                        <input type="text" class="form-control" v-model="task.pansou_plugins" placeholder="可选，逗号分隔，如 p1,p2">
+                        <div class="input-group-prepend">
+                          <span class="input-group-text">channels</span>
+                        </div>
+                        <input type="text" class="form-control" v-model="task.pansou_channels" placeholder="可选，逗号分隔，如 ch1,ch2">
+                      </div>
+                    </div>
+                  </div>
                   <div class="form-group row" title="支持子目录链接，Web端打开分享点入目录，复制浏览器的URL即可；支持带提取码链接，说明见Wiki">
                     <label class="col-sm-2 col-form-label">分享链接</label>
                     <div class="col-sm-10">
@@ -759,6 +783,9 @@
                 if (!task.hasOwnProperty('runweek')) {
                   task.runweek = [1, 2, 3, 4, 5, 6, 7];
                 }
+                if (!task.hasOwnProperty('pansou_src')) task.pansou_src = "";
+                if (!task.hasOwnProperty('pansou_plugins')) task.pansou_plugins = "";
+                if (!task.hasOwnProperty('pansou_channels')) task.pansou_channels = "";
                 return task;
               });
               // 获取所有任务父目录
@@ -1053,11 +1080,15 @@
           }
           this.smart_param.isSearching = true;
           this.smart_param.index = index;
+          const task = this.formData.tasklist[index] || {};
           try {
             axios.get('/task_suggestions', {
               params: {
                 q: taskname,
-                d: deep
+                d: deep,
+                src: task.pansou_src || "",
+                plugins: task.pansou_plugins || "",
+                channels: task.pansou_channels || ""
               }
             }).then(response => {
               this.smart_param.taskSuggestions = response.data;
