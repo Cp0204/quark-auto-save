@@ -5,29 +5,29 @@ import traceback
 
 
 class Auto_unarchive:
-    plugin_name = "auto_unarchive"
-
     default_config = {
-        "is_active": True,
-        "auto_delete": True,
-        "retry_count": 3,
+        "auto_delete": True,  # 是否自动删除原始文件
+        "retry_count": 3,  # 重试次数
         "max_concurrent": 3,  # 限制同时解压的任务数
     }
 
     default_task_config = {
-        "unarchive": True,
+        "unarchive": False,  # 任务选项，是否自动解压
     }
 
+    is_active = True  # 默认全局激活，由任务配置中开启
+
     def __init__(self, **kwargs):
-        self.is_active = False
+        self.plugin_name = self.__class__.__name__.lower()
         self.config = self.default_config.copy()
         if kwargs:
             self.config.update(kwargs)
-        if self.config.get("is_active"):
-            self.is_active = True
-            self.auto_delete = self.config.get("auto_delete")
-            self.retry_count = self.config.get("retry_count")
-            self.max_concurrent = self.config.get("max_concurrent", 3)
+        if self.is_active:
+            self.auto_delete = (
+                str(self.config.get("auto_delete", "false")).lower() == "true"
+            )
+            self.retry_count = int(self.config.get("retry_count", 3))
+            self.max_concurrent = int(self.config.get("max_concurrent", 3))
 
     def run(self, task, **kwargs):
         account = kwargs.get("account")
