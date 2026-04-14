@@ -73,14 +73,25 @@ class Plex:
         """刷新指定文件夹"""
         if not folder_path:
             return False
+        # 统一路径格式，避免不同分隔符导致匹配异常
+        folder_path = os.path.normpath(folder_path).replace("\\", "/")
         headers = {"Accept": "application/json", "X-Plex-Token": self.token}
         try:
             for library in self._libraries:
                 for location in library.get("Location", []):
-                    location_path = location.get("path", "")
-                    if folder_path.startswith(location_path):
-                        refresh_url = f"{self.url}/library/sections/{library['key']}/refresh?path={folder_path}"
-                        refresh_response = requests.get(refresh_url, headers=headers)
+                    location_path = os.path.normpath(location.get("path", "")).replace(
+                        "\\", "/"
+                    )
+                    # 按目录边界匹配，避免 /media/tv 误匹配 /media/tv2
+                    if (
+                        folder_path == location_path
+                        or folder_path.startswith(f"{location_path}/")
+                    ):
+                        refresh_url = f"{self.url}/library/sections/{library['key']}/refresh"
+                        # 使用 params 让 requests 自动进行 URL 编码，避免 #、?、& 等字符截断路径
+                        refresh_response = requests.get(
+                            refresh_url, headers=headers, params={"path": folder_path}
+                        )
                         if refresh_response.status_code == 200:
                             print(
                                 f"🎞️ 刷新 Plex 媒体库: {library['title']} [{folder_path}] 成功 ✅"
