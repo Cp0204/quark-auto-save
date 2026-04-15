@@ -5043,6 +5043,128 @@ def format_bytes(size_bytes: int) -> str:
     return f"{size_bytes:.2f} {units[i]}"
 
 
+def get_membership_label(growth_info: dict) -> str:
+    """
+    根据成长值接口返回信息识别会员类型。
+    识别优先级：SVIP+ > SVIP > 88VIP > 普通用户
+    """
+    if not isinstance(growth_info, dict):
+        return "普通用户"
+
+    def get_nested_value(data, target_keys):
+        """递归查找指定键对应的值。"""
+        if isinstance(data, dict):
+            for k, v in data.items():
+                if str(k).lower() in target_keys:
+                    return v
+                nested = get_nested_value(v, target_keys)
+                if nested is not None:
+                    return nested
+        elif isinstance(data, list):
+            for item in data:
+                nested = get_nested_value(item, target_keys)
+                if nested is not None:
+                    return nested
+        return None
+
+    def is_truthy(value):
+        """统一判断不同类型值的真假。"""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value > 0
+        if isinstance(value, str):
+            return value.strip().lower() in ("1", "true", "yes", "y", "on")
+        return bool(value)
+
+    def has_truthy_flag(data, flag_keys):
+        """
+        递归判断是否存在值为真值的会员标记。
+        注意：不能只取第一个命中字段，否则会被同名字段中的 false 误判。
+        """
+        if isinstance(data, dict):
+            for k, v in data.items():
+                if str(k).lower() in flag_keys and is_truthy(v):
+                    return True
+                if has_truthy_flag(v, flag_keys):
+                    return True
+        elif isinstance(data, list):
+            for item in data:
+                if has_truthy_flag(item, flag_keys):
+                    return True
+        return False
+
+    def collect_all_text(data, collector):
+        """递归收集所有文本内容，用于兼容不同接口字段。"""
+        if isinstance(data, dict):
+            for k, v in data.items():
+                collector.append(str(k).lower())
+                collect_all_text(v, collector)
+        elif isinstance(data, list):
+            for item in data:
+                collect_all_text(item, collector)
+        else:
+            collector.append(str(data).lower())
+
+    # 综合多信号进行判定，避免被单一字段误导（取最高会员等级）
+    level_to_label = {
+        0: "普通用户",
+        1: "88VIP",
+        2: "SVIP",
+        3: "SVIP+",
+    }
+    best_level = 0
+
+    # 1) 布尔标记字段识别（优先可信）
+    if has_truthy_flag(growth_info, {"svip_plus", "is_svip_plus", "issvipplus"}):
+        best_level = max(best_level, 3)
+    if has_truthy_flag(growth_info, {"svip", "is_svip", "issvip"}):
+        best_level = max(best_level, 2)
+    if has_truthy_flag(growth_info, {"88vip", "is_88vip", "is88vip"}):
+        best_level = max(best_level, 1)
+
+    # 2) 文本兜底识别，兼容字段名/字段值的变体
+    text_parts = []
+    collect_all_text(growth_info, text_parts)
+    all_text = " ".join(text_parts)
+    if ("svip+" in all_text) or ("svip_plus" in all_text) or ("svip plus" in all_text):
+        best_level = max(best_level, 3)
+    if "svip" in all_text:
+        best_level = max(best_level, 2)
+    if "88vip" in all_text:
+        best_level = max(best_level, 1)
+
+    # 3) 类型编码字段识别（仅作补充信号，避免覆盖更高等级）
+    type_value = get_nested_value(
+        growth_info,
+        {
+            "vip_type",
+            "member_type",
+            "memberlevel",
+            "member_level",
+            "member_status",
+            "identity_type",
+            "identity",
+            "user_type",
+        },
+    )
+    if isinstance(type_value, str) and type_value.isdigit():
+        type_value = int(type_value)
+    if isinstance(type_value, (int, float)):
+        type_to_level = {
+            4: 3,  # SVIP+
+            3: 2,  # SVIP
+            2: 1,  # 88VIP
+            1: 0,  # 普通用户
+            0: 0,  # 普通用户
+        }
+        mapped_level = type_to_level.get(int(type_value))
+        if mapped_level is not None:
+            best_level = max(best_level, mapped_level)
+
+    return level_to_label[best_level]
+
+
 def do_sign(account):
     if not account.mparam:
         print("⏭️ 移动端参数未设置，跳过签到")
@@ -5051,7 +5173,8 @@ def do_sign(account):
     # 每日领空间
     growth_info = account.get_growth_info()
     if growth_info:
-        growth_message = f"💾 {'88VIP' if growth_info['88VIP'] else '普通用户'}: 总空间 {format_bytes(growth_info['total_capacity'])}，签到累计获得 {format_bytes(growth_info['cap_composition'].get('sign_reward', 0))}"
+        membership_label = get_membership_label(growth_info)
+        growth_message = f"💾 {membership_label}: 总空间 {format_bytes(growth_info['total_capacity'])}，签到累计获得 {format_bytes(growth_info['cap_composition'].get('sign_reward', 0))}"
         if growth_info["cap_sign"]["sign_daily"]:
             sign_message = f"📅 签到记录: 今日已签到 +{int(growth_info['cap_sign']['sign_daily_reward']/1024/1024)}MB，连签进度（{growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']}）✅"
             message = f"{sign_message}\n{growth_message}"
