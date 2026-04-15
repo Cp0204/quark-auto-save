@@ -19,7 +19,7 @@ import importlib
 import traceback
 import urllib.parse
 from datetime import datetime
-from natsort import natsorted
+from natsort import natsorted, natsort_keygen
 
 # 兼容青龙
 try:
@@ -889,10 +889,77 @@ class Quark:
         pattern, replace = mr.magic_regex_conv(
             task.get("pattern", ""), task.get("replace", "")
         )
+        # 当需要 start/end 边界时，补一层稳定排序：
+        # - 先按文件类型（与接口 file_type:asc 保持一致）
+        # - 再按修改时间（updated_at desc，最新在上）
+        # - 时间相同按文件名自然倒序（4,3,2,1）
+        # - 最后按 fid 倒序兜底，确保顺序完全稳定
+        if task.get("startfid") or task.get("endfid"):
+            nk = natsort_keygen()
+
+            def _updated_at_num(f):
+                updated_at = f.get("updated_at") or 0
+                try:
+                    return int(updated_at)
+                except Exception:
+                    return 0
+
+            # Python 排序稳定，分层排序实现混合倒序逻辑
+            share_file_list = sorted(
+                share_file_list, key=lambda f: str(f.get("fid", "")), reverse=True
+            )
+            share_file_list = natsorted(
+                share_file_list,
+                key=lambda f: nk(mr._custom_sort_key(f.get("file_name", ""))),
+                reverse=True,
+            )
+            share_file_list = sorted(
+                share_file_list, key=lambda f: _updated_at_num(f), reverse=True
+            )
+            share_file_list = sorted(share_file_list, key=lambda f: 0 if f.get("dir") else 1)
         # 需保存的文件清单
         need_save_list = []
+        startfid = str(task.get("startfid", "") or "")
+        endfid = str(task.get("endfid", "") or "")
+        # 语义（顺序：最新 -> 最旧）：
+        # - 仅 startfid：从 startfid 到最新（含）
+        # - 仅 endfid：从 endfid 到最旧（含）
+        # - startfid + endfid：取两者中间区间（含两端）
+        # - startfid == endfid：仅处理该单个文件
+        same_only_fid = startfid if startfid and startfid == endfid else ""
+        fid_index = {str(item.get("fid", "")): idx for idx, item in enumerate(share_file_list)}
+
+        selected_index_set = None
+        if same_only_fid:
+            if same_only_fid in fid_index:
+                selected_index_set = {fid_index[same_only_fid]}
+            else:
+                selected_index_set = set()
+        elif startfid and endfid:
+            if startfid in fid_index and endfid in fid_index:
+                i_start = fid_index[startfid]
+                i_end = fid_index[endfid]
+                left = min(i_start, i_end)
+                right = max(i_start, i_end)
+                selected_index_set = set(range(left, right + 1))
+            else:
+                selected_index_set = set()
+        elif startfid:
+            if startfid in fid_index:
+                selected_index_set = set(range(0, fid_index[startfid] + 1))
+            else:
+                selected_index_set = set()
+        elif endfid:
+            if endfid in fid_index:
+                selected_index_set = set(range(fid_index[endfid], len(share_file_list)))
+            else:
+                selected_index_set = set()
         # 添加符合的
-        for share_file in share_file_list:
+        for idx, share_file in enumerate(share_file_list):
+            fid = str(share_file.get("fid", ""))
+            if selected_index_set is not None and idx not in selected_index_set:
+                continue
+
             search_pattern = (
                 task["update_subdir"]
                 if share_file["dir"] and task.get("update_subdir")
@@ -971,9 +1038,7 @@ class Quark:
                                     },
                                 )
                                 tree.merge(share_file["fid"], subdir_tree, deep=False)
-            # 指定文件开始订阅/到达指定文件（含）结束历遍
-            if share_file["fid"] == task.get("startfid", ""):
-                break
+            # 由 selected_index_set 控制区间，无需额外 break
 
         if re.search(r"\{I+\}", replace):
             mr.set_dir_file_list(dir_file_list, replace)
