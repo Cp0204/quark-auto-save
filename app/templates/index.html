@@ -428,7 +428,18 @@
                       <div class="input-group">
                         <input type="text" class="form-control" placeholder="可选，只转存修改日期>此文件的文件" name="startfid[]" v-model="task.startfid">
                         <div class="input-group-append" v-if="task.shareurl">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index)">选择</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.selectFidType='start';fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index)">选择</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group row" title="可选，选择结束文件后，仅转存处于结束文件（较新）与起始文件（较旧）之间的文件；两端均包含。若两者相同，仅转存该文件。">
+                    <label class="col-sm-2 col-form-label">文件结束</label>
+                    <div class="col-sm-10">
+                      <div class="input-group">
+                        <input type="text" class="form-control" placeholder="可选，区间上界（较新）" name="endfid[]" v-model="task.endfid">
+                        <div class="input-group-append" v-if="task.shareurl">
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.selectFidType='end';fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index)">选择</button>
                         </div>
                       </div>
                     </div>
@@ -603,7 +614,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(file, key) in fileSelect.fileList" :key="key" @click="fileSelect.selectDir ? (file.dir ? navigateTo(file.fid, file.file_name) : null) : selectStartFid(file.fid)" :class="{'cursor-pointer': fileSelect.selectDir ? file.dir : true}">
+                  <tr v-for="(file, key) in fileSelect.fileList" :key="key" @click="fileSelect.selectDir ? (file.dir ? navigateTo(file.fid, file.file_name) : null) : (fileSelect.selectFidType === 'end' ? selectEndFid(file.fid) : selectStartFid(file.fid))" :class="{'cursor-pointer': fileSelect.selectDir ? file.dir : true}">
                     <td><i class="bi mr-1" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i>{{file.file_name}}</td>
                     <td v-if="fileSelect.selectShare" :class="file.file_name_re ? 'text-success' : file.file_name_saved ? 'text-muted' : 'text-danger'">{{file.file_name_re || file.file_name_saved || '&times;'}}</td>
                     <template v-if="!fileSelect.previewRegex">
@@ -707,6 +718,7 @@
           paths: [],
           selectDir: true,
           selectShare: true,
+          selectFidType: "start",
           switchShare: false,
           previewRegex: false,
           sortBy: "updated_at",
@@ -783,6 +795,7 @@
                 if (!task.hasOwnProperty('runweek')) {
                   task.runweek = [1, 2, 3, 4, 5, 6, 7];
                 }
+                if (!task.hasOwnProperty('endfid')) task.endfid = "";
                 if (!task.hasOwnProperty('pansou_src')) task.pansou_src = "";
                 if (!task.hasOwnProperty('pansou_plugins')) task.pansou_plugins = "";
                 if (!task.hasOwnProperty('pansou_channels')) task.pansou_channels = "";
@@ -1270,6 +1283,10 @@
           Vue.set(this.formData.tasklist[this.fileSelect.index], 'startfid', fid);
           $('#fileSelectModal').modal('hide')
         },
+        selectEndFid(fid) {
+          Vue.set(this.formData.tasklist[this.fileSelect.index], 'endfid', fid);
+          $('#fileSelectModal').modal('hide')
+        },
         getShareurl(shareurl, dir = {}) {
           if (dir == {} || dir.fid == 0) {
             shareurl = shareurl.match(`.*s/[a-z0-9]+(\\?pwd=[^#]+)?`)[0]
@@ -1291,15 +1308,39 @@
           }
 
           this.fileSelect.fileList.sort((a, b) => {
-            let valA = a[this.fileSelect.sortBy];
-            let valB = b[this.fileSelect.sortBy];
+            // 与后端 start/end 区间的稳定排序对齐：时间相同按文件名自然排序，再按 fid 兜底
+            const dirA = a.dir ? 0 : 1;
+            const dirB = b.dir ? 0 : 1;
+            if (dirA !== dirB) return dirA - dirB;
 
-            if (typeof valA === "string") valA = valA.toLowerCase();
-            if (typeof valB === "string") valB = valB.toLowerCase();
+            const sortBy = this.fileSelect.sortBy;
+            const orderFactor = this.fileSelect.sortOrder === "asc" ? 1 : -1;
+            let valA = a[sortBy];
+            let valB = b[sortBy];
 
-            if (valA < valB) return this.fileSelect.sortOrder === "asc" ? -1 : 1;
-            if (valA > valB) return this.fileSelect.sortOrder === "asc" ? 1 : -1;
-            return 0;
+            // 数值字段优先按数值比较
+            const numA = Number(valA);
+            const numB = Number(valB);
+            if (!Number.isNaN(numA) && !Number.isNaN(numB) && sortBy !== 'file_name') {
+              if (numA < numB) return -1 * orderFactor;
+              if (numA > numB) return 1 * orderFactor;
+            } else {
+              valA = (valA ?? "").toString().toLowerCase();
+              valB = (valB ?? "").toString().toLowerCase();
+              if (valA < valB) return -1 * orderFactor;
+              if (valA > valB) return 1 * orderFactor;
+            }
+
+            // tie-breaker: file_name（自然排序）
+            const nameA = (a.file_name ?? "").toString();
+            const nameB = (b.file_name ?? "").toString();
+            const nameCmp = nameA.localeCompare(nameB, 'zh-CN', { numeric: true, sensitivity: 'base' });
+            if (nameCmp !== 0) return nameCmp;
+
+            // tie-breaker: fid
+            const fidA = (a.fid ?? "").toString();
+            const fidB = (b.fid ?? "").toString();
+            return fidA.localeCompare(fidB, 'en', { numeric: true, sensitivity: 'base' });
           });
         },
         inputRawMagicRegex(task) {
