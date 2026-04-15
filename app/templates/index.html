@@ -407,7 +407,7 @@
                     <div class="col-sm-10">
                       <div class="input-group">
                         <div class="input-group-prepend">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=true;fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showShareSelect(index)" title="预览正则处理效果">正则处理</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=true;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index)" title="预览正则处理效果">正则处理</button>
                         </div>
                         <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex" @dblclick="inputRawMagicRegex(task)" title="双击可将魔法匹配释放为填入原始正则表达式">
                         <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
@@ -422,22 +422,22 @@
                       </datalist>
                     </div>
                   </div>
-                  <div class="form-group row" title="只转存修改日期>选中文件的文件，在容量不够或几百集动漫的场景下非常有用">
+                  <div class="form-group row" title="可选，选择后将转存从该文件到最新文件（含）">
                     <label class="col-sm-2 col-form-label">文件起始</label>
                     <div class="col-sm-10">
                       <div class="input-group">
-                        <input type="text" class="form-control" placeholder="可选，只转存修改日期>此文件的文件" name="startfid[]" v-model="task.startfid">
+                        <input type="text" class="form-control" placeholder="可选，选择到最新的边界（含）" name="startfid[]" v-model="task.startfid">
                         <div class="input-group-append" v-if="task.shareurl">
                           <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.selectFidType='start';fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index)">选择</button>
                         </div>
                       </div>
                     </div>
                   </div>
-                  <div class="form-group row" title="可选，选择结束文件后，仅转存处于结束文件（较新）与起始文件（较旧）之间的文件；两端均包含。若两者相同，仅转存该文件。">
+                  <div class="form-group row" title="可选，选择后将转存从该文件到最旧文件（含）。若同时设置起始，则转存两者中间区间（含两端）。">
                     <label class="col-sm-2 col-form-label">文件结束</label>
                     <div class="col-sm-10">
                       <div class="input-group">
-                        <input type="text" class="form-control" placeholder="可选，区间上界（较新）" name="endfid[]" v-model="task.endfid">
+                        <input type="text" class="form-control" placeholder="可选，选择到最旧的边界（含）" name="endfid[]" v-model="task.endfid">
                         <div class="input-group-append" v-if="task.shareurl">
                           <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.selectFidType='end';fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index)">选择</button>
                         </div>
@@ -588,6 +588,13 @@
                   </li>
                 </ol>
               </nav>
+              <div v-else class="alert alert-info py-2 mb-2" role="alert">
+                <span v-if="fileSelect.selectFidType === 'start'">正在选择「文件起始」：将转存该文件到最新文件（含）。</span>
+                <span v-else>正在选择「文件结束」：将转存该文件到最旧文件（含）；若同时设置起始，则转存中间区间（含两端）。</span>
+              </div>
+              <div v-if="fileSelect.previewRegex" class="alert alert-secondary py-2 mb-2" role="alert">
+                正则处理预览列表排序：最新在上；同时间按文件名倒序（4,3,2,1）。
+              </div>
               <!-- 文件列表 -->
               <table class="table table-hover table-sm">
                 <thead>
@@ -1331,16 +1338,16 @@
               if (valA > valB) return 1 * orderFactor;
             }
 
-            // tie-breaker: file_name（自然排序）
+            // tie-breaker: file_name（自然排序，随主排序方向）
             const nameA = (a.file_name ?? "").toString();
             const nameB = (b.file_name ?? "").toString();
             const nameCmp = nameA.localeCompare(nameB, 'zh-CN', { numeric: true, sensitivity: 'base' });
-            if (nameCmp !== 0) return nameCmp;
+            if (nameCmp !== 0) return nameCmp * orderFactor;
 
-            // tie-breaker: fid
+            // tie-breaker: fid（随主排序方向）
             const fidA = (a.fid ?? "").toString();
             const fidB = (b.fid ?? "").toString();
-            return fidA.localeCompare(fidB, 'en', { numeric: true, sensitivity: 'base' });
+            return fidA.localeCompare(fidB, 'en', { numeric: true, sensitivity: 'base' }) * orderFactor;
           });
         },
         inputRawMagicRegex(task) {

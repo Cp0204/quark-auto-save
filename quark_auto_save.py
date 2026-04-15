@@ -891,50 +891,73 @@ class Quark:
         )
         # 当需要 start/end 边界时，补一层稳定排序：
         # - 先按文件类型（与接口 file_type:asc 保持一致）
-        # - 再按修改时间（updated_at desc）
-        # - 时间相同则按文件名自然排序
-        # - 最后按 fid 兜底，确保顺序完全稳定
+        # - 再按修改时间（updated_at desc，最新在上）
+        # - 时间相同按文件名自然倒序（4,3,2,1）
+        # - 最后按 fid 倒序兜底，确保顺序完全稳定
         if task.get("startfid") or task.get("endfid"):
             nk = natsort_keygen()
 
-            def _stable_share_sort_key(f):
-                is_dir = 0 if f.get("dir") else 1
+            def _updated_at_num(f):
                 updated_at = f.get("updated_at") or 0
                 try:
-                    updated_at = int(updated_at)
+                    return int(updated_at)
                 except Exception:
-                    updated_at = 0
-                name_key = nk(mr._custom_sort_key(f.get("file_name", "")))
-                return (is_dir, -updated_at, name_key, str(f.get("fid", "")))
+                    return 0
 
-            share_file_list = sorted(share_file_list, key=_stable_share_sort_key)
+            # Python 排序稳定，分层排序实现混合倒序逻辑
+            share_file_list = sorted(
+                share_file_list, key=lambda f: str(f.get("fid", "")), reverse=True
+            )
+            share_file_list = natsorted(
+                share_file_list,
+                key=lambda f: nk(mr._custom_sort_key(f.get("file_name", ""))),
+                reverse=True,
+            )
+            share_file_list = sorted(
+                share_file_list, key=lambda f: _updated_at_num(f), reverse=True
+            )
+            share_file_list = sorted(share_file_list, key=lambda f: 0 if f.get("dir") else 1)
         # 需保存的文件清单
         need_save_list = []
         startfid = str(task.get("startfid", "") or "")
         endfid = str(task.get("endfid", "") or "")
-        # 语义：
-        # - 同时设置 endfid(新) + startfid(旧)：仅处理两者之间（含两端）
-        # - 仅设置 startfid：从 startfid（含）开始处理到列表末尾（更旧）
-        # - 仅设置 endfid：从列表开头（最新）处理到 endfid（含）
+        # 语义（顺序：最新 -> 最旧）：
+        # - 仅 startfid：从 startfid 到最新（含）
+        # - 仅 endfid：从 endfid 到最旧（含）
+        # - startfid + endfid：取两者中间区间（含两端）
         # - startfid == endfid：仅处理该单个文件
         same_only_fid = startfid if startfid and startfid == endfid else ""
-        in_range = True if (not startfid and not endfid) else False
-        # 添加符合的
-        for share_file in share_file_list:
-            fid = str(share_file.get("fid", ""))
-            if same_only_fid:
-                if fid != same_only_fid:
-                    continue
-                in_range = True
-            elif not in_range:
-                # 仅 startfid：遇到 startfid 才开始收集（往后/更旧）
-                if startfid and not endfid and fid == startfid:
-                    in_range = True
-                # 仅 endfid 或区间：遇到 endfid 才开始收集（从较新边界进入区间）
-                elif endfid and fid == endfid:
-                    in_range = True
+        fid_index = {str(item.get("fid", "")): idx for idx, item in enumerate(share_file_list)}
 
-            if not in_range:
+        selected_index_set = None
+        if same_only_fid:
+            if same_only_fid in fid_index:
+                selected_index_set = {fid_index[same_only_fid]}
+            else:
+                selected_index_set = set()
+        elif startfid and endfid:
+            if startfid in fid_index and endfid in fid_index:
+                i_start = fid_index[startfid]
+                i_end = fid_index[endfid]
+                left = min(i_start, i_end)
+                right = max(i_start, i_end)
+                selected_index_set = set(range(left, right + 1))
+            else:
+                selected_index_set = set()
+        elif startfid:
+            if startfid in fid_index:
+                selected_index_set = set(range(0, fid_index[startfid] + 1))
+            else:
+                selected_index_set = set()
+        elif endfid:
+            if endfid in fid_index:
+                selected_index_set = set(range(fid_index[endfid], len(share_file_list)))
+            else:
+                selected_index_set = set()
+        # 添加符合的
+        for idx, share_file in enumerate(share_file_list):
+            fid = str(share_file.get("fid", ""))
+            if selected_index_set is not None and idx not in selected_index_set:
                 continue
 
             search_pattern = (
@@ -1015,15 +1038,7 @@ class Quark:
                                     },
                                 )
                                 tree.merge(share_file["fid"], subdir_tree, deep=False)
-            # 结束条件
-            if same_only_fid and fid == same_only_fid:
-                break
-            # 仅 endfid：到达 endfid（含）后结束
-            if endfid and not startfid and fid == endfid:
-                break
-            # 区间模式：到达 startfid（含）后结束
-            if startfid and endfid and fid == startfid:
-                break
+            # 由 selected_index_set 控制区间，无需额外 break
 
         if re.search(r"\{I+\}", replace):
             mr.set_dir_file_list(dir_file_list, replace)
