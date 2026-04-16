@@ -123,8 +123,13 @@ class Alist:
             if not quark_path.startswith("/"):
                 quark_path = f"/{quark_path}"
             
-            # 检查路径是否在夸克根目录下，或夸克根目录是否为根目录
-            if self.quark_root_dir == "/" or quark_path.startswith(self.quark_root_dir):
+            # 检查路径是否在夸克根目录下（目录边界匹配，避免 /media/tv 误匹配 /media/tv2）
+            in_root_dir = (
+                self.quark_root_dir == "/"
+                or quark_path == self.quark_root_dir
+                or quark_path.startswith(f"{self.quark_root_dir}/")
+            )
+            if in_root_dir:
                 # 映射到AList路径
                 alist_path = self.map_quark_to_alist_path(quark_path)
                 
