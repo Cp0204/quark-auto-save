@@ -115,7 +115,7 @@
             </div>
             <div v-for="(value, key) in formData.push_config" :key="key" class="input-group mb-2">
               <div class="input-group-prepend">
-                <span class="input-group-text" v-html="key"></span>
+                <span class="input-group-text">{{ key }}</span>
               </div>
               <div class="input-group-prepend" v-if="(key == 'DEER_KEY' || key == 'PUSH_KEY')">
                 <a type="button" class="btn btn-warning" target="_blank" href="https://sct.ftqq.com/r/13249" title="Server酱推荐计划"><i class="bi bi-award"></i></a>
@@ -138,17 +138,17 @@
               <div class="form-group row mb-0" style="display:flex; align-items:center;">
                 <div data-toggle="collapse" :data-target="'#collapse_'+pluginName" aria-expanded="true" :aria-controls="'collapse_'+pluginName">
                   <div class="btn btn-block text-left">
-                    <i class="bi bi-caret-right-fill"></i> <span v-html="`${pluginName}`"></span>
+                    <i class="bi bi-caret-right-fill"></i> <span>{{ pluginName }}</span>
                   </div>
                 </div>
               </div>
               <div class="collapse ml-3 mt-2" :id="'collapse_'+pluginName">
                 <template v-for="(value, key) in plugin" :key="key">
                   <div v-if="key.startsWith('tips_')">
-                    <div class="alert alert-warning" role="alert" v-html="value"></div>
+                    <div class="alert alert-warning" role="alert">{{ value }}</div>
                   </div>
                   <div v-else class="form-group row">
-                    <label class="col-sm-2 col-form-label" v-html="key"></label>
+                    <label class="col-sm-2 col-form-label">{{ key }}</label>
                     <div class="col-sm-10">
                       <input :type="key.includes('password') || key.includes('token') || key.includes('secret') ? 'password' : 'text'" v-model="formData.plugins[pluginName][key]" class="form-control">
                     </div>
@@ -296,7 +296,7 @@
                   <label class="col-form-label col-md-3">路径筛选</label>
                   <div class="input-group col-md-9">
                     <select class="form-control" v-model="taskDirSelected">
-                      <option v-for="(dir, index) in taskDirs" :value="dir" v-html="dir"></option>
+                      <option v-for="(dir, index) in taskDirs" :value="dir">{{ dir }}</option>
                     </select>
                     <div class="input-group-append">
                       <button type="button" class="btn btn-outline-secondary" @click="clearData('taskDirSelected')"><i class="bi bi-x-lg"></i></button>
@@ -311,7 +311,7 @@
                 <div class="form-group row" style="align-items:center">
                   <div class="col pl-0" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="true" :aria-controls="'collapse_'+index">
                     <div class="btn btn-block text-left">
-                      <i class="bi bi-caret-right-fill"></i> #<span v-html="`${index+1}: ${task.taskname}`"></span>
+                      <i class="bi bi-caret-right-fill"></i> #<span>{{ index+1 }}: {{ task.taskname }}</span>
                     </div>
                   </div>
                   <div class="col-auto">
@@ -322,7 +322,7 @@
                   </div>
                 </div>
                 <div class="collapse ml-3" :id="'collapse_'+index">
-                  <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban" v-html="task.shareurl_ban"></div>
+                  <div class="alert alert-warning" role="alert" v-if="task.shareurl_ban">{{ task.shareurl_ban }}</div>
                   <div class="form-group row">
                     <label class="col-sm-2 col-form-label">任务名称</label>
                     <div class="col-sm-10">
@@ -331,7 +331,7 @@
                         <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.taskSuggestions.success && smart_param.index === index">
                           <div class="dropdown-item text-muted text-center" style="font-size:12px;">{{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data.length ? `以下资源来自网络搜索，请自行辨识，如有侵权请联系资源方` : "未搜索到资源" }}</div>
                           <div v-for="suggestion in smart_param.taskSuggestions.data" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(index, suggestion)" style="font-size: 12px;" :title="suggestion.content">
-                            <span v-html="suggestion.verify ? '✅': '❔'"></span> {{ suggestion.taskname }}
+                            <span>{{ suggestion.verify ? '✅': '❔' }}</span> {{ suggestion.taskname }}
                             <small class="text-muted">
                               <a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a>
                             </small>
@@ -394,7 +394,7 @@
                         </div>
                       </div>
                       <datalist id="magicRegex">
-                        <option v-for="(value, key) in formData.magic_regex" :key="key" :value="`${key}`" v-html="`${value.pattern.replace('<', '<\u200B')} → ${value.replace}`"></option>
+                        <option v-for="(value, key) in formData.magic_regex" :key="key" :value="`${key}`">{{ value.pattern }} → {{ value.replace }}</option>
                       </datalist>
                     </div>
                   </div>
@@ -482,7 +482,7 @@
             </button>
           </div>
           <div class="modal-body">
-            <pre v-html="run_log"></pre>
+            <pre>{{ run_log }}</pre>
           </div>
         </div>
       </div>
@@ -532,14 +532,14 @@
                 </div>
               </div>
             </div>
-            <div class="alert alert-warning" v-if="fileSelect.error" v-html="fileSelect.error"></div>
+            <div class="alert alert-warning" v-if="fileSelect.error">{{ fileSelect.error }}</div>
             <div v-else>
               <!-- 正则处理表达式 -->
               <div class="mb-3" v-if="fileSelect.previewRegex && fileSelect.index<this.formData.tasklist.length">
-                <div><b>匹配表达式：</b><span class="badge badge-info" v-html="formData.tasklist[fileSelect.index].pattern"></span>
+                <div><b>匹配表达式：</b><span class="badge badge-info">{{ formData.tasklist[fileSelect.index].pattern }}</span>
                   <span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].pattern }}</span>
                 </div>
-                <div><b>替换表达式：</b><span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].replace" v-html="formData.tasklist[fileSelect.index].replace"></span>
+                <div><b>替换表达式：</b><span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].replace">{{ formData.tasklist[fileSelect.index].replace }}</span>
                   <span class="badge badge-info" v-else-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].replace }}</span>
                 </div>
               </div>
@@ -594,9 +594,9 @@
             </div>
           </div>
           <div class="modal-footer" v-if="fileSelect.selectDir && !fileSelect.previewRegex">
-            <span v-html="fileSelect.selectShare ? '转存：' : '保存到：'"></span>
+            <span>{{ fileSelect.selectShare ? '转存：' : '保存到：' }}</span>
             <button type="button" class="btn btn-primary btn-sm" @click="selectCurrentFolder()">当前文件夹</button>
-            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare" @click="selectCurrentFolder(true)">当前文件夹<span class="badge badge-light" v-if="fileSelect.index<this.formData.tasklist.length" v-html="'/'+formData.tasklist[fileSelect.index].taskname"></span></button>
+            <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare" @click="selectCurrentFolder(true)">当前文件夹<span class="badge badge-light" v-if="fileSelect.index<this.formData.tasklist.length">/{{ formData.tasklist[fileSelect.index].taskname }}</span></button>
           </div>
         </div>
       </div>
