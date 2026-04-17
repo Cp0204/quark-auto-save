@@ -189,9 +189,11 @@ def update():
     global config_data
     if not is_login():
         return jsonify({"success": False, "message": "未登录"})
-    dont_save_keys = ["task_plugins_config_default", "api_token"]
+    # 使用允许列表防止批量赋值攻击
+    allowed_keys = ["cookie", "crontab", "push_config", "tasklist",
+                    "magic_regex", "plugins", "source"]
     for key, value in request.json.items():
-        if key not in dont_save_keys:
+        if key in allowed_keys:
             config_data.update({key: value})
     Config.write_json(CONFIG_PATH, config_data)
     # 重新加载任务
