@@ -122,8 +122,7 @@ class Auto_unarchive:
                     f"🚀 任务全部解压完成，开始批量移动 {len(all_move_fids)} 个文件..."
                 )
                 if account.move_files(all_move_fids, target_pdir_fid).get("code") == 0:
-                    if self.auto_clean:
-                        account.delete(all_cleanup_fids)
+                    if all_cleanup_fids and account.delete(all_cleanup_fids):
                         print(f"🧹 批量清理完成")
 
         except Exception as e:
@@ -140,8 +139,14 @@ class Auto_unarchive:
         if not sub_dir_fid:
             return
 
-        clean_list.append(p_task["zip_fid"])
-        clean_list.append(sub_dir_fid)
+        if self.auto_clean:
+            # 压缩包加入清理队列
+            clean_list.append(p_task["zip_fid"])
+            # 重命名解压目录为压缩包名称，占位，避免下次重复转存
+            account.rename(sub_dir_fid, p_task["zip_name"])
+        else:
+            # 不自动清理时，原压缩包占位，将解压目录加入清理队列
+            clean_list.append(sub_dir_fid)
 
         items = []
         for _ in range(self.retry_count + 1):
