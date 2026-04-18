@@ -6,7 +6,7 @@ import traceback
 
 class Auto_unarchive:
     default_config = {
-        "auto_delete": True,  # 是否自动删除原始文件
+        "auto_clean": True,  # 是否自动删除原始文件
         "retry_count": 3,  # 重试次数
         "max_concurrent": 3,  # 限制同时解压的任务数
     }
@@ -23,8 +23,8 @@ class Auto_unarchive:
         if kwargs:
             self.config.update(kwargs)
         if self.is_active:
-            self.auto_delete = (
-                str(self.config.get("auto_delete", "false")).lower() == "true"
+            self.auto_clean = (
+                str(self.config.get("auto_clean", "false")).lower() == "true"
             )
             self.retry_count = int(self.config.get("retry_count", 3))
             self.max_concurrent = int(self.config.get("max_concurrent", 3))
@@ -122,7 +122,7 @@ class Auto_unarchive:
                     f"🚀 任务全部解压完成，开始批量移动 {len(all_move_fids)} 个文件..."
                 )
                 if account.move_files(all_move_fids, target_pdir_fid).get("code") == 0:
-                    if self.auto_delete:
+                    if self.auto_clean:
                         account.delete(all_cleanup_fids)
                         print(f"🧹 批量清理完成")
 
