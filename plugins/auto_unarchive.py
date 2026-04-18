@@ -6,8 +6,7 @@ import traceback
 
 class Auto_unarchive:
     default_config = {
-        "tips_": "自动云解压(zip|rar|7z)到保存目录，该功能需SVIP支持",
-        "auto_clean": True,  # 是否自动删除原始文件
+        "tips_": "自动云解压(zip|rar|7z)到保存目录，在任务插件选项中启用，该功能需SVIP支持",
         "max_concurrent": 3,  # 限制同时解压的任务数
     }
 
@@ -20,14 +19,10 @@ class Auto_unarchive:
 
     def __init__(self, **kwargs):
         self.plugin_name = self.__class__.__name__.lower()
-        self.config = self.default_config.copy()
         if kwargs:
-            self.config.update(kwargs)
-        if self.is_active:
-            self.auto_clean = (
-                str(self.config.get("auto_clean", "false")).lower() == "true"
-            )
-            self.max_concurrent = int(self.config.get("max_concurrent", 3))
+            for key, _ in self.default_config.items():
+                if key in kwargs:
+                    setattr(self, key, kwargs[key])
 
     def run(self, task, **kwargs):
         account = kwargs.get("account")
@@ -40,7 +35,7 @@ class Auto_unarchive:
             return task
 
         # 任务配置中是否自动删除原始文件
-        self.auto_clean = task_config.get("auto_clean", self.auto_clean)
+        self.auto_clean = task_config.get("auto_clean", True)
 
         try:
             savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}")
