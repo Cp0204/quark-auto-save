@@ -6,13 +6,14 @@ import traceback
 
 class Auto_unarchive:
     default_config = {
+        "tips_": "自动云解压(zip|rar|7z)到保存目录，该功能需SVIP支持",
         "auto_clean": True,  # 是否自动删除原始文件
-        "retry_count": 3,  # 重试次数
         "max_concurrent": 3,  # 限制同时解压的任务数
     }
 
     default_task_config = {
-        "unarchive": False,  # 任务选项，是否自动解压
+        "enable": False,  # 是否自动解压
+        "auto_clean": True,  # 是否自动删除原始文件，可覆盖全局配置
     }
 
     is_active = True  # 默认全局激活，由任务配置中开启
@@ -26,7 +27,6 @@ class Auto_unarchive:
             self.auto_clean = (
                 str(self.config.get("auto_clean", "false")).lower() == "true"
             )
-            self.retry_count = int(self.config.get("retry_count", 3))
             self.max_concurrent = int(self.config.get("max_concurrent", 3))
 
     def run(self, task, **kwargs):
@@ -36,8 +36,11 @@ class Auto_unarchive:
         task_config = task.get("addition", {}).get(
             self.plugin_name, self.default_task_config
         )
-        if not self.is_active or not task_config.get("unarchive"):
+        if not self.is_active or not task_config.get("enable"):
             return task
+
+        # 任务配置中是否自动删除原始文件
+        self.auto_clean = task_config.get("auto_clean", self.auto_clean)
 
         try:
             savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}")
@@ -132,9 +135,10 @@ class Auto_unarchive:
 
     def _process_files(self, account, p_task, q_res, target_fid, move_list, clean_list):
         """处理文件重命名逻辑"""
+        # 获取解压出来压缩包同名目录的fid
         un_list = q_res.get("data", {}).get("unarchive_result", {}).get("list", [])
         sub_dir_fid = next(
-            (i["fid"] for i in un_list if p_task["main_name"] in i["file_name"]), None
+            (i["fid"] for i in un_list if p_task["main_name"] == i["file_name"]), None
         )
         if not sub_dir_fid:
             return
@@ -148,14 +152,9 @@ class Auto_unarchive:
             # 不自动清理时，原压缩包占位，将解压目录加入清理队列
             clean_list.append(sub_dir_fid)
 
-        items = []
-        for _ in range(self.retry_count + 1):
-            ls_res = account.ls_dir(sub_dir_fid)
-            items = ls_res.get("data", {}).get("list", [])
-            if items:
-                break
-            time.sleep(2)
-
+        # 获取解压目录下的所有文件
+        ls_res = account.ls_dir(sub_dir_fid)
+        items = ls_res.get("data", {}).get("list", [])
         for item in items:
             move_list.append(item["fid"])
 
