@@ -723,7 +723,7 @@
             </div>
 
             <!-- 剧集识别模块 -->
-            <div class="row title" title="配置剧集编号与电视节目任务的识别规则，用于剧集命名的集编号提取和编辑任务时的智能填充判定，留空使用内置默认规则，或添加自定义规则作为补充，查阅Wiki了解详情">
+            <div class="row title" title="配置剧集编号与电视任务的识别规则，用于剧集命名的集编号提取和编辑任务时的智能填充判定，留空使用内置默认规则，或添加自定义规则作为补充，查阅Wiki了解详情">
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">剧集识别</h2>
                 <span class="badge badge-pill badge-light">
@@ -742,9 +742,9 @@
             <div class="form-group">
               <div class="input-group">
                 <div class="input-group-prepend">
-                  <span class="input-group-text">电视节目任务识别规则</span>
+                  <span class="input-group-text">电视任务识别关键词</span>
                 </div>
-                <input type="text" class="form-control" v-model="tvShowKeywordsText" placeholder="留空使用内置默认识别关键词，或输入自定义关键词作为补充，多个关键词用竖线分隔" title="设置电视节目任务识别关键词，留空时仅使用内置关键词，填写后会追加到内置关键词中共同匹配保存路径，多个关键词用竖线分隔，保存路径包含关键词的任务将被判定为电视节目任务，并应用电视节目智能填充规则，在编辑任务时自动填充或同步配置">
+                <input type="text" class="form-control" v-model="tvShowKeywordsText" placeholder="留空使用内置默认识别关键词，或输入自定义关键词作为补充，多个关键词用竖线分隔" title="设置电视任务识别关键词，留空时仅使用内置关键词，填写后会追加到内置关键词中共同匹配保存路径，多个关键词用竖线分隔，保存路径包含关键词的任务将被判定为电视任务，并应用电视节目智能填充规则，在编辑任务时自动填充或同步配置">
               </div>
             </div>
 
