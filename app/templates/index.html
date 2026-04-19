@@ -723,7 +723,7 @@
             </div>
 
             <!-- 剧集识别模块 -->
-            <div class="row title" title="识别文件名中的剧集编号，用于自动重命名，留空时使用内置默认规则，支持输入自定义规则作为补充，查阅Wiki了解详情">
+            <div class="row title" title="配置剧集编号与电视节目任务的识别规则，用于剧集命名的集编号提取和编辑任务时的智能填充判定，留空使用内置默认规则，或添加自定义规则作为补充，查阅Wiki了解详情">
               <div class="col">
                 <h2 style="display: inline-block; font-size: 1.5rem;">剧集识别</h2>
                 <span class="badge badge-pill badge-light">
@@ -736,7 +736,15 @@
                 <div class="input-group-prepend">
                   <span class="input-group-text">集编号识别规则</span>
                 </div>
-                <input type="text" class="form-control" v-model="episodePatternsText" placeholder="留空使用内置默认规则，或输入自定义正则表达式作为补充规则，多个表达式用竖线分隔，特殊符号需要转义">
+                <input type="text" class="form-control" v-model="episodePatternsText" placeholder="留空使用内置默认规则，或输入自定义正则表达式作为补充，多个表达式用竖线分隔，特殊符号需要转义" title="设置文件名中的集编号识别（提取）规则，留空时仅使用内置规则，填写后会作为补充规则参与识别，多个表达式用竖线分隔，特殊符号请转义">
+              </div>
+            </div>
+            <div class="form-group">
+              <div class="input-group">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">电视节目任务识别规则</span>
+                </div>
+                <input type="text" class="form-control" v-model="tvShowKeywordsText" placeholder="留空使用内置默认识别关键词，或输入自定义关键词作为补充，多个关键词用竖线分隔" title="设置电视节目任务识别关键词，留空时仅使用内置关键词，填写后会追加到内置关键词中共同匹配保存路径，多个关键词用竖线分隔，保存路径包含关键词的任务将被判定为电视节目任务，并应用电视节目智能填充规则，在编辑任务时自动填充或同步配置">
               </div>
             </div>
 
@@ -3266,6 +3274,7 @@
           tasklist: [],
           magic_regex: {},
           episode_patterns: [],
+          tv_show_keywords: [],
           task_settings: {
             movie_save_path: "电影目录前缀/片名 (年份)",
             tv_save_path: "剧集目录前缀/剧名 (年份)/剧名 - S季数",
@@ -3805,6 +3814,20 @@
             // 按竖线分割并创建多个正则表达式对象
             const patterns = value.split('|').map(p => p.trim()).filter(p => p !== '');
             this.formData.episode_patterns = patterns.map(regex => ({ regex }));
+          }
+        },
+        tvShowKeywordsText: {
+          get() {
+            if (!this.formData.tv_show_keywords || !Array.isArray(this.formData.tv_show_keywords)) return '';
+            return this.formData.tv_show_keywords.join('|');
+          },
+          set(value) {
+            if (!value || value.trim() === '') {
+              this.formData.tv_show_keywords = [];
+              return;
+            }
+            const keywords = value.split('|').map(item => item.trim()).filter(item => item !== '');
+            this.formData.tv_show_keywords = [...new Set(keywords)];
           }
         },
         // 管理视图：按任务名（拼音）排序并应用顶部筛选
@@ -9255,6 +9278,10 @@
               if (!config_data.episode_patterns) {
                 config_data.episode_patterns = [];
               }
+              // 确保电视节目任务识别关键词存在
+              if (!Array.isArray(config_data.tv_show_keywords)) {
+                config_data.tv_show_keywords = [];
+              }
               // 确保任务设置存在
               if (!config_data.task_settings) {
                 config_data.task_settings = {
@@ -9744,6 +9771,14 @@
           }
         },
 
+        getTVShowKeywords() {
+          const builtInKeywords = ["电视", "节目", "剧", "动漫", "动画", "番", "综艺", "真人秀", "TV", "Tv", "tv", "Series", "series", "Show", "show"];
+          const customKeywords = Array.isArray(this.formData.tv_show_keywords)
+            ? this.formData.tv_show_keywords.map(keyword => (keyword || '').trim()).filter(keyword => keyword !== '')
+            : [];
+          return [...new Set([...builtInKeywords, ...customKeywords])];
+        },
+
         changeTaskname(index, task) {
           if (this.smart_param.searchTimer) {
             clearTimeout(this.smart_param.searchTimer);
@@ -9820,7 +9855,7 @@
           
           // 判断保存路径是否包含电视节目相关的关键词
           if (task.savepath) {
-            const tvKeywords = ["电视", "节目", "剧", "动漫", "动画", "番", "综艺", "真人秀", "TV", "Tv", "tv", "Series", "series", "Show", "show"];
+            const tvKeywords = this.getTVShowKeywords();
             isTVShow = tvKeywords.some(keyword => task.savepath.includes(keyword));
           }
 
@@ -16584,6 +16619,10 @@
           // 确保剧集识别模式字段存在（但不自动添加默认规则）
           if (!this.formData.episode_patterns) {
             this.formData.episode_patterns = [];
+          }
+          // 确保电视节目任务识别关键词字段存在（默认留空）
+          if (!Array.isArray(this.formData.tv_show_keywords)) {
+            this.formData.tv_show_keywords = [];
           }
           
           // 如果当前标签是历史记录，则加载历史记录
