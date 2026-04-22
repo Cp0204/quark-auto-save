@@ -841,15 +841,28 @@
               </div>
             </div>
 
-            <div class="form-group">
-              <div class="input-group">
-                <div class="input-group-prepend">
-                  <span class="input-group-text">自动搜索资源</span>
+            <div class="form-group task-auto-search-group">
+              <div class="task-auto-search-item">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">创建任务时自动搜索资源</span>
+                  </div>
+                  <select class="form-control" v-model="formData.task_settings.auto_search_resources" title="启用后，在影视发现页面点击海报创建任务时，如果配置了有效的搜索来源，将自动触发资源搜索功能">
+                    <option value="enabled">启用</option>
+                    <option value="disabled">禁用</option>
+                  </select>
                 </div>
-                <select class="form-control" v-model="formData.task_settings.auto_search_resources" title="启用后，在影视发现页面点击海报创建任务时，如果配置了有效的CloudSaver信息，将自动触发资源搜索功能">
-                  <option value="enabled">启用</option>
-                  <option value="disabled">禁用</option>
-                </select>
+              </div>
+              <div class="task-auto-search-item">
+                <div class="input-group">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">编辑任务时自动搜索资源</span>
+                  </div>
+                  <select class="form-control" v-model="formData.task_settings.auto_search_resources_on_edit" title="启用后，在所有任务编辑场景中修改任务名称时，如果配置了有效的搜索来源，将自动触发资源搜索功能">
+                    <option value="enabled">启用</option>
+                    <option value="disabled">禁用</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -9297,6 +9310,7 @@
                   subtitle_naming_rule: "zh",
                   subtitle_add_language_code: false,
                   auto_search_resources: "enabled",
+                  auto_search_resources_on_edit: "enabled",
                   auto_extract_archive: "disabled"
                 };
               }
@@ -9321,6 +9335,10 @@
               // 确保自动搜索资源设置存在
               if (!config_data.task_settings.auto_search_resources) {
                 config_data.task_settings.auto_search_resources = "enabled";
+              }
+              // 确保编辑任务时自动搜索资源设置存在
+              if (!config_data.task_settings.auto_search_resources_on_edit) {
+                config_data.task_settings.auto_search_resources_on_edit = "enabled";
               }
               // 确保自动解压压缩文件设置存在
               if (!config_data.task_settings.auto_extract_archive) {
@@ -10107,7 +10125,13 @@
             clearTimeout(this.smart_param.searchTimer);
           }
           this.smart_param.searchTimer = setTimeout(() => {
-            this.searchSuggestions(index, task.taskname, 0);
+            // 统一“编辑任务名称”场景：包含任务列表编辑、编辑任务弹窗、创建/添加任务时在名称输入框中的修改
+            const isEditScenario = (index !== undefined && index !== null) || this.createTask.isEditMode;
+            const autoSearchEnabledOnEdit =
+              (this.formData.task_settings || {}).auto_search_resources_on_edit !== 'disabled';
+            if (!isEditScenario || autoSearchEnabledOnEdit) {
+              this.searchSuggestions(index, task.taskname, 0);
+            }
           }, 1000);
 
           // 添加防抖机制，避免频繁的中间状态触发同步
