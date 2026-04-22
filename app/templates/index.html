@@ -763,7 +763,7 @@
                 <div class="input-group-prepend">
                   <span class="input-group-text">电影保存路径</span>
                 </div>
-                <input type="text" class="form-control" v-model="formData.task_settings.movie_save_path" placeholder="电影目录前缀/片名 (年份)" title="设置电影类型内容的默认保存路径格式，在影视发现页面创建电影任务时自动填充。支持变量：片名、年份等">
+                <input type="text" class="form-control" v-model="formData.task_settings.movie_save_path" placeholder="电影目录前缀/片名 (年份)" title="设置电影类型内容的默认保存路径格式，在影视发现页面创建电影任务时自动填充。支持变量：片名、年份">
               </div>
             </div>
 
@@ -772,7 +772,7 @@
                 <div class="input-group-prepend">
                   <span class="input-group-text">剧集保存路径</span>
                 </div>
-                <input type="text" class="form-control" v-model="formData.task_settings.tv_save_path" placeholder="剧集目录前缀/剧名 (年份)/剧名 - S季数" title="设置电视剧类型内容的默认保存路径格式，在影视发现页面创建剧集任务时自动填充。支持变量：剧名、年份、季数等">
+                <input type="text" class="form-control" v-model="formData.task_settings.tv_save_path" placeholder="剧集目录前缀/剧名 (年份)/剧名 - S季数" title="设置剧集类型内容（和电视任务智能填充）的默认保存路径格式，在影视发现（和任务列表）页面创建剧集（和电视）任务时自动填充。支持变量：剧名、年份、季数">
               </div>
             </div>
 
@@ -781,7 +781,7 @@
                 <div class="input-group-prepend">
                   <span class="input-group-text">动画保存路径</span>
                 </div>
-                <input type="text" class="form-control" v-model="formData.task_settings.anime_save_path" placeholder="动画目录前缀/剧名 (年份)/剧名 - S季数" title="设置动画类型内容的默认保存路径格式，在影视发现页面创建动画任务时自动填充。支持变量：剧名、年份、季数等">
+                <input type="text" class="form-control" v-model="formData.task_settings.anime_save_path" placeholder="动画目录前缀/剧名 (年份)/剧名 - S季数" title="设置动画类型内容的默认保存路径格式，在影视发现页面创建动画任务时自动填充。支持变量：剧名、年份、季数">
               </div>
             </div>
 
@@ -790,7 +790,7 @@
                 <div class="input-group-prepend">
                   <span class="input-group-text">综艺保存路径</span>
                 </div>
-                <input type="text" class="form-control" v-model="formData.task_settings.variety_save_path" placeholder="综艺目录前缀/剧名 (年份)/剧名 - S季数" title="设置综艺类型内容的默认保存路径格式，在影视发现页面创建综艺任务时自动填充。支持变量：剧名、年份、季数等">
+                <input type="text" class="form-control" v-model="formData.task_settings.variety_save_path" placeholder="综艺目录前缀/剧名 (年份)/剧名 - S季数" title="设置综艺类型内容的默认保存路径格式，在影视发现页面创建综艺任务时自动填充。支持变量：剧名、年份、季数">
               </div>
             </div>
 
@@ -799,7 +799,7 @@
                 <div class="input-group-prepend">
                   <span class="input-group-text">纪录片保存路径</span>
                 </div>
-                <input type="text" class="form-control" v-model="formData.task_settings.documentary_save_path" placeholder="纪录片目录前缀/剧名 (年份)/剧名 - S季数" title="设置纪录片类型内容的默认保存路径格式，在影视发现页面创建纪录片任务时自动填充。支持变量：剧名、年份、季数等">
+                <input type="text" class="form-control" v-model="formData.task_settings.documentary_save_path" placeholder="纪录片目录前缀/剧名 (年份)/剧名 - S季数" title="设置纪录片类型内容的默认保存路径格式，在影视发现页面创建纪录片任务时自动填充。支持变量：剧名、年份、季数">
               </div>
             </div>
 
@@ -809,7 +809,7 @@
                   <span class="input-group-text">电影命名规则</span>
                 </div>
                 <input type="text" class="form-control" v-model="formData.task_settings.movie_naming_pattern" placeholder="^(.*)\.([^.]+)" title="设置电影类型内容的默认文件命名规则的匹配表达式，在影视发现页面创建电影任务时自动填充">
-                <input type="text" class="form-control" v-model="formData.task_settings.movie_naming_replace" placeholder="片名 (年份).\2" title="设置电影类型内容的默认文件命名规则的替换表达式，在影视发现页面创建电影任务时自动填充。支持变量：片名、年份等">
+                <input type="text" class="form-control" v-model="formData.task_settings.movie_naming_replace" placeholder="片名 (年份).\2" title="设置电影类型内容的默认文件命名规则的替换表达式，在影视发现页面创建电影任务时自动填充。支持变量：片名、年份">
               </div>
             </div>
 
@@ -818,7 +818,7 @@
                 <div class="input-group-prepend">
                   <span class="input-group-text">电视命名规则</span>
                 </div>
-                <input type="text" class="form-control" v-model="formData.task_settings.tv_naming_rule" placeholder="剧名 - S季数E[]" title="设置电视类型内容的默认文件命名规则，在影视发现页面创建电视任务时自动填充。支持变量：剧名、季数、集数等，[]表示集数占位符">
+                <input type="text" class="form-control" v-model="formData.task_settings.tv_naming_rule" placeholder="剧名 - S季数E[]" title="设置电视类型内容（和电视任务智能填充）的默认文件命名规则，在影视发现（和任务列表）页面创建电视任务时自动填充。支持变量：剧名、季数，[]表示集数占位符">
                 <div class="input-group-append" title="保存时只比较文件名的部分，01.mp4和01.mkv视同为同一文件，不重复转存">
                   <div class="input-group-text">
                     <input type="checkbox" v-model="formData.task_settings.tv_ignore_extension">&nbsp;忽略后缀
@@ -9784,7 +9784,7 @@
           if (!segment) return false;
           const normalized = String(segment).trim();
           if (normalized === "") return false;
-          return /(剧名|片名|年份|季数|S季数|Season|season|第\s*[一二三四五六七八九十百千万零两\d]+\s*季|\[\]|\{\})/i.test(normalized);
+          return /(剧名|片名|年份|季数|\[\]|\{\})/i.test(normalized);
         },
 
         // 从电视类保存路径模板中提取静态前缀目录
@@ -9848,6 +9848,73 @@
           }
 
           return protectionDepth;
+        },
+
+        // 根据电视保存路径模板构建智能填充路径（仅替换前缀之后的部分）
+        buildTvSavepathFromTemplate(currentSavepath, showName, seasonNumber) {
+          const taskSettings = this.formData.task_settings || {};
+          const tvSavePathTemplate = (taskSettings.tv_save_path || "").trim();
+          const defaultTvSavePathTemplate = "剧集目录前缀/剧名 (年份)/剧名 - S季数";
+          if (!tvSavePathTemplate || tvSavePathTemplate === defaultTvSavePathTemplate) {
+            return null;
+          }
+
+          const templateParts = tvSavePathTemplate.split('/').map(part => (part || '').trim()).filter(part => part !== '');
+          if (!templateParts.length) {
+            return null;
+          }
+
+          const prefixParts = this.getStaticPrefixPartsFromTemplate(tvSavePathTemplate);
+          const suffixParts = templateParts.slice(prefixParts.length);
+          if (!suffixParts.length) {
+            return null;
+          }
+
+          const currentParts = (currentSavepath || "").split('/');
+          let baseProtectionDepth = this.getTvPathProtectionDepth(currentSavepath || "");
+          if (prefixParts.length > 0) {
+            const prefixMatched = prefixParts.every((part, idx) => currentParts[idx] === part);
+            if (prefixMatched) {
+              baseProtectionDepth = Math.max(baseProtectionDepth, prefixParts.length);
+            }
+          }
+
+          while (currentParts.length < baseProtectionDepth) {
+            currentParts.push('');
+          }
+
+          const baseParts = currentParts.slice(0, baseProtectionDepth);
+          const seasonValue = String(seasonNumber || '01').padStart(2, '0');
+          const currentYear = String(new Date().getFullYear());
+
+          const filledSuffixParts = suffixParts.map((part) => {
+            let nextPart = part;
+            nextPart = nextPart.replace(/剧名/g, showName);
+            nextPart = nextPart.replace(/季数/g, seasonValue);
+            nextPart = nextPart.replace(/年份/g, currentYear);
+            return nextPart;
+          });
+
+          return [...baseParts, ...filledSuffixParts].join('/');
+        },
+
+        // 根据电视命名规则模板生成命名规则（任务名未包含季信息时使用）
+        buildTvNamingFromRule(showName, seasonNumber, useSequenceNaming) {
+          const taskSettings = this.formData.task_settings || {};
+          const defaultNamingRule = "剧名 - S季数E[]";
+          const customRule = (taskSettings.tv_naming_rule || "").trim();
+          const ruleTemplate = customRule !== "" ? customRule : defaultNamingRule;
+          const seasonValue = String(seasonNumber || '01').padStart(2, '0');
+
+          let generatedRule = ruleTemplate
+            .replace(/剧名/g, showName)
+            .replace(/季数/g, seasonValue);
+
+          if (useSequenceNaming) {
+            generatedRule = generatedRule.replace(/\[\]/g, '{}');
+          }
+
+          return generatedRule;
         },
 
         changeTaskname(index, task) {
@@ -10001,6 +10068,17 @@
 
           // 更新保存路径 - 无论是否使用智能路径，都确保倒数第二级目录更新
           if (task.savepath) {
+            let hasAppliedTvTemplateSavepath = false;
+            // 任务名不含季信息时，优先按用户配置的剧集保存路径模板（前缀后的部分）进行智能填充
+            if (isTVShow && !hasSeason) {
+              const generatedSavepath = this.buildTvSavepathFromTemplate(task.savepath, showName, seasonNumber);
+              if (generatedSavepath) {
+                task.savepath = generatedSavepath;
+                hasAppliedTvTemplateSavepath = true;
+              }
+            }
+
+            if (!hasAppliedTvTemplateSavepath) {
             // 分割保存路径为各级目录
             const pathParts = task.savepath.split('/');
             const protectionDepth = isTVShow ? this.getTvPathProtectionDepth(task.savepath) : 0;
@@ -10064,6 +10142,7 @@
               // 更新保存路径
               task.savepath = pathParts.join('/');
             }
+            }
           }
           
           // 额外处理：检查保存路径最末级是否包含中文季序号，如果包含则转换为标准格式
@@ -10105,16 +10184,20 @@
           if (task.pattern) {
             // 根据是否为电视节目决定处理方式
             if (isTVShow) {
+              // 任务名未包含季信息时，优先使用任务设置中的电视命名规则模板
+              const shouldUseCustomRuleTemplate = !hasSeason;
               // 处理剧集命名模式
               if (task.use_episode_naming) {
-                // 直接使用任务名称中提取的信息构建命名规则
-                task.pattern = showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0') + 'E[]';
+                task.pattern = shouldUseCustomRuleTemplate
+                  ? this.buildTvNamingFromRule(showName, seasonNumber, false)
+                  : (showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0') + 'E[]');
                 task.episode_naming = task.pattern;
               } 
               // 处理顺序命名模式
               else if (task.use_sequence_naming) {
-                // 直接使用任务名称中提取的信息构建命名规则
-                task.pattern = showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0') + 'E{}';
+                task.pattern = shouldUseCustomRuleTemplate
+                  ? this.buildTvNamingFromRule(showName, seasonNumber, true)
+                  : (showName + nameSeparator + 'S' + seasonNumber.padStart(2, '0') + 'E{}');
                 task.sequence_naming = task.pattern;
               }
             } else {
