@@ -9687,88 +9687,272 @@
         // 从命名规则提取格式信息并应用到保存路径的辅助函数
         syncFormatFromNamingToSavepath(namingPattern, savepath) {
           if (!namingPattern || !savepath) return savepath;
+          // 保持原有简单方向：只做季数同步（命名规则 -> 保存路径）
+          // 先按模板提取季数，提取不到再按通用模式兜底
+          const namingTemplate = this.getTvNamingRuleTemplate();
+          const varsFromNaming = this.extractVariablesByTemplate(namingPattern, namingTemplate);
+          const seasonFromNaming = this.pickFirstValidSeasonNumber([
+            varsFromNaming.seasonNumber,
+            this.extractSeasonNumber(namingPattern)
+          ], '');
+          if (!seasonFromNaming) return savepath;
 
-          // 提取命名规则中的格式信息
-          const patternMatch = namingPattern.match(/(.*?)([\s\.\-_]+)S(\d+)/i);
-          if (!patternMatch) return savepath; // 命名规则没有Sxx格式，不同步
+          return this.replaceSeasonNumberInSavepath(savepath, seasonFromNaming);
+        },
 
-          const patternPrefix = patternMatch[1];
-          const patternSeparator = patternMatch[2];
-          const patternSeasonNumber = patternMatch[3];
+        // 获取剧集保存路径模板（未设置时回退默认模板）
+        getTvSavePathTemplate() {
+          const taskSettings = this.formData.task_settings || {};
+          const template = (taskSettings.tv_save_path || "").trim();
+          const defaultTemplate = "剧集目录前缀/剧名 (年份)/剧名 - S季数";
+          return template || defaultTemplate;
+        },
 
-          // 检查保存路径是否包含Sxx格式
-          const pathParts = savepath.split('/');
+        // 获取电视命名规则模板（未设置时回退默认模板）
+        getTvNamingRuleTemplate() {
+          const taskSettings = this.formData.task_settings || {};
+          const template = (taskSettings.tv_naming_rule || "").trim();
+          const defaultTemplate = "剧名 - S季数E[]";
+          return template || defaultTemplate;
+        },
+
+        // 从模板构建变量提取正则
+        buildTemplateVariableRegex(template) {
+          if (!template || typeof template !== "string") return null;
+          const tokenRegex = /(剧名|年份|季数)/g;
+          const tokenPatterns = {
+            剧名: "(.+?)",
+            年份: "(\\d{4})",
+            季数: "(\\d{1,3})"
+          };
+
+          let match;
+          let lastIndex = 0;
+          let pattern = "^";
+          const tokenOrder = [];
+
+          while ((match = tokenRegex.exec(template)) !== null) {
+            const token = match[1];
+            const start = match.index;
+            const literal = template.slice(lastIndex, start);
+            pattern += literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            pattern += tokenPatterns[token];
+            tokenOrder.push(token);
+            lastIndex = start + token.length;
+          }
+
+          pattern += template.slice(lastIndex).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          pattern += "$";
+
+          if (tokenOrder.length === 0) return null;
+          return { regex: new RegExp(pattern, "i"), tokenOrder };
+        },
+
+        // 按模板从文本中提取变量（剧名/年份/季数）
+        extractVariablesByTemplate(text, template) {
+          if (!text || !template) return {};
+          const compiled = this.buildTemplateVariableRegex(template);
+          if (!compiled) return {};
+
+          const matched = String(text).match(compiled.regex);
+          if (!matched) return {};
+
+          const vars = {};
+          compiled.tokenOrder.forEach((token, idx) => {
+            const value = matched[idx + 1];
+            if (value === undefined) return;
+            if (token === "剧名" && !vars.showName) vars.showName = value;
+            if (token === "年份" && !vars.year) vars.year = value;
+            if (token === "季数" && !vars.seasonNumber) vars.seasonNumber = value;
+          });
+          return vars;
+        },
+
+        // 从保存路径（按用户模板）提取变量
+        extractVariablesFromSavepathByTemplate(savepath, template) {
+          if (!savepath || !template) return {};
+          const templateParts = String(template).split('/').map(part => (part || '').trim()).filter(part => part !== '');
+          const saveParts = String(savepath).split('/');
+          if (!templateParts.length || !saveParts.length) return {};
+
+          const prefixParts = this.getStaticPrefixPartsFromTemplate(template);
+          const suffixTemplates = templateParts.slice(prefixParts.length);
+          if (!suffixTemplates.length) return {};
+
+          // 以模板前缀对齐；若前缀不匹配则不做模板解析
+          const prefixMatched = prefixParts.every((part, idx) => saveParts[idx] === part);
+          if (!prefixMatched) return {};
+
+          const candidateParts = saveParts.slice(prefixParts.length, prefixParts.length + suffixTemplates.length);
+          if (candidateParts.length === 0) return {};
+
+          const vars = {};
+          suffixTemplates.forEach((segmentTemplate, idx) => {
+            if (idx >= candidateParts.length) return; // 允许按已存在层级做部分提取
+            const segmentValue = candidateParts[idx] || '';
+            const segmentVars = this.extractVariablesByTemplate(segmentValue, segmentTemplate);
+            if (segmentVars.showName && !vars.showName) vars.showName = segmentVars.showName;
+            if (segmentVars.year && !vars.year) vars.year = segmentVars.year;
+            if (segmentVars.seasonNumber && !vars.seasonNumber) vars.seasonNumber = segmentVars.seasonNumber;
+          });
+
+          return vars;
+        },
+
+        // 从文本中提取季数（支持 S01 / Season 01 / 第1季 / 01）
+        extractSeasonNumber(text) {
+          if (!text) return null;
+          const value = String(text);
+
+          const patterns = [
+            /S(\d{1,3})/i,
+            /Season\s*(\d{1,3})/i,
+            /第\s*(\d{1,3})\s*季/i
+          ];
+
+          for (const pattern of patterns) {
+            const match = value.match(pattern);
+            if (match && match[1]) {
+              return match[1];
+            }
+          }
+
+          // 兜底：若整个目录名是纯数字，也视为季数（如 "01"）
+          const pureNumber = value.trim().match(/^(\d{1,3})$/);
+          if (pureNumber && pureNumber[1]) {
+            return pureNumber[1];
+          }
+
+          // 兜底：匹配末尾以分隔符连接的季数（如 "剧名 - 02"、"剧名_2"、"剧名.12"）
+          const trailingNumber = value.trim().match(/(?:[\s\.\-_])(\d{1,3})$/);
+          if (trailingNumber && trailingNumber[1]) {
+            return trailingNumber[1];
+          }
+
+          return null;
+        },
+
+        // 规范化季数（统一为两位，非法值回退默认值）
+        normalizeSeasonNumber(seasonValue, defaultValue = '01') {
+          if (seasonValue === undefined || seasonValue === null) return defaultValue;
+          const raw = String(seasonValue).trim();
+          if (!/^\d{1,3}$/.test(raw)) return defaultValue;
+          const num = parseInt(raw, 10);
+          if (!Number.isFinite(num) || num <= 0) return defaultValue;
+          return String(num).padStart(2, '0');
+        },
+
+        // 从候选列表中取第一个有效季数
+        pickFirstValidSeasonNumber(candidates = [], defaultValue = '01') {
+          for (const candidate of candidates) {
+            const normalized = this.normalizeSeasonNumber(candidate, '');
+            if (normalized) return normalized;
+          }
+          return defaultValue;
+        },
+
+        // 统一解析任务当前季数（用于任务名/保存路径/命名规则三方同步）
+        resolveTaskSeasonNumber(task, defaultValue = '01') {
+          if (!task) return defaultValue;
+          const pathParts = String(task.savepath || '').split('/');
+          const lastPart = pathParts.length > 0 ? pathParts[pathParts.length - 1] : '';
+          const prevPart = pathParts.length > 1 ? pathParts[pathParts.length - 2] : '';
+          const varsFromPath = this.extractVariablesFromSavepathByTemplate(task.savepath || '', this.getTvSavePathTemplate());
+
+          return this.pickFirstValidSeasonNumber([
+            varsFromPath.seasonNumber,
+            this.extractSeasonNumber(lastPart),
+            this.extractSeasonNumber(prevPart),
+            this.extractSeasonNumber(task.pattern || '')
+          ], defaultValue);
+        },
+
+        // 按目标字符串当前样式替换季数，保留用户命名格式
+        replaceSeasonNumberByStyle(targetValue, seasonNumber) {
+          if (!targetValue || !seasonNumber) return targetValue;
+          const paddedSeason = this.normalizeSeasonNumber(seasonNumber, '01');
+
+          if (/S\d{1,3}/i.test(targetValue)) {
+            return targetValue.replace(/S\d{1,3}/i, 'S' + paddedSeason);
+          }
+          if (/Season\s*\d{1,3}/i.test(targetValue)) {
+            return targetValue.replace(/Season\s*\d{1,3}/i, 'Season ' + paddedSeason);
+          }
+          if (/第\s*\d{1,3}\s*季/i.test(targetValue)) {
+            return targetValue.replace(/第\s*\d{1,3}\s*季/i, '第' + parseInt(paddedSeason, 10) + '季');
+          }
+
+          return targetValue;
+        },
+
+        // 按保存路径分段样式替换季数（优先最后一级，再尝试倒数第二级）
+        replaceSeasonNumberInSavepath(savepath, seasonNumber) {
+          if (!savepath || !seasonNumber) return savepath;
+          const pathParts = String(savepath).split('/');
           if (pathParts.length === 0) return savepath;
 
-          const lastPart = pathParts[pathParts.length - 1];
-          const pathMatch = lastPart.match(/(.*?)([\s\.\-_]+)S(\d+)/i);
+          const replaceInPart = (part, season) => {
+            if (!part) return part;
+            const padded = this.normalizeSeasonNumber(season, '01');
 
-          if (!pathMatch) return savepath; // 保存路径没有Sxx格式，不同步
+            if (/S\d{1,3}/i.test(part)) {
+              return part.replace(/S\d{1,3}/i, 'S' + padded);
+            }
+            if (/Season\s*\d{1,3}/i.test(part)) {
+              return part.replace(/Season\s*\d{1,3}/i, 'Season ' + padded);
+            }
+            if (/第\s*\d{1,3}\s*季/i.test(part)) {
+              return part.replace(/第\s*\d{1,3}\s*季/i, '第' + parseInt(padded, 10) + '季');
+            }
+            if (/^\d{1,3}$/.test(part.trim())) {
+              return padded;
+            }
+            // 支持 "剧名 - 02" 这类尾部纯季数样式
+            if (/(.+?)([\s\.\-_])(\d{1,3})$/.test(part.trim())) {
+              return part.replace(/([\s\.\-_])(\d{1,3})$/, '$1' + padded);
+            }
+            return part;
+          };
 
-          const pathPrefix = pathMatch[1];
-          const pathSeparator = pathMatch[2];
-          const pathSeasonNumber = pathMatch[3];
-
-          // 检查前缀是否相似
-          const patternCleanPrefix = patternPrefix.replace(/\s+/g, '').toLowerCase();
-          const pathCleanPrefix = pathPrefix.replace(/\s+/g, '').toLowerCase();
-
-          if (patternCleanPrefix === pathCleanPrefix ||
-              patternCleanPrefix.includes(pathCleanPrefix) ||
-              pathCleanPrefix.includes(patternCleanPrefix)) {
-
-            // 同步格式：使用命名规则的格式更新保存路径
-            const newLastPart = patternPrefix + patternSeparator + 'S' + patternSeasonNumber.padStart(2, '0');
-            pathParts[pathParts.length - 1] = newLastPart;
-            return pathParts.join('/');
-          } else {
-            // 前缀不相似，只同步季数
-            const newLastPart = pathPrefix + pathSeparator + 'S' + patternSeasonNumber.padStart(2, '0');
-            pathParts[pathParts.length - 1] = newLastPart;
+          // 优先最后一级
+          const lastIdx = pathParts.length - 1;
+          const lastUpdated = replaceInPart(pathParts[lastIdx], seasonNumber);
+          if (lastUpdated !== pathParts[lastIdx]) {
+            pathParts[lastIdx] = lastUpdated;
             return pathParts.join('/');
           }
+
+          // 再尝试倒数第二级
+          if (pathParts.length >= 2) {
+            const prevIdx = pathParts.length - 2;
+            const prevUpdated = replaceInPart(pathParts[prevIdx], seasonNumber);
+            if (prevUpdated !== pathParts[prevIdx]) {
+              pathParts[prevIdx] = prevUpdated;
+              return pathParts.join('/');
+            }
+          }
+
+          return savepath;
         },
 
         // 从保存路径提取格式信息并应用到命名规则的辅助函数
         syncFormatFromSavepath(savepath, namingPattern) {
           if (!savepath || !namingPattern) return namingPattern;
+          // 保持原有简单方向：只做季数同步（保存路径 -> 命名规则）
+          // 先按模板提取季数，提取不到再按通用模式兜底
+          const saveTemplate = this.getTvSavePathTemplate();
+          const varsFromPath = this.extractVariablesFromSavepathByTemplate(savepath, saveTemplate);
+          const pathParts = String(savepath).split('/');
+          const lastPart = pathParts.length > 0 ? pathParts[pathParts.length - 1] : '';
+          const prevPart = pathParts.length > 1 ? pathParts[pathParts.length - 2] : '';
+          const seasonFromSavepath = this.pickFirstValidSeasonNumber([
+            varsFromPath.seasonNumber,
+            this.extractSeasonNumber(lastPart),
+            this.extractSeasonNumber(prevPart)
+          ], '');
+          if (!seasonFromSavepath) return namingPattern;
 
-          // 从保存路径的最后一级提取格式信息
-          const pathParts = savepath.split('/');
-          if (pathParts.length === 0) return namingPattern;
-
-          const lastPart = pathParts[pathParts.length - 1];
-          const pathMatch = lastPart.match(/(.*?)([\s\.\-_]+)S(\d+)/i);
-
-          if (!pathMatch) return namingPattern;
-
-          const pathPrefix = pathMatch[1];
-          const pathSeparator = pathMatch[2];
-          const pathSeasonNumber = pathMatch[3];
-
-          // 检查命名规则是否包含Sxx格式
-          const namingMatch = namingPattern.match(/(.*?)([\s\.\-_]+)S(\d+)(.*)/i);
-          if (!namingMatch) return namingPattern;
-
-          const namingPrefix = namingMatch[1];
-          const namingSeparator = namingMatch[2];
-          const namingSeasonNumber = namingMatch[3];
-          const namingSuffix = namingMatch[4]; // 保留后缀部分（如E[]、E{}等）
-
-          // 检查前缀是否相似
-          const pathCleanPrefix = pathPrefix.replace(/\s+/g, '').toLowerCase();
-          const namingCleanPrefix = namingPrefix.replace(/\s+/g, '').toLowerCase();
-
-          if (pathCleanPrefix === namingCleanPrefix ||
-              pathCleanPrefix.includes(namingCleanPrefix) ||
-              namingCleanPrefix.includes(pathCleanPrefix)) {
-
-            // 同步格式：使用保存路径的格式更新命名规则
-            return pathPrefix + pathSeparator + 'S' + pathSeasonNumber.padStart(2, '0') + namingSuffix;
-          } else {
-            // 前缀不相似，只同步季数
-            return namingPattern.replace(/S\d+/i, 'S' + pathSeasonNumber.padStart(2, '0'));
-          }
+          return this.replaceSeasonNumberByStyle(namingPattern, seasonFromSavepath);
         },
 
         getTVShowKeywords() {
@@ -9784,7 +9968,7 @@
           if (!segment) return false;
           const normalized = String(segment).trim();
           if (normalized === "") return false;
-          return /(剧名|片名|年份|季数|\[\]|\{\})/i.test(normalized);
+          return /(剧名|片名|年份|季数|目录前缀|\[\]|\{\})/i.test(normalized);
         },
 
         // 从电视类保存路径模板中提取静态前缀目录
@@ -9851,13 +10035,8 @@
         },
 
         // 根据电视保存路径模板构建智能填充路径（仅替换前缀之后的部分）
-        buildTvSavepathFromTemplate(currentSavepath, showName, seasonNumber) {
-          const taskSettings = this.formData.task_settings || {};
-          const tvSavePathTemplate = (taskSettings.tv_save_path || "").trim();
-          const defaultTvSavePathTemplate = "剧集目录前缀/剧名 (年份)/剧名 - S季数";
-          if (!tvSavePathTemplate || tvSavePathTemplate === defaultTvSavePathTemplate) {
-            return null;
-          }
+        buildTvSavepathFromTemplate(currentSavepath, showName, seasonNumber, yearValue) {
+          const tvSavePathTemplate = this.getTvSavePathTemplate();
 
           const templateParts = tvSavePathTemplate.split('/').map(part => (part || '').trim()).filter(part => part !== '');
           if (!templateParts.length) {
@@ -9884,12 +10063,21 @@
           }
 
           const baseParts = currentParts.slice(0, baseProtectionDepth);
+          const fallbackVars = this.extractVariablesFromSavepathByTemplate(currentSavepath || "", tvSavePathTemplate);
+          const resolvedShowName = (showName && String(showName).trim() !== "") ? showName : (fallbackVars.showName || "");
           const seasonValue = String(seasonNumber || '01').padStart(2, '0');
-          const currentYear = String(new Date().getFullYear());
+          const currentYear = String(yearValue || fallbackVars.year || new Date().getFullYear());
 
-          const filledSuffixParts = suffixParts.map((part) => {
+          const filledSuffixParts = suffixParts.map((part, idx) => {
+            const existingSegment = currentParts[baseProtectionDepth + idx] || "";
             let nextPart = part;
-            nextPart = nextPart.replace(/剧名/g, showName);
+            if (nextPart.includes('剧名') && !resolvedShowName) {
+              // 硬保护：当剧名变量无法提取时，保留当前路径中已有目录名，避免被清空
+              if (existingSegment) {
+                return existingSegment;
+              }
+            }
+            nextPart = nextPart.replace(/剧名/g, resolvedShowName);
             nextPart = nextPart.replace(/季数/g, seasonValue);
             nextPart = nextPart.replace(/年份/g, currentYear);
             return nextPart;
@@ -9900,10 +10088,7 @@
 
         // 根据电视命名规则模板生成命名规则（任务名未包含季信息时使用）
         buildTvNamingFromRule(showName, seasonNumber, useSequenceNaming) {
-          const taskSettings = this.formData.task_settings || {};
-          const defaultNamingRule = "剧名 - S季数E[]";
-          const customRule = (taskSettings.tv_naming_rule || "").trim();
-          const ruleTemplate = customRule !== "" ? customRule : defaultNamingRule;
+          const ruleTemplate = this.getTvNamingRuleTemplate();
           const seasonValue = String(seasonNumber || '01').padStart(2, '0');
 
           let generatedRule = ruleTemplate
@@ -10038,23 +10223,21 @@
             let preserveExistingSeason = false;
 
             if (task.savepath && isTVShow) {
-              const existingSeasonMatch = task.savepath.match(/S(\d+)/i);
+              // 统一季数解析：保持任务名/保存路径/命名规则三方同步
+              const existingSeasonNum = this.resolveTaskSeasonNumber(task, '');
 
-              if (existingSeasonMatch) {
-                // 只有当季数是有效的（不是00或空）时才保留
-                const existingSeasonNum = existingSeasonMatch[1];
-                if (existingSeasonNum && existingSeasonNum !== '00' && existingSeasonNum !== '0') {
-                  seasonNumber = existingSeasonNum;
-                  preserveExistingSeason = true;
+              // 只有当季数是有效的（不是00或空）时才保留
+              if (existingSeasonNum && existingSeasonNum !== '00' && existingSeasonNum !== '0') {
+                seasonNumber = existingSeasonNum;
+                preserveExistingSeason = true;
 
-                  // 从保存路径中提取分隔符格式
-                  const pathParts = task.savepath.split('/');
-                  if (pathParts.length > 0) {
-                    const lastPart = pathParts[pathParts.length - 1];
-                    const separatorMatch = lastPart.match(/^(.*?)([\s\.\-_]+)S\d+/i);
-                    if (separatorMatch) {
-                      nameSeparator = separatorMatch[2];
-                    }
+                // 从保存路径中提取分隔符格式（仅在 Sxx 风格存在时同步分隔符）
+                const pathParts = task.savepath.split('/');
+                if (pathParts.length > 0) {
+                  const lastPart = pathParts[pathParts.length - 1];
+                  const separatorMatch = lastPart.match(/^(.*?)([\s\.\-_]+)S\d+/i);
+                  if (separatorMatch) {
+                    nameSeparator = separatorMatch[2];
                   }
                 }
               }
