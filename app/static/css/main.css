@@ -8843,3 +8843,25 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   white-space: normal;
   word-wrap: break-word;
 }
+
+/* 任务设置：自动搜索资源双开关布局（宽度足够时同一行，不足时自动换行） */
+.task-auto-search-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  column-gap: 8px;
+  row-gap: 8px;
+  margin-bottom: 1rem;
+}
+
+/* 防止移动端因为内容最小宽度导致右侧溢出 */
+.task-auto-search-item,
+.task-auto-search-item .input-group,
+.task-auto-search-item .form-control {
+  min-width: 0;
+}
+
+@media (max-width: 576px) {
+  .task-auto-search-group {
+    grid-template-columns: 1fr;
+  }
+}
