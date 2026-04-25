@@ -2126,7 +2126,7 @@ button.close:focus,
 /* --------------- 深度搜索任务建议样式 --------------- */
 .task-suggestions {
   width: 100%;
-  max-height: 482px;
+  max-height: 511px;
   overflow-y: auto;
   transform: translate(0, 0);
   top: 100%;
@@ -6356,7 +6356,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 /* 创建任务模态框中的任务建议样式 */
 #createTaskModal .task-suggestions {
   width: 100%;
-  max-height: 482px;
+  max-height: 511px;
   overflow-y: auto;
   transform: translate(0, 0);
   top: 100%;
