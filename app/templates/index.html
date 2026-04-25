@@ -3452,6 +3452,8 @@
         },
         smart_param: {
           index: null,
+          // 记录最近一次聚焦的任务上下文（用于判断是否切换到其他任务）
+          focusContextKey: null,
           savepath: "",
           origin_savepath: "",
           taskSuggestions: {
@@ -9621,14 +9623,29 @@
           });
         },
         focusTaskname(index, task) {
-          // 如果当前聚焦的任务不同于上一个任务，清除搜索记录
-          if (this.smart_param.index !== index) {
+          // 构造“任务聚焦上下文键”：
+          // - 列表视图：按任务真实索引区分
+          // - 模态框编辑：按被编辑任务索引区分
+          // - 模态框创建：单独上下文
+          let nextFocusContextKey = '';
+          if (index === -1) {
+            nextFocusContextKey = this.createTask.isEditMode
+              ? `modal-edit-${this.createTask.editTaskIndex}`
+              : 'modal-create';
+          } else {
+            nextFocusContextKey = `list-${index}`;
+          }
+
+          // 与列表视图一致：仅当切换到“其他任务”时清空搜索记录；
+          // 同一任务内仅收起/展开或再次聚焦，不清空结果。
+          if (this.smart_param.focusContextKey !== nextFocusContextKey) {
             this.smart_param.taskSuggestions = {
               success: false,
               data: []
             };
           }
-          
+
+          this.smart_param.focusContextKey = nextFocusContextKey;
           this.smart_param.index = index
           this.smart_param.origin_savepath = task.savepath
           regex = new RegExp(`/${task.taskname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(/|$)`)
