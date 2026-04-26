@@ -497,7 +497,7 @@
               <input type="text" v-model="formData.cookie[index]" class="form-control" placeholder="打开 pan.quark.com 按 F12 抓取" @change="fetchUserInfo" title="所有账号都会进行签到（纯签到只需填写移动端参数），只有第一个账号会进行转存，请自行确认账号顺序，所有填写了Cookie的账号均支持文件整理，如需签到请在Cookie后方添加签到参数">
               <div class="input-group-append">
                 <button v-if="index === formData.cookie.length - 1" type="button" class="btn btn-outline-primary" @click="addCookie()"><i class="bi bi-plus-lg"></i></button>
-                <button type="button" class="btn btn-outline-danger" @click="removeCookie(index)"><i class="bi bi-dash-lg"></i></button>
+                <button v-if="formData.cookie.length > 1" type="button" class="btn btn-outline-danger" @click="removeCookie(index)"><i class="bi bi-dash-lg"></i></button>
               </div>
             </div>
 
@@ -572,7 +572,7 @@
               <input type="text" v-model="formData.push_config[key]" class="form-control">
               <div class="input-group-append">
                 <button v-if="index === Object.keys(formData.push_config).length - 1" type="button" class="btn btn-outline-primary" @click="addPush()"><i class="bi bi-plus-lg"></i></button>
-                <button type="button" class="btn btn-outline-danger" @click="removePush(key)"><i class="bi bi-dash-lg"></i></button>
+                <button v-if="Object.keys(formData.push_config).length > 1" type="button" class="btn btn-outline-danger" @click="removePush(key)"><i class="bi bi-dash-lg"></i></button>
               </div>
             </div>
 
@@ -705,7 +705,7 @@
               </div>
             </div>
             <div v-for="(value, key, index) in formData.magic_regex" :key="key" class="form-group mb-2">
-              <div class="input-group">
+              <div class="input-group" :class="{ 'magic-regex-single': Object.keys(formData.magic_regex).length === 1 }">
                 <div class="input-group-prepend">
                   <span class="input-group-text">魔法名</span>
                 </div>
@@ -715,7 +715,10 @@
                 </div>
                 <input type="text" v-model="value.pattern" class="form-control" placeholder="匹配表达式">
                 <input type="text" v-model="value.replace" class="form-control" placeholder="替换表达式">
-                <div class="input-group-append">
+                <div class="input-group-append" v-if="Object.keys(formData.magic_regex).length === 1">
+                  <button type="button" class="btn btn-outline-primary" @click="addMagicRegex()"><i class="bi bi-plus-lg"></i></button>
+                </div>
+                <div class="input-group-append" v-else>
                   <button v-if="index === Object.keys(formData.magic_regex).length - 1" type="button" class="btn btn-outline-primary" @click="addMagicRegex()"><i class="bi bi-plus-lg"></i></button>
                   <button type="button" class="btn btn-outline-danger" @click="removeMagicRegex(key)"><i class="bi bi-dash-lg"></i></button>
                 </div>
@@ -9537,6 +9540,7 @@
           });
         },
         removeCookie(index) {
+          if (this.formData.cookie.length <= 1) return;
           if (this.formData.cookie[index] == "" || confirm("确定要删除吗？")) {
             this.formData.cookie.splice(index, 1);
             // 删除对应的用户信息
@@ -9555,6 +9559,7 @@
             this.$set(this.formData.push_config, key, "");
         },
         removePush(key) {
+          if (Object.keys(this.formData.push_config).length <= 1) return;
           if (confirm("确定要删除吗？"))
             this.$delete(this.formData.push_config, key);
         },
@@ -11362,6 +11367,7 @@
           }
         },
         removeMagicRegex(key) {
+          if (Object.keys(this.formData.magic_regex).length <= 1) return;
           if (confirm(`确定要删除魔法匹配规则 [${key}] 吗？`)) {
             this.$delete(this.formData.magic_regex, key);
           }
