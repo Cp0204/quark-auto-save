@@ -497,7 +497,7 @@
               <input type="text" v-model="formData.cookie[index]" class="form-control" placeholder="打开 pan.quark.com 按 F12 抓取" @change="fetchUserInfo" title="所有账号都会进行签到（纯签到只需填写移动端参数），只有第一个账号会进行转存，请自行确认账号顺序，所有填写了Cookie的账号均支持文件整理，如需签到请在Cookie后方添加签到参数">
               <div class="input-group-append">
                 <button v-if="index === formData.cookie.length - 1" type="button" class="btn btn-outline-primary" @click="addCookie()"><i class="bi bi-plus-lg"></i></button>
-                <button type="button" class="btn btn-outline-danger" @click="removeCookie(index)"><i class="bi bi-dash-lg"></i></button>
+                <button v-if="formData.cookie.length > 1" type="button" class="btn btn-outline-danger" @click="removeCookie(index)"><i class="bi bi-dash-lg"></i></button>
               </div>
             </div>
 
@@ -572,7 +572,7 @@
               <input type="text" v-model="formData.push_config[key]" class="form-control">
               <div class="input-group-append">
                 <button v-if="index === Object.keys(formData.push_config).length - 1" type="button" class="btn btn-outline-primary" @click="addPush()"><i class="bi bi-plus-lg"></i></button>
-                <button type="button" class="btn btn-outline-danger" @click="removePush(key)"><i class="bi bi-dash-lg"></i></button>
+                <button v-if="Object.keys(formData.push_config).length > 1" type="button" class="btn btn-outline-danger" @click="removePush(key)"><i class="bi bi-dash-lg"></i></button>
               </div>
             </div>
 
@@ -705,7 +705,7 @@
               </div>
             </div>
             <div v-for="(value, key, index) in formData.magic_regex" :key="key" class="form-group mb-2">
-              <div class="input-group">
+              <div class="input-group" :class="{ 'magic-regex-single': Object.keys(formData.magic_regex).length === 1 }">
                 <div class="input-group-prepend">
                   <span class="input-group-text">魔法名</span>
                 </div>
@@ -715,7 +715,10 @@
                 </div>
                 <input type="text" v-model="value.pattern" class="form-control" placeholder="匹配表达式">
                 <input type="text" v-model="value.replace" class="form-control" placeholder="替换表达式">
-                <div class="input-group-append">
+                <div class="input-group-append" v-if="Object.keys(formData.magic_regex).length === 1">
+                  <button type="button" class="btn btn-outline-primary" @click="addMagicRegex()"><i class="bi bi-plus-lg"></i></button>
+                </div>
+                <div class="input-group-append" v-else>
                   <button v-if="index === Object.keys(formData.magic_regex).length - 1" type="button" class="btn btn-outline-primary" @click="addMagicRegex()"><i class="bi bi-plus-lg"></i></button>
                   <button type="button" class="btn btn-outline-danger" @click="removeMagicRegex(key)"><i class="bi bi-dash-lg"></i></button>
                 </div>
@@ -1482,7 +1485,7 @@
                   <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" :title="getPluginConfigTitle(task)">
                     <label class="col-sm-2 col-form-label">插件配置</label>
                     <div class="col-sm-10">
-                      <v-jsoneditor v-model="task.addition" :options="{mode:'tree'}" :plus="false" height="162px" style="margin-bottom: -8px;" :disabled="isPluginConfigDisabled(task)"></v-jsoneditor>
+                      <v-jsoneditor v-model="task.addition" :options="{mode:'tree'}" :plus="false" height="151.5px" style="margin-bottom: -8px;" :disabled="isPluginConfigDisabled(task)"></v-jsoneditor>
                     </div>
                   </div>
                 </div>
@@ -3042,7 +3045,7 @@
               <div class="form-group row" v-if="Object.keys(getAvailablePlugins(formData.plugins)).length" :title="getCreateTaskPluginConfigTitle()">
                 <label class="col-sm-2 col-form-label">插件配置</label>
                 <div class="col-sm-10">
-                  <v-jsoneditor v-model="createTask.taskData.addition" :options="{mode:'tree'}" :plus="false" height="162px" :disabled="isPluginConfigDisabled(createTask.taskData)"></v-jsoneditor>
+                  <v-jsoneditor v-model="createTask.taskData.addition" :options="{mode:'tree'}" :plus="false" height="151.5px" :disabled="isPluginConfigDisabled(createTask.taskData)"></v-jsoneditor>
                 </div>
               </div>
             </div>
@@ -3452,6 +3455,8 @@
         },
         smart_param: {
           index: null,
+          // 记录最近一次聚焦的任务上下文（用于判断是否切换到其他任务）
+          focusContextKey: null,
           savepath: "",
           origin_savepath: "",
           taskSuggestions: {
@@ -9535,6 +9540,7 @@
           });
         },
         removeCookie(index) {
+          if (this.formData.cookie.length <= 1) return;
           if (this.formData.cookie[index] == "" || confirm("确定要删除吗？")) {
             this.formData.cookie.splice(index, 1);
             // 删除对应的用户信息
@@ -9553,6 +9559,7 @@
             this.$set(this.formData.push_config, key, "");
         },
         removePush(key) {
+          if (Object.keys(this.formData.push_config).length <= 1) return;
           if (confirm("确定要删除吗？"))
             this.$delete(this.formData.push_config, key);
         },
@@ -9621,14 +9628,29 @@
           });
         },
         focusTaskname(index, task) {
-          // 如果当前聚焦的任务不同于上一个任务，清除搜索记录
-          if (this.smart_param.index !== index) {
+          // 构造“任务聚焦上下文键”：
+          // - 列表视图：按任务真实索引区分
+          // - 模态框编辑：按被编辑任务索引区分
+          // - 模态框创建：单独上下文
+          let nextFocusContextKey = '';
+          if (index === -1) {
+            nextFocusContextKey = this.createTask.isEditMode
+              ? `modal-edit-${this.createTask.editTaskIndex}`
+              : 'modal-create';
+          } else {
+            nextFocusContextKey = `list-${index}`;
+          }
+
+          // 与列表视图一致：仅当切换到“其他任务”时清空搜索记录；
+          // 同一任务内仅收起/展开或再次聚焦，不清空结果。
+          if (this.smart_param.focusContextKey !== nextFocusContextKey) {
             this.smart_param.taskSuggestions = {
               success: false,
               data: []
             };
           }
-          
+
+          this.smart_param.focusContextKey = nextFocusContextKey;
           this.smart_param.index = index
           this.smart_param.origin_savepath = task.savepath
           regex = new RegExp(`/${task.taskname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(/|$)`)
@@ -10932,6 +10954,19 @@
           if (taskname.length < 2) {
             return;
           }
+          // 兼容“直接点击资源搜索按钮”触发搜索的场景：
+          // 即使用户未先聚焦任务名称输入框，也要写入同一套“任务聚焦上下文键”，
+          // 以保证后续再次聚焦输入框时不会把刚才的搜索结果误判为“切换任务”而清空。
+          let nextFocusContextKey = '';
+          if (index === -1) {
+            nextFocusContextKey = this.createTask.isEditMode
+              ? `modal-edit-${this.createTask.editTaskIndex}`
+              : 'modal-create';
+          } else {
+            nextFocusContextKey = `list-${index}`;
+          }
+          this.smart_param.focusContextKey = nextFocusContextKey;
+
           // 开始搜索前清除之前的搜索结果
           this.smart_param.taskSuggestions = {
             success: false,
@@ -11345,6 +11380,7 @@
           }
         },
         removeMagicRegex(key) {
+          if (Object.keys(this.formData.magic_regex).length <= 1) return;
           if (confirm(`确定要删除魔法匹配规则 [${key}] 吗？`)) {
             this.$delete(this.formData.magic_regex, key);
           }

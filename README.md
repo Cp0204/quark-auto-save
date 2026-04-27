@@ -317,7 +317,7 @@ services:
 - [基础配置](https://github.com/x1ao4/quark-auto-save-x/wiki/使用技巧集锦)
 - [命名规则](https://github.com/x1ao4/quark-auto-save-x/wiki/命名规则)
 - [定时规则](https://github.com/x1ao4/quark-auto-save-x/wiki/定时规则)
-- [任务设置](https://github.com/x1ao4/quark-auto-save-x/wiki/影视发现任务设置)
+- [任务设置](https://github.com/x1ao4/quark-auto-save-x/wiki/任务设置)
 - [插件设置](https://github.com/x1ao4/quark-auto-save-x/wiki/插件设置)
 - [通知设置](https://github.com/x1ao4/quark-auto-save-x/wiki/通知设置)
 - [性能设置](https://github.com/x1ao4/quark-auto-save-x/wiki/性能设置)

@@ -2126,7 +2126,7 @@ button.close:focus,
 /* --------------- 深度搜索任务建议样式 --------------- */
 .task-suggestions {
   width: 100%;
-  max-height: 482px;
+  max-height: 511px;
   overflow-y: auto;
   transform: translate(0, 0);
   top: 100%;
@@ -3472,6 +3472,37 @@ main .form-group:not(.row) {
 .form-group.mb-2 > .input-group > .input-group-append > .btn-outline-primary:active::before,
 .form-group.mb-2 > .input-group > .input-group-append > .btn-outline-primary:focus::before {
   background-color: white !important; /* 保持白色背景 */
+}
+
+/* 魔法匹配仅剩一项时，不再为删除按钮预留空间，+ 按钮贴右显示 */
+.form-group.mb-2 > .input-group.magic-regex-single {
+  padding-right: 0;
+}
+
+.form-group.mb-2 > .input-group.magic-regex-single > .input-group-append > .btn-outline-primary {
+  right: 0;
+}
+
+.form-group.mb-2 > .input-group.magic-regex-single > .input-group-append > .btn-outline-primary::before {
+  top: 1px;
+  height: calc(100% - 2px);
+}
+
+.form-group.mb-2 > .input-group.magic-regex-single > .input-group-append > .btn-outline-primary:hover {
+  background-color: #0D53FF;
+  color: #fff;
+}
+
+.form-group.mb-2 > .input-group.magic-regex-single > .input-group-append > .btn-outline-primary:active,
+.form-group.mb-2 > .input-group.magic-regex-single > .input-group-append > .btn-outline-primary:focus {
+  background-color: #0D53FF !important;
+  color: #fff !important;
+}
+
+/* 魔法匹配仅剩一项时，恢复“替换表达式”输入框右侧圆角 */
+.form-group.mb-2 > .input-group.magic-regex-single > input[placeholder="替换表达式"] {
+  border-top-right-radius: 6px !important;
+  border-bottom-right-radius: 6px !important;
 }
 
 /* --------------- 插件区域样式 --------------- */
@@ -6356,7 +6387,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 /* 创建任务模态框中的任务建议样式 */
 #createTaskModal .task-suggestions {
   width: 100%;
-  max-height: 482px;
+  max-height: 511px;
   overflow-y: auto;
   transform: translate(0, 0);
   top: 100%;
