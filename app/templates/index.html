@@ -10954,6 +10954,19 @@
           if (taskname.length < 2) {
             return;
           }
+          // 兼容“直接点击资源搜索按钮”触发搜索的场景：
+          // 即使用户未先聚焦任务名称输入框，也要写入同一套“任务聚焦上下文键”，
+          // 以保证后续再次聚焦输入框时不会把刚才的搜索结果误判为“切换任务”而清空。
+          let nextFocusContextKey = '';
+          if (index === -1) {
+            nextFocusContextKey = this.createTask.isEditMode
+              ? `modal-edit-${this.createTask.editTaskIndex}`
+              : 'modal-create';
+          } else {
+            nextFocusContextKey = `list-${index}`;
+          }
+          this.smart_param.focusContextKey = nextFocusContextKey;
+
           // 开始搜索前清除之前的搜索结果
           this.smart_param.taskSuggestions = {
             success: false,
