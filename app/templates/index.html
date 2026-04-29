@@ -329,9 +329,12 @@
                       <div class="input-group">
                         <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(index, task)" @input="changeTaskname(index, task)">
                         <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.taskSuggestions.success && smart_param.index === index">
-                          <div class="dropdown-item text-muted text-center" style="font-size:12px;">{{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data.length ? `以下资源来自网络搜索，请自行辨识，如有侵权请联系资源方` : "未搜索到资源" }}</div>
-                          <div v-for="suggestion in smart_param.taskSuggestions.data" :key="suggestion.taskname" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(index, suggestion)" style="font-size: 12px;" :title="suggestion.content">
-                            <span>{{ suggestion.verify ? '✅': '❔' }}</span> {{ suggestion.taskname }}
+                          <div class="dropdown-item text-muted text-center" style="font-size:12px;">
+                            <span v-if="smart_param.isVerifying" class="mr-1"><i class="spinner-border spinner-border-sm" role="status"></i> 正在检查链接有效性...</span>
+                            <span v-else>{{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data.length ? `以下资源来自网络搜索，请自行辨识，如有侵权请联系资源方` : "未搜索到资源" }}</span>
+                          </div>
+                          <div v-for="(suggestion, sIndex) in smart_param.taskSuggestions.data" :key="suggestion.shareurl" class="dropdown-item cursor-pointer" @click.prevent="selectSuggestion(index, suggestion)" style="font-size: 12px;" :title="suggestion.content">
+                            <span>{{ suggestion.verify === true ? '✅' : suggestion.verify === false ? '❌' : '❔' }}</span> {{ suggestion.taskname }}
                             <small class="text-muted">
                               <a :href="suggestion.shareurl" target="_blank" @click.stop>{{ suggestion.shareurl }}</a>
                             </small>
@@ -670,6 +673,7 @@
           taskSuggestions: {},
           showSuggestions: false,
           isSearching: false,
+          isVerifying: false,
           searchTimer: null,
         },
         activeTab: 'tasklist',
@@ -1052,6 +1056,7 @@
             return;
           }
           this.smart_param.isSearching = true;
+          this.smart_param.taskSuggestions = {};
           this.smart_param.index = index;
           try {
             axios.get('/task_suggestions', {
@@ -1062,6 +1067,11 @@
             }).then(response => {
               this.smart_param.taskSuggestions = response.data;
               this.smart_param.showSuggestions = true;
+              this.smart_param.isSearching = false;
+              const data = response.data.data;
+              if (data && data.length > 0) {
+                this.verifyShareLinks(data);
+              }
             }).catch(error => {
               console.error('Error fetching suggestions:', error);
             }).finally(() => {
@@ -1072,6 +1082,36 @@
               error: "网络异常"
             };
           }
+        },
+        verifyShareLinks(data, concurrency = 10) {
+          this.smart_param.isVerifying = true;
+          let idx = 0;
+          const next = () => {
+            // 当发起下一次搜索时放弃本批验证
+            if (this.smart_param.isSearching || idx >= data.length) {
+              this.smart_param.isVerifying = false;
+              return;
+            }
+            const item = data[idx++];
+            // 只验证未知链接
+            if (item.verify !== undefined) { next(); return; }
+            axios.post('/get_share_detail', { shareurl: item.shareurl })
+              .then(res => {
+                if (this.smart_param.isSearching) return;
+                this.$set(item, 'verify', res.data.success);
+              }).catch(() => {
+                if (this.smart_param.isSearching) return;
+                this.$set(item, 'verify', false);
+              }).finally(() => {
+                if (this.smart_param.isSearching) {
+                  this.smart_param.isVerifying = false;
+                  return;
+                }
+                next();
+              });
+          };
+          const running = Math.min(concurrency, data.length);
+          for (let i = 0; i < running; i++) next();
         },
         selectSuggestion(index, suggestion) {
           this.smart_param.showSuggestions = false;
