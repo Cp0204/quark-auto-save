@@ -12,7 +12,8 @@ class Auto_unarchive:
 
     default_task_config = {
         "enable": False,  # 是否自动解压
-        "auto_clean": True,  # 是否自动删除原始文件，可覆盖全局配置
+        "auto_clean": True,  # 是否自动删除原始文件
+        "auto_clean_zipdir": False,  # 是否删除占位目录，适用于一次性运行的任务，无须防止重复转存的占位目录
     }
 
     is_active = True  # 默认全局激活，由任务配置中开启
@@ -36,6 +37,7 @@ class Auto_unarchive:
 
         # 任务配置中是否自动删除原始文件
         self.auto_clean = task_config.get("auto_clean", True)
+        self.auto_clean_zipdir = task_config.get("auto_clean_zipdir", False)
 
         try:
             savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}")
@@ -141,8 +143,12 @@ class Auto_unarchive:
         if self.auto_clean:
             # 压缩包加入清理队列
             clean_list.append(p_task["zip_fid"])
-            # 重命名解压目录为压缩包名称，占位，避免下次重复转存
-            account.rename(sub_dir_fid, p_task["zip_name"])
+            if self.auto_clean_zipdir:
+                # 解压目录加入清理队列
+                clean_list.append(sub_dir_fid)
+            else:
+                # 重命名解压目录为压缩包名称，占位，避免下次重复转存
+                account.rename(sub_dir_fid, p_task["zip_name"])
         else:
             # 不自动清理时，原压缩包占位，将解压目录加入清理队列
             clean_list.append(sub_dir_fid)
