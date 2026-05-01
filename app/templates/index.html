@@ -355,6 +355,30 @@
                       </div>
                     </div>
                   </div>
+                  <div class="form-group row">
+                    <label class="col-sm-2 col-form-label">深度搜索</label>
+                    <div class="col-sm-10">
+                      <div class="input-group">
+                        <div class="input-group-prepend">
+                          <span class="input-group-text">src</span>
+                        </div>
+                        <select class="form-control" v-model="task.pansou_src">
+                          <option value="">默认(all)</option>
+                          <option value="all">all</option>
+                          <option value="tg">tg</option>
+                          <option value="plugin">plugin</option>
+                        </select>
+                        <div class="input-group-prepend">
+                          <span class="input-group-text">plugins</span>
+                        </div>
+                        <input type="text" class="form-control" v-model="task.pansou_plugins" placeholder="可选，逗号分隔，如 p1,p2">
+                        <div class="input-group-prepend">
+                          <span class="input-group-text">channels</span>
+                        </div>
+                        <input type="text" class="form-control" v-model="task.pansou_channels" placeholder="可选，逗号分隔，如 ch1,ch2">
+                      </div>
+                    </div>
+                  </div>
                   <div class="form-group row" title="支持子目录链接，Web端打开分享点入目录，复制浏览器的URL即可；支持带提取码链接，说明见Wiki">
                     <label class="col-sm-2 col-form-label">分享链接</label>
                     <div class="col-sm-10">
@@ -386,7 +410,7 @@
                     <div class="col-sm-10">
                       <div class="input-group">
                         <div class="input-group-prepend">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=true;fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showShareSelect(index)" title="预览正则处理效果">正则处理</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=true;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index)" title="预览正则处理效果">正则处理</button>
                         </div>
                         <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex" @dblclick="inputRawMagicRegex(task)" title="双击可将魔法匹配释放为填入原始正则表达式">
                         <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
@@ -401,13 +425,24 @@
                       </datalist>
                     </div>
                   </div>
-                  <div class="form-group row" title="只转存修改日期>选中文件的文件，在容量不够或几百集动漫的场景下非常有用">
+                  <div class="form-group row" title="可选，选择后将转存从该文件到最新文件（含）">
                     <label class="col-sm-2 col-form-label">文件起始</label>
                     <div class="col-sm-10">
                       <div class="input-group">
-                        <input type="text" class="form-control" placeholder="可选，只转存修改日期>此文件的文件" name="startfid[]" v-model="task.startfid">
+                        <input type="text" class="form-control" placeholder="可选，选择到最新的边界（含）" name="startfid[]" v-model="task.startfid">
                         <div class="input-group-append" v-if="task.shareurl">
-                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index)">选择</button>
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.selectFidType='start';fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index)">选择</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group row" title="可选，选择后将转存从该文件到最旧文件（含）。若同时设置起始，则转存两者中间区间（含两端）。">
+                    <label class="col-sm-2 col-form-label">文件结束</label>
+                    <div class="col-sm-10">
+                      <div class="input-group">
+                        <input type="text" class="form-control" placeholder="可选，选择到最旧的边界（含）" name="endfid[]" v-model="task.endfid">
+                        <div class="input-group-append" v-if="task.shareurl">
+                          <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=false;fileSelect.selectFidType='end';fileSelect.switchShare=false;fileSelect.previewRegex=false;fileSelect.sortBy='updated_at';fileSelect.sortOrder='desc';showShareSelect(index)">选择</button>
                         </div>
                       </div>
                     </div>
@@ -556,6 +591,13 @@
                   </li>
                 </ol>
               </nav>
+              <div v-else class="alert alert-info py-2 mb-2" role="alert">
+                <span v-if="fileSelect.selectFidType === 'start'">正在选择「文件起始」：将转存该文件到最新文件（含）。</span>
+                <span v-else>正在选择「文件结束」：将转存该文件到最旧文件（含）；若同时设置起始，则转存中间区间（含两端）。</span>
+              </div>
+              <div v-if="fileSelect.previewRegex" class="alert alert-secondary py-2 mb-2" role="alert">
+                正则处理预览列表排序：最新在上；同时间按文件名倒序（4,3,2,1）。
+              </div>
               <!-- 文件列表 -->
               <table class="table table-hover table-sm">
                 <thead>
@@ -582,7 +624,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(file, key) in fileSelect.fileList" :key="key" @click="fileSelect.selectDir ? (file.dir ? navigateTo(file.fid, file.file_name) : null) : selectStartFid(file.fid)" :class="{'cursor-pointer': fileSelect.selectDir ? file.dir : true}">
+                  <tr v-for="(file, key) in fileSelect.fileList" :key="key" @click="fileSelect.selectDir ? (file.dir ? navigateTo(file.fid, file.file_name) : null) : (fileSelect.selectFidType === 'end' ? selectEndFid(file.fid) : selectStartFid(file.fid))" :class="{'cursor-pointer': fileSelect.selectDir ? file.dir : true}">
                     <td><i class="bi mr-1" :class="file.dir ? 'bi-folder-fill text-warning' : 'bi-file-earmark'"></i>{{file.file_name}}</td>
                     <td v-if="fileSelect.selectShare" :class="file.file_name_re ? 'text-success' : file.file_name_saved ? 'text-muted' : 'text-danger'">{{file.file_name_re || file.file_name_saved || '&times;'}}</td>
                     <template v-if="!fileSelect.previewRegex">
@@ -687,6 +729,7 @@
           paths: [],
           selectDir: true,
           selectShare: true,
+          selectFidType: "start",
           switchShare: false,
           previewRegex: false,
           sortBy: "updated_at",
@@ -763,6 +806,10 @@
                 if (!task.hasOwnProperty('runweek')) {
                   task.runweek = [1, 2, 3, 4, 5, 6, 7];
                 }
+                if (!task.hasOwnProperty('endfid')) task.endfid = "";
+                if (!task.hasOwnProperty('pansou_src')) task.pansou_src = "";
+                if (!task.hasOwnProperty('pansou_plugins')) task.pansou_plugins = "";
+                if (!task.hasOwnProperty('pansou_channels')) task.pansou_channels = "";
                 return task;
               });
               // 获取所有任务父目录
@@ -1058,11 +1105,15 @@
           this.smart_param.isSearching = true;
           this.smart_param.taskSuggestions = {};
           this.smart_param.index = index;
+          const task = this.formData.tasklist[index] || {};
           try {
             axios.get('/task_suggestions', {
               params: {
                 q: taskname,
-                d: deep
+                d: deep,
+                src: task.pansou_src || "",
+                plugins: task.pansou_plugins || "",
+                channels: task.pansou_channels || ""
               }
             }).then(response => {
               this.smart_param.taskSuggestions = response.data;
@@ -1279,6 +1330,10 @@
           Vue.set(this.formData.tasklist[this.fileSelect.index], 'startfid', fid);
           $('#fileSelectModal').modal('hide')
         },
+        selectEndFid(fid) {
+          Vue.set(this.formData.tasklist[this.fileSelect.index], 'endfid', fid);
+          $('#fileSelectModal').modal('hide')
+        },
         getShareurl(shareurl, dir = {}) {
           if (dir == {} || dir.fid == 0) {
             shareurl = shareurl.match(`.*s/[a-z0-9]+(\\?pwd=[^#]+)?`)[0]
@@ -1300,15 +1355,39 @@
           }
 
           this.fileSelect.fileList.sort((a, b) => {
-            let valA = a[this.fileSelect.sortBy];
-            let valB = b[this.fileSelect.sortBy];
+            // 与后端 start/end 区间的稳定排序对齐：时间相同按文件名自然排序，再按 fid 兜底
+            const dirA = a.dir ? 0 : 1;
+            const dirB = b.dir ? 0 : 1;
+            if (dirA !== dirB) return dirA - dirB;
 
-            if (typeof valA === "string") valA = valA.toLowerCase();
-            if (typeof valB === "string") valB = valB.toLowerCase();
+            const sortBy = this.fileSelect.sortBy;
+            const orderFactor = this.fileSelect.sortOrder === "asc" ? 1 : -1;
+            let valA = a[sortBy];
+            let valB = b[sortBy];
 
-            if (valA < valB) return this.fileSelect.sortOrder === "asc" ? -1 : 1;
-            if (valA > valB) return this.fileSelect.sortOrder === "asc" ? 1 : -1;
-            return 0;
+            // 数值字段优先按数值比较
+            const numA = Number(valA);
+            const numB = Number(valB);
+            if (!Number.isNaN(numA) && !Number.isNaN(numB) && sortBy !== 'file_name') {
+              if (numA < numB) return -1 * orderFactor;
+              if (numA > numB) return 1 * orderFactor;
+            } else {
+              valA = (valA ?? "").toString().toLowerCase();
+              valB = (valB ?? "").toString().toLowerCase();
+              if (valA < valB) return -1 * orderFactor;
+              if (valA > valB) return 1 * orderFactor;
+            }
+
+            // tie-breaker: file_name（自然排序，随主排序方向）
+            const nameA = (a.file_name ?? "").toString();
+            const nameB = (b.file_name ?? "").toString();
+            const nameCmp = nameA.localeCompare(nameB, 'zh-CN', { numeric: true, sensitivity: 'base' });
+            if (nameCmp !== 0) return nameCmp * orderFactor;
+
+            // tie-breaker: fid（随主排序方向）
+            const fidA = (a.fid ?? "").toString();
+            const fidB = (b.fid ?? "").toString();
+            return fidA.localeCompare(fidB, 'en', { numeric: true, sensitivity: 'base' }) * orderFactor;
           });
         },
         inputRawMagicRegex(task) {
