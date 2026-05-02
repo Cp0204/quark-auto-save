@@ -67,7 +67,7 @@ class Auto_unarchive:
 
             while wait_list or active_tasks:
 
-                while len(active_tasks) < self.max_concurrent and wait_list:
+                while len(active_tasks) < int(self.max_concurrent) and wait_list:
                     node = wait_list.pop(0)
                     zip_fid = node.data["fid"]
                     zip_name = node.data["file_name_re"]
