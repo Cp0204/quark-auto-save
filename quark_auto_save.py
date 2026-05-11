@@ -2913,7 +2913,6 @@ class Quark:
             and share_file_list[0]["dir"]
             and subdir_path == ""
         ):  # 仅有一个文件夹
-            print("🧠 该分享是一个文件夹，读取文件夹内列表")
             share_file_list = self.get_detail(
                 pwd_id, stoken, share_file_list[0]["fid"]
             )["list"]
