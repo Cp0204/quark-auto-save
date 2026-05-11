@@ -1592,7 +1592,7 @@
                     </div>
                     <div class="discovery-genre"
                          :title="(getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name && getCalendarTaskByName(task.taskname).season_counts)
-                           ? ('已转存集数 / 已播出集数 / 节目总集数：' + getTaskTransferredCount(getCalendarTaskByName(task.taskname)) + ' / ' + getTaskAiredCount(getCalendarTaskByName(task.taskname)) + ' / ' + getTaskTotalCount(getCalendarTaskByName(task.taskname)))
+                           ? ('已转存' + getTaskTransferredCount(getCalendarTaskByName(task.taskname)) + '集 / 已播出' + getTaskAiredCount(getCalendarTaskByName(task.taskname)) + '集 / 节目共' + getTaskTotalCount(getCalendarTaskByName(task.taskname)) + '集')
                            : ''">
                       <template v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name && getCalendarTaskByName(task.taskname).season_counts">
                         <span v-html="`${getTaskTransferredCount(getCalendarTaskByName(task.taskname))} <span class='count-slash'>/</span> ${getTaskAiredCount(getCalendarTaskByName(task.taskname))} <span class='count-slash'>/</span> ${getTaskTotalCount(getCalendarTaskByName(task.taskname))}`"></span>
