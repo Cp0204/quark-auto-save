@@ -1117,8 +1117,8 @@
                          :key="log.id"
                          class="runlog-line"
                          @click="handleRuntimeLogClick(log, $event)">
-                      <span style="margin-right: 8px;">[{{ log.timestamp || '--' }}][<span class="log-level-clickable" @click="filterByLogLevel(log.level || 'INFO', $event)">{{ log.level || 'INFO' }}</span>]</span>
-                      <span v-html="getRuntimeLogDisplayHtml(log)"></span>
+                      <span class="runlog-line-meta">[{{ log.timestamp || '--' }}][<span class="log-level-clickable" @click="filterByLogLevel(log.level || 'INFO', $event)">{{ log.level || 'INFO' }}</span>]</span>
+                      <span class="runlog-line-message" v-html="getRuntimeLogDisplayHtml(log)"></span>
                     </div>
                   </div>
                 </div>
@@ -10619,6 +10619,12 @@
 
           // 2. 将所有 >>> 替换为可点击的 span（在转义后的文本中是 &gt;&gt;&gt;）
           html = html.replace(/&gt;&gt;&gt;/g, '<span class="runtime-log-arrow-clickable" data-keyword="&gt;&gt;&gt;">&gt;&gt;&gt;</span>');
+
+          // 3. 移动端与 filteredRuntimeLogs 一致为倒序（最新在上）；目录树 └ 角在视觉上像向上收口，
+          //    换成 ┌（向下开口）更贴近从上往下阅读的「向下延续」感，且与桌面/文件 log 语义仍对应末枝
+          if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+            html = html.split('└──').join('┌──');
+          }
 
           return html;
         },
