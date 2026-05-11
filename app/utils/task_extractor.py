@@ -197,7 +197,18 @@ class TaskExtractor:
                         'season_number': None,
                         'progress_type': 'episode'
                     }
-        
+
+        # 整串为纯数字时视为集号（兼容未经过 process_season_episode_info 的原始基名，如 29）
+        _stem = latest_file.strip()
+        if _stem.isdigit() and 1 <= len(_stem) <= 4:
+            _n = int(_stem)
+            if 1 <= _n <= 9999:
+                return {
+                    'episode_number': _n,
+                    'season_number': None,
+                    'progress_type': 'episode'
+                }
+
         # 尝试提取日期信息
         for pattern in self.date_patterns:
             match = re.search(pattern, latest_file)

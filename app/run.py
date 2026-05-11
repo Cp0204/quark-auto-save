@@ -913,6 +913,14 @@ def process_season_episode_info(filename, task_name=None):
         episode = episode_only_match.group(1).zfill(2)  # 确保两位数
         return f"E{episode}"
 
+    # 整段文件名为纯数字时视为集号（例如尚未重命名为 E29 的 29.mkv），与 extract_progress 逻辑一致
+    _pure_digit = re.fullmatch(r'(\d{1,4})', filename.strip())
+    if _pure_digit:
+        _n = int(_pure_digit.group(1))
+        if 1 <= _n <= 9999:
+            episode = str(_n).zfill(2)
+            return f"E{episode}"
+
     # 如果没有匹配到季数集数信息，检查是否需要去除与任务名称相同的前缀
     if task_name:
         task_name_clean = task_name.strip()

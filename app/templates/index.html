@@ -6298,7 +6298,16 @@
                 return { episode_number: parseInt(m[1]), air_date: null };
               }
             }
-            
+
+            // 整串为纯数字时视为集号（与后端 TaskExtractor 一致，如 29 → 第 29 集）
+            const stem = String(txt).trim();
+            if (/^\d{1,4}$/.test(stem)) {
+              const n = parseInt(stem, 10);
+              if (n >= 1 && n <= 9999) {
+                return { episode_number: n, air_date: null };
+              }
+            }
+
             // 最后尝试提取日期信息
             for (const re of datePatterns) {
               const m = String(txt).match(re);

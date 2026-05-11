@@ -3284,7 +3284,6 @@ div.jsoneditor-treepath * {
   height: 32px;
   box-sizing: border-box;
   text-align: center;
-  /* 仅用内边距微调文字相对外框（外框尺寸不变）：左移约 1px、上移约 0.5px；与全局 .form-control{padding:!important} 对抗 */
   padding: 0 0 0.5px 0 !important;
   border-color: var(--dark-text-color);
   border-radius: 6px;
