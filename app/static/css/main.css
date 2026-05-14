@@ -3158,10 +3158,11 @@ div.jsoneditor-treepath * {
     flex-wrap: wrap;
   }
 
-  /* 不修改按钮大小，与桌面版保持一致 */
+  /* 不修改按钮大小，与桌面版保持一致；禁止 flex 子项被压扁 */
   .pagination-controls .btn-sm {
     min-width: 32px;
     height: 32px;
+    flex-shrink: 0;
   }
 
   /* 保持与桌面版一致的跳页区域尺寸 */
@@ -3197,12 +3198,31 @@ div.jsoneditor-treepath * {
 .pagination-controls .btn-sm {
   min-width: 32px;
   height: 32px;
-  padding: 0;
-  display: flex;
+  box-sizing: border-box;
+  /* 作为 flex 子项时禁止被压到仅 min-width，避免当前页等多位页码被挤成 32px */
+  flex-shrink: 0;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 0.95rem;
   border-radius: 6px;
+}
+
+/* 纯数字页码（无图标）：随位数自适应宽度 */
+.pagination-controls .btn.btn-sm.mx-1:not(:has(.bi)) {
+  width: auto;
+  min-width: 32px;
+  max-width: none;
+  padding: 0 7px;
+}
+
+/* 上一页/下一页箭头：保持 32×32 方形，覆盖上面 width:auto */
+.pagination-controls .btn-sm.mx-1:has(.bi-chevron-left),
+.pagination-controls .btn-sm.mx-1:has(.bi-chevron-right) {
+  width: 32px;
+  min-width: 32px;
+  max-width: 32px;
+  padding: 0;
 }
 
 /* 分页按钮悬停状态 */
@@ -3252,37 +3272,30 @@ div.jsoneditor-treepath * {
   margin-right: 7px !important; /* "页"与"确定"按钮之间的距离 */
 }
 
-/* 页码输入框样式 */
-.pagination-settings .input-group[style*="width: 70px"] {
+/* 页码跳转输入外层：宽度由内联样式与末页按钮同步 */
+.pagination-settings .pagination-jump-input-wrap {
   width: auto !important;
-  min-width: 64px !important;
+  min-width: 0 !important;
   display: inline-flex !important;
 }
 
-.pagination-settings .form-control-sm {
+/* 「跳到第 x 页」数字框：宽度由 Vue 与末页按钮对齐；须带 .form-control 以压过全局 padding !important */
+.pagination-settings .pagination-jump-page-input.form-control.form-control-sm {
   height: 32px;
-  width: 32px !important; /* 默认宽度为正方形 */
-  min-width: 32px; /* 最小宽度 */
+  box-sizing: border-box;
   text-align: center;
-  padding: 0 2px;
+  padding: 0 0 0.5px 0 !important;
   border-color: var(--dark-text-color);
   border-radius: 6px;
   -moz-appearance: textfield; /* Firefox */
-  transition: width 0.2s; /* 添加宽度过渡效果 */
+  transition: width 0.15s ease-out, min-width 0.15s ease-out, max-width 0.15s ease-out;
 }
 
 /* 去掉输入框的上下箭头 */
-.pagination-settings .form-control-sm::-webkit-outer-spin-button,
-.pagination-settings .form-control-sm::-webkit-inner-spin-button {
+.pagination-settings .pagination-jump-page-input.form-control.form-control-sm::-webkit-outer-spin-button,
+.pagination-settings .pagination-jump-page-input.form-control.form-control-sm::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
-}
-
-/* 当输入内容较多或获得焦点时自动扩展宽度 */
-.pagination-settings .form-control-sm:focus,
-.pagination-settings .form-control-sm:not(:placeholder-shown) {
-  width: auto !important;
-  min-width: 32px;
 }
 
 /* 分页文本样式 - 统一所有文本的样式 */
@@ -8763,10 +8776,23 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   font-size: 0.85rem; /* 与 #logModal pre 字号一致 */
   line-height: 1.5;   /* 行高与弹窗一致 */
   color: var(--dark-text-color);
-  /* 桌面端：超长内容不换行，直接截断显示 */
+  /* 桌面端：超长内容不换行，直接截断显示；连续空格由 .runlog-line-message 的 pre 保留 */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 时间戳与级别前缀：不参与 pre 排版，固定不换行 */
+.runlog-content .runlog-line-meta {
+  display: inline-block;
+  margin-right: 8px;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+/* 日志正文：禁止合并连续空格，与磁盘 log 中目录树显示一致 */
+.runlog-content .runlog-line-message {
+  white-space: pre;
 }
 
 /* 运行日志页面：级别可点击筛选样式 */

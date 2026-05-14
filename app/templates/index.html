@@ -1117,8 +1117,8 @@
                          :key="log.id"
                          class="runlog-line"
                          @click="handleRuntimeLogClick(log, $event)">
-                      <span style="margin-right: 8px;">[{{ log.timestamp || '--' }}][<span class="log-level-clickable" @click="filterByLogLevel(log.level || 'INFO', $event)">{{ log.level || 'INFO' }}</span>]</span>
-                      <span v-html="getRuntimeLogDisplayHtml(log)"></span>
+                      <span class="runlog-line-meta">[{{ log.timestamp || '--' }}][<span class="log-level-clickable" @click="filterByLogLevel(log.level || 'INFO', $event)">{{ log.level || 'INFO' }}</span>]</span>
+                      <span class="runlog-line-message" v-html="getRuntimeLogDisplayHtml(log)"></span>
                     </div>
                   </div>
                 </div>
@@ -1431,7 +1431,7 @@
                       </div>
                     </div>
                   </div>
-                  <div class="form-group row" title="匹配成功的文件夹的所有嵌套目录都会被更新，并且会应用与根目录相同的正则命名和过滤规则。注意：原理是逐级索引，深层嵌套目录的场景下效率非常低，慎用.*">
+                  <div class="form-group row" title="匹配到的目录及其所有子目录、文件都会参与更新，并应用与根目录相同的正则命名和过滤规则（剧集、顺序命名仅支持对根目录文件重命名）。目录是逐级索引的，无法直接指定某个深层目录；目录层级或文件数量过多时会明显增加扫描耗时，慎用.*">
                     <label class="col-sm-2 col-form-label">更新目录</label>
                     <div class="col-sm-10">
                       <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如 4K|1080P">
@@ -1592,7 +1592,7 @@
                     </div>
                     <div class="discovery-genre"
                          :title="(getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name && getCalendarTaskByName(task.taskname).season_counts)
-                           ? ('已转存集数 / 已播出集数 / 节目总集数：' + getTaskTransferredCount(getCalendarTaskByName(task.taskname)) + ' / ' + getTaskAiredCount(getCalendarTaskByName(task.taskname)) + ' / ' + getTaskTotalCount(getCalendarTaskByName(task.taskname)))
+                           ? ('已转存' + getTaskTransferredCount(getCalendarTaskByName(task.taskname)) + '集 / 已播出' + getTaskAiredCount(getCalendarTaskByName(task.taskname)) + '集 / 节目共' + getTaskTotalCount(getCalendarTaskByName(task.taskname)) + '集')
                            : ''">
                       <template v-if="getCalendarTaskByName(task.taskname) && getCalendarTaskByName(task.taskname).matched_show_name && getCalendarTaskByName(task.taskname).season_counts">
                         <span v-html="`${getTaskTransferredCount(getCalendarTaskByName(task.taskname))} <span class='count-slash'>/</span> ${getTaskAiredCount(getCalendarTaskByName(task.taskname))} <span class='count-slash'>/</span> ${getTaskTotalCount(getCalendarTaskByName(task.taskname))}`"></span>
@@ -1792,7 +1792,7 @@
                   <span class="mx-1" v-if="getVisiblePageNumbers().length > 0 && getVisiblePageNumbers()[getVisiblePageNumbers().length - 1] < totalPages - 1">...</span>
                   
                   <!-- 最后一页按钮 -->
-                  <button v-if="totalPages > 1" type="button" class="btn btn-sm mx-1" 
+                  <button v-if="totalPages > 1" type="button" class="btn btn-sm mx-1" ref="historyPaginationLastPageBtn"
                           :class="historyParams.page === totalPages ? 'btn-primary' : 'btn-outline-secondary'" 
                           @click="changePage(totalPages)">
                     {{ totalPages }}
@@ -1805,8 +1805,9 @@
               </div>
               <div class="pagination-settings d-flex align-items-center">
                 <span class="text-secondary mr-1">跳到第</span>
-                <div class="input-group mx-1" style="width: 70px">
-                  <input type="number" class="form-control form-control-sm" v-model.number="gotoPage" min="1" :max="totalPages">
+                <div class="input-group mx-1 pagination-jump-input-wrap">
+                  <input type="number" class="form-control form-control-sm pagination-jump-page-input" v-model.number="gotoPage" min="1" :max="totalPages"
+                         :style="{ width: historyJumpInputWidthPx + 'px', minWidth: historyJumpInputWidthPx + 'px', maxWidth: historyJumpInputWidthPx + 'px' }">
                 </div>
                 <span class="text-secondary mr-2">页</span>
                 <button type="button" class="btn btn-outline-secondary btn-sm mr-2" @click="changePage(gotoPage)">确定</button>
@@ -2046,7 +2047,7 @@
                   
                   <span class="mx-1" v-if="getVisibleFolderPageNumbers().length > 0 && getVisibleFolderPageNumbers()[getVisibleFolderPageNumbers().length - 1] < fileManager.totalPages - 1">...</span>
                   
-                  <button v-if="fileManager.totalPages > 1" type="button" class="btn btn-sm mx-1" 
+                  <button v-if="fileManager.totalPages > 1" type="button" class="btn btn-sm mx-1" ref="fileManagerPaginationLastPageBtn"
                           :class="fileManager.currentPage === fileManager.totalPages ? 'btn-primary' : 'btn-outline-secondary'" 
                           @click="changeFolderPage(fileManager.totalPages)">
                     {{ fileManager.totalPages }}
@@ -2059,8 +2060,9 @@
               </div>
               <div class="pagination-settings d-flex align-items-center">
                 <span class="text-secondary mr-1">跳到第</span>
-                <div class="input-group mx-1" style="width: 70px">
-                  <input type="number" class="form-control form-control-sm" v-model.number="fileManager.gotoPage" min="1" :max="fileManager.totalPages">
+                <div class="input-group mx-1 pagination-jump-input-wrap">
+                  <input type="number" class="form-control form-control-sm pagination-jump-page-input" v-model.number="fileManager.gotoPage" min="1" :max="fileManager.totalPages"
+                         :style="{ width: fileManagerJumpInputWidthPx + 'px', minWidth: fileManagerJumpInputWidthPx + 'px', maxWidth: fileManagerJumpInputWidthPx + 'px' }">
                 </div>
                 <span class="text-secondary mr-2">页</span>
                 <button type="button" class="btn btn-outline-secondary btn-sm mr-2" @click="changeFolderPage(fileManager.gotoPage)">确定</button>
@@ -2992,7 +2994,7 @@
                   </div>
                 </div>
               </div>
-              <div class="form-group row" title="匹配成功的文件夹的所有嵌套目录都会被更新，并且会应用与根目录相同的正则命名和过滤规则。注意：原理是逐级索引，深层嵌套目录的场景下效率非常低，慎用.*">
+              <div class="form-group row" title="匹配到的目录及其所有子目录、文件都会参与更新，并应用与根目录相同的正则命名和过滤规则（剧集、顺序命名仅支持对根目录文件重命名）。目录是逐级索引的，无法直接指定某个深层目录；目录层级或文件数量过多时会明显增加扫描耗时，慎用.*">
                 <label class="col-sm-2 col-form-label">更新目录</label>
                 <div class="col-sm-10">
                   <input type="text" name="update_subdir[]" class="form-control" v-model="createTask.taskData.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如 4K|1080P">
@@ -3519,6 +3521,9 @@
           }
         })(),
         gotoPage: 1,
+        // 与末页页码按钮同宽的跳转输入框像素宽度；无末页按钮时为 32
+        historyJumpInputWidthPx: 32,
+        fileManagerJumpInputWidthPx: 32,
         totalPages: 1,
         displayedPages: [],
         allTaskNames: [],
@@ -4513,6 +4518,10 @@
               this.updateWeekDates();
             }
           }
+          this.$nextTick(function() {
+            this.syncHistoryJumpInputWidth();
+            this.syncFileManagerJumpInputWidth();
+          });
         },
         // 页面宽度模式变化（窄/中/宽），触发布局重算
         pageWidthMode(val) {
@@ -4523,6 +4532,10 @@
               this.updateWeekDates();
             }
           }
+          this.$nextTick(function() {
+            this.syncHistoryJumpInputWidth();
+            this.syncFileManagerJumpInputWidth();
+          });
         },
 
         historyNameFilter: {
@@ -4726,12 +4739,24 @@
           if (newValue === 'discovery') {
             this.loadDiscoveryData();
           }
+          // 切换标签后分页 DOM 变化，重新对齐「跳到第 x 页」输入框与末页按钮宽度
+          this.$nextTick(function() {
+            this.syncHistoryJumpInputWidth();
+            this.syncFileManagerJumpInputWidth();
+          });
         },
         'fileManager.pattern': {
           handler(newValue, oldValue) {
             // 自动检测并切换命名模式
             this.detectFileManagerNamingMode();
           }
+        },
+        // 总页数变化时末页按钮文案宽度变化，同步跳转输入框
+        totalPages: function() {
+          this.syncHistoryJumpInputWidth();
+        },
+        'fileManager.totalPages': function() {
+          this.syncFileManagerJumpInputWidth();
         }
       },
       mounted() {
@@ -6273,7 +6298,16 @@
                 return { episode_number: parseInt(m[1]), air_date: null };
               }
             }
-            
+
+            // 整串为纯数字时视为集号（与后端 TaskExtractor 一致，如 29 → 第 29 集）
+            const stem = String(txt).trim();
+            if (/^\d{1,4}$/.test(stem)) {
+              const n = parseInt(stem, 10);
+              if (n >= 1 && n <= 9999) {
+                return { episode_number: n, air_date: null };
+              }
+            }
+
             // 最后尝试提取日期信息
             for (const re of datePatterns) {
               const m = String(txt).match(re);
@@ -10620,6 +10654,12 @@
           // 2. 将所有 >>> 替换为可点击的 span（在转义后的文本中是 &gt;&gt;&gt;）
           html = html.replace(/&gt;&gt;&gt;/g, '<span class="runtime-log-arrow-clickable" data-keyword="&gt;&gt;&gt;">&gt;&gt;&gt;</span>');
 
+          // 3. 移动端与 filteredRuntimeLogs 一致为倒序（最新在上）；目录树 └ 角在视觉上像向上收口，
+          //    换成 ┌（向下开口）更贴近从上往下阅读的「向下延续」感，且与桌面/文件 log 语义仍对应末枝
+          if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+            html = html.split('└──').join('┌──');
+          }
+
           return html;
         },
         // 运行日志：统一处理内容区域点击（事件委托，避免影响复制）
@@ -12340,6 +12380,39 @@
           // 保存用户设置的每页记录数到本地存储
           localStorage.setItem('quarkAutoSave_pageSize', size.toString());
           this.changePageSize();
+        },
+
+        // 转存记录分页：跳转页码输入框宽度与「最后一页」按钮一致；无该按钮时用 32px
+        syncHistoryJumpInputWidth() {
+          var self = this;
+          this.$nextTick(function() {
+            var ref = self.$refs.historyPaginationLastPageBtn;
+            var el = Array.isArray(ref) ? ref[0] : ref;
+            var w = 32;
+            if (el && typeof el.getBoundingClientRect === 'function') {
+              var rw = Math.round(el.getBoundingClientRect().width);
+              if (rw > 0) {
+                w = rw;
+              }
+            }
+            self.historyJumpInputWidthPx = w;
+          });
+        },
+        // 文件整理分页：同上
+        syncFileManagerJumpInputWidth() {
+          var self = this;
+          this.$nextTick(function() {
+            var ref = self.$refs.fileManagerPaginationLastPageBtn;
+            var el = Array.isArray(ref) ? ref[0] : ref;
+            var w = 32;
+            if (el && typeof el.getBoundingClientRect === 'function') {
+              var rw = Math.round(el.getBoundingClientRect().width);
+              if (rw > 0) {
+                w = rw;
+              }
+            }
+            self.fileManagerJumpInputWidthPx = w;
+          });
         },
         
         getVisiblePageNumbers() {
@@ -17002,6 +17075,12 @@
         $('#fileSelectModal').on('shown.bs.modal', this.checkPreviewScrollbar);
         // 监听窗口大小改变，重新检查滚动条状态
         window.addEventListener('resize', this.checkPreviewScrollbar);
+        // 分页跳转输入框宽度随末页按钮变化（窗口缩放、布局变化）
+        this._onPaginationJumpResize = this.debounce(function() {
+          this.syncHistoryJumpInputWidth();
+          this.syncFileManagerJumpInputWidth();
+        }, 60);
+        window.addEventListener('resize', this._onPaginationJumpResize);
         
         // 初始化时检查所有任务的命名模式
         setTimeout(() => {
@@ -17047,6 +17126,7 @@
               this.$nextTick(() => {
                 // 强制Vue更新视图
                 this.$forceUpdate();
+                this.syncHistoryJumpInputWidth();
               });
             }
           }, { deep: true });
@@ -17083,12 +17163,20 @@
           });
         }
         }, 500);
+        this.$nextTick(function() {
+          this.syncHistoryJumpInputWidth();
+          this.syncFileManagerJumpInputWidth();
+        });
       },
       beforeDestroy() {
         window.removeEventListener('beforeunload', this.handleBeforeUnload);
         // 移除点击事件监听器
         document.removeEventListener('click', this.handleOutsideClick);
         document.removeEventListener('click', this.handleRenameOutsideClick);
+        if (this._onPaginationJumpResize) {
+          window.removeEventListener('resize', this._onPaginationJumpResize);
+          this._onPaginationJumpResize = null;
+        }
         
         // 移除日历页面resize监听器
         if (this.calendarResizeHandler) {

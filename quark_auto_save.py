@@ -1804,8 +1804,10 @@ class Quark:
         ).json()
         return response
 
-    def query_task(self, task_id):
+    def query_task(self, task_id, quiet=False):
+        """quiet=True 时不打印轮询进度（用于 dir_check_and_save 递归转存，避免刷屏）"""
         retry_index = 0
+        printed = False
         while True:
             url = f"{self.BASE_URL}/1/clouddrive/task"
             querystring = {
@@ -1819,21 +1821,37 @@ class Quark:
             }
             response = self._send_request("GET", url, params=querystring).json()
             if response["data"]["status"] != 0:
-                if retry_index > 0:
+                if printed:
                     print()
                 break
             else:
-                if retry_index == 0:
-                    print(
-                        f"正在等待「{response['data']['task_title']}」执行结果",
-                        end="",
-                        flush=True,
-                    )
-                else:
-                    print(".", end="", flush=True)
+                if not quiet:
+                    if retry_index == 0:
+                        print(
+                            f"正在等待「{response['data']['task_title']}」执行结果",
+                            end="",
+                            flush=True,
+                        )
+                    else:
+                        print(".", end="", flush=True)
+                    printed = True
                 retry_index += 1
                 time.sleep(0.500)
         return response
+
+    def _transfer_poll_quiet(self, task, subdir_path):
+        """
+        转存后 query_task 是否静默「正在等待…」进度。
+        无更新目录：仅顶层（subdir_path 为空）打印，与递归静默策略一致。
+        有更新目录：整次 do_save_task 内仅第一次转存轮询有声（用实例标志，避免 task.copy()
+        子任务丢失状态导致每一层递归都各打一遍）。
+        """
+        if task.get("update_subdir"):
+            if getattr(self, "_transfer_poll_ui_done", False):
+                return True
+            self._transfer_poll_ui_done = True
+            return False
+        return bool(subdir_path)
 
     def cloud_unarchive(self, fid, to_pdir_fid="0"):
         """
@@ -2761,6 +2779,9 @@ class Quark:
             return False
 
     def do_save_task(self, task):
+        # 每轮任务重置：更新目录下「转存轮询仅提示一次」（实例级，子任务 copy 不影响）
+        self._transfer_poll_ui_done = False
+        task.pop("_transfer_poll_progress_shown", None)  # 兼容旧版写在 task 上的键
         # 判断资源失效记录
         if task.get("shareurl_ban"):
             add_notify(f"❗《{task['taskname']}》分享资源已失效: {task['shareurl_ban']}\n")
@@ -2892,7 +2913,6 @@ class Quark:
             and share_file_list[0]["dir"]
             and subdir_path == ""
         ):  # 仅有一个文件夹
-            print("🧠 该分享是一个文件夹，读取文件夹内列表")
             share_file_list = self.get_detail(
                 pwd_id, stoken, share_file_list[0]["fid"]
             )["list"]
@@ -2917,52 +2937,54 @@ class Quark:
             # 使用高级过滤函数处理保留词和过滤词
             share_file_list = advanced_filter_files(share_file_list, task["filterwords"])
             
-            # 打印过滤信息（格式保持不变）
-            # 计算剩余文件数
-            remaining_count = len(share_file_list)
-            
-            # 区分不同模式的显示逻辑：
-            # 顺序命名和剧集命名模式不处理文件夹，应该排除文件夹计数
-            # 正则命名模式会处理文件夹，但只处理符合正则表达式的文件夹
-            if task.get("use_sequence_naming") or task.get("use_episode_naming"):
-                # 计算剩余的实际可用文件数（排除文件夹）
-                remaining_usable_count = len([f for f in share_file_list if not f.get("dir", False)])
-                print(f"📑 应用过滤词: {task['filterwords']}，剩余 {remaining_usable_count} 个项目")
-            else:
-                # 正则模式下，需要先检查哪些文件/文件夹会被实际转存
-                pattern, replace = "", ""
-                # 检查是否是剧集命名模式
-                if task.get("use_episode_naming") and task.get("regex_pattern"):
-                    # 使用预先准备好的正则表达式
-                    pattern = task["regex_pattern"]
+            # 仅在分享侧顶层（subdir_path 为空）打印过滤统计，避免「更新目录」递归时每层重复刷屏
+            if not subdir_path:
+                # 打印过滤信息（格式保持不变）
+                # 计算剩余文件数
+                remaining_count = len(share_file_list)
+                
+                # 区分不同模式的显示逻辑：
+                # 顺序命名和剧集命名模式不处理文件夹，应该排除文件夹计数
+                # 正则命名模式会处理文件夹，但只处理符合正则表达式的文件夹
+                if task.get("use_sequence_naming") or task.get("use_episode_naming"):
+                    # 计算剩余的实际可用文件数（排除文件夹）
+                    remaining_usable_count = len([f for f in share_file_list if not f.get("dir", False)])
+                    print(f"📑 应用过滤词: {task['filterwords']}，剩余 {remaining_usable_count} 个项目")
                 else:
-                    # 普通正则命名模式
-                    pattern, replace = self.magic_regex_func(
-                        task.get("pattern", ""), task.get("replace", ""), task["taskname"]
-                    )
-                
-                # 确保pattern不为空，避免正则表达式错误
-                if not pattern:
-                    pattern = ".*"
-                
-                # 计算真正会被转存的项目数量，使用简化的逻辑
-                try:
-                    # 简化的计算逻辑：只检查正则表达式匹配
-                    processable_items = []
-                    for share_file in share_file_list:
-                        # 检查是否符合正则表达式
-                        if not re.search(pattern, share_file["file_name"]):
-                            continue
-                        processable_items.append(share_file)
+                    # 正则模式下，需要先检查哪些文件/文件夹会被实际转存
+                    pattern, replace = "", ""
+                    # 检查是否是剧集命名模式
+                    if task.get("use_episode_naming") and task.get("regex_pattern"):
+                        # 使用预先准备好的正则表达式
+                        pattern = task["regex_pattern"]
+                    else:
+                        # 普通正则命名模式
+                        pattern, replace = self.magic_regex_func(
+                            task.get("pattern", ""), task.get("replace", ""), task["taskname"]
+                        )
                     
-                    remaining_count = len(processable_items)
-                except Exception as e:
-                    # 出错时回退到简单计数方式
-                    print(f"⚠️ 计算可处理项目时出错: {str(e)}")
-                    remaining_count = len([f for f in share_file_list if re.search(pattern, f["file_name"])])
-                
-                print(f"📑 应用过滤词: {task['filterwords']}，剩余 {remaining_count} 个项目")
-            print()
+                    # 确保pattern不为空，避免正则表达式错误
+                    if not pattern:
+                        pattern = ".*"
+                    
+                    # 计算真正会被转存的项目数量，使用简化的逻辑
+                    try:
+                        # 简化的计算逻辑：只检查正则表达式匹配
+                        processable_items = []
+                        for share_file in share_file_list:
+                            # 检查是否符合正则表达式
+                            if not re.search(pattern, share_file["file_name"]):
+                                continue
+                            processable_items.append(share_file)
+                        
+                        remaining_count = len(processable_items)
+                    except Exception as e:
+                        # 出错时回退到简单计数方式
+                        print(f"⚠️ 计算可处理项目时出错: {str(e)}")
+                        remaining_count = len([f for f in share_file_list if re.search(pattern, f["file_name"])])
+                    
+                    print(f"📑 应用过滤词: {task['filterwords']}，剩余 {remaining_count} 个项目")
+                print()
 
         # 获取目标目录文件列表
         savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
@@ -3200,8 +3222,9 @@ class Quark:
                             f"{subdir_path}/{share_file['file_name']}",
                             current_parent_info
                         )
-                        # 只有当子目录树有实际内容（大于1表示不只有根节点）时才处理
-                        if subdir_tree.size(1) > 0:
+                        # 使用 size()>1 判断子树是否有实质节点（size(1) 仅为第一层计数，易误判）
+                        # 递归转存已完成时不要把文件夹 fid 再次加入 need_save_list，否则会多出空目录壳或与递归写入冲突
+                        if subdir_tree and subdir_tree.size() > 1:
                             # 检查子目录树是否只包含文件夹而没有文件
                             has_files = False
                             for node in subdir_tree.all_nodes_itr():
@@ -3209,17 +3232,16 @@ class Quark:
                                 if node.data and not node.data.get("is_dir", False):
                                     has_files = True
                                     break
-                                    
-                            # 只有当子目录包含文件时才将其合并到主树中
+
+                            # 只有当子目录包含文件时才将其合并到主树中（仅供展示/通知）
                             if has_files:
                                 # 获取保存路径的最后一部分目录名
                                 save_path_basename = os.path.basename(task.get("savepath", "").rstrip("/"))
-                                
+
                                 # 跳过与保存路径同名的目录
                                 if share_file["file_name"] == save_path_basename:
                                     continue
-                                
-                                # 合并子目录树
+
                                 tree.create_node(
                                     f"📁{share_file['file_name']}",
                                     share_file["fid"],
@@ -3229,32 +3251,6 @@ class Quark:
                                     },
                                 )
                                 tree.merge(share_file["fid"], subdir_tree, deep=False)
-                                
-                                # 标记此文件夹有更新
-                                # 检查文件夹是否已添加到need_save_list
-                                folder_in_list = False
-                                for item in need_save_list:
-                                    if item.get("fid") == share_file["fid"]:
-                                        item["has_updates"] = True
-                                        folder_in_list = True
-                                        break
-                                
-                                # 如果文件夹未添加到need_save_list，需要添加
-                                if not folder_in_list and has_files:
-                                    # 检查目标目录中是否已存在同名文件夹
-                                    dir_exists = False
-                                    for dir_file in dir_file_list:
-                                        if dir_file["dir"] and dir_file["file_name"] == share_file["file_name"]:
-                                            dir_exists = True
-                                            break
-                                    
-                                    # 如果存在同名文件夹，检查文件夹内是否有更新
-                                    # 如果不存在同名文件夹，或者文件夹内有更新，则添加到保存列表
-                                    if not dir_exists or has_files:
-                                        share_file["save_name"] = share_file["file_name"]
-                                        share_file["original_name"] = share_file["file_name"]
-                                        share_file["has_updates"] = True
-                                        need_save_list.append(share_file)
                 
         elif task.get("use_episode_naming") and task.get("episode_naming"):
             # 剧集命名模式
@@ -3283,10 +3279,8 @@ class Quark:
             start_file_found = False
 
             for share_file in share_file_list:
+                # 文件夹统一放在末尾「更新目录」递归逻辑处理，避免缺少 save_name 或被顶层 save_file 转存成空目录
                 if share_file["dir"]:
-                    # 处理子目录
-                    if task.get("update_subdir") and re.search(task["update_subdir"], share_file["file_name"]):
-                        filtered_share_files.append(share_file)
                     continue
 
                 # 改进的起始文件过滤逻辑 - 优先执行，在数据库查重之前
@@ -3405,10 +3399,67 @@ class Quark:
             for share_file in sorted_files:
                 need_save_list.append(share_file)
 
-            # 处理文件夹
-            for share_file in filtered_share_files:
-                if share_file["dir"]:
-                    need_save_list.append(share_file)
+            # 处理子文件夹（更新目录）：与顺序命名一致，递归转存子目录内文件，不把文件夹 fid 重复交给顶层 save_file
+            for share_file in share_file_list:
+                if share_file["dir"] and task.get("update_subdir", False):
+                    if (parent_dir_info and parent_dir_info.get("in_update_dir", False)) or re.search(
+                        task["update_subdir"], share_file["file_name"]
+                    ):
+                        subdir_task = task.copy()
+                        if (
+                            not subdir_task.get("pattern")
+                            or subdir_task.get("use_sequence_naming")
+                            or subdir_task.get("use_episode_naming")
+                        ):
+                            subdir_task["pattern"] = ".*"
+                            subdir_task["replace"] = ""
+                            subdir_task["use_sequence_naming"] = False
+                            subdir_task["use_episode_naming"] = False
+
+                        current_parent_info = (
+                            parent_dir_info.copy()
+                            if parent_dir_info
+                            else {
+                                "in_update_dir": False,
+                                "update_dir_pattern": task.get("update_subdir", ""),
+                                "dir_path": [],
+                            }
+                        )
+                        if re.search(task["update_subdir"], share_file["file_name"]):
+                            current_parent_info["in_update_dir"] = True
+                        current_parent_info["dir_path"] = (
+                            current_parent_info["dir_path"].copy()
+                            if "dir_path" in current_parent_info
+                            else []
+                        )
+                        current_parent_info["dir_path"].append(share_file["file_name"])
+
+                        subdir_tree = self.dir_check_and_save(
+                            subdir_task,
+                            pwd_id,
+                            stoken,
+                            share_file["fid"],
+                            f"{subdir_path}/{share_file['file_name']}",
+                            current_parent_info,
+                        )
+                        if subdir_tree and subdir_tree.size() > 1:
+                            has_files = False
+                            for node in subdir_tree.all_nodes_itr():
+                                if node.data and not node.data.get("is_dir", False):
+                                    has_files = True
+                                    break
+                            if has_files:
+                                save_path_basename = os.path.basename(task.get("savepath", "").rstrip("/"))
+                                if share_file["file_name"] == save_path_basename:
+                                    continue
+                                if not tree.contains(share_file["fid"]):
+                                    tree.create_node(
+                                        f"📁{share_file['file_name']}",
+                                        share_file["fid"],
+                                        parent=pdir_fid,
+                                        data={"is_dir": share_file["dir"]},
+                                    )
+                                tree.merge(share_file["fid"], subdir_tree, deep=False)
 
         else:
             # 正则命名模式（普通正则命名模式）
@@ -3526,81 +3577,55 @@ class Quark:
                         # 不在更新目录内，且不符合更新目录规则，跳过处理
                         continue
                     
-                    # 先检查目标目录中是否已存在这个子目录
-                    dir_exists = False
-                    for dir_file in dir_file_list:
-                        if dir_file["dir"] and dir_file["file_name"] == share_file["file_name"]:
-                            dir_exists = True
-                            break
-                    
-                    # 如果目标中已经存在此子目录，则直接检查子目录的内容更新，不要重复转存
-                    if dir_exists:
-                        # 子目录存在，直接递归处理其中的文件，不在主目录的处理中再转存一次
-                        # print(f"检查子目录: {savepath}/{share_file['file_name']} (已存在)")
-                        
-                        # 创建一个子任务对象，专门用于子目录处理
-                        subdir_task = task.copy()
-                        if (not subdir_task.get("pattern") or 
-                            subdir_task.get("use_sequence_naming") or 
-                            subdir_task.get("use_episode_naming")):
-                            subdir_task["pattern"] = ".*"
-                            subdir_task["replace"] = ""
-                            # 取消顺序命名和剧集命名模式，强制使用正则模式
-                            subdir_task["use_sequence_naming"] = False
-                            subdir_task["use_episode_naming"] = False
-                        
-                        # 更新子目录的parent_dir_info，跟踪目录路径和更新状态
-                        current_parent_info = parent_dir_info.copy() if parent_dir_info else {
-                            "in_update_dir": False,
-                            "update_dir_pattern": task.get("update_subdir", ""),
-                            "dir_path": []
-                        }
-                        
-                        # 如果当前文件夹符合更新目录规则，标记为在更新目录内
-                        if re.search(task["update_subdir"], share_file["file_name"]):
-                            current_parent_info["in_update_dir"] = True
-                            
-                        # 添加当前目录到路径
-                        current_parent_info["dir_path"] = current_parent_info["dir_path"].copy() if "dir_path" in current_parent_info else []
-                        current_parent_info["dir_path"].append(share_file["file_name"])
-                        
-                        # 递归处理子目录但不在need_save_list中添加目录本身
-                        subdir_tree = self.dir_check_and_save(
-                            subdir_task,
-                            pwd_id,
-                            stoken,
-                            share_file["fid"],
-                            f"{subdir_path}/{share_file['file_name']}",
-                            current_parent_info
-                        )
-                        
-                        # 如果子目录有新内容，合并到主树中
-                        if subdir_tree and subdir_tree.size() > 1:
-                            has_files = False
-                            for node in subdir_tree.all_nodes_itr():
-                                if node.data and not node.data.get("is_dir", False):
-                                    has_files = True
-                                    break
-                            
-                            if has_files:
-                                # 添加目录到树中但不添加到保存列表
-                                if not tree.contains(share_file["fid"]):
-                                    tree.create_node(
-                                        f"📁{share_file['file_name']}",
-                                        share_file["fid"],
-                                        parent=pdir_fid,
-                                        data={
-                                            "is_dir": share_file["dir"],
-                                        },
-                                    )
-                                # 合并子目录树
-                                tree.merge(share_file["fid"], subdir_tree, deep=False)
-                        
-                        # 跳过后续处理，不对已存在的子目录再做转存处理
-                        continue
-                    
-                    # 目录不存在，继续正常流程
-                    pattern, replace = task["update_subdir"], ""
+                    # 更新目录下的子文件夹：无论本地是否已有同名目录，均在分享侧递归转存内容。
+                    # 若本地尚无该目录，旧逻辑会把文件夹 fid 单独交给 save_file，往往只得到空壳且不会进入子树，导致「1-8季」等为空。
+                    subdir_task = task.copy()
+                    if (not subdir_task.get("pattern") or
+                        subdir_task.get("use_sequence_naming") or
+                        subdir_task.get("use_episode_naming")):
+                        subdir_task["pattern"] = ".*"
+                        subdir_task["replace"] = ""
+                        subdir_task["use_sequence_naming"] = False
+                        subdir_task["use_episode_naming"] = False
+
+                    current_parent_info = parent_dir_info.copy() if parent_dir_info else {
+                        "in_update_dir": False,
+                        "update_dir_pattern": task.get("update_subdir", ""),
+                        "dir_path": [],
+                    }
+                    if re.search(task["update_subdir"], share_file["file_name"]):
+                        current_parent_info["in_update_dir"] = True
+                    current_parent_info["dir_path"] = (
+                        current_parent_info["dir_path"].copy()
+                        if "dir_path" in current_parent_info
+                        else []
+                    )
+                    current_parent_info["dir_path"].append(share_file["file_name"])
+
+                    subdir_tree = self.dir_check_and_save(
+                        subdir_task,
+                        pwd_id,
+                        stoken,
+                        share_file["fid"],
+                        f"{subdir_path}/{share_file['file_name']}",
+                        current_parent_info,
+                    )
+                    if subdir_tree and subdir_tree.size() > 1:
+                        has_files = False
+                        for node in subdir_tree.all_nodes_itr():
+                            if node.data and not node.data.get("is_dir", False):
+                                has_files = True
+                                break
+                        if has_files:
+                            if not tree.contains(share_file["fid"]):
+                                tree.create_node(
+                                    f"📁{share_file['file_name']}",
+                                    share_file["fid"],
+                                    parent=pdir_fid,
+                                    data={"is_dir": share_file["dir"]},
+                                )
+                            tree.merge(share_file["fid"], subdir_tree, deep=False)
+                    continue
                 else:
                     # 检查是否是剧集命名模式
                     if task.get("use_episode_naming") and task.get("regex_pattern"):
@@ -3842,7 +3867,9 @@ class Quark:
             err_msg = None
             if save_file_return["code"] == 0:
                 task_id = save_file_return["data"]["task_id"]
-                query_task_return = self.query_task(task_id)
+                query_task_return = self.query_task(
+                    task_id, quiet=self._transfer_poll_quiet(task, subdir_path)
+                )
                 if query_task_return["code"] == 0:
                     # 等待文件保存完成
                     time.sleep(1)
@@ -3929,10 +3956,12 @@ class Quark:
                     saved_files = []
 
                     for index, item in enumerate(need_save_list):
+                        # 顺序/剧集模式条目必有 file_name；正则目录等特殊条目可能没有 save_name
+                        item_leaf_name = item.get("save_name") or item.get("file_name", "")
                         icon = (
                             "📁"
                             if item["dir"] == True
-                            else "🎞️" if item["obj_category"] == "video" else get_file_icon(item["save_name"], False)
+                            else "🎞️" if item["obj_category"] == "video" else get_file_icon(item_leaf_name, False)
                         )
                         
                         # 修复文件树显示问题 - 防止文件名重复重复显示
@@ -3941,8 +3970,8 @@ class Quark:
                         if task.get("use_sequence_naming") or task.get("use_episode_naming"):
                             display_name = item['file_name']  # 使用原文件名
                         else:
-                            # 其他模式使用save_name
-                            display_name = item['save_name']
+                            # 其他模式使用 save_name；缺省时退回 file_name，避免异常条目触发 KeyError
+                            display_name = item.get("save_name", item.get("file_name", ""))
                         
                         # 确保只显示文件/文件夹名，而不是完整路径
                         if "/" in display_name:
@@ -3968,7 +3997,7 @@ class Quark:
                                 parent=pdir_fid,
                                 data={
                                     "fid": f"{saved_fid}",
-                                    "path": f"{savepath}/{item['save_name']}",
+                                    "path": f"{savepath}/{item_leaf_name}",
                                     "is_dir": item["dir"],
                                     "icon": icon,  # 将图标存储在data中
                                     "from_extraction": from_extraction,
@@ -4001,6 +4030,9 @@ class Quark:
     def do_rename_task(self, task, subdir_path=""):
         # 检查是否为顺序命名模式
         if task.get("use_sequence_naming") and task.get("sequence_naming"):
+            # 启用「更新目录」时：顺序命名仅作用于保存路径根层文件；子目录内只做转存与查重，不重命名
+            if task.get("update_subdir") and subdir_path:
+                return False, []
             # 使用顺序命名模式
             sequence_pattern = task["sequence_naming"]
             # 替换占位符为正则表达式捕获组
@@ -4225,6 +4257,9 @@ class Quark:
 
         # 检查是否为剧集命名模式
         elif task.get("use_episode_naming") and task.get("episode_naming"):
+            # 启用「更新目录」时：剧集命名仅作用于保存路径根层；子目录不重命名（与顺序命名一致）
+            if task.get("update_subdir") and subdir_path:
+                return False, []
             # 使用剧集命名模式
             episode_pattern = task["episode_naming"]
             regex_pattern = task.get("regex_pattern")
@@ -4527,7 +4562,10 @@ class Quark:
                             )
                             if save_file_return["code"] == 0:
                                 task_id = save_file_return["data"]["task_id"]
-                                query_task_return = self.query_task(task_id)
+                                query_task_return = self.query_task(
+                                    task_id,
+                                    quiet=self._transfer_poll_quiet(task, subdir_path),
+                                )
                                 
                                 if query_task_return["code"] == 0:
                                     # 进行重命名操作，确保文件按照预览名称保存
@@ -5382,6 +5420,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
             # 执行重命名任务，但收集日志而不是立即打印
             is_rename, rename_logs = account.do_rename_task(task)
 
+            # 顺序/剧集 +「更新目录」：不在子路径递归重命名（仅根层 do_rename_task 已处理）；子目录见 dir_check_and_save 转存与查重
             
             # 处理子目录重命名 - 如果配置了更新目录且使用正则命名模式
             if task.get("update_subdir") and task.get("pattern") is not None:
@@ -5451,10 +5490,17 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
             # 处理云解压后“保持原目录结构”的子目录重命名
             # 与顶层目录使用相同的重命名规则
             auto_extract_subdirs = task.get("_auto_extract_subdirs") or []
-            for subdir_path in auto_extract_subdirs:
+            for ae_subdir in auto_extract_subdirs:
+                # 顺序/剧集且启用「更新目录」时：仅保存路径根层重命名；解压产生的子目录与更新目录子树一致，不再套顺序/剧集规则
+                if task.get("update_subdir") and (
+                    task.get("use_sequence_naming") or task.get("use_episode_naming")
+                ):
+                    continue
                 try:
                     subtask = task.copy()
-                    subdir_is_rename, subdir_rename_logs = account.do_rename_task(subtask, subdir_path)
+                    subdir_is_rename, subdir_rename_logs = account.do_rename_task(
+                        subtask, ae_subdir
+                    )
                     if subdir_is_rename and subdir_rename_logs:
                         # 过滤掉失败日志，只保留成功的
                         clean_logs = []
@@ -5465,7 +5511,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                         is_rename = is_rename or subdir_is_rename
                 except Exception as e:
                     # 防御性处理，避免子目录异常影响主流程
-                    print(f"⚠️ 自动解压子目录重命名出错（{subdir_path}）: {e}")
+                    print(f"⚠️ 自动解压子目录重命名出错（{ae_subdir}）: {e}")
             
             # 简化日志处理 - 只保留成功的重命名消息
             if rename_logs:
@@ -5488,7 +5534,14 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
             if keep_structure_check and auto_extract_subdirs_check:
                 # 跳过重新创建文件树，使用原来的文件树
                 pass
-            elif task.get("shareurl") and rename_logs and is_rename and (task.get("use_sequence_naming") or task.get("use_episode_naming")):
+            elif (
+                task.get("shareurl")
+                and rename_logs
+                and is_rename
+                and (task.get("use_sequence_naming") or task.get("use_episode_naming"))
+                # 启用「更新目录」时保留 do_save_task 合并后的完整目录树；勿用仅扫描保存根目录的 new_tree 覆盖（否则会丢失子文件夹展示）
+                and not task.get("update_subdir")
+            ):
                 # 获取当前目录
                 savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}")
                 if account.savepath_fid.get(savepath):
@@ -5716,7 +5769,8 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                                     update_subdir_files.append(node)
                 
                 # 按文件名排序
-                if is_special_sequence:
+                # 启用「更新目录」时走下方与正则相同的目录树构建逻辑，避免仅扁平列出根目录文件
+                if is_special_sequence and not task.get("update_subdir"):
                     # 对于顺序命名模式，直接使用文件树中的实际文件名
                     if rename_logs:
                         # 直接显示文件树中的实际文件名（已经是重命名后的结果）
@@ -6306,7 +6360,8 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                     dir_name = dir_node.tag.lstrip("📁")
                     
                     # 检查是否是解压文件夹的虚拟目录节点（以 extracted_dir_ 开头）
-                    if dir_node.identifier.startswith("extracted_dir_"):
+                    # treelib 节点 identifier 可能为分享 fid（整数），需转为字符串再判断
+                    if str(dir_node.identifier).startswith("extracted_dir_"):
                         current_added_dirs.add(dir_name)
                         has_update_in_subdir = True
                     # 检查是否是指定的更新目录
@@ -6329,7 +6384,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                         continue
                     
                     # 1. 检查是否是解压文件夹的虚拟节点（以 extracted_ 开头）
-                    if node.identifier.startswith("extracted_"):
+                    if str(node.identifier).startswith("extracted_"):
                         is_new_file = True
                     
                     # 2. 检查是否在当前转存的文件列表中
@@ -6426,7 +6481,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                         is_new_file = False
                         
                         # 1. 检查是否是解压文件夹的虚拟节点（以 extracted_ 开头）
-                        if file_node.identifier.startswith("extracted_"):
+                        if str(file_node.identifier).startswith("extracted_"):
                             is_new_file = True
                         
                         # 2. 检查是否在当前转存的文件列表中
