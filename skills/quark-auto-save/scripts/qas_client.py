@@ -150,16 +150,18 @@ def cmd_get_share(shareurl: str, task: dict = {}, show_all: bool = False):
                 "name": f.get("file_name"),
                 "fid": f.get("fid"),
                 "is_dir": f.get("dir", False),
-                "size": f.get("size", 0),
-                "type": f.get("obj_category", 0),
             }
+
+            if file_info["is_dir"]:
+                file_info["include_items"] = f.get("include_items", "")
+            else:
+                file_info["size"] = f.get("size", "")
+                file_info["type"] = f.get("obj_category", "")
+
             info["files"].append(file_info)
 
         if not show_all and total_count > 10:
             info["note"] = f"...还有 {total_count - 10} 个文件"
-
-        if share_info.get("path_info"):
-            info["path"] = share_info["path_info"]
 
         ok(info)
     else:
@@ -278,9 +280,15 @@ def cmd_check_path(path: str = "", fid: str = ""):
         for f in files:
             file_info = {
                 "name": f.get("file_name"),
+                "fid": f.get("fid"),
                 "is_dir": f.get("dir", False),
-                "size": f.get("size", 0),
             }
+
+            if file_info["is_dir"]:
+                file_info["include_items"] = f.get("include_items", "")
+            else:
+                file_info["size"] = f.get("size", 0)
+
             info["files"].append(file_info)
 
         # Add note if there are more files

@@ -1,6 +1,6 @@
 ---
 name: quark-auto-save
-description: Manage quark-auto-save(QAS, 夸克自动转存, 夸克转存, 夸克订阅) tasks via CLI.
+description: Manage quark-auto-save tasks via CLI. (QAS, 夸克自动转存, 夸克转存, 夸克订阅, 管理任务, 运行任务, 修复失效链接, pan.quark.cn)
 metadata:
   openclaw:
     emoji: "💾"
@@ -17,7 +17,9 @@ metadata:
 
 # quark-auto-save
 
-Manage quark-auto-save(QAS, 夸克自动转存, 夸克转存, 夸克订阅) tasks via CLI.
+Manage quark-auto-save tasks via CLI.
+
+QAS, 夸克自动转存, 夸克转存, 夸克订阅, 管理任务, 运行任务, 修复失效链接
 
 When user send message like `https://pan.quark.cn/s/***`, get detail, add a QAS task.
 
