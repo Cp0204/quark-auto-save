@@ -1259,7 +1259,7 @@
             <div v-for="(task, index) in sortedTasklist" :key="'list-'+index" class="task mb-3" v-show="shouldShowTasklist">
               <template v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task) && tasklistFilterByStatus(task)">
                 <hr>
-                <div class="form-group row" style="align-items:center">
+                <div class="form-group row" style="align-items:center" :title="getTaskShareSubscriptionHoverText(task)">
                   <div class="col pl-0" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="true" :aria-controls="'collapse_'+index">
                     <div class="btn btn-block text-left">
                       <i class="bi bi-caret-right-fill"></i> #<span v-html="`${String((task.__originalIndex !== undefined ? task.__originalIndex : index) + 1).padStart(2, '0')} ${task.taskname}`"></span>
@@ -1500,7 +1500,9 @@
                      v-for="(task, index) in sortedTasklist"
                      :key="'poster-'+(task.taskname || index)"
                      v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task) && tasklistFilterByStatus(task)">
-                  <div class="discovery-poster" @mouseenter="handleManagementPosterHover($event, getCalendarTaskByName(task.taskname) || {})">
+                  <div class="discovery-poster"
+                       :title="getTaskShareSubscriptionHoverText(task)"
+                       @mouseenter="handleManagementPosterHover($event, getCalendarTaskByName(task.taskname) || {})">
                     <img :src="getEpisodePosterUrl(getTasklistPosterLikeEpisode(task))"
                          :alt="task.taskname"
                          referrerpolicy="no-referrer"
@@ -10702,6 +10704,18 @@
             return `当前资源分享者：${author}，已订阅 ${days} 天`;
           }
           return `当前资源分享者：${author}`;
+        },
+        // 任务列表：分享者与订阅天数悬停文案（读取配置 share_author_name / shareurl_subscribed_since）
+        getTaskShareSubscriptionHoverText(task) {
+          if (!task) return '';
+          const author = (task.share_author_name || '').trim();
+          const days = this.getShareSubscriptionDays(task.shareurl_subscribed_since);
+          if (!author && days == null) return '';
+          const authorDisplay = author || '未知';
+          if (days != null) {
+            return `资源分享者：${authorDisplay}，已订阅${days}天`;
+          }
+          return `资源分享者：${authorDisplay}`;
         },
         // 从分享详情或 token 响应中提取分享者昵称
         extractShareAuthorName(shareDetail) {
