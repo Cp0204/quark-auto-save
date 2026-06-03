@@ -2265,6 +2265,14 @@ def get_data():
     # PanSou 默认字段
     data["source"].setdefault("pansou", {"server": "https://so.252035.xyz"})
 
+    # 旧版升级：打开 Web 时若配置仍缺字段则自动补全并写回（服务未重启时也能迁移）
+    if migrate_task_share_metadata_fields(data, fetch_author=False):
+        Config.write_json(CONFIG_PATH, data)
+        global config_data
+        config_data = data
+    if _tasklist_needs_share_author_migration(data):
+        start_share_author_metadata_migration_background()
+
     # 发送webui信息，但不发送密码原文
     data["webui"] = {
         "username": config_data["webui"]["username"],
@@ -3694,6 +3702,135 @@ def _resolve_qoark_redirect(url: str) -> str:
         return url
 
 
+_share_author_metadata_migration_lock = Lock()
+_share_author_metadata_migration_running = False
+
+
+def _extract_share_resource_id_from_url(shareurl):
+    """从分享链接提取资源 ID（pwd_id）"""
+    if not shareurl:
+        return ""
+    match = re.search(r"pan\.(quark|qoark)\.cn/s/([a-zA-Z0-9]+)", shareurl, re.IGNORECASE)
+    return match.group(2) if match else ""
+
+
+def _tasklist_needs_share_author_migration(config_or_data):
+    """是否仍有任务缺少分享者信息"""
+    for task in (config_or_data or {}).get("tasklist") or []:
+        if (task.get("shareurl") or "").strip() and not (task.get("share_author_name") or "").strip():
+            return True
+    return False
+
+
+def migrate_task_share_metadata_fields(config_or_data, fetch_author=False):
+    """
+    为旧版任务补全分享订阅元数据：
+    share_resource_id、shareurl_subscribed_since（缺省补今天）、share_author_name（可选拉取）
+    返回是否有字段被修改
+    """
+    tasks = (config_or_data or {}).get("tasklist") or []
+    if not tasks:
+        return False
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    changed = False
+    account = Quark("", 0) if fetch_author else None
+
+    for task in tasks:
+        shareurl = (task.get("shareurl") or "").strip()
+        if not shareurl:
+            continue
+
+        resource_id = _extract_share_resource_id_from_url(shareurl)
+        if not resource_id:
+            continue
+
+        if not task.get("share_resource_id"):
+            task["share_resource_id"] = resource_id
+            changed = True
+        if not task.get("shareurl_subscribed_since"):
+            task["shareurl_subscribed_since"] = today
+            changed = True
+
+        if not fetch_author or not account:
+            continue
+        if task.get("share_author_name"):
+            continue
+
+        try:
+            resolved_url = shareurl
+            if "pan.qoark.cn" in resolved_url:
+                resolved_url = _resolve_qoark_redirect(resolved_url)
+            pwd_id, passcode, _, _ = account.extract_url(resolved_url)
+            if not pwd_id:
+                continue
+            is_sharing, _result, author = account.get_stoken(pwd_id, passcode)
+            if not is_sharing or not author:
+                continue
+            author_name = _extract_share_author_name(author)
+            if author_name:
+                task["share_author_name"] = author_name
+                changed = True
+            time.sleep(0.25)
+        except Exception as e:
+            task_name = task.get("taskname") or task.get("task_name") or ""
+            logging.warning(f"补全任务「{task_name}」分享者信息失败: {e}")
+
+    return changed
+
+
+def start_share_author_metadata_migration_background():
+    """后台为缺少分享者的任务拉取昵称并写回配置（不阻塞启动）"""
+    global _share_author_metadata_migration_running, config_data
+
+    with _share_author_metadata_migration_lock:
+        if _share_author_metadata_migration_running:
+            return
+        _share_author_metadata_migration_running = True
+
+    def _run():
+        global _share_author_metadata_migration_running, config_data
+        try:
+            cfg = Config.read_json(CONFIG_PATH)
+            if not _tasklist_needs_share_author_migration(cfg):
+                return
+            if migrate_task_share_metadata_fields(cfg, fetch_author=True):
+                Config.write_json(CONFIG_PATH, cfg)
+                config_data = cfg
+                logging.info(">>> 已为旧任务补全分享者信息并写入配置")
+        except Exception as e:
+            logging.warning(f"后台补全任务分享者信息失败: {e}")
+        finally:
+            with _share_author_metadata_migration_lock:
+                _share_author_metadata_migration_running = False
+
+    Thread(target=_run, daemon=True).start()
+
+
+def ensure_task_share_metadata_migrated(config_or_data=None):
+    """
+    升级迁移：同步补全资源 ID / 订阅日并落盘；分享者信息后台补全。
+    config_or_data 为空时从配置文件读取。
+    """
+    global config_data
+
+    cfg = config_or_data
+    if cfg is None:
+        cfg = Config.read_json(CONFIG_PATH)
+
+    changed = migrate_task_share_metadata_fields(cfg, fetch_author=False)
+    if changed:
+        Config.write_json(CONFIG_PATH, cfg)
+        if config_or_data is not None:
+            config_data = cfg
+        logging.info(">>> 已为旧任务补全分享订阅基线（资源ID/订阅起始日）")
+
+    if _tasklist_needs_share_author_migration(cfg):
+        start_share_author_metadata_migration_background()
+
+    return cfg
+
+
 def _extract_share_author_name(author):
     """从分享 token 接口返回的 author 对象中提取分享者昵称"""
     if not isinstance(author, dict):
@@ -3720,7 +3857,10 @@ def get_share_author():
     if not is_sharing:
         return jsonify({"success": False, "data": {"error": result}})
 
-    return jsonify({"success": True, "data": {"author_name": _extract_share_author_name(author)}})
+    return jsonify({
+        "success": True,
+        "data": {"author_name": _extract_share_author_name(author)},
+    })
 
 
 # 获取分享详情接口
@@ -4610,6 +4750,9 @@ def init():
 
     # 同步更新任务的插件配置
     sync_task_plugins_config()
+
+    # 旧版升级：自动补全任务分享订阅元数据（无需打开编辑窗口）
+    ensure_task_share_metadata_migrated(config_data)
 
     # 更新配置
     Config.write_json(CONFIG_PATH, config_data)

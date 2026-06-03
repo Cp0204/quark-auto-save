@@ -6478,6 +6478,15 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   color: #fff;
 }
 
+/* 同分享者其他资源（非当前使用）高亮 */
+.task-suggestions .dropdown-item.same-sharer-suggestion:not(.current-suggestion) {
+  background-color: #e6f1ff;
+}
+
+.task-suggestions .dropdown-item.same-sharer-suggestion:not(.current-suggestion) small a {
+  color: inherit;
+}
+
 /* 创建任务模态框移动端响应式样式 */
 @media (max-width: 767.98px) {
   #createTaskModal .form-group.row .col-sm-2 {

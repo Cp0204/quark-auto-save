@@ -1331,7 +1331,7 @@
                             v-for="suggestion in smart_param.taskSuggestions.data || []"
                             :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')"
                             class="dropdown-item cursor-pointer"
-                            :class="{ 'current-suggestion': isCurrentSuggestion(suggestion) }"
+                            :class="{ 'current-suggestion': isCurrentSuggestion(suggestion), 'same-sharer-suggestion': isSameSharerSuggestion(suggestion) }"
                             @click.prevent="selectSuggestion(task.__originalIndex !== undefined ? task.__originalIndex : index, suggestion)"
                             style="font-size: 14px;"
                             :title="getSuggestionHoverTitle(suggestion)"
@@ -2894,7 +2894,7 @@
                         v-for="suggestion in smart_param.taskSuggestions.data || []"
                         :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')"
                         class="dropdown-item cursor-pointer"
-                        :class="{ 'current-suggestion': isCurrentSuggestion(suggestion) }"
+                        :class="{ 'current-suggestion': isCurrentSuggestion(suggestion), 'same-sharer-suggestion': isSameSharerSuggestion(suggestion) }"
                         @click.prevent="selectSuggestion(-1, suggestion)"
                         style="font-size: 14px;"
                         :title="getSuggestionHoverTitle(suggestion)"
@@ -3054,7 +3054,7 @@
           </div>
           <div class="modal-footer">
             <div class="file-selection-info mr-auto" v-if="createTask.isEditMode && createTask.taskData.shareurl" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
-              当前资源分享者：{{ createTask.shareAuthor || '加载中...' }}
+              {{ getEditTaskShareAuthorFooterText() }}
             </div>
             <div class="file-selection-info mr-auto" v-else-if="createTask.movieData" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
               {{ createTask.movieData.title + (createTask.movieData.year ? ' (' + createTask.movieData.year + ')' : '') }}
@@ -3800,6 +3800,7 @@
         editTaskShareAuthorReqId: 0,
         editTaskShareAuthorTimer: null,
         editTaskShareAuthorResourceId: null, // 已加载分享者信息的资源 ID（pwd_id）
+        _taskShareSnapshot: {}, // 配置加载/保存后各任务分享资源快照，用于检测换链
         // 创建任务相关数据
         createTask: {
           loading: false,
@@ -7787,6 +7788,7 @@
                           // 后端推送导致的任务列表更新，不应触发"未保存修改"提示
                           this.suppressConfigModifiedOnce = true;
                           this.formData.tasklist = cfg.tasklist || [];
+                          this.snapshotTaskShareResourceIds();
                           // 同步任务名集合用于筛选
                           this.calendar.taskNames = (this.formData.tasklist || []).map(t => t.taskname).filter(Boolean);
                           // 如任务数量变化，重建与任务相关的最新文件映射的键集合
@@ -9269,6 +9271,7 @@
               // 直接赋值，排序通过计算属性处理（属于系统性加载，抑制未保存提示）
               this.suppressConfigModifiedOnce = true;
               this.formData.tasklist = config_data.tasklist || [];
+              this.snapshotTaskShareResourceIds();
 
               // 获取所有任务父目录
               this.formData.tasklist.forEach(item => {
@@ -9531,7 +9534,7 @@
             return e.returnValue;
           }
         },
-        saveConfig() {
+        async saveConfig() {
           // 保存前处理每个任务的命名模式
           if (this.formData.tasklist && this.formData.tasklist.length > 0) {
             this.formData.tasklist.forEach(task => {
@@ -9549,12 +9552,18 @@
               // 应用全局插件配置
               this.applyGlobalPluginConfig(task);
             });
+            try {
+              await this.prepareAllTasksShareMetadataForSave();
+            } catch (e) {
+              console.warn('更新任务分享元数据失败:', e);
+            }
           }
           
           axios.post('/update', this.formData)
             .then(response => {
               if (response.data.success) {
                 this.configModified = false;
+                this.snapshotTaskShareResourceIds();
                 // 使用Toast通知替代alert
                 this.showToast(response.data.message);
                 // 保存成功后更新用户信息
@@ -10527,6 +10536,173 @@
               this.saveConfig();
             });
         },
+        // 本地日期 YYYY-MM-DD（用于订阅天数）
+        formatLocalDate(date) {
+          const dt = date instanceof Date ? date : new Date(date);
+          const y = dt.getFullYear();
+          const m = String(dt.getMonth() + 1).padStart(2, '0');
+          const day = String(dt.getDate()).padStart(2, '0');
+          return `${y}-${m}-${day}`;
+        },
+        // 按自然日计算订阅天数（当日为第 1 天）
+        getShareSubscriptionDays(sinceDateStr) {
+          if (!sinceDateStr) return null;
+          const parts = String(sinceDateStr).split('-').map(Number);
+          if (parts.length !== 3 || parts.some(n => Number.isNaN(n))) return null;
+          const since = new Date(parts[0], parts[1] - 1, parts[2]);
+          const now = new Date();
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const diff = Math.floor((today - since) / (24 * 60 * 60 * 1000));
+          if (diff < 0) return null;
+          return diff + 1;
+        },
+        snapshotTaskShareResourceIds() {
+          const snap = {};
+          (this.formData.tasklist || []).forEach((t, i) => {
+            snap[i] = {
+              share_resource_id: t.share_resource_id || this.getResourceIdFromUrl(t.shareurl) || null,
+              shareurl_subscribed_since: t.shareurl_subscribed_since || null,
+              share_author_name: t.share_author_name || null,
+            };
+          });
+          this._taskShareSnapshot = snap;
+        },
+        buildPreviousTaskFromSnapshot(snap) {
+          if (!snap) return null;
+          return {
+            share_resource_id: snap.share_resource_id || null,
+            share_author_name: snap.share_author_name,
+            shareurl_subscribed_since: snap.shareurl_subscribed_since,
+          };
+        },
+        fetchShareAuthorMeta(shareurl) {
+          const url = (shareurl || '').trim();
+          if (!url) return Promise.resolve('');
+          return axios.get('/get_share_author', { params: { shareurl: url } })
+            .then(res => {
+              if (res.data && res.data.success && res.data.data) {
+                return (res.data.data.author_name || '').trim();
+              }
+              return '';
+            })
+            .catch(() => '');
+        },
+        async applyTaskShareMetadataOnSave(task, previousTask, authorNameHint) {
+          if (!task || !task.shareurl) return;
+          const newId = this.getResourceIdFromUrl(task.shareurl);
+          if (!newId) return;
+
+          const oldId = previousTask
+            ? (previousTask.share_resource_id || this.getResourceIdFromUrl(previousTask.shareurl || ''))
+            : null;
+          const today = this.formatLocalDate(new Date());
+          let hintName = authorNameHint ? String(authorNameHint).trim() : '';
+          if (hintName === '未知' || hintName === '加载中...') {
+            hintName = '';
+          }
+
+          if (oldId !== newId) {
+            task.share_resource_id = newId;
+            task.shareurl_subscribed_since = today;
+            let authorName = hintName;
+            if (!authorName) {
+              authorName = await this.fetchShareAuthorMeta(task.shareurl);
+            }
+            if (authorName) task.share_author_name = authorName;
+          } else {
+            if (!task.share_resource_id) task.share_resource_id = newId;
+            if (!task.shareurl_subscribed_since) task.shareurl_subscribed_since = today;
+            if (!task.share_author_name && task.shareurl) {
+              const authorName = hintName || await this.fetchShareAuthorMeta(task.shareurl);
+              if (authorName) task.share_author_name = authorName;
+            }
+          }
+        },
+        async prepareAllTasksShareMetadataForSave() {
+          const tasks = this.formData.tasklist || [];
+          for (let i = 0; i < tasks.length; i++) {
+            const snap = this._taskShareSnapshot ? this._taskShareSnapshot[i] : null;
+            await this.applyTaskShareMetadataOnSave(
+              tasks[i],
+              this.buildPreviousTaskFromSnapshot(snap),
+              null
+            );
+          }
+        },
+        getSavedTaskForSuggestions() {
+          if (!this.smart_param) return null;
+          if (this.smart_param.index === -1 && this.createTask && this.createTask.isEditMode && this.createTask.editTaskIndex != null) {
+            return (this.formData.tasklist && this.formData.tasklist[this.createTask.editTaskIndex]) || null;
+          }
+          if (this.smart_param.index >= 0 && this.formData.tasklist) {
+            return this.formData.tasklist[this.smart_param.index] || null;
+          }
+          return null;
+        },
+        isSameSharerAsSavedTask(suggestion) {
+          if (!suggestion) return false;
+          const savedTask = this.getSavedTaskForSuggestions();
+          if (!savedTask) return false;
+          const savedId = savedTask.share_resource_id || this.getResourceIdFromUrl(savedTask.shareurl);
+          const suggestionId = this.getResourceIdFromUrl(suggestion.shareurl);
+          if (!savedId || !suggestionId || suggestionId === savedId) return false;
+
+          const savedAuthorName = (savedTask.share_author_name || '').trim();
+          const sugAuthorName = (suggestion.share_author_name || '').trim();
+          return !!(savedAuthorName && sugAuthorName && savedAuthorName === sugAuthorName);
+        },
+        isSameSharerSuggestion(suggestion) {
+          if (!suggestion || this.isCurrentSuggestion(suggestion)) return false;
+          return this.isSameSharerAsSavedTask(suggestion);
+        },
+        getEditTaskSavedResourceId() {
+          if (!this.createTask.isEditMode || this.createTask.editTaskIndex == null) return null;
+          const saved = this.formData.tasklist && this.formData.tasklist[this.createTask.editTaskIndex];
+          if (!saved) return null;
+          return saved.share_resource_id || this.getResourceIdFromUrl(saved.shareurl);
+        },
+        isEditTaskPreviewingSavedResource() {
+          const currentId = this.getResourceIdFromUrl(this.createTask.taskData.shareurl);
+          const savedId = this.getEditTaskSavedResourceId();
+          return !!(currentId && savedId && currentId === savedId);
+        },
+        getEditTaskSubscriptionDays() {
+          if (!this.isEditTaskPreviewingSavedResource()) return null;
+          const saved = this.formData.tasklist && this.formData.tasklist[this.createTask.editTaskIndex];
+          if (!saved) return null;
+          return this.getShareSubscriptionDays(saved.shareurl_subscribed_since);
+        },
+        // 已保存任务在配置中的分享者昵称（仅当预览资源 ID 与已保存一致时可用作回退）
+        getEditTaskSavedShareAuthorName() {
+          if (!this.createTask.isEditMode || this.createTask.editTaskIndex == null) return '';
+          const saved = this.formData.tasklist && this.formData.tasklist[this.createTask.editTaskIndex];
+          if (!saved) return '';
+          const currentId = this.getResourceIdFromUrl(this.createTask.taskData.shareurl);
+          const savedId = saved.share_resource_id || this.getResourceIdFromUrl(saved.shareurl);
+          if (!currentId || !savedId || currentId !== savedId) return '';
+          return (saved.share_author_name || '').trim();
+        },
+        resolveEditTaskShareAuthorDisplay(fetchedName) {
+          const name = (fetchedName || '').trim();
+          if (name && name !== '未知') return name;
+          const fallback = this.getEditTaskSavedShareAuthorName();
+          return fallback || name || '未知';
+        },
+        getEditTaskShareAuthorFooterText() {
+          let author = (this.createTask.shareAuthor || '').trim();
+          if (!author) {
+            const fallback = this.getEditTaskSavedShareAuthorName();
+            author = fallback || '加载中...';
+          } else if (author === '未知') {
+            const fallback = this.getEditTaskSavedShareAuthorName();
+            if (fallback) author = fallback;
+          }
+          const days = this.getEditTaskSubscriptionDays();
+          if (days != null) {
+            return `当前资源分享者：${author}，已订阅 ${days} 天`;
+          }
+          return `当前资源分享者：${author}`;
+        },
         // 从分享详情或 token 响应中提取分享者昵称
         extractShareAuthorName(shareDetail) {
           if (!shareDetail) return '';
@@ -10567,23 +10743,23 @@
           }
           const pwdId = resourceId || this.getResourceIdFromUrl(url);
           const reqId = ++this.editTaskShareAuthorReqId;
-          this.createTask.shareAuthor = '';
+          // 请求期间保留配置中的昵称，避免失效链接先闪「未知」
+          this.createTask.shareAuthor = this.getEditTaskSavedShareAuthorName() || '';
           axios.get('/get_share_author', { params: { shareurl: url } })
             .then(response => {
               if (reqId !== this.editTaskShareAuthorReqId) return;
+              let fetchedName = '';
               if (response.data.success) {
-                const name = (response.data.data && response.data.data.author_name) || '';
-                this.createTask.shareAuthor = name || '未知';
-                if (pwdId) {
-                  this.editTaskShareAuthorResourceId = pwdId;
-                }
-              } else {
-                this.createTask.shareAuthor = '未知';
+                fetchedName = (response.data.data && response.data.data.author_name) || '';
+              }
+              this.createTask.shareAuthor = this.resolveEditTaskShareAuthorDisplay(fetchedName);
+              if (pwdId) {
+                this.editTaskShareAuthorResourceId = pwdId;
               }
             })
             .catch(() => {
               if (reqId !== this.editTaskShareAuthorReqId) return;
-              this.createTask.shareAuthor = '未知';
+              this.createTask.shareAuthor = this.resolveEditTaskShareAuthorDisplay('');
             });
         },
         onEditTaskShareurlInput() {
@@ -11207,8 +11383,9 @@
                   if (shareDetail.list && shareDetail.list.length > 0) {
                     // 链接有效，添加到有效结果列表
                     this.smart_param.validateProgress.valid++;
-                    
-                    resolve(link);
+                    const enriched = { ...link };
+                    enriched.share_author_name = this.extractShareAuthorName(shareDetail);
+                    resolve(enriched);
                     return;
                   }
                 } else {
@@ -11223,7 +11400,11 @@
                       error.includes("服务端错误") ||
                       error.includes("临时错误")) {
                     this.smart_param.validateProgress.valid++;
-                    resolve(link);
+                    const enriched = { ...link };
+                    if (response.data.data) {
+                      enriched.share_author_name = this.extractShareAuthorName(response.data.data);
+                    }
+                    resolve(enriched);
                     return;
                   }
 
@@ -11237,8 +11418,11 @@
                   // 如果不是已知的失效原因，保留该结果
                   if (!isInvalid) {
                     this.smart_param.validateProgress.valid++;
-                    
-                    resolve(link);
+                    const enriched = { ...link };
+                    if (response.data.data) {
+                      enriched.share_author_name = this.extractShareAuthorName(response.data.data);
+                    }
+                    resolve(enriched);
                     return;
                   }
                 }
@@ -11252,7 +11436,7 @@
                 this.smart_param.validateProgress.current++;
                 this.smart_param.validateProgress.valid++;
                 
-                resolve(link);
+                resolve({ ...link });
               });
             });
           };
@@ -12821,6 +13005,7 @@
                           // 后端推送导致的任务列表更新，不应触发"未保存修改"提示
                           this.suppressConfigModifiedOnce = true;
                           this.formData.tasklist = cfg.tasklist || [];
+                          this.snapshotTaskShareResourceIds();
                           // 同步任务名集合用于筛选
                           this.calendar.taskNames = (this.formData.tasklist || []).map(t => t.taskname).filter(Boolean);
                           // 如任务数量变化，重建与任务相关的最新文件映射的键集合
@@ -15810,13 +15995,14 @@
             }
             
             const task = this.formData.tasklist[taskIndex];
-            
+            // 分享订阅字段由服务启动 / 加载配置时自动迁移补全，此处仅读取展示
             // 设置编辑模式
             this.createTask.isEditMode = true;
             this.createTask.editTaskIndex = taskIndex;
             this.createTask.movieData = null;
             this.createTask.error = null;
-            this.createTask.shareAuthor = '';
+            // 先用配置中的昵称占位，避免链接失效时接口失败只能显示「未知」
+            this.createTask.shareAuthor = (task.share_author_name || '').trim();
             this.editTaskShareAuthorResourceId = null;
             
             // 复制任务数据到编辑表单
@@ -16479,7 +16665,7 @@
           // 重置任务数据，使用 newTask 的完整结构
           this.createTask.taskData = { ...this.newTask };
         },
-        confirmCreateTask() {
+        async confirmCreateTask() {
           // 确认创建任务
           if (this.createTask.loading) return;
 
@@ -16513,11 +16699,19 @@
             newTask.pattern = newTask.episode_naming;
           }
 
+          try {
+            const authorName = (this.createTask.shareAuthor && this.createTask.shareAuthor !== '未知') ? this.createTask.shareAuthor : '';
+            await this.applyTaskShareMetadataOnSave(newTask, null, authorName);
+          } catch (e) {
+            console.warn('新任务分享元数据写入失败:', e);
+          }
+
           // 添加到任务列表
           if (!this.formData.tasklist) {
             this.formData.tasklist = [];
           }
           this.formData.tasklist.push(newTask);
+          this.snapshotTaskShareResourceIds();
 
           // 保存配置（不显示配置更新消息）
           axios.post('/update', this.formData)
@@ -16544,7 +16738,7 @@
               this.createTask.loading = false;
             });
         },
-        confirmEditTask() {
+        async confirmEditTask() {
           // 确认编辑任务
           if (this.createTask.loading) return;
 
@@ -16578,9 +16772,23 @@
             updatedTask.pattern = updatedTask.episode_naming;
           }
 
+          const editIdx = this.createTask.editTaskIndex;
+          const prevSnap = (editIdx != null && this._taskShareSnapshot) ? this._taskShareSnapshot[editIdx] : null;
+          try {
+            const authorName = (this.createTask.shareAuthor && this.createTask.shareAuthor !== '未知' && this.createTask.shareAuthor !== '加载中...')
+              ? this.createTask.shareAuthor : '';
+            await this.applyTaskShareMetadataOnSave(
+              updatedTask,
+              this.buildPreviousTaskFromSnapshot(prevSnap),
+              authorName
+            );
+          } catch (e) {
+            console.warn('编辑任务分享元数据写入失败:', e);
+          }
+
           // 更新任务列表中的任务
-          if (this.createTask.editTaskIndex !== null && this.formData.tasklist && this.formData.tasklist[this.createTask.editTaskIndex]) {
-            this.$set(this.formData.tasklist, this.createTask.editTaskIndex, updatedTask);
+          if (editIdx !== null && this.formData.tasklist && this.formData.tasklist[editIdx]) {
+            this.$set(this.formData.tasklist, editIdx, updatedTask);
           }
 
           // 保存配置（不显示配置更新消息）
@@ -16588,6 +16796,7 @@
             .then(response => {
               if (response.data.success) {
                 this.configModified = false;
+                this.snapshotTaskShareResourceIds();
                 // 显示任务编辑成功消息
                 this.showToast('任务编辑成功', 'success');
                 // 保存成功后更新用户信息
@@ -16608,7 +16817,7 @@
               this.createTask.loading = false;
             });
         },
-        confirmEditAndRunTask() {
+        async confirmEditAndRunTask() {
           // 确认编辑任务并立即运行
           if (this.createTask.loading) return;
 
@@ -16642,9 +16851,23 @@
             updatedTask.pattern = updatedTask.episode_naming;
           }
 
+          const editIdx = this.createTask.editTaskIndex;
+          const prevSnap = (editIdx != null && this._taskShareSnapshot) ? this._taskShareSnapshot[editIdx] : null;
+          try {
+            const authorName = (this.createTask.shareAuthor && this.createTask.shareAuthor !== '未知' && this.createTask.shareAuthor !== '加载中...')
+              ? this.createTask.shareAuthor : '';
+            await this.applyTaskShareMetadataOnSave(
+              updatedTask,
+              this.buildPreviousTaskFromSnapshot(prevSnap),
+              authorName
+            );
+          } catch (e) {
+            console.warn('编辑任务分享元数据写入失败:', e);
+          }
+
           // 更新任务列表中的任务
-          if (this.createTask.editTaskIndex !== null && this.formData.tasklist && this.formData.tasklist[this.createTask.editTaskIndex]) {
-            this.$set(this.formData.tasklist, this.createTask.editTaskIndex, updatedTask);
+          if (editIdx !== null && this.formData.tasklist && this.formData.tasklist[editIdx]) {
+            this.$set(this.formData.tasklist, editIdx, updatedTask);
           }
 
           // 保存配置
@@ -16652,6 +16875,7 @@
             .then(response => {
               if (response.data.success) {
                 this.configModified = false;
+                this.snapshotTaskShareResourceIds();
                 this.showToast('任务编辑成功并开始运行', 'success');
                 this.fetchUserInfo();
                 this.updateTasklistMetadata();
@@ -16674,7 +16898,7 @@
               this.createTask.loading = false;
             });
         },
-        confirmCreateAndRunTask() {
+        async confirmCreateAndRunTask() {
           // 确认创建并运行任务
           if (this.createTask.loading) return;
 
@@ -16708,11 +16932,19 @@
             newTask.pattern = newTask.episode_naming;
           }
 
+          try {
+            const authorName = (this.createTask.shareAuthor && this.createTask.shareAuthor !== '未知') ? this.createTask.shareAuthor : '';
+            await this.applyTaskShareMetadataOnSave(newTask, null, authorName);
+          } catch (e) {
+            console.warn('新任务分享元数据写入失败:', e);
+          }
+
           // 添加到任务列表
           if (!this.formData.tasklist) {
             this.formData.tasklist = [];
           }
           this.formData.tasklist.push(newTask);
+          this.snapshotTaskShareResourceIds();
 
           // 保存配置（不显示配置更新消息）
           axios.post('/update', this.formData)

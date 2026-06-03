@@ -1369,7 +1369,23 @@ class Config:
                 }
                 if task.get("media_id"):
                     del task["media_id"]
-                    
+
+        # 补全任务分享订阅元数据（资源 ID、订阅起始日；分享者由 Web 服务后台拉取）
+        today = datetime.now().strftime("%Y-%m-%d")
+        for task in config_data.get("tasklist", []) or []:
+            shareurl = (task.get("shareurl") or "").strip()
+            if not shareurl:
+                continue
+            match = re.search(
+                r"pan\.(quark|qoark)\.cn/s/([a-zA-Z0-9]+)", shareurl, re.IGNORECASE
+            )
+            resource_id = match.group(2) if match else ""
+            if not resource_id:
+                continue
+            if not task.get("share_resource_id"):
+                task["share_resource_id"] = resource_id
+            if not task.get("shareurl_subscribed_since"):
+                task["shareurl_subscribed_since"] = today
 
 
 class Quark:
