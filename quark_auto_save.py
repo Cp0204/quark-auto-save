@@ -1531,9 +1531,10 @@ class Quark:
             "POST", url, json=payload, params=querystring
         ).json()
         if response.get("status") == 200:
-            return True, response["data"]["stoken"]
+            data = response.get("data") or {}
+            return True, data.get("stoken"), data.get("author")
         else:
-            return False, response["message"]
+            return False, response.get("message"), None
 
     def is_recoverable_error(self, error_message):
         """
@@ -2358,7 +2359,7 @@ class Quark:
     def do_save_check(self, shareurl, savepath):
         try:
             pwd_id, passcode, pdir_fid, _ = self.extract_url(shareurl)
-            _, stoken = self.get_stoken(pwd_id, passcode)
+            _, stoken, _ = self.get_stoken(pwd_id, passcode)
             share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["list"]
             fid_list = [item["fid"] for item in share_file_list]
             fid_token_list = [item["share_fid_token"] for item in share_file_list]
@@ -2798,7 +2799,7 @@ class Quark:
             print(f"提取链接参数失败，请检查分享链接是否有效")
             return
         # 获取分享详情
-        is_sharing, stoken = self.get_stoken(pwd_id, passcode)
+        is_sharing, stoken, _ = self.get_stoken(pwd_id, passcode)
         if not is_sharing:
             # 如果是可恢复错误（网络/临时），不要设置为失效资源
             try:
@@ -4337,7 +4338,7 @@ class Quark:
                         return False, []
                     
                     # 获取分享详情
-                    is_sharing, stoken = self.get_stoken(pwd_id, passcode)
+                    is_sharing, stoken, _ = self.get_stoken(pwd_id, passcode)
                     if not is_sharing:
                         # 如果任务已经有 shareurl_ban，说明已经在 do_save_task 中处理过了，不需要重复输出
                         if not task.get("shareurl_ban"):

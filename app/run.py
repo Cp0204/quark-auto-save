@@ -3694,6 +3694,35 @@ def _resolve_qoark_redirect(url: str) -> str:
         return url
 
 
+def _extract_share_author_name(author):
+    """从分享 token 接口返回的 author 对象中提取分享者昵称"""
+    if not isinstance(author, dict):
+        return ""
+    return (author.get("nick_name") or author.get("nickname") or author.get("user_name") or "").strip()
+
+
+# 获取分享者昵称（轻量接口，仅调用 token API）
+@app.route("/get_share_author", methods=["GET"])
+def get_share_author():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+
+    shareurl = request.args.get("shareurl", "")
+    if shareurl and "pan.qoark.cn" in shareurl:
+        shareurl = _resolve_qoark_redirect(shareurl)
+
+    account = Quark("", 0)
+    pwd_id, passcode, _, _ = account.extract_url(shareurl)
+    if not pwd_id:
+        return jsonify({"success": True, "data": {"author_name": ""}})
+
+    is_sharing, result, author = account.get_stoken(pwd_id, passcode)
+    if not is_sharing:
+        return jsonify({"success": False, "data": {"error": result}})
+
+    return jsonify({"success": True, "data": {"author_name": _extract_share_author_name(author)}})
+
+
 # 获取分享详情接口
 @app.route("/get_share_detail", methods=["GET", "POST"])
 def get_share_detail():
@@ -3717,8 +3746,9 @@ def get_share_detail():
     account.episode_patterns = request.json.get("regex", {}).get("episode_patterns", []) if request.method == "POST" else []
     
     pwd_id, passcode, pdir_fid, paths = account.extract_url(shareurl)
+    share_author = None
     if not stoken:
-        is_sharing, stoken = account.get_stoken(pwd_id, passcode)
+        is_sharing, stoken, share_author = account.get_stoken(pwd_id, passcode)
         if not is_sharing:
             return jsonify({"success": False, "data": {"error": stoken}})
     share_detail = account.get_detail(pwd_id, stoken, pdir_fid, _fetch_share=1)
@@ -3728,6 +3758,9 @@ def get_share_detail():
 
     share_detail["paths"] = paths
     share_detail["stoken"] = stoken
+    if share_author:
+        share_detail["author"] = share_author
+        share_detail["author_name"] = _extract_share_author_name(share_author)
 
     # 处理文件夹的include_items字段，确保空文件夹显示为0项而不是undefined
     if "list" in share_detail and isinstance(share_detail["list"], list):

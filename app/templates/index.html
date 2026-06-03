@@ -2928,7 +2928,7 @@
                 <label class="col-sm-2 col-form-label">分享链接</label>
                 <div class="col-sm-10">
                   <div class="input-group">
-                    <input type="text" name="shareurl[]" class="form-control" v-model="createTask.taskData.shareurl" placeholder="必填" @blur="changeShareurl(createTask.taskData)">
+                    <input type="text" name="shareurl[]" class="form-control" v-model="createTask.taskData.shareurl" placeholder="必填" @blur="changeShareurl(createTask.taskData)" @input="onEditTaskShareurlInput">
                     <div class="input-group-append" v-if="createTask.taskData.shareurl">
                       <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;fileSelect.previewRegex=false;showShareSelect(-1)" title="选择需转存的文件夹"><i class="bi bi-folder"></i></button>
                       <div class="input-group-text">
@@ -3053,7 +3053,10 @@
             </div>
           </div>
           <div class="modal-footer">
-            <div class="file-selection-info mr-auto" v-if="createTask.movieData" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+            <div class="file-selection-info mr-auto" v-if="createTask.isEditMode && createTask.taskData.shareurl" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+              当前资源分享者：{{ createTask.shareAuthor || '加载中...' }}
+            </div>
+            <div class="file-selection-info mr-auto" v-else-if="createTask.movieData" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
               {{ createTask.movieData.title + (createTask.movieData.year ? ' (' + createTask.movieData.year + ')' : '') }}
             </div>
             <button type="button" class="btn btn-primary btn-cancel" @click="cancelCreateTask">取消</button>
@@ -3793,6 +3796,10 @@
         // 兼容旧字段（不再使用独立 SSE 实例）
         tasklistSSE: null,
         calendarSSE: null,
+        // 编辑任务：分享者查询请求序号（用于忽略过期响应）
+        editTaskShareAuthorReqId: 0,
+        editTaskShareAuthorTimer: null,
+        editTaskShareAuthorResourceId: null, // 已加载分享者信息的资源 ID（pwd_id）
         // 创建任务相关数据
         createTask: {
           loading: false,
@@ -3800,6 +3807,7 @@
           movieData: null, // 存储当前要创建任务的影视作品数据
           isEditMode: false, // 是否为编辑模式
           editTaskIndex: null, // 编辑的任务索引
+          shareAuthor: '', // 编辑模式下当前分享链接的分享者昵称
           taskData: {
             taskname: "",
             shareurl: "",
@@ -10519,9 +10527,79 @@
               this.saveConfig();
             });
         },
-        changeShareurl(task) {
-          if (!task.shareurl)
+        // 从分享详情或 token 响应中提取分享者昵称
+        extractShareAuthorName(shareDetail) {
+          if (!shareDetail) return '';
+          if (shareDetail.author_name) {
+            return String(shareDetail.author_name).trim();
+          }
+          const author = shareDetail.author;
+          if (author && typeof author === 'object') {
+            const name = author.nick_name || author.nickname || author.user_name || author.name || '';
+            if (String(name).trim()) {
+              return String(name).trim();
+            }
+          }
+          return '';
+        },
+        // 编辑任务模态框：分享 ID 变化时刷新左下角分享者信息
+        maybeRefreshEditTaskShareAuthor(shareurl) {
+          if (!this.createTask.isEditMode) return;
+          const url = (shareurl || '').trim();
+          if (!url || !/pan\.(quark|qoark)\.cn\/s\//i.test(url)) {
+            this.editTaskShareAuthorResourceId = null;
+            this.createTask.shareAuthor = '';
             return;
+          }
+          const resourceId = this.getResourceIdFromUrl(url);
+          if (!resourceId) return;
+          if (resourceId === this.editTaskShareAuthorResourceId) return;
+          this.refreshEditTaskShareAuthor(url, resourceId);
+        },
+        // 编辑任务模态框：根据分享链接请求分享者昵称
+        refreshEditTaskShareAuthor(shareurl, resourceId) {
+          if (!this.createTask.isEditMode) return;
+          const url = (shareurl || '').trim();
+          if (!url || !/pan\.(quark|qoark)\.cn\/s\//i.test(url)) {
+            this.editTaskShareAuthorResourceId = null;
+            this.createTask.shareAuthor = '';
+            return;
+          }
+          const pwdId = resourceId || this.getResourceIdFromUrl(url);
+          const reqId = ++this.editTaskShareAuthorReqId;
+          this.createTask.shareAuthor = '';
+          axios.get('/get_share_author', { params: { shareurl: url } })
+            .then(response => {
+              if (reqId !== this.editTaskShareAuthorReqId) return;
+              if (response.data.success) {
+                const name = (response.data.data && response.data.data.author_name) || '';
+                this.createTask.shareAuthor = name || '未知';
+                if (pwdId) {
+                  this.editTaskShareAuthorResourceId = pwdId;
+                }
+              } else {
+                this.createTask.shareAuthor = '未知';
+              }
+            })
+            .catch(() => {
+              if (reqId !== this.editTaskShareAuthorReqId) return;
+              this.createTask.shareAuthor = '未知';
+            });
+        },
+        onEditTaskShareurlInput() {
+          if (!this.createTask.isEditMode) return;
+          clearTimeout(this.editTaskShareAuthorTimer);
+          this.editTaskShareAuthorTimer = setTimeout(() => {
+            this.maybeRefreshEditTaskShareAuthor(this.createTask.taskData.shareurl);
+          }, 500);
+        },
+        changeShareurl(task) {
+          if (!task.shareurl) {
+            if (this.createTask.isEditMode && task === this.createTask.taskData) {
+              this.createTask.shareAuthor = '';
+            }
+            return;
+          }
           this.$set(task, "shareurl_ban", undefined);
           // 从URL中提取任务名
           try {
@@ -10572,6 +10650,16 @@
                   task.taskname = task.taskname == "" ? share_detail.share.title : task.taskname;
                   task.savepath = task.savepath.replace(/TASKNAME/g, share_detail.share.title);
                   this.$set(task, "shareurl_ban", undefined);
+                }
+                if (this.createTask.isEditMode && task === this.createTask.taskData) {
+                  const authorName = this.extractShareAuthorName(share_detail);
+                  if (authorName) {
+                    this.createTask.shareAuthor = authorName;
+                    const resourceId = this.getResourceIdFromUrl(task.shareurl);
+                    if (resourceId) {
+                      this.editTaskShareAuthorResourceId = resourceId;
+                    }
+                  }
                 }
               }
             })
@@ -11901,6 +11989,9 @@
               // 只有在用户点击"转存当前文件夹"时才更新分享链接
               // 使用用户最终访问的分享链接地址（包含用户导航后的路径）
               this.createTask.taskData.shareurl = this.fileSelect.shareurl;
+              if (this.createTask.isEditMode) {
+                this.maybeRefreshEditTaskShareAuthor(this.createTask.taskData.shareurl);
+              }
             } else if (this.fileSelect.index !== null && this.fileSelect.index >= 0 && this.formData.tasklist[this.fileSelect.index]) {
               this.formData.tasklist[this.fileSelect.index].shareurl_ban = undefined;
               // 如果是分享文件夹且文件列表为空，则设置shareurl_ban
@@ -15725,6 +15816,8 @@
             this.createTask.editTaskIndex = taskIndex;
             this.createTask.movieData = null;
             this.createTask.error = null;
+            this.createTask.shareAuthor = '';
+            this.editTaskShareAuthorResourceId = null;
             
             // 复制任务数据到编辑表单
             this.createTask.taskData = { ...task };
@@ -15746,6 +15839,9 @@
             
             // 打开模态框
             $('#createTaskModal').modal('show');
+            this.$nextTick(() => {
+              this.maybeRefreshEditTaskShareAuthor(this.createTask.taskData.shareurl);
+            });
           } catch (error) {
             console.error('打开编辑任务模态框时出错:', error);
             this.showToast('打开编辑任务失败');
@@ -16375,6 +16471,8 @@
           $('#createTaskModal').modal('hide');
           this.createTask.movieData = null;
           this.createTask.error = null;
+          this.createTask.shareAuthor = '';
+          this.editTaskShareAuthorResourceId = null;
           // 重置编辑模式状态
           this.createTask.isEditMode = false;
           this.createTask.editTaskIndex = null;
