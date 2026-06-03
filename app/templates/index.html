@@ -3810,7 +3810,7 @@
           movieData: null, // 存储当前要创建任务的影视作品数据
           isEditMode: false, // 是否为编辑模式
           editTaskIndex: null, // 编辑的任务索引
-          shareAuthor: '', // 编辑模式下当前分享链接的分享者昵称
+          shareAuthor: '', // 编辑模式展示用；创建保存时不参与写入配置
           taskData: {
             taskname: "",
             shareurl: "",
@@ -4819,6 +4819,13 @@
               // 触发重排，确保滚动能力生效
               void modalBody.offsetHeight;
             }
+          }
+        });
+
+        // 创建任务弹窗关闭时（含点 X）清空残留分享者，避免下次创建误用旧昵称
+        $('#createTaskModal').on('hidden.bs.modal', () => {
+          if (!this.createTask.isEditMode) {
+            this.resetCreateTaskShareAuthorState();
           }
         });
         
@@ -10598,9 +10605,13 @@
             ? (previousTask.share_resource_id || this.getResourceIdFromUrl(previousTask.shareurl || ''))
             : null;
           const today = this.formatLocalDate(new Date());
-          let hintName = authorNameHint ? String(authorNameHint).trim() : '';
-          if (hintName === '未知' || hintName === '加载中...') {
-            hintName = '';
+          // 仅编辑保存时信任界面上的分享者提示；创建任务必须按当前链接重新拉取
+          let hintName = '';
+          if (previousTask && authorNameHint) {
+            hintName = String(authorNameHint).trim();
+            if (hintName === '未知' || hintName === '加载中...') {
+              hintName = '';
+            }
           }
 
           if (oldId !== newId) {
@@ -10716,6 +10727,16 @@
             return `资源分享者：${authorDisplay}，已订阅${days}天`;
           }
           return `资源分享者：${authorDisplay}`;
+        },
+        // 创建任务前清空分享者缓存，避免沿用上一条编辑任务留下的昵称
+        resetCreateTaskShareAuthorState() {
+          this.createTask.shareAuthor = '';
+          this.editTaskShareAuthorResourceId = null;
+          if (this.editTaskShareAuthorTimer) {
+            clearTimeout(this.editTaskShareAuthorTimer);
+            this.editTaskShareAuthorTimer = null;
+          }
+          this.editTaskShareAuthorReqId = (this.editTaskShareAuthorReqId || 0) + 1;
         },
         // 从分享详情或 token 响应中提取分享者昵称
         extractShareAuthorName(shareDetail) {
@@ -15897,6 +15918,7 @@
             this.createTask.isEditMode = false;
             this.createTask.editTaskIndex = null;
             this.createTask.error = null;
+            this.resetCreateTaskShareAuthorState();
             // 使用 newTask 的完整结构初始化，再由智能填充覆盖
             this.createTask.taskData = { ...this.newTask };
             // 应用系统配置的执行周期默认选项
@@ -15939,6 +15961,7 @@
             // 重置编辑模式状态
             this.createTask.isEditMode = false;
             this.createTask.editTaskIndex = null;
+            this.resetCreateTaskShareAuthorState();
             
             // 重置任务数据为默认值，使用 newTask 的完整结构
             this.createTask.taskData = { ...this.newTask };
@@ -16671,8 +16694,7 @@
           $('#createTaskModal').modal('hide');
           this.createTask.movieData = null;
           this.createTask.error = null;
-          this.createTask.shareAuthor = '';
-          this.editTaskShareAuthorResourceId = null;
+          this.resetCreateTaskShareAuthorState();
           // 重置编辑模式状态
           this.createTask.isEditMode = false;
           this.createTask.editTaskIndex = null;
@@ -16714,8 +16736,7 @@
           }
 
           try {
-            const authorName = (this.createTask.shareAuthor && this.createTask.shareAuthor !== '未知') ? this.createTask.shareAuthor : '';
-            await this.applyTaskShareMetadataOnSave(newTask, null, authorName);
+            await this.applyTaskShareMetadataOnSave(newTask, null, null);
           } catch (e) {
             console.warn('新任务分享元数据写入失败:', e);
           }
@@ -16947,8 +16968,7 @@
           }
 
           try {
-            const authorName = (this.createTask.shareAuthor && this.createTask.shareAuthor !== '未知') ? this.createTask.shareAuthor : '';
-            await this.applyTaskShareMetadataOnSave(newTask, null, authorName);
+            await this.applyTaskShareMetadataOnSave(newTask, null, null);
           } catch (e) {
             console.warn('新任务分享元数据写入失败:', e);
           }
@@ -17322,6 +17342,13 @@
               // 触发重排，确保滚动能力生效
               void modalBody.offsetHeight;
             }
+          }
+        });
+
+        // 创建任务弹窗关闭时（含点 X）清空残留分享者，避免下次创建误用旧昵称
+        $('#createTaskModal').on('hidden.bs.modal', () => {
+          if (!this.createTask.isEditMode) {
+            this.resetCreateTaskShareAuthorState();
           }
         });
         
