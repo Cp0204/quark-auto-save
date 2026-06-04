@@ -2051,6 +2051,92 @@ def gen_md5(string):
     return md5.hexdigest()
 
 
+# WebUI 登录防暴力破解：15 分钟内同一 IP 失败 5 次则锁定 15 分钟
+LOGIN_MAX_FAILURES = 5
+LOGIN_FAILURE_WINDOW_SECONDS = 15 * 60
+LOGIN_LOCKOUT_SECONDS = 15 * 60
+_login_guard_lock = Lock()
+_login_guard_by_ip = {}
+
+
+def get_client_ip():
+    """获取客户端 IP（支持反向代理 X-Forwarded-For）"""
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        ip = forwarded.split(",")[0].strip()
+        if ip:
+            return ip
+    return request.remote_addr or "unknown"
+
+
+def _login_guard_prune_entry(entry, now):
+    """清理过期失败记录与已结束的锁定"""
+    window_start = now - LOGIN_FAILURE_WINDOW_SECONDS
+    entry["failures"] = [t for t in (entry.get("failures") or []) if t >= window_start]
+    if float(entry.get("locked_until") or 0) <= now:
+        entry["locked_until"] = 0
+
+
+def _login_guard_cleanup_stale(now):
+    """移除无失败记录且未锁定的 IP 条目，避免内存长期增长"""
+    stale_ips = []
+    for ip, entry in _login_guard_by_ip.items():
+        _login_guard_prune_entry(entry, now)
+        if not entry["failures"] and float(entry.get("locked_until") or 0) <= now:
+            stale_ips.append(ip)
+    for ip in stale_ips:
+        del _login_guard_by_ip[ip]
+
+
+def check_login_lockout(ip):
+    """若 IP 处于锁定状态，返回 (True, 剩余秒数)；否则 (False, 0)"""
+    now = time.time()
+    with _login_guard_lock:
+        entry = _login_guard_by_ip.get(ip)
+        if not entry:
+            return False, 0
+        _login_guard_prune_entry(entry, now)
+        locked_until = float(entry.get("locked_until") or 0)
+        if locked_until > now:
+            return True, int(locked_until - now + 0.999)
+        return False, 0
+
+
+def clear_login_attempts(ip):
+    """登录成功后清除该 IP 的失败记录"""
+    with _login_guard_lock:
+        _login_guard_by_ip.pop(ip, None)
+
+
+def record_login_failure(ip):
+    """
+    记录一次登录失败。
+    返回 (是否已锁定, 剩余锁定秒数, 当前窗口内失败次数)
+    """
+    now = time.time()
+    with _login_guard_lock:
+        entry = _login_guard_by_ip.setdefault(ip, {"failures": [], "locked_until": 0})
+        _login_guard_prune_entry(entry, now)
+        entry["failures"].append(now)
+        fail_count = len(entry["failures"])
+        if fail_count >= LOGIN_MAX_FAILURES:
+            entry["locked_until"] = now + LOGIN_LOCKOUT_SECONDS
+            remain = LOGIN_LOCKOUT_SECONDS
+            logging.info(
+                f">>> 登录 IP {ip} 连续失败 {fail_count} 次，已锁定 {remain // 60} 分钟"
+            )
+            _login_guard_cleanup_stale(now)
+            return True, remain, fail_count
+        _login_guard_cleanup_stale(now)
+        return False, 0, fail_count
+
+
+def login_lockout_message(remain_seconds):
+    """生成锁定提示文案"""
+    minutes = max(1, (remain_seconds + 59) // 60)
+    return f"登录尝试次数过多，请 {minutes} 分钟后再试"
+
+
 def get_login_token():
     username = config_data["webui"]["username"]
     password = config_data["webui"]["password"]
@@ -2100,30 +2186,71 @@ def serve_cache_images(filename):
 # 登录页面
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    client_ip = get_client_ip()
+
+    def _render_lockout():
+        locked, remain = check_login_lockout(client_ip)
+        if locked:
+            return render_template(
+                "login.html", message=login_lockout_message(remain), locked=True
+            )
+        return None
+
     if request.method == "POST":
+        lock_resp = _render_lockout()
+        if lock_resp:
+            logging.info(f">>> 登录被拒绝：IP {client_ip} 处于锁定状态")
+            return lock_resp
+
         username = config_data["webui"]["username"]
         password = config_data["webui"]["password"]
         input_username = request.form.get("username")
         input_password = request.form.get("password")
-        
+
+        def _login_fail(message, log_msg=None):
+            if log_msg:
+                logging.info(log_msg)
+            is_locked, remain, fail_count = record_login_failure(client_ip)
+            if is_locked:
+                return render_template(
+                    "login.html",
+                    message=login_lockout_message(remain),
+                    locked=True,
+                )
+            # 渐进延迟，拖慢自动化暴力尝试
+            delay = min(fail_count, 5)
+            if delay > 0:
+                time.sleep(delay)
+            return render_template("login.html", message=message)
+
         # 验证用户名和密码
         if not input_username or not input_password:
-            logging.info(">>> 登录失败：用户名或密码为空")
-            return render_template("login.html", message="用户名和密码不能为空")
-        elif username != input_username:
-            logging.info(f">>> 登录失败：用户名错误 {input_username}")
-            return render_template("login.html", message="用户名或密码错误")
-        elif password != input_password:
-            logging.info(f">>> 用户 {input_username} 登录失败：密码错误")
-            return render_template("login.html", message="用户名或密码错误")
-        else:
-            logging.info(f">>> 用户 {username} 登录成功")
-            session.permanent = True
-            session["token"] = get_login_token()
-            return redirect(url_for("index"))
+            return _login_fail(
+                "用户名和密码不能为空",
+                ">>> 登录失败：用户名或密码为空",
+            )
+        if username != input_username:
+            return _login_fail(
+                "用户名或密码错误",
+                f">>> 登录失败：用户名错误 {input_username}",
+            )
+        if password != input_password:
+            return _login_fail(
+                "用户名或密码错误",
+                f">>> 用户 {input_username} 登录失败：密码错误",
+            )
+
+        clear_login_attempts(client_ip)
+        logging.info(f">>> 用户 {username} 登录成功")
+        session.permanent = True
+        session["token"] = get_login_token()
+        return redirect(url_for("index"))
 
     if is_login():
         return redirect(url_for("index"))
+    lock_resp = _render_lockout()
+    if lock_resp:
+        return lock_resp
     return render_template("login.html", error=None)
 
 
