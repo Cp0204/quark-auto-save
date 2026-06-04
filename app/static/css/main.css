@@ -6487,6 +6487,29 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   color: inherit;
 }
 
+/* 资源搜索优选分享者（优先级低于当前选中与同分享者） */
+.task-suggestions .dropdown-item.preferred-sharer-suggestion:not(.current-suggestion):not(.same-sharer-suggestion) {
+  background-color: var(--button-gray-background-color);
+}
+
+.task-suggestions .dropdown-item.preferred-sharer-suggestion:not(.current-suggestion):not(.same-sharer-suggestion) small a {
+  color: inherit;
+}
+
+/* 列表视图：高亮项悬停时使用通用悬停样式（模态框因 #createTaskModal 选择器优先级更高，天然具备此效果） */
+.task-suggestions .dropdown-item.current-suggestion:hover,
+.task-suggestions .dropdown-item.same-sharer-suggestion:not(.current-suggestion):hover,
+.task-suggestions .dropdown-item.preferred-sharer-suggestion:not(.current-suggestion):not(.same-sharer-suggestion):hover {
+  background-color: var(--button-gray-background-color);
+  color: var(--dark-text-color);
+}
+
+.task-suggestions .dropdown-item.current-suggestion:hover small a,
+.task-suggestions .dropdown-item.same-sharer-suggestion:not(.current-suggestion):hover small a,
+.task-suggestions .dropdown-item.preferred-sharer-suggestion:not(.current-suggestion):not(.same-sharer-suggestion):hover small a {
+  color: var(--dark-text-color);
+}
+
 /* 创建任务模态框移动端响应式样式 */
 @media (max-width: 767.98px) {
   #createTaskModal .form-group.row .col-sm-2 {
