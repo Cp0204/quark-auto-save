@@ -9558,6 +9558,23 @@
           }
         },
         async saveConfig() {
+          // WebUI 账号：禁止保存空的用户名或密码
+          const webui = this.formData.webui || {};
+          const webuiUsername = String(webui.username ?? '').trim();
+          const webuiPassword = String(webui.password ?? '').trim();
+          if (!webuiUsername && !webuiPassword) {
+            this.showToast('用户名和密码不能为空');
+            return;
+          }
+          if (!webuiUsername) {
+            this.showToast('用户名不能为空');
+            return;
+          }
+          if (!webuiPassword) {
+            this.showToast('密码不能为空');
+            return;
+          }
+
           // 保存前处理每个任务的命名模式
           if (this.formData.tasklist && this.formData.tasklist.length > 0) {
             this.formData.tasklist.forEach(task => {

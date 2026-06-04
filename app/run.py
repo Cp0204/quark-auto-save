@@ -2401,9 +2401,17 @@ def update():
     for key, value in request.json.items():
         if key not in dont_save_keys:
             if key == "webui":
-                # 更新webui凭据
-                config_data["webui"]["username"] = value.get("username", config_data["webui"]["username"])
-                config_data["webui"]["password"] = value.get("password", config_data["webui"]["password"])
+                # 更新 webui 凭据（禁止保存空用户名或密码）
+                username = str(value.get("username", "") or "").strip()
+                password = str(value.get("password", "") or "").strip()
+                if not username and not password:
+                    return jsonify({"success": False, "message": "用户名和密码不能为空"})
+                if not username:
+                    return jsonify({"success": False, "message": "用户名不能为空"})
+                if not password:
+                    return jsonify({"success": False, "message": "密码不能为空"})
+                config_data["webui"]["username"] = username
+                config_data["webui"]["password"] = password
             elif key == "plugins":
                 # 处理插件配置中的多账号支持字段
                 if "plex" in value and "quark_root_path" in value["plex"]:
