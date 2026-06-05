@@ -1370,8 +1370,9 @@ class Config:
                 if task.get("media_id"):
                     del task["media_id"]
 
-        # 补全任务分享订阅元数据（资源 ID、订阅起始日；分享者由 Web 服务后台拉取）
-        today = datetime.now().strftime("%Y-%m-%d")
+        # 补全任务分享订阅元数据（资源 ID、订阅起始时间；分享者由 Web 服务后台拉取）
+        now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        date_only_re = re.compile(r"^\d{4}-\d{2}-\d{2}$")
         for task in config_data.get("tasklist", []) or []:
             shareurl = (task.get("shareurl") or "").strip()
             if not shareurl:
@@ -1384,8 +1385,13 @@ class Config:
                 continue
             if not task.get("share_resource_id"):
                 task["share_resource_id"] = resource_id
-            if not task.get("shareurl_subscribed_since"):
-                task["shareurl_subscribed_since"] = today
+            existing_since = task.get("shareurl_subscribed_since")
+            if not existing_since:
+                task["shareurl_subscribed_since"] = now_ts
+            else:
+                since_str = str(existing_since).strip()
+                if date_only_re.match(since_str):
+                    task["shareurl_subscribed_since"] = f"{since_str} 00:00:00"
 
 
 class Quark:

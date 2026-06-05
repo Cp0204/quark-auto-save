@@ -3857,17 +3857,43 @@ def _tasklist_needs_share_author_migration(config_or_data):
     return False
 
 
+_SHARE_SUBSCRIBED_SINCE_FMT = "%Y-%m-%d %H:%M:%S"
+_SHARE_SUBSCRIBED_DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_SHARE_SUBSCRIBED_FULL_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
+
+
+def _format_share_subscribed_since(dt=None):
+    """格式化为 YYYY-MM-DD HH:MM:SS"""
+    if dt is None:
+        dt = datetime.now()
+    return dt.strftime(_SHARE_SUBSCRIBED_SINCE_FMT)
+
+
+def _normalize_share_subscribed_since(value):
+    """规范为 YYYY-MM-DD HH:MM:SS；仅日期则补 00:00:00"""
+    if not value:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    if _SHARE_SUBSCRIBED_FULL_RE.match(s):
+        return s
+    if _SHARE_SUBSCRIBED_DATE_ONLY_RE.match(s):
+        return f"{s} 00:00:00"
+    return s
+
+
 def migrate_task_share_metadata_fields(config_or_data, fetch_author=False):
     """
     为旧版任务补全分享订阅元数据：
-    share_resource_id、shareurl_subscribed_since（缺省补今天）、share_author_name（可选拉取）
+    share_resource_id、shareurl_subscribed_since（缺省补当前时刻；仅日期则补 00:00:00）、share_author_name（可选拉取）
     返回是否有字段被修改
     """
     tasks = (config_or_data or {}).get("tasklist") or []
     if not tasks:
         return False
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    now_ts = _format_share_subscribed_since()
     changed = False
     account = Quark("", 0) if fetch_author else None
 
@@ -3883,9 +3909,15 @@ def migrate_task_share_metadata_fields(config_or_data, fetch_author=False):
         if not task.get("share_resource_id"):
             task["share_resource_id"] = resource_id
             changed = True
-        if not task.get("shareurl_subscribed_since"):
-            task["shareurl_subscribed_since"] = today
+        existing_since = task.get("shareurl_subscribed_since")
+        if not existing_since:
+            task["shareurl_subscribed_since"] = now_ts
             changed = True
+        else:
+            normalized_since = _normalize_share_subscribed_since(existing_since)
+            if normalized_since and normalized_since != existing_since:
+                task["shareurl_subscribed_since"] = normalized_since
+                changed = True
 
         if not fetch_author or not account:
             continue

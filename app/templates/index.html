@@ -1223,6 +1223,7 @@
                       <option v-if="formData.tmdb_api_key" value="progress">任务进度</option>
                       <option value="update_time">更新时间</option>
                       <option value="airtime">播出时间</option>
+                      <option value="subscribe_duration">订阅时长</option>
                     </select>
                     <span class="tasklist-sort-pill tasklist-sort-order" @click="toggleTasklistSortOrder" title="切换升降序">
                       {{ tasklistSort.order === 'asc' ? '升序排列' : '降序排列' }}
@@ -3778,7 +3779,7 @@
         tasklistSort: (() => {
           try {
             const saved = JSON.parse(localStorage.getItem('tasklist_sort_options') || '{}');
-            let by = ['index','name','progress','update_time','airtime'].includes(saved.by) ? saved.by : 'index';
+            let by = ['index','name','progress','update_time','airtime','subscribe_duration'].includes(saved.by) ? saved.by : 'index';
             const order = (saved.order === 'asc' || saved.order === 'desc') ? saved.order : 'asc';
             // 注意：这里无法检查 TMDB API 配置，会在 mounted 中处理
             return { by, order };
@@ -4245,8 +4246,8 @@
         shouldShowTasklist() {
           const { by } = this.tasklistSort || { by: 'index' };
           
-          // 任务编号和任务名称排序不需要额外数据，可以直接显示
-          if (by === 'index' || by === 'name') {
+          // 任务编号、任务名称、订阅时长排序不需要额外数据，可以直接显示
+          if (by === 'index' || by === 'name' || by === 'subscribe_duration') {
             return true;
           }
           
@@ -5211,6 +5212,7 @@
           if (key === 'progress') return '任务进度';
           if (key === 'update_time') return '更新时间';
           if (key === 'airtime') return '播出时间';
+          if (key === 'subscribe_duration') return '订阅时长';
           return '任务编号';
         },
         // 任务列表排序：保存到localStorage
@@ -5222,7 +5224,7 @@
         // 任务列表排序：切换排序字段
         // 仅切换排序字段，不改变当前升降序
         changeTasklistSortBy(by) {
-          if (!['index','name','progress','update_time','airtime'].includes(by)) return;
+          if (!['index','name','progress','update_time','airtime','subscribe_duration'].includes(by)) return;
           if (this.tasklistSort.by !== by) {
             this.tasklistSort.by = by;
             // 不重置、不切换 order，保持现状
@@ -5428,6 +5430,42 @@
                 const aTime = aRecord && aRecord.full ? new Date(aRecord.full).getTime() : 0;
                 const bTime = bRecord && bRecord.full ? new Date(bRecord.full).getTime() : 0;
                 cmp = aTime - bTime;
+              } else if (by === 'subscribe_duration') {
+                // 按连续订阅时长排序（与悬停「已订阅 x 天」一致，基于 shareurl_subscribed_since）
+                // 升序：订阅天数由短到长 → 时间戳较新（较大）在前；降序相反
+                // 相同 shareurl_subscribed_since 时按任务编号兜底（升序视角下编号大者视为更短）
+                const getSinceMs = (task) => {
+                  const normalized = this.normalizeShareSubscribedSince(task && task.shareurl_subscribed_since);
+                  if (!normalized) return null;
+                  const parts = String(normalized).trim().split(/\s+/);
+                  const dp = parts[0].split('-').map(Number);
+                  if (dp.length !== 3 || dp.some((n) => Number.isNaN(n))) return null;
+                  let h = 0;
+                  let min = 0;
+                  let sec = 0;
+                  if (parts[1]) {
+                    const tp = parts[1].split(':').map(Number);
+                    if (tp.length >= 3 && tp.every((n) => !Number.isNaN(n))) {
+                      h = tp[0];
+                      min = tp[1];
+                      sec = tp[2];
+                    }
+                  }
+                  return new Date(dp[0], dp[1] - 1, dp[2], h, min, sec).getTime();
+                };
+                const aMs = getSinceMs(a.t);
+                const bMs = getSinceMs(b.t);
+                const aMissing = aMs == null;
+                const bMissing = bMs == null;
+                if (aMissing !== bMissing) {
+                  cmp = aMissing ? 1 : -1; // 无订阅时间的任务排在后面
+                } else if (!aMissing && !bMissing && aMs !== bMs) {
+                  cmp = bMs - aMs; // 升序：较新时间戳（订阅更短）在前
+                } else if (a.idx !== b.idx) {
+                  // 同 shareurl_subscribed_since：按任务列表编号（0-based 索引）兜底
+                  // 升序订阅时长时编号越大视为订阅越晚、时长越短，应排在前面
+                  cmp = b.idx - a.idx;
+                }
               } else {
                 // 按任务名称中的编号排序（解析 #XX 格式）
                 const aNum = parseInt((a.t.taskname || '').match(/^#?(\d+)/)?.[1] || '0');
@@ -10576,18 +10614,30 @@
               this.saveConfig();
             });
         },
-        // 本地日期 YYYY-MM-DD（用于订阅天数）
-        formatLocalDate(date) {
+        // 本地日期时间 YYYY-MM-DD HH:MM:SS（用于订阅起始时间戳）
+        formatLocalDateTime(date) {
           const dt = date instanceof Date ? date : new Date(date);
           const y = dt.getFullYear();
           const m = String(dt.getMonth() + 1).padStart(2, '0');
           const day = String(dt.getDate()).padStart(2, '0');
-          return `${y}-${m}-${day}`;
+          const h = String(dt.getHours()).padStart(2, '0');
+          const min = String(dt.getMinutes()).padStart(2, '0');
+          const sec = String(dt.getSeconds()).padStart(2, '0');
+          return `${y}-${m}-${day} ${h}:${min}:${sec}`;
         },
-        // 按自然日计算订阅天数（当日为第 1 天）
+        // 规范订阅时间戳；仅日期则补 00:00:00
+        normalizeShareSubscribedSince(sinceStr) {
+          if (!sinceStr) return null;
+          const s = String(sinceStr).trim();
+          if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s)) return s;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return `${s} 00:00:00`;
+          return s;
+        },
+        // 按自然日计算订阅天数（当日为第 1 天；忽略时分秒）
         getShareSubscriptionDays(sinceDateStr) {
           if (!sinceDateStr) return null;
-          const parts = String(sinceDateStr).split('-').map(Number);
+          const datePart = String(sinceDateStr).trim().split(/\s+/)[0];
+          const parts = datePart.split('-').map(Number);
           if (parts.length !== 3 || parts.some(n => Number.isNaN(n))) return null;
           const since = new Date(parts[0], parts[1] - 1, parts[2]);
           const now = new Date();
@@ -10635,7 +10685,7 @@
           const oldId = previousTask
             ? (previousTask.share_resource_id || this.getResourceIdFromUrl(previousTask.shareurl || ''))
             : null;
-          const today = this.formatLocalDate(new Date());
+          const nowTs = this.formatLocalDateTime(new Date());
           // 仅编辑保存时信任界面上的分享者提示；创建任务必须按当前链接重新拉取
           let hintName = '';
           if (previousTask && authorNameHint) {
@@ -10647,7 +10697,7 @@
 
           if (oldId !== newId) {
             task.share_resource_id = newId;
-            task.shareurl_subscribed_since = today;
+            task.shareurl_subscribed_since = nowTs;
             let authorName = hintName;
             if (!authorName) {
               authorName = await this.fetchShareAuthorMeta(task.shareurl);
@@ -10655,7 +10705,14 @@
             if (authorName) task.share_author_name = authorName;
           } else {
             if (!task.share_resource_id) task.share_resource_id = newId;
-            if (!task.shareurl_subscribed_since) task.shareurl_subscribed_since = today;
+            if (!task.shareurl_subscribed_since) {
+              task.shareurl_subscribed_since = nowTs;
+            } else {
+              const normalized = this.normalizeShareSubscribedSince(task.shareurl_subscribed_since);
+              if (normalized && normalized !== task.shareurl_subscribed_since) {
+                task.shareurl_subscribed_since = normalized;
+              }
+            }
             if (!task.share_author_name && task.shareurl) {
               const authorName = hintName || await this.fetchShareAuthorMeta(task.shareurl);
               if (authorName) task.share_author_name = authorName;
