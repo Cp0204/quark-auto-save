@@ -54,6 +54,7 @@ from sdk.douban_service import douban_service
 
 # 导入追剧日历相关模块
 from utils.task_extractor import TaskExtractor
+from utils.auto_backup import ensure_daily_backup_if_due
 from sdk.tmdb_service import TMDBService
 from sdk.trakt_service import TraktService
 from sdk.db import CalendarDB
@@ -2310,6 +2311,8 @@ def get_data():
             'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS,
             'aired_refresh_time': '00:00',
             'cloud_unarchive_timeout_seconds': 100,
+            'backup_enabled': True,
+            'backup_max_count': 4,
         }
     else:
         if 'calendar_refresh_interval_seconds' not in perf:
@@ -2318,6 +2321,10 @@ def get_data():
             data['performance']['aired_refresh_time'] = '00:00'
         if 'cloud_unarchive_timeout_seconds' not in perf or perf.get('cloud_unarchive_timeout_seconds') in [None, ""]:
             data['performance']['cloud_unarchive_timeout_seconds'] = 100
+        if 'backup_enabled' not in perf:
+            data['performance']['backup_enabled'] = True
+        if 'backup_max_count' not in perf:
+            data['performance']['backup_max_count'] = 4
     
     # 确保海报语言有默认值
     if 'poster_language' not in data:
@@ -2746,6 +2753,8 @@ def update():
         config_data['performance'].setdefault('aired_refresh_time', '00:00')
         if config_data['performance'].get('cloud_unarchive_timeout_seconds') in [None, ""]:
             config_data['performance']['cloud_unarchive_timeout_seconds'] = 100
+        config_data['performance'].setdefault('backup_enabled', True)
+        config_data['performance'].setdefault('backup_max_count', 4)
     Config.write_json(CONFIG_PATH, config_data)
     # 更新session token，确保当前会话在用户名密码更改后仍然有效
     session["token"] = get_login_token()
@@ -4742,6 +4751,11 @@ def run_python(args):
         import traceback
         logging.error(f">>> 异常堆栈: {traceback.format_exc()}")
     finally:
+        # 每日首次定时任务执行后自动备份 config 目录下的 data.db 与 quark_config.json
+        try:
+            ensure_daily_backup_if_due(CONFIG_PATH, config_data)
+        except Exception as backup_err:
+            logging.warning(f">>> 自动备份异常: {backup_err}")
         # 任务完成，清除进程对象
         _crontab_task_process = None
 
