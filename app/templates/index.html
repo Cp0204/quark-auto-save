@@ -6193,6 +6193,50 @@
           
           return message;
         },
+        // 判断分享错误是否为可恢复的网络/服务端临时错误
+        isRecoverableShareError(message) {
+          if (!message) return false;
+          const text = String(message);
+          return text.includes("inner error") ||
+            text.includes("request error") ||
+            text.includes("网络错误") ||
+            text.includes("服务端错误") ||
+            text.includes("临时错误");
+        },
+        // 判断分享资源是否已失效（用于资源搜索过滤等场景）
+        isInvalidShareError(message) {
+          if (!message) return false;
+          if (this.isRecoverableShareError(message)) return false;
+
+          const text = String(message);
+          const knownFormattedBans = [
+            "该分享已失效，不可访问",
+            "该分享已被删除，无法访问",
+            "该分享已被取消，无法访问",
+            "分享不存在"
+          ];
+          const formatted = this.formatShareUrlBanMessage(text);
+          if (formatted && knownFormattedBans.includes(formatted)) {
+            return true;
+          }
+          for (const term of knownFormattedBans) {
+            if (text.includes(term)) return true;
+          }
+
+          const rawInvalidTerms = [
+            "分享者用户封禁链接查看受限",
+            "好友已取消了分享",
+            "文件已被分享者删除",
+            "文件夹为空",
+            "分享地址已失效",
+            "文件涉及违规内容",
+            "文件已被分享者删除或文件夹为空",
+            "分享为空",
+            "分享不存在",
+            "提取链接参数失败"
+          ];
+          return rawInvalidTerms.some(term => text.includes(term));
+        },
 
         // 追剧日历相关方法
         // 加载追剧日历数据
@@ -11562,15 +11606,6 @@
         },
         // 添加新方法来验证搜索结果
         validateSearchResults(searchData, sessionId) {
-          const invalidTerms = [
-            "分享者用户封禁链接查看受限",
-            "好友已取消了分享",
-            "文件已被分享者删除",
-            "文件夹为空",
-            "分享地址已失效",
-            "文件涉及违规内容"
-          ];
-
           // 如果没有搜索结果，直接返回
           if (!searchData.data || searchData.data.length === 0) {
             this.smart_param.taskSuggestions = searchData;
@@ -11633,34 +11668,13 @@
                     return;
                   }
                 } else {
-                  // 检查是否包含已知的失效原因
-                  const error = response.data.data.error || "";
-                  let isInvalid = false;
+                  // 检查是否包含已知的失效原因（兼容原始 API 文案与格式化后的用户可见文案）
+                  const error = (response.data && response.data.data && response.data.data.error)
+                    ? String(response.data.data.error)
+                    : ((response.data && response.data.message) ? String(response.data.message) : "");
 
-                  // 如果是可恢复的网络错误或服务端临时错误，视为有效（网络问题，不是资源问题）
-                  if (error.includes("request error") ||
-                      error.includes("inner error") ||
-                      error.includes("网络错误") ||
-                      error.includes("服务端错误") ||
-                      error.includes("临时错误")) {
-                    this.smart_param.validateProgress.valid++;
-                    const enriched = { ...link };
-                    if (response.data.data) {
-                      enriched.share_author_name = this.extractShareAuthorName(response.data.data);
-                    }
-                    resolve(enriched);
-                    return;
-                  }
-
-                  for (const term of invalidTerms) {
-                    if (error.includes(term)) {
-                      isInvalid = true;
-                      break;
-                    }
-                  }
-
-                  // 如果不是已知的失效原因，保留该结果
-                  if (!isInvalid) {
+                  // 非失效错误（含可恢复网络错误）则保留该结果
+                  if (!this.isInvalidShareError(error)) {
                     this.smart_param.validateProgress.valid++;
                     const enriched = { ...link };
                     if (response.data.data) {
