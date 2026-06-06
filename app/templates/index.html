@@ -2807,10 +2807,7 @@
           </div>
           <div class="modal-footer" v-if="fileSelect.selectDir && !fileSelect.previewRegex">
             <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
-              <span v-if="fileSelect.selectShare && smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length > 1 && isCurrentResourceInSearchResults()">
-                第 {{ smart_param.currentResourceIndex + 1 }}/{{ smart_param.taskSuggestions.data.length }} 个资源，
-              </span>
-              共 {{ fileSelect.fileList.length }} 个项目<span v-if="fileSelect.selectedFiles.length > 0">，已选中 {{ fileSelect.selectedFiles.length }} 个项目</span>
+              <span v-if="fileSelect.selectShare && smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length > 1 && isCurrentResourceInSearchResults()">第 {{ smart_param.currentResourceIndex + 1 }}/{{ smart_param.taskSuggestions.data.length }} 个资源，</span><span v-if="fileSelect.selectShare">分享者：{{ getFileSelectShareAuthorDisplay() }}，</span>共 {{ fileSelect.fileList.length }} 个项目<span v-if="fileSelect.selectedFiles.length > 0">，已选中 {{ fileSelect.selectedFiles.length }} 个项目</span>
             </div>
             <button type="button" class="btn btn-primary btn-cancel" @click="$('#fileSelectModal').modal('hide')"><span class="btn-text">取消</span></button>
             <!-- 连续浏览按钮组（仅在资源搜索模式下且当前资源在搜索结果中时显示） -->
@@ -3514,7 +3511,8 @@
           lastSelectedFileIndex: -1, // 记录最后选择的文件索引
           canUndoRename: false,
           moveMode: false, // 是否为移动文件模式
-          moveFileIds: [] // 要移动的文件ID列表
+          moveFileIds: [], // 要移动的文件ID列表
+          shareAuthor: '' // 选择需转存的文件夹模态框左下角展示用
         },
         historyParams: {
           sortBy: "transfer_time",
@@ -3813,6 +3811,9 @@
         editTaskShareAuthorReqId: 0,
         editTaskShareAuthorTimer: null,
         editTaskShareAuthorResourceId: null, // 已加载分享者信息的资源 ID（pwd_id）
+        // 选择需转存的文件夹模态框：分享者查询请求序号（用于忽略过期响应）
+        fileSelectShareAuthorReqId: 0,
+        fileSelectShareAuthorResourceId: null, // 已加载分享者信息的资源 ID（pwd_id）
         _taskShareSnapshot: {}, // 配置加载/保存后各任务分享资源快照，用于检测换链
         // 创建任务相关数据
         createTask: {
@@ -4929,6 +4930,8 @@
           document.getElementById('fileSelectModal').style.zIndex = '';
           // 重置资源浏览索引
           this.smart_param.currentResourceIndex = -1;
+          // 清空选择需转存的文件夹模态框分享者缓存
+          this.resetFileSelectShareAuthorState();
           
           // 修复滚动问题：如果创建任务模态框仍然打开，确保其可以正常滚动
           const createTaskModal = document.getElementById('createTaskModal');
@@ -10690,7 +10693,7 @@
           let hintName = '';
           if (previousTask && authorNameHint) {
             hintName = String(authorNameHint).trim();
-            if (hintName === '未知' || hintName === '加载中...') {
+            if (hintName === '未知' || hintName === '加载中') {
               hintName = '';
             }
           }
@@ -10813,7 +10816,7 @@
           let author = (this.createTask.shareAuthor || '').trim();
           if (!author) {
             const fallback = this.getEditTaskSavedShareAuthorName();
-            author = fallback || '加载中...';
+            author = fallback || '加载中';
           } else if (author === '未知') {
             const fallback = this.getEditTaskSavedShareAuthorName();
             if (fallback) author = fallback;
@@ -10904,6 +10907,104 @@
               if (reqId !== this.editTaskShareAuthorReqId) return;
               this.createTask.shareAuthor = this.resolveEditTaskShareAuthorDisplay('');
             });
+        },
+        // 选择需转存的文件夹模态框：从搜索结果或任务配置获取分享者昵称（无需请求）
+        getFileSelectShareAuthorFromSources() {
+          const shareurl = (this.fileSelect.shareurl || '').trim();
+          const resourceId = this.getResourceIdFromUrl(shareurl);
+          if (!resourceId) return '';
+
+          if (this.smart_param.taskSuggestions.data && this.smart_param.taskSuggestions.data.length > 0) {
+            if (this.smart_param.currentResourceIndex >= 0 &&
+                this.smart_param.currentResourceIndex < this.smart_param.taskSuggestions.data.length) {
+              const current = this.smart_param.taskSuggestions.data[this.smart_param.currentResourceIndex];
+              const currentId = this.getResourceIdFromUrl(current.shareurl);
+              if (currentId === resourceId) {
+                const name = (current.share_author_name || '').trim();
+                if (name) return name;
+              }
+            }
+            for (const item of this.smart_param.taskSuggestions.data) {
+              const itemId = this.getResourceIdFromUrl(item.shareurl);
+              if (itemId && itemId === resourceId) {
+                const name = (item.share_author_name || '').trim();
+                if (name) return name;
+              }
+            }
+          }
+
+          if (this.fileSelect.index !== null && this.fileSelect.index >= 0 && this.formData.tasklist[this.fileSelect.index]) {
+            const task = this.formData.tasklist[this.fileSelect.index];
+            const savedId = task.share_resource_id || this.getResourceIdFromUrl(task.shareurl);
+            if (savedId && savedId === resourceId) {
+              return (task.share_author_name || '').trim();
+            }
+          }
+
+          return '';
+        },
+        resolveFileSelectShareAuthorDisplay(fetchedName) {
+          const name = (fetchedName || '').trim();
+          if (name && name !== '未知') return name;
+          const fallback = this.getFileSelectShareAuthorFromSources();
+          return fallback || name || '未知';
+        },
+        getFileSelectShareAuthorDisplay() {
+          let author = (this.fileSelect.shareAuthor || '').trim();
+          if (!author) {
+            const fallback = this.getFileSelectShareAuthorFromSources();
+            author = fallback || '加载中';
+          } else if (author === '未知') {
+            const fallback = this.getFileSelectShareAuthorFromSources();
+            if (fallback) author = fallback;
+          }
+          return author;
+        },
+        resetFileSelectShareAuthorState() {
+          this.fileSelect.shareAuthor = '';
+          this.fileSelectShareAuthorResourceId = null;
+          this.fileSelectShareAuthorReqId = (this.fileSelectShareAuthorReqId || 0) + 1;
+        },
+        refreshFileSelectShareAuthor(shareurl, resourceId) {
+          if (!this.fileSelect.selectShare) return;
+          const url = (shareurl || this.fileSelect.shareurl || '').trim();
+          if (!url || !/pan\.(quark|qoark)\.cn\/s\//i.test(url)) {
+            this.fileSelectShareAuthorResourceId = null;
+            this.fileSelect.shareAuthor = '';
+            return;
+          }
+          const pwdId = resourceId || this.getResourceIdFromUrl(url);
+          const reqId = ++this.fileSelectShareAuthorReqId;
+          this.fileSelect.shareAuthor = this.getFileSelectShareAuthorFromSources() || '';
+          axios.get('/get_share_author', { params: { shareurl: url } })
+            .then(response => {
+              if (reqId !== this.fileSelectShareAuthorReqId) return;
+              let fetchedName = '';
+              if (response.data.success) {
+                fetchedName = (response.data.data && response.data.data.author_name) || '';
+              }
+              this.fileSelect.shareAuthor = this.resolveFileSelectShareAuthorDisplay(fetchedName);
+              if (pwdId) {
+                this.fileSelectShareAuthorResourceId = pwdId;
+              }
+            })
+            .catch(() => {
+              if (reqId !== this.fileSelectShareAuthorReqId) return;
+              this.fileSelect.shareAuthor = this.resolveFileSelectShareAuthorDisplay('');
+            });
+        },
+        maybeRefreshFileSelectShareAuthor(shareurl) {
+          if (!this.fileSelect.selectShare) return;
+          const url = (shareurl || this.fileSelect.shareurl || '').trim();
+          if (!url || !/pan\.(quark|qoark)\.cn\/s\//i.test(url)) {
+            this.fileSelectShareAuthorResourceId = null;
+            this.fileSelect.shareAuthor = '';
+            return;
+          }
+          const resourceId = this.getResourceIdFromUrl(url);
+          if (!resourceId) return;
+          if (resourceId === this.fileSelectShareAuthorResourceId && this.fileSelect.shareAuthor) return;
+          this.refreshFileSelectShareAuthor(url, resourceId);
         },
         onEditTaskShareurlInput() {
           if (!this.createTask.isEditMode) return;
@@ -11711,6 +11812,8 @@
               }
               // 更新当前分享链接并重新加载内容
               this.fileSelect.shareurl = previousResource.shareurl;
+              this.fileSelectShareAuthorResourceId = null;
+              this.fileSelect.shareAuthor = (previousResource.share_author_name || '').trim() || this.getFileSelectShareAuthorFromSources() || '';
               this.getShareDetail(0, 1);
             }
           }
@@ -11740,6 +11843,8 @@
               }
               // 更新当前分享链接并重新加载内容
               this.fileSelect.shareurl = nextResource.shareurl;
+              this.fileSelectShareAuthorResourceId = null;
+              this.fileSelect.shareAuthor = (nextResource.share_author_name || '').trim() || this.getFileSelectShareAuthorFromSources() || '';
               this.getShareDetail(0, 1);
             }
           }
@@ -12087,6 +12192,20 @@
               this.manualSortFileList(this.fileSelect.sortBy, this.fileSelect.sortOrder);
               this.fileSelect.paths = response.data.data.paths;
               this.fileSelect.stoken = response.data.data.stoken;
+
+              // 更新选择需转存的文件夹模态框左下角分享者信息
+              if (this.fileSelect.selectShare) {
+                const authorName = this.extractShareAuthorName(response.data.data);
+                if (authorName) {
+                  this.fileSelect.shareAuthor = this.resolveFileSelectShareAuthorDisplay(authorName);
+                  const pwdId = this.getResourceIdFromUrl(this.fileSelect.shareurl);
+                  if (pwdId) {
+                    this.fileSelectShareAuthorResourceId = pwdId;
+                  }
+                } else {
+                  this.maybeRefreshFileSelectShareAuthor();
+                }
+              }
               
               // 检查文件列表是否为空，仅在预览界面显示错误，不影响任务本身
               if (this.fileSelect.selectShare && (!this.fileSelect.fileList || this.fileSelect.fileList.length === 0)) {
@@ -12203,6 +12322,15 @@
           } else {
             // 如果没有搜索结果，重置currentResourceIndex
             this.smart_param.currentResourceIndex = -1;
+          }
+
+          // 选择需转存的文件夹：切换资源时重置分享者缓存，并先用本地来源预填
+          if (this.fileSelect.selectShare) {
+            const openingResourceId = this.getResourceIdFromUrl(this.fileSelect.shareurl);
+            if (openingResourceId !== this.fileSelectShareAuthorResourceId) {
+              this.fileSelectShareAuthorResourceId = null;
+            }
+            this.fileSelect.shareAuthor = this.getFileSelectShareAuthorFromSources() || '';
           }
           
           // 根据不同条件设置模态框类型
@@ -16918,7 +17046,7 @@
           const editIdx = this.createTask.editTaskIndex;
           const prevSnap = (editIdx != null && this._taskShareSnapshot) ? this._taskShareSnapshot[editIdx] : null;
           try {
-            const authorName = (this.createTask.shareAuthor && this.createTask.shareAuthor !== '未知' && this.createTask.shareAuthor !== '加载中...')
+            const authorName = (this.createTask.shareAuthor && this.createTask.shareAuthor !== '未知' && this.createTask.shareAuthor !== '加载中')
               ? this.createTask.shareAuthor : '';
             await this.applyTaskShareMetadataOnSave(
               updatedTask,
@@ -16997,7 +17125,7 @@
           const editIdx = this.createTask.editTaskIndex;
           const prevSnap = (editIdx != null && this._taskShareSnapshot) ? this._taskShareSnapshot[editIdx] : null;
           try {
-            const authorName = (this.createTask.shareAuthor && this.createTask.shareAuthor !== '未知' && this.createTask.shareAuthor !== '加载中...')
+            const authorName = (this.createTask.shareAuthor && this.createTask.shareAuthor !== '未知' && this.createTask.shareAuthor !== '加载中')
               ? this.createTask.shareAuthor : '';
             await this.applyTaskShareMetadataOnSave(
               updatedTask,
