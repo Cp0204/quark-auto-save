@@ -11835,31 +11835,34 @@
           
           // 开始批量处理前重置快速显示标记
           this.smart_param._hasShownInterimResults = false;
+          // 清除上一次验证的超时定时器
+          if (this.smart_param._validateTimeoutId) {
+            clearTimeout(this.smart_param._validateTimeoutId);
+            this.smart_param._validateTimeoutId = null;
+          }
           processBatch();
           
-          // 设置超时，避免永久等待
-          setTimeout(() => {
-            // 如果验证还在进行中，强制完成
+          // 按结果数量动态计算超时：每条约 300ms，最少 60 秒，最多 10 分钟
+          const totalCount = searchData.data.length;
+          const validateTimeoutMs = Math.min(600000, Math.max(60000, totalCount * 300));
+          this.smart_param._validateTimeoutId = setTimeout(() => {
+            // 验证仍在进行中则提前结束，未检验的链接不纳入结果（避免失效资源被当作有效）
             if (this.smart_param.validating && sessionId === this.smart_param.searchSessionId) {
-              // 在收尾前立即取消会话，避免后续批次继续追加导致重复
               this.smart_param.validating = false;
               this.smart_param.searchSessionId++;
-              // 将剩余未验证的链接添加到结果中（无分享者昵称的条目无法按黑名单过滤，保留原行为）
-              const remaining = toProcess.filter(item => item.shareurl);
-              validResults.push(...remaining);
-              
-              // 更新进度统计
-              this.smart_param.validateProgress.current = this.smart_param.validateProgress.total;
-              this.smart_param.validateProgress.valid = this.filterBlockedSharersFromResults(validResults).length;
-              
-              // 完成验证
-              this.finishValidation(searchData, validResults);
-              
+              const skippedUnvalidated = toProcess.filter(item => item.shareurl).length;
+              toProcess.length = 0;
+              this.finishValidation(searchData, validResults, { skippedUnvalidated });
             }
-          }, 30000); // 30秒超时
+          }, validateTimeoutMs);
         },
         // 完成验证并更新搜索结果
-        finishValidation(searchData, validResults) {
+        finishValidation(searchData, validResults, extraOptions = {}) {
+          // 清除验证超时定时器
+          if (this.smart_param._validateTimeoutId) {
+            clearTimeout(this.smart_param._validateTimeoutId);
+            this.smart_param._validateTimeoutId = null;
+          }
           // 清除快速显示标记
           this.smart_param._hasShownInterimResults = false;
           
@@ -11869,11 +11872,18 @@
           const visibleResults = this.filterBlockedSharersFromResults(validResults);
           
           // 更新搜索结果
+          let message = visibleResults.length === 0 ? "未找到有效的分享链接" : searchData.message;
+          const skipped = extraOptions.skippedUnvalidated || 0;
+          if (skipped > 0) {
+            message = visibleResults.length > 0
+              ? `验证超时，已省略 ${skipped} 个未检验链接（仅显示已验证的有效链接，共 ${visibleResults.length} 个）`
+              : `验证超时，${skipped} 个链接未完成检验，未找到已验证的有效链接`;
+          }
           const result = {
             success: searchData.success,
             source: searchData.source,
             data: visibleResults,
-            message: visibleResults.length === 0 ? "未找到有效的分享链接" : searchData.message
+            message: message
           };
           
           
