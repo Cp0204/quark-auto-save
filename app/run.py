@@ -47,7 +47,18 @@ from quark_auto_save import Config, format_bytes
 
 # 添加导入全局extract_episode_number和sort_file_by_name函数
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from quark_auto_save import extract_episode_number, sort_file_by_name, chinese_to_arabic, is_date_format, apply_subtitle_naming_rule
+from quark_auto_save import (
+    extract_episode_number,
+    sort_file_by_name,
+    chinese_to_arabic,
+    is_date_format,
+    apply_subtitle_naming_rule,
+    parse_naming_pattern_extension,
+    build_sequence_naming_filename,
+    build_episode_naming_filename,
+    build_sequence_regex_pattern,
+    is_standalone_sequence_pattern,
+)
 
 # 导入豆瓣服务
 from sdk.douban_service import douban_service
@@ -4103,14 +4114,9 @@ def get_share_detail():
         if regex.get("use_sequence_naming") and regex.get("sequence_naming"):
             # 顺序命名模式预览
             sequence_pattern = regex.get("sequence_naming")
+            use_digit_only_sequence_check = is_standalone_sequence_pattern(sequence_pattern)
             current_sequence = 1
-            
-            # 构建顺序命名的正则表达式
-            if sequence_pattern == "{}":
-                # 对于单独的{}，使用特殊匹配
-                regex_pattern = "(\\d+)"
-            else:
-                regex_pattern = re.escape(sequence_pattern).replace('\\{\\}', '(\\d+)')
+            regex_pattern = build_sequence_regex_pattern(sequence_pattern)
             
             # 实现与实际重命名相同的排序算法
             def extract_sort_value(file):
@@ -4123,7 +4129,7 @@ def get_share_detail():
                     continue  # 跳过目录
                 
                 # 检查文件是否已符合命名规则
-                if sequence_pattern == "{}":
+                if use_digit_only_sequence_check:
                     # 对于单独的{}，检查文件名是否为纯数字
                     file_name_without_ext = os.path.splitext(f["file_name"])[0]
                     if file_name_without_ext.isdigit():
@@ -4152,15 +4158,9 @@ def get_share_detail():
             # 为每个文件分配序号
             for file in sorted_files:
                 if not file.get("filtered"):
-                    # 获取文件扩展名
-                    file_ext = os.path.splitext(file["file_name"])[1]
-                    # 生成预览文件名
-                    if sequence_pattern == "{}":
-                        # 对于单独的{}，直接使用数字序号作为文件名
-                        file["file_name_re"] = f"{current_sequence:02d}{file_ext}"
-                    else:
-                        # 替换所有的{}为当前序号
-                        file["file_name_re"] = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
+                    file["file_name_re"] = build_sequence_naming_filename(
+                        sequence_pattern, current_sequence, file["file_name"]
+                    )
                     
                     # 应用字幕命名规则
                     file["file_name_re"] = apply_subtitle_naming_rule(file["file_name_re"], config_data["task_settings"])
@@ -4196,12 +4196,13 @@ def get_share_detail():
             # 处理未被过滤的文件
             for file in share_detail["list"]:
                 if not file["dir"] and not file.get("filtered"):  # 只处理未被过滤的非目录文件
-                    extension = os.path.splitext(file["file_name"])[1]
                     # 从文件名中提取集号
                     episode_num = extract_episode_number(file["file_name"], episode_patterns=episode_patterns)
 
                     if episode_num is not None:
-                        file["file_name_re"] = episode_pattern.replace("[]", f"{episode_num:02d}") + extension
+                        file["file_name_re"] = build_episode_naming_filename(
+                            episode_pattern, episode_num, file["file_name"]
+                        )
                         # 应用字幕命名规则
                         file["file_name_re"] = apply_subtitle_naming_rule(file["file_name_re"], config_data["task_settings"])
                         # 添加episode_number字段用于前端排序
@@ -5751,8 +5752,9 @@ def preview_rename():
             
             sequence = 1
             for file in filtered_files:
-                extension = os.path.splitext(file["file_name"])[1] if not file["dir"] else ""
-                new_name = pattern.replace("{}", f"{sequence:02d}") + extension
+                new_name = build_sequence_naming_filename(
+                    pattern, sequence, file["file_name"]
+                )
                 # 应用字幕命名规则
                 new_name = apply_subtitle_naming_rule(new_name, config_data["task_settings"])
                 preview_results.append({
@@ -5786,12 +5788,13 @@ def preview_rename():
             # 处理未被过滤的文件
             for file in filtered_files:
                 if not file["dir"] and not file.get("filtered"):  # 只处理未被过滤的非目录文件
-                    extension = os.path.splitext(file["file_name"])[1]
                     # 从文件名中提取集号
                     episode_num = extract_episode_number(file["file_name"], episode_patterns=episode_patterns)
 
                     if episode_num is not None:
-                        new_name = pattern.replace("[]", f"{episode_num:02d}") + extension
+                        new_name = build_episode_naming_filename(
+                            pattern, episode_num, file["file_name"]
+                        )
                         # 应用字幕命名规则
                         new_name = apply_subtitle_naming_rule(new_name, config_data["task_settings"])
                         preview_results.append({

@@ -1272,6 +1272,104 @@ def apply_subtitle_naming_rule(filename, task_settings):
     return f"{name_without_ext}.{subtitle_naming_rule}{ext}"
 
 
+# 已知文件格式扩展名（小写），用于识别命名规则末尾是否指定了文件扩展名
+KNOWN_FILE_EXTENSIONS = frozenset({
+    # 视频
+    "mp4", "mkv", "avi", "mov", "rmvb", "flv", "wmv", "m4v", "ts", "webm", "3gp", "f4v", "mpg", "mpeg",
+    # 音频
+    "mp3", "flac", "wav", "aac", "m4a", "wma", "ogg", "ape",
+    # 图片
+    "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "ico", "tiff", "tif", "heic", "heif",
+    # 文档
+    "doc", "docx", "pdf", "txt", "xls", "xlsx", "ppt", "pptx", "csv", "md", "rtf", "odt", "ods", "odp",
+    # 压缩
+    "zip", "rar", "7z", "tar", "gz", "bz2", "xz", "tgz",
+    # 字幕
+    "srt", "ass", "ssa", "vtt", "sup",
+    # 其他
+    "nfo", "torrent", "iso", "lrc", "json", "xml", "html", "htm",
+})
+
+_NAMING_PATTERN_EXT_RE = re.compile(r"\.([a-zA-Z0-9]{1,10})$")
+
+
+def parse_naming_pattern_extension(pattern):
+    """
+    解析顺序/剧集命名规则末尾是否指定了文件扩展名。
+    仅当末尾的 .xxx 为已知文件格式扩展名时才识别，避免将剧名中的点号或 SP/正片 等误判为扩展名。
+
+    Returns:
+        tuple: (pattern_base, specified_extension)
+        specified_extension 为带点号的扩展名（如 '.mp4'），未指定时为 None
+    """
+    if not pattern:
+        return pattern, None
+
+    match = _NAMING_PATTERN_EXT_RE.search(pattern)
+    if not match:
+        return pattern, None
+
+    ext_lower = match.group(1).lower()
+    if ext_lower not in KNOWN_FILE_EXTENSIONS:
+        return pattern, None
+
+    pattern_base = pattern[: match.start()]
+    forced_ext = "." + match.group(1)
+    return pattern_base, forced_ext
+
+
+def is_standalone_sequence_pattern(pattern):
+    """是否为未指定文件扩展名的单独 {} 占位符模式（沿用原有纯数字已命名判断逻辑）。"""
+    pattern_base, forced_ext = parse_naming_pattern_extension(pattern)
+    return pattern_base == "{}" and not forced_ext
+
+
+def build_sequence_naming_filename(pattern, sequence_num, original_filename):
+    """根据顺序命名规则生成文件名；规则末尾可指定文件扩展名以替换原文件扩展名。"""
+    pattern_base, forced_ext = parse_naming_pattern_extension(pattern)
+    seq_str = f"{sequence_num:02d}"
+
+    if pattern_base == "{}":
+        name_part = seq_str
+    else:
+        name_part = pattern_base.replace("{}", seq_str)
+
+    if forced_ext:
+        return name_part + forced_ext
+
+    file_ext = os.path.splitext(original_filename)[1]
+    return name_part + file_ext
+
+
+def build_episode_naming_filename(pattern, episode_num, original_filename):
+    """根据剧集命名规则生成文件名；规则末尾可指定文件扩展名以替换原文件扩展名。"""
+    pattern_base, forced_ext = parse_naming_pattern_extension(pattern)
+    ep_str = f"{episode_num:02d}"
+
+    if pattern_base == "[]":
+        name_part = ep_str
+    else:
+        name_part = pattern_base.replace("[]", ep_str)
+
+    if forced_ext:
+        return name_part + forced_ext
+
+    file_ext = os.path.splitext(original_filename)[1]
+    return name_part + file_ext
+
+
+def build_sequence_regex_pattern(sequence_pattern):
+    """构建顺序命名用于检测已命名文件的正则表达式（含规则末尾指定的文件扩展名）。"""
+    pattern_base, forced_ext = parse_naming_pattern_extension(sequence_pattern)
+    if pattern_base == "{}":
+        regex_pattern = r"(\d+)"
+    else:
+        regex_pattern = re.escape(pattern_base).replace("\\{\\}", "(\\d+)")
+    if forced_ext:
+        regex_pattern = regex_pattern + re.escape(forced_ext)
+    return regex_pattern
+
+
 class Config:
     # 下载配置
     def download_file(url, save_path):
@@ -2875,13 +2973,7 @@ class Quark:
             task["regex_pattern"] = None
             # 构建顺序命名的正则表达式
             sequence_pattern = task["sequence_naming"]
-            # 将{}替换为(\d+)用于匹配
-            if sequence_pattern == "{}":
-                # 对于单独的{}，使用特殊匹配
-                regex_pattern = "(\\d+)"
-            else:
-                regex_pattern = re.escape(sequence_pattern).replace('\\{\\}', '(\\d+)')
-            task["regex_pattern"] = regex_pattern
+            task["regex_pattern"] = build_sequence_regex_pattern(sequence_pattern)
         # 支持剧集命名模式
         elif task.get("use_episode_naming") and task.get("episode_naming"):
             # 剧集命名模式下已经在do_save中打印了剧集命名信息，这里不再重复打印
@@ -3048,12 +3140,13 @@ class Quark:
             # 顺序命名模式
             current_sequence = 1
             sequence_pattern = task["sequence_naming"]
+            use_digit_only_sequence_check = is_standalone_sequence_pattern(sequence_pattern)
             regex_pattern = task.get("regex_pattern")
             
             # 查找目录中现有的最大序号
             for dir_file in dir_file_list:
                 if not dir_file["dir"]:  # 只检查文件
-                    if sequence_pattern == "{}":
+                    if use_digit_only_sequence_check:
                         # 对于单独的{}，直接尝试匹配整个文件名是否为数字
                         file_name_without_ext = os.path.splitext(dir_file["file_name"])[0]
                         if file_name_without_ext.isdigit():
@@ -3162,10 +3255,10 @@ class Quark:
             
             # 为每个文件分配序号
             for share_file in filtered_share_files:
-                # 获取文件扩展名
-                file_ext = os.path.splitext(share_file["file_name"])[1]
                 # 生成新文件名
-                save_name = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
+                save_name = build_sequence_naming_filename(
+                    sequence_pattern, current_sequence, share_file["file_name"]
+                )
                 
                 # 应用字幕命名规则
                 save_name = apply_subtitle_naming_rule(save_name, task)
@@ -3185,7 +3278,7 @@ class Quark:
                 
                 if not file_exists:
                     # 设置保存文件名（单独的{}不在这里重命名，而是在do_rename_task中处理）
-                    if sequence_pattern == "{}":
+                    if use_digit_only_sequence_check:
                         share_file["save_name"] = share_file["file_name"]  # 保持原文件名，稍后在do_rename_task中处理
                     else:
                         share_file["save_name"] = save_name
@@ -3340,10 +3433,9 @@ class Quark:
                     if episode_num is not None:
                         # 根据剧集命名模式生成目标文件名
                         episode_pattern = task["episode_naming"]
-                        if episode_pattern == "[]":
-                            target_name = f"{episode_num:02d}{file_ext}"
-                        else:
-                            target_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                        target_name = build_episode_naming_filename(
+                            episode_pattern, episode_num, original_name
+                        )
                         
                         # 应用字幕命名规则
                         target_name = apply_subtitle_naming_rule(target_name, task)
@@ -4058,12 +4150,8 @@ class Quark:
                 return False, []
             # 使用顺序命名模式
             sequence_pattern = task["sequence_naming"]
-            # 替换占位符为正则表达式捕获组
-            if sequence_pattern == "{}":
-                # 对于单独的{}，使用特殊匹配
-                regex_pattern = "(\\d+)"
-            else:
-                regex_pattern = re.escape(sequence_pattern).replace('\\{\\}', '(\\d+)')
+            use_digit_only_sequence_check = is_standalone_sequence_pattern(sequence_pattern)
+            regex_pattern = build_sequence_regex_pattern(sequence_pattern)
             
             savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
             if not self.savepath_fid.get(savepath):
@@ -4094,7 +4182,7 @@ class Quark:
                 if dir_file.get("dir", False):
                     continue  # 跳过文件夹
 
-                if sequence_pattern == "{}":
+                if use_digit_only_sequence_check:
                     # 对于单独的{}，直接尝试匹配整个文件名是否为数字
                     file_name_without_ext = os.path.splitext(dir_file["file_name"])[0]
                     if file_name_without_ext.isdigit():
@@ -4133,7 +4221,7 @@ class Quark:
                     for record in records:
                         renamed_to = record.get("renamed_to", "")
                         if renamed_to:
-                            if sequence_pattern == "{}":
+                            if use_digit_only_sequence_check:
                                 # 对于单独的{}，直接尝试匹配整个文件名是否为数字
                                 file_name_without_ext = os.path.splitext(renamed_to)[0]
                                 if file_name_without_ext.isdigit():
@@ -4168,7 +4256,7 @@ class Quark:
             sorted_files = []
             
             # 对于单独的{}模式，增加额外检查
-            if sequence_pattern == "{}":
+            if use_digit_only_sequence_check:
                 # 收集所有不是纯数字命名的文件
                 for dir_file in dir_file_list:
                     if dir_file["dir"]:
@@ -4213,13 +4301,9 @@ class Quark:
             # 对排序好的文件应用顺序命名
             for dir_file in sorted_files:
                 current_sequence += 1
-                file_ext = os.path.splitext(dir_file["file_name"])[1]
-                # 根据顺序命名模式生成新的文件名
-                if sequence_pattern == "{}":
-                    # 对于单独的{}，直接使用数字序号作为文件名，不再使用日期格式
-                    save_name = f"{current_sequence:02d}{file_ext}"
-                else:
-                    save_name = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
+                save_name = build_sequence_naming_filename(
+                    sequence_pattern, current_sequence, dir_file["file_name"]
+                )
                 
                 # 应用字幕命名规则
                 save_name = apply_subtitle_naming_rule(save_name, task)
@@ -4435,10 +4519,9 @@ class Quark:
                             
                             # 构建可能的新文件名
                             if episode_num is not None:
-                                if episode_pattern == "[]":
-                                    new_name = f"{episode_num:02d}{file_ext}"
-                                else:
-                                    new_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                                new_name = build_episode_naming_filename(
+                                    episode_pattern, episode_num, original_name
+                                )
                                 # 应用字幕命名规则
                                 new_name = apply_subtitle_naming_rule(new_name, task)
                             else:
@@ -4507,13 +4590,9 @@ class Quark:
                     for share_file in sorted_files:
                         episode_num = extract_episode_number_local(share_file["file_name"])
                         if episode_num is not None:
-                            # 生成新文件名
-                            file_ext = os.path.splitext(share_file["file_name"])[1]
-                            if episode_pattern == "[]":
-                                # 对于单独的[]，直接使用数字序号作为文件名
-                                save_name = f"{episode_num:02d}{file_ext}"
-                            else:
-                                save_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                            save_name = build_episode_naming_filename(
+                                episode_pattern, episode_num, share_file["file_name"]
+                            )
                             
                             # 应用字幕命名规则
                             save_name = apply_subtitle_naming_rule(save_name, task)
@@ -4565,8 +4644,9 @@ class Quark:
                                 fname = f["file_name"]
                                 ep_num = extract_episode_number_local(fname)
                                 if ep_num is not None:
-                                    ext = os.path.splitext(fname)[1]
-                                    save_name = episode_pattern.replace("[]", f"{ep_num:02d}") + ext if episode_pattern != "[]" else f"{ep_num:02d}{ext}"
+                                    save_name = build_episode_naming_filename(
+                                        episode_pattern, ep_num, fname
+                                    )
                                     save_name = apply_subtitle_naming_rule(save_name, task)
                                 else:
                                     save_name = fname
@@ -4656,12 +4736,9 @@ class Quark:
                                                             moved_file_name = moved_file["file_name"]
                                                             episode_num = extract_episode_number_local(moved_file_name)
                                                             if episode_num is not None:
-                                                                # 根据剧集命名规则生成 save_name
-                                                                file_ext = os.path.splitext(moved_file_name)[1]
-                                                                if episode_pattern == "[]":
-                                                                    save_name = f"{episode_num:02d}{file_ext}"
-                                                                else:
-                                                                    save_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                                                                save_name = build_episode_naming_filename(
+                                                                    episode_pattern, episode_num, moved_file_name
+                                                                )
                                                                 # 应用字幕命名规则
                                                                 save_name = apply_subtitle_naming_rule(save_name, task)
                                                             else:
@@ -4829,25 +4906,13 @@ class Quark:
                 # 检查是否需要重命名
                 episode_num = extract_episode_number_local(dir_file["file_name"])
                 if episode_num is not None:
-                    # 根据剧集命名模式生成目标文件名
-                    file_ext = os.path.splitext(dir_file["file_name"])[1]
-                    if episode_pattern == "[]":
-                        # 使用完整的剧集号识别逻辑，而不是简单的纯数字判断
-                        # 生成新文件名
-                        new_name = f"{episode_num:02d}{file_ext}"
-                        # 应用字幕命名规则
-                        new_name = apply_subtitle_naming_rule(new_name, task)
-                        # 只有当当前文件名与目标文件名不同时才重命名
-                        if dir_file["file_name"] != new_name:
-                            rename_operations.append((dir_file, new_name, episode_num))
-                    else:
-                        # 生成目标文件名
-                        new_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
-                        # 应用字幕命名规则
-                        new_name = apply_subtitle_naming_rule(new_name, task)
-                        # 检查文件名是否已经符合目标格式
-                        if dir_file["file_name"] != new_name:
-                            rename_operations.append((dir_file, new_name, episode_num))
+                    new_name = build_episode_naming_filename(
+                        episode_pattern, episode_num, dir_file["file_name"]
+                    )
+                    # 应用字幕命名规则
+                    new_name = apply_subtitle_naming_rule(new_name, task)
+                    if dir_file["file_name"] != new_name:
+                        rename_operations.append((dir_file, new_name, episode_num))
             
             # 按剧集号排序
             rename_operations.sort(key=lambda x: x[2])
@@ -5831,15 +5896,10 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                             for i, node in enumerate(file_nodes):
                                 # 提取序号（从1开始）
                                 file_num = i + 1
-                                # 获取原始文件的扩展名
                                 orig_filename = remove_file_icons(node.tag)
-                                file_ext = os.path.splitext(orig_filename)[1]
-                                # 生成新的文件名（使用顺序命名模式）
-                                if sequence_pattern == "{}":
-                                    # 对于单独的{}，直接使用数字序号作为文件名
-                                    new_filename = f"{file_num:02d}{file_ext}"
-                                else:
-                                    new_filename = sequence_pattern.replace("{}", f"{file_num:02d}") + file_ext
+                                new_filename = build_sequence_naming_filename(
+                                    sequence_pattern, file_num, orig_filename
+                                )
                                 # 获取适当的图标
                                 icon = get_file_icon(orig_filename, is_dir=node.data.get("is_dir", False))
                                 # 添加到显示列表
