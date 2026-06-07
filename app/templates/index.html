@@ -6233,7 +6233,8 @@
           
           if (message.includes("分享者用户封禁链接查看受限") || 
               message.includes("文件涉及违规内容") ||
-              message.includes("分享地址已失效")) {
+              message.includes("分享地址已失效") ||
+              message.includes("文件不存在")) {
             return "该分享已失效，不可访问";
           } else if (message.includes("好友已取消了分享")) {
             return "该分享已被取消，无法访问";
@@ -6280,6 +6281,7 @@
             "分享者用户封禁链接查看受限",
             "好友已取消了分享",
             "文件已被分享者删除",
+            "文件不存在",
             "文件夹为空",
             "分享地址已失效",
             "分享地址已过期",
