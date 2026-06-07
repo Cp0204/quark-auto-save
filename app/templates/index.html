@@ -1348,13 +1348,13 @@
                               {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
                             </div>
                             <div
-                              v-for="suggestion in smart_param.taskSuggestions.data || []"
+                              v-for="(suggestion, suggestionIndex) in smart_param.taskSuggestions.data || []"
                               :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')"
                               class="dropdown-item cursor-pointer"
                               :class="{ 'current-suggestion': isCurrentSuggestion(suggestion), 'same-sharer-suggestion': isSameSharerSuggestion(suggestion), 'preferred-sharer-suggestion': isPreferredSharerSuggestion(suggestion) }"
                               @click.prevent="selectSuggestion(task.__originalIndex !== undefined ? task.__originalIndex : index, suggestion)"
                               style="font-size: 14px;"
-                              :title="getSuggestionHoverTitle(suggestion)"
+                              :title="getSuggestionHoverTitle(suggestion, suggestionIndex)"
                             >
                               <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                               <small class="text-muted">
@@ -2912,13 +2912,13 @@
                           {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
                         </div>
                         <div
-                          v-for="suggestion in smart_param.taskSuggestions.data || []"
+                          v-for="(suggestion, suggestionIndex) in smart_param.taskSuggestions.data || []"
                           :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')"
                           class="dropdown-item cursor-pointer"
                           :class="{ 'current-suggestion': isCurrentSuggestion(suggestion), 'same-sharer-suggestion': isSameSharerSuggestion(suggestion), 'preferred-sharer-suggestion': isPreferredSharerSuggestion(suggestion) }"
                           @click.prevent="selectSuggestion(-1, suggestion)"
                           style="font-size: 14px;"
-                          :title="getSuggestionHoverTitle(suggestion)"
+                          :title="getSuggestionHoverTitle(suggestion, suggestionIndex)"
                         >
                           <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
                           <small class="text-muted">
@@ -6126,23 +6126,59 @@
             return '';
           }
         },
-        // 仅当有有效信息时返回悬停提示，否则返回null以不显示
-        getSuggestionHoverTitle(suggestion) {
-          if (!suggestion) return null;
+        // 判断资源信息是否为有效内容（排除占位文本）
+        getSuggestionResourceContent(suggestion) {
+          if (!suggestion) return '';
           let content = (suggestion.content || '').trim();
-          if (!content) return null;
+          if (!content) return '';
           // 统一标点为英文冒号，统一逗号
           const normalized = content
             .replace(/：/g, ':')
             .replace(/，/g, ',')
             .replace(/\s+/g, ' ')
             .trim();
-          // 仅在明确的占位文本时隐藏：
+          // 仅在明确的占位文本时视为无信息：
           // 1) 全文就是“大小:-”
-          if (/^大小\s*:\s*-$/i.test(normalized)) return null;
+          if (/^大小\s*:\s*-$/i.test(normalized)) return '';
           // 2) 完全匹配“类别:xx, 文件类型:yy, 大小:-”这类占位
-          if (/^类别\s*:[^,]*,\s*文件类型\s*:[^,]*,\s*大小\s*:\s*-$/i.test(normalized)) return null;
+          if (/^类别\s*:[^,]*,\s*文件类型\s*:[^,]*,\s*大小\s*:\s*-$/i.test(normalized)) return '';
+          // 3) 全文就是“链接:”且冒号后无实际内容
+          if (/^链接\s*:\s*$/i.test(normalized)) return '';
           return content;
+        },
+        // 资源搜索结果悬停提示：资源序号、资源信息（有则显示）、分享者信息（获取不到时显示未知）
+        getSuggestionHoverTitle(suggestion, index) {
+          if (!suggestion) return null;
+          // 浏览器原生 title 提示约有 512 字符上限，超长会被截断导致分享者信息丢失
+          const TITLE_MAX = 480;
+          const CONTENT_MAX = 300;
+          const seq = (index != null && index >= 0) ? index + 1 : 0;
+          const seqPart = seq > 0 ? `#${seq}` : '';
+          const author = (suggestion.share_author_name || '').trim();
+          const authorPart = `分享者：${author || '未知'}`;
+          const rawContent = this.getSuggestionResourceContent(suggestion);
+          const parts = [];
+          if (seqPart) parts.push(seqPart);
+          if (rawContent) {
+            let overhead = 0;
+            if (seqPart && authorPart) {
+              overhead = seqPart.length + authorPart.length + 4;
+            } else if (seqPart) {
+              overhead = seqPart.length + 2;
+            } else if (authorPart) {
+              overhead = authorPart.length + 2;
+            }
+            const contentBudget = Math.min(
+              CONTENT_MAX,
+              Math.max(80, TITLE_MAX - overhead)
+            );
+            const content = rawContent.length > contentBudget
+              ? rawContent.slice(0, contentBudget) + '...'
+              : rawContent;
+            parts.push(content);
+          }
+          parts.push(authorPart);
+          return parts.join('\n\n');
         },
         // 获取插件展示名称（支持别名，仅用于WebUI显示）
         getPluginDisplayName(pluginName) {
