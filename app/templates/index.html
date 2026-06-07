@@ -1336,30 +1336,32 @@
                       <div class="input-group">
                         <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(task.__originalIndex !== undefined ? task.__originalIndex : index, task)" @input="changeTaskname(task.__originalIndex !== undefined ? task.__originalIndex : index, task)">
                         <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.index === (task.__originalIndex !== undefined ? task.__originalIndex : index) && (smart_param.taskSuggestions.success || smart_param.isSearching)">
-                          <div class="dropdown-item text-muted" v-if="smart_param.isSearching" style="font-size:14px; padding: 0 8px; text-align: left;">
-                            <span v-if="smart_param.validating">
-                              <i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i> 
-                              正在验证链接有效性...（{{ smart_param.validateProgress.current }}/{{ smart_param.validateProgress.total }}）<span v-if="smart_param.validateProgress.valid > 0">已找到 {{ smart_param.validateProgress.valid }} 个有效链接</span>
-                            </span>
-                            <span v-else>正在搜索资源...</span>
-                          </div>
-                          <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
-                            {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
-                          </div>
-                          <div
-                            v-for="suggestion in smart_param.taskSuggestions.data || []"
-                            :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')"
-                            class="dropdown-item cursor-pointer"
-                            :class="{ 'current-suggestion': isCurrentSuggestion(suggestion), 'same-sharer-suggestion': isSameSharerSuggestion(suggestion), 'preferred-sharer-suggestion': isPreferredSharerSuggestion(suggestion) }"
-                            @click.prevent="selectSuggestion(task.__originalIndex !== undefined ? task.__originalIndex : index, suggestion)"
-                            style="font-size: 14px;"
-                            :title="getSuggestionHoverTitle(suggestion)"
-                          >
-                            <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
-                            <small class="text-muted">
-                              <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '').split('#')[0] }}</a>
-                              <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date, suggestion.pansou_source, suggestion.source) : ''">{{ suggestion.source }}</span></template>
-                            </small>
+                          <div class="task-suggestions-inner">
+                            <div class="dropdown-item text-muted" v-if="smart_param.isSearching" style="font-size:14px; padding: 0 8px; text-align: left;">
+                              <span v-if="smart_param.validating">
+                                <i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i> 
+                                正在验证链接有效性...（{{ smart_param.validateProgress.current }}/{{ smart_param.validateProgress.total }}）<span v-if="smart_param.validateProgress.valid > 0">已找到 {{ smart_param.validateProgress.valid }} 个有效链接</span>
+                              </span>
+                              <span v-else>正在搜索资源...</span>
+                            </div>
+                            <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
+                              {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
+                            </div>
+                            <div
+                              v-for="suggestion in smart_param.taskSuggestions.data || []"
+                              :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')"
+                              class="dropdown-item cursor-pointer"
+                              :class="{ 'current-suggestion': isCurrentSuggestion(suggestion), 'same-sharer-suggestion': isSameSharerSuggestion(suggestion), 'preferred-sharer-suggestion': isPreferredSharerSuggestion(suggestion) }"
+                              @click.prevent="selectSuggestion(task.__originalIndex !== undefined ? task.__originalIndex : index, suggestion)"
+                              style="font-size: 14px;"
+                              :title="getSuggestionHoverTitle(suggestion)"
+                            >
+                              <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
+                              <small class="text-muted">
+                                <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '').split('#')[0] }}</a>
+                                <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date, suggestion.pansou_source, suggestion.source) : ''">{{ suggestion.source }}</span></template>
+                              </small>
+                            </div>
                           </div>
                         </div>
                         <div class="input-group-append" title="资源搜索">
@@ -2898,30 +2900,32 @@
                   <div class="input-group">
                     <input type="text" name="taskname[]" class="form-control" v-model="createTask.taskData.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(-1, createTask.taskData)" @input="changeTaskname(-1, createTask.taskData)">
                     <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.index === -1 && (smart_param.taskSuggestions.success || smart_param.isSearching)">
-                      <div class="dropdown-item text-muted" v-if="smart_param.isSearching" style="font-size:14px; padding: 0 8px; text-align: left;">
-                        <span v-if="smart_param.validating">
-                          <i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
-                          正在验证链接有效性...（{{ smart_param.validateProgress.current }}/{{ smart_param.validateProgress.total }}）<span v-if="smart_param.validateProgress.valid > 0">已找到 {{ smart_param.validateProgress.valid }} 个有效链接</span>
-                        </span>
-                        <span v-else>正在搜索资源...</span>
-                      </div>
-                      <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
-                        {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
-                      </div>
-                      <div
-                        v-for="suggestion in smart_param.taskSuggestions.data || []"
-                        :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')"
-                        class="dropdown-item cursor-pointer"
-                        :class="{ 'current-suggestion': isCurrentSuggestion(suggestion), 'same-sharer-suggestion': isSameSharerSuggestion(suggestion), 'preferred-sharer-suggestion': isPreferredSharerSuggestion(suggestion) }"
-                        @click.prevent="selectSuggestion(-1, suggestion)"
-                        style="font-size: 14px;"
-                        :title="getSuggestionHoverTitle(suggestion)"
-                      >
-                        <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
-                        <small class="text-muted">
-                          <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '').split('#')[0] }}</a>
-                          <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date, suggestion.pansou_source, suggestion.source) : ''">{{ suggestion.source }}</span></template>
-                        </small>
+                      <div class="task-suggestions-inner">
+                        <div class="dropdown-item text-muted" v-if="smart_param.isSearching" style="font-size:14px; padding: 0 8px; text-align: left;">
+                          <span v-if="smart_param.validating">
+                            <i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
+                            正在验证链接有效性...（{{ smart_param.validateProgress.current }}/{{ smart_param.validateProgress.total }}）<span v-if="smart_param.validateProgress.valid > 0">已找到 {{ smart_param.validateProgress.valid }} 个有效链接</span>
+                          </span>
+                          <span v-else>正在搜索资源...</span>
+                        </div>
+                        <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
+                          {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
+                        </div>
+                        <div
+                          v-for="suggestion in smart_param.taskSuggestions.data || []"
+                          :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')"
+                          class="dropdown-item cursor-pointer"
+                          :class="{ 'current-suggestion': isCurrentSuggestion(suggestion), 'same-sharer-suggestion': isSameSharerSuggestion(suggestion), 'preferred-sharer-suggestion': isPreferredSharerSuggestion(suggestion) }"
+                          @click.prevent="selectSuggestion(-1, suggestion)"
+                          style="font-size: 14px;"
+                          :title="getSuggestionHoverTitle(suggestion)"
+                        >
+                          <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
+                          <small class="text-muted">
+                            <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '').split('#')[0] }}</a>
+                            <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date, suggestion.pansou_source, suggestion.source) : ''">{{ suggestion.source }}</span></template>
+                          </small>
+                        </div>
                       </div>
                     </div>
                     <div class="input-group-append" title="资源搜索">

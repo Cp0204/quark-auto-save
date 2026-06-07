@@ -2127,6 +2127,7 @@ button.close:focus,
 .task-suggestions {
   width: 100%;
   max-height: 511px;
+  overflow-x: auto;
   overflow-y: auto;
   transform: translate(0, 0);
   top: 100%;
@@ -2140,6 +2141,13 @@ button.close:focus,
   box-sizing: border-box; /* 确保边框计入总高度 */
 }
 
+/* 内层滚动区域：统一各行高亮宽度（以当次结果最长一行为准），外层下拉框宽度不变 */
+.task-suggestions-inner {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+}
+
 /* 移除下拉菜单项的内部空白 */
 .task-suggestions .dropdown-item {
   padding: 0 8px;
@@ -2147,6 +2155,7 @@ button.close:focus,
   height: 30px; /* 内容高度改为30px */
   line-height: 30px; /* 行高同样调整 */
   box-sizing: border-box;
+  width: 100%; /* 拉齐至内层统一宽度 */
   color: var(--dark-text-color); /* 文本颜色 */
   transition: background-color 0.2s, color 0.2s;
   font-size: 14px !important; /* 文本字号 */
@@ -6401,6 +6410,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 #createTaskModal .task-suggestions {
   width: 100%;
   max-height: 511px;
+  overflow-x: auto;
   overflow-y: auto;
   transform: translate(0, 0);
   top: 100%;
@@ -6412,6 +6422,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   height: 30px;
   line-height: 30px;
   box-sizing: border-box;
+  width: 100%;
 }
 
 #createTaskModal .task-suggestions .dropdown-item:hover {
