@@ -10700,25 +10700,28 @@
 
 
         },
+        // 从列表移除任务并保存；删除后重拍分享快照，避免索引错位导致 shareurl_subscribed_since 被误刷新
+        finalizeTaskRemoval(index) {
+          this.formData.tasklist.splice(index, 1);
+          this.snapshotTaskShareResourceIds();
+          this.saveConfig();
+        },
         removeTask(index) {
           if (!confirm("确定要删除任务 [#" + (index + 1) + ": " + this.formData.tasklist[index].taskname + "] 吗？")) return;
           const task = this.formData.tasklist[index];
           const taskName = task.taskname || task.task_name;
           // 一次性任务（skip_calendar）不做日历清理，直接删除并保存
           if (task.skip_calendar === true) {
-            this.formData.tasklist.splice(index, 1);
-            this.saveConfig();
+            this.finalizeTaskRemoval(index);
             return;
           }
           // 非一次性任务：先请求后端清理（含数据库与海报文件），再删除任务并保存配置
           axios.post('/api/calendar/purge_by_task', { task_name: taskName })
             .then(() => {
-              this.formData.tasklist.splice(index, 1);
-              this.saveConfig();
+              this.finalizeTaskRemoval(index);
             })
             .catch(() => {
-              this.formData.tasklist.splice(index, 1);
-              this.saveConfig();
+              this.finalizeTaskRemoval(index);
             });
         },
         // 本地日期时间 YYYY-MM-DD HH:MM:SS（用于订阅起始时间戳）
@@ -10789,9 +10792,14 @@
           const newId = this.getResourceIdFromUrl(task.shareurl);
           if (!newId) return;
 
-          const oldId = previousTask
+          let oldId = previousTask
             ? (previousTask.share_resource_id || this.getResourceIdFromUrl(previousTask.shareurl || ''))
             : null;
+          const existingId = String(task.share_resource_id || '').trim() || null;
+          // 任务自身资源 ID 与当前链接一致时视为未换链（防止删除任务后快照索引错位误判）
+          if (existingId && existingId === newId) {
+            oldId = existingId;
+          }
           const nowTs = this.formatLocalDateTime(new Date());
           // 仅编辑保存时信任界面上的分享者提示；创建任务必须按当前链接重新拉取
           let hintName = '';
@@ -17551,19 +17559,16 @@
             const taskName = task.taskname || task.task_name;
             // 一次性任务（skip_calendar）不做日历清理，直接删除并保存
             if (task.skip_calendar === true) {
-              this.formData.tasklist.splice(index, 1);
-              this.saveConfig();
+              this.finalizeTaskRemoval(index);
               return;
             }
             // 非一次性任务：删除前执行清理
             axios.post('/api/calendar/purge_by_task', { task_name: taskName })
               .then(() => {
-                this.formData.tasklist.splice(index, 1);
-                this.saveConfig();
+                this.finalizeTaskRemoval(index);
               })
               .catch(() => {
-                this.formData.tasklist.splice(index, 1);
-                this.saveConfig();
+                this.finalizeTaskRemoval(index);
               });
           }
         },
