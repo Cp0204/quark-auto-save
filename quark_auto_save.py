@@ -1578,7 +1578,7 @@ class Quark:
             print(f"_send_request error:\n{e}")
             fake_response = requests.Response()
             fake_response.status_code = 500
-            fake_response._content = b'{"status": 500, "message": "request error"}'
+            fake_response._content = b'{"code": -1, "status": 500, "message": "request error"}'
             return fake_response
 
     def init(self):
@@ -1782,6 +1782,7 @@ class Quark:
         page = 1
         # 优化：增加每页大小，减少API调用次数
         page_size = kwargs.get("page_size", 200)  # 从50增加到200
+        max_retries = 3
 
         while True:
             url = f"{self.BASE_URL}/1/clouddrive/file/sort"
@@ -1797,20 +1798,57 @@ class Quark:
                 "_sort": "file_type:asc,updated_at:desc",
                 "_fetch_full_path": kwargs.get("fetch_full_path", 0),
             }
-            response = self._send_request("GET", url, params=querystring).json()
-            if response["code"] != 0:
-                return {"error": response["message"]}
-            if response["data"]["list"]:
-                file_list += response["data"]["list"]
+            retry_count = 0
+            response = None
+            while True:
+                try:
+                    response = self._send_request("GET", url, params=querystring).json()
+                except Exception:
+                    response = {"code": -1, "message": "request error"}
+
+                if isinstance(response, dict) and response.get("message"):
+                    error_message = response.get("message", "")
+                    if "inner error" in error_message.lower():
+                        if retry_count < max_retries:
+                            retry_count += 1
+                            time.sleep(1)
+                            continue
+
+                code = response.get("code") if isinstance(response, dict) else -1
+                status = response.get("status") if isinstance(response, dict) else None
+                if code not in (0, None):
+                    if retry_count < max_retries and (
+                        code == -1 or "request error" in str(response.get("message", "")).lower()
+                    ):
+                        retry_count += 1
+                        time.sleep(1)
+                        continue
+                    return {"error": response.get("message", "unknown error")}
+                if status not in (None, 200):
+                    if retry_count < max_retries:
+                        retry_count += 1
+                        time.sleep(1)
+                        continue
+                    return {"error": response.get("message", "request error")}
+                break
+
+            data = response.get("data") or {}
+            metadata = response.get("metadata") or {}
+            page_list = data.get("list") or []
+
+            if page_list:
+                file_list += page_list
                 page += 1
             else:
                 break
-            if len(file_list) >= response["metadata"]["_total"]:
+
+            total = metadata.get("_total") if isinstance(metadata, dict) else None
+            if isinstance(total, int) and len(file_list) >= total:
                 break
-        
+
         # 修复文件夹大小显示问题：当include_items字段不存在时，通过额外API调用获取
         file_list = self._fix_folder_sizes(file_list)
-        
+
         return file_list
 
     def _fix_folder_sizes(self, file_list):
@@ -2166,15 +2204,23 @@ class Quark:
         extracted_folder_name = extracted_folder.get("file_name")
         
         # 第三步：获取解压后的所有文件
-        extracted_files = self.ls_dir(extracted_folder_fid)
-        
-        # 收集所有需要处理的文件（递归获取）
         all_files = []
         folders_to_delete = [extracted_folder_fid]  # 需要删除的文件夹列表
-        
+        list_read_failed = None
+
         def collect_files_recursive(folder_fid, relative_path=""):
             """递归收集文件夹内的所有文件"""
+            nonlocal list_read_failed
+            if list_read_failed:
+                return
             files = self.ls_dir(folder_fid)
+            if not isinstance(files, list):
+                list_read_failed = (
+                    files.get("error", "request error")
+                    if isinstance(files, dict)
+                    else "request error"
+                )
+                return
             for f in files:
                 file_relative_path = f"{relative_path}/{f['file_name']}" if relative_path else f['file_name']
                 if f.get("dir"):
@@ -2190,7 +2236,10 @@ class Quark:
                     })
         
         collect_files_recursive(extracted_folder_fid)
-        
+        if list_read_failed:
+            print(f"  ❌ 读取解压目录失败: {list_read_failed}")
+            return {"success": False, "message": list_read_failed}
+
         # 第四步：应用过滤规则并删除被过滤掉的文件
         if task and task.get("filterwords"):
             # 应用过滤规则，获取通过过滤的文件列表
@@ -3994,6 +4043,8 @@ class Quark:
                     if self._is_auto_extract_enabled(auto_extract_mode):
                         # 获取刚转存的文件列表（转存后可能有延迟，支持重试）
                         fresh_files = self.ls_dir(to_pdir_fid)
+                        if not isinstance(fresh_files, list):
+                            fresh_files = []
                         max_retries = 3
                         retry_delay = 2
 
@@ -4015,6 +4066,8 @@ class Quark:
                                     for _ in range(max_retries - 1):
                                         time.sleep(retry_delay)
                                         fresh_files = self.ls_dir(to_pdir_fid)
+                                        if not isinstance(fresh_files, list):
+                                            fresh_files = []
                                         for f in fresh_files:
                                             if f["file_name"] == saved_item["file_name"]:
                                                 archive_file = f
