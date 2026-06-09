@@ -2026,17 +2026,19 @@
                       </td>
                       <td class="file-size-cell">
                         <span class="file-size-value">{{ file.dir ? (file.include_items + ' 项') : formatFileSize(file.size || file.file_size) }}</span>
-                        <span class="rename-record-btn" @click.stop="startRenameFile(file)" title="重命名文件">
-                          <i class="bi bi-pencil"></i>
-                        </span>
-                        <span v-if="!file.dir && isArchiveFile(file.file_name)" class="extract-record-btn" @click.stop="startExtractFile(file)" title="云解压">
-                          <i class="bi bi-file-zip"></i>
-                        </span>
-                        <span class="move-record-btn" @click.stop="startMoveFile(file)" title="移动文件">
-                          <i class="bi bi-arrow-up-right-circle"></i>
-                        </span>
-                        <span class="delete-record-btn" @click.stop="deleteSelectedFilesForManager(file.fid, file.file_name, file.dir)" title="删除文件">
-                          <i class="bi bi-trash3"></i>
+                        <span v-if="showFileManagerActionBar(file)" class="file-manager-action-btns">
+                          <span v-if="showFileManagerRenameBtn(file)" class="rename-record-btn" @click.stop="startRenameFile(file)" title="重命名">
+                            <i class="bi bi-pencil"></i>
+                          </span>
+                          <span v-if="showFileManagerExtractBtn(file)" class="extract-record-btn" @click.stop="startExtractFile(file)" title="云解压">
+                            <i class="bi bi-file-zip"></i>
+                          </span>
+                          <span v-if="showFileManagerMoveBtn(file)" class="move-record-btn" @click.stop="startMoveFile(file)" title="移动">
+                            <i class="bi bi-arrow-up-right-circle"></i>
+                          </span>
+                          <span v-if="showFileManagerDeleteBtn(file)" class="delete-record-btn" @click.stop="deleteSelectedFilesForManager(file.fid, file.file_name, file.dir)" title="删除">
+                            <i class="bi bi-trash3"></i>
+                          </span>
                         </span>
                       </td>
                       <td>{{ formatDate(file.updated_at) }}</td>
@@ -2049,7 +2051,9 @@
             <!-- 分页区域 -->
             <div class="pagination-container d-flex justify-content-between align-items-center mt-3">
               <div class="page-info text-secondary">
-                显示 {{ fileManager.total > 0 ? ((fileManager.currentPage - 1) * fileManager.pageSize + 1) + '-' + Math.min(fileManager.currentPage * fileManager.pageSize, fileManager.total) : '0-0' }} 项，共 {{ fileManager.total }} 个项目{{ fileManager.selectedFiles.length > 0 ? '，已选中 ' + fileManager.selectedFiles.length + ' 项' : '' }}
+                显示 {{ fileManager.total > 0 ? ((fileManager.currentPage - 1) * fileManager.pageSize + 1) + '-' + Math.min(fileManager.currentPage * fileManager.pageSize, fileManager.total) : '0-0' }} 项，<span class="history-total-records-wrap"
+                      @mouseenter="fileManagerTotalHover = true"
+                      @mouseleave="fileManagerTotalHover = false">共 {{ fileManager.total }} 个项目<template v-if="fileManager.selectedFiles.length === 0 && fileManagerTotalHover && fileManager.total > 0">，<span class="history-select-all-btn" @click.stop="selectAllFileManagerItems">全选</span></template></span>{{ fileManager.selectedFiles.length > 0 ? '，已选中 ' + fileManager.selectedFiles.length + ' 项' : '' }}
               </div>
               <div class="pagination-controls d-flex align-items-center">
                 <button type="button" class="btn btn-outline-secondary btn-sm mx-1" :class="{ disabled: fileManager.currentPage <= 1 }" @click="changeFolderPage(fileManager.currentPage - 1)" :disabled="fileManager.currentPage <= 1">
@@ -3561,6 +3565,7 @@
         selectedRecords: [],
         lastSelectedRecordIndex: -1, // 记录最后选择的记录索引，用于Shift选择
         historyTotalHover: false, // 转存记录左下角「共 x 条记录」悬停状态
+        fileManagerTotalHover: false, // 文件整理左下角「共 x 个项目」悬停状态
         _lastTaskFilter: "",
         _lastNameFilter: "",
         _lastStatusFilter: "",
@@ -3621,6 +3626,8 @@
           include_folders: false,
           // 选中的文件
           selectedFiles: [],
+          // 全选时缓存的项目信息（fid -> { file_name, dir }），用于跨页批量操作
+          selectedFilesInfo: {},
           // 上次选中的文件索引
           lastSelectedFileIndex: -1,
           // 跳转到页码
@@ -4354,6 +4361,15 @@
             return [];
           }
           return this.history.records;
+        },
+        // 当前选中项是否全部为可云解压的压缩包（用于多选/全选时控制按钮显示）
+        fileManagerSelectionCanBatchExtract() {
+          const selected = this.fileManager.selectedFiles;
+          if (!selected || selected.length === 0) {
+            return false;
+          }
+          const items = this.getFileManagerSelectedItems();
+          return items.length > 0 && items.every(item => !item.dir && this.isArchiveFile(item.file_name));
         },
         historyTasks() {
           // 如果已经通过API加载了所有任务名称，则使用它
@@ -9005,6 +9021,7 @@
         onAccountChange() {
           // 保存选中的账号索引到localStorage
           localStorage.setItem('quarkAutoSave_selectedAccountIndex', this.fileManager.selectedAccountIndex.toString());
+          this.clearFileManagerSelection();
 
           // 获取新账号最后一次访问的目录
           const newAccountLastFolder = localStorage.getItem(`quarkAutoSave_fileManagerLastFolder_${this.fileManager.selectedAccountIndex}`) || 'root';
@@ -12615,10 +12632,10 @@
             this.smart_param.showSuggestions = false;
           }
         },
-        // 移动文件到当前文件夹
+        // 移动文件或文件夹到当前文件夹
         moveFilesToCurrentFolder() {
           if (!this.fileSelect.moveFileIds || this.fileSelect.moveFileIds.length === 0) {
-            alert('没有选择要移动的文件');
+            alert('没有选择要移动的项目');
             return;
           }
 
@@ -12632,14 +12649,30 @@
 
           const fileCount = this.fileSelect.moveFileIds.length;
           const confirmMessage = fileCount === 1
-            ? '确定要移动此文件吗？'
-            : `确定要移动选中的 ${fileCount} 个文件吗？`;
+            ? '确定要移动此项目吗？'
+            : `确定要移动选中的 ${fileCount} 个项目吗？`;
 
           if (!confirm(confirmMessage)) {
             return;
           }
 
-          // 调用移动文件API
+          // 文件夹不能移动到自身或其子目录内
+          for (const fid of this.fileSelect.moveFileIds) {
+            const itemInfo = this.getFileManagerItemInfo(fid);
+            if (!itemInfo.dir) {
+              continue;
+            }
+            if (fid === targetFolderId) {
+              alert('不能将文件夹移动到自身');
+              return;
+            }
+            if (this.fileSelect.paths.some(pathItem => pathItem.fid === fid)) {
+              alert('不能将文件夹移动到其自身内部');
+              return;
+            }
+          }
+
+          // 调用移动 API
           axios.post('/move_file', {
             file_ids: this.fileSelect.moveFileIds,
             target_folder_id: targetFolderId,
@@ -12647,7 +12680,7 @@
           })
           .then(response => {
             if (response.data.success) {
-              this.showToast(`成功移动 ${response.data.moved_count} 个文件`);
+              this.showToast(`成功移动 ${response.data.moved_count} 个项目`);
 
               // 关闭模态框
               $('#fileSelectModal').modal('hide');
@@ -12657,8 +12690,8 @@
               this.fileSelect.moveFileIds = [];
               this.fileSelect.index = null; // 重置index避免后续访问undefined
 
-              // 清空选中的文件
-              this.fileManager.selectedFiles = [];
+              // 清空选中的项目
+              this.clearFileManagerSelection();
 
               // 延迟刷新以确保后端处理完成
               setTimeout(() => {
@@ -14744,7 +14777,7 @@
           this.loadHistoryRecords();
         },
         navigateToFolder(folderId, folderName) {
-          this.fileManager.selectedFiles = []; // 清空选中的文件
+          this.clearFileManagerSelection();
           
           if (folderId === 'root') {
             // 回到根目录
@@ -14772,43 +14805,168 @@
           this.fileManager.currentPage = 1;
           this.loadFileListWithoutLoading(folderId);
         },
+        // 清空文件整理页面的选中状态
+        clearFileManagerSelection() {
+          this.fileManager.selectedFiles = [];
+          this.fileManager.selectedFilesInfo = {};
+          this.fileManager.lastSelectedFileIndex = -1;
+          this.fileManagerTotalHover = false;
+        },
+        // 构建文件列表 API 请求参数
+        buildFileManagerApiParams(overrides = {}) {
+          return {
+            folder_id: this.fileManager.currentFolder || 'root',
+            sort_by: this.fileManager.sortBy,
+            order: this.fileManager.sortOrder,
+            page_size: this.fileManager.pageSize,
+            page: this.fileManager.currentPage,
+            account_index: this.fileManager.selectedAccountIndex,
+            ...overrides
+          };
+        },
+        // 获取文件整理页面中项目的名称与类型（优先当前页，其次全选缓存）
+        getFileManagerItemInfo(fid) {
+          const fromList = this.fileManager.fileList.find(file => file.fid === fid);
+          if (fromList) {
+            return { file_name: fromList.file_name, dir: fromList.dir };
+          }
+          if (this.fileManager.selectedFilesInfo && this.fileManager.selectedFilesInfo[fid]) {
+            return this.fileManager.selectedFilesInfo[fid];
+          }
+          return { file_name: '', dir: false };
+        },
+        // 将当前选中项转为可操作对象列表（合并当前页与全选缓存，支持跨页）
+        getFileManagerSelectedItems() {
+          return this.fileManager.selectedFiles.map(fid => {
+            const fromList = this.fileManager.fileList.find(file => file.fid === fid);
+            if (fromList) {
+              return fromList;
+            }
+            const info = this.getFileManagerItemInfo(fid);
+            return { fid, file_name: info.file_name, dir: info.dir };
+          });
+        },
+        // 多选/全选时：重命名仅支持单项，多选时隐藏
+        showFileManagerRenameBtn(file) {
+          const count = this.fileManager.selectedFiles.length;
+          if (count > 1) {
+            return false;
+          }
+          if (count === 1) {
+            return this.fileManager.selectedFiles.includes(file.fid);
+          }
+          return true;
+        },
+        // 多选/全选时：仅当选中项全部为压缩包时显示云解压
+        showFileManagerExtractBtn(file) {
+          if (file.dir || !this.isArchiveFile(file.file_name)) {
+            return false;
+          }
+          const count = this.fileManager.selectedFiles.length;
+          if (count === 0) {
+            return true;
+          }
+          if (!this.fileManager.selectedFiles.includes(file.fid)) {
+            return false;
+          }
+          if (count === 1) {
+            return true;
+          }
+          return this.fileManagerSelectionCanBatchExtract;
+        },
+        // 多选/全选时：移动支持批量，仅在选中行显示
+        showFileManagerMoveBtn(file) {
+          const count = this.fileManager.selectedFiles.length;
+          if (count === 0) {
+            return true;
+          }
+          return this.fileManager.selectedFiles.includes(file.fid);
+        },
+        // 多选/全选时：删除支持批量，仅在选中行显示
+        showFileManagerDeleteBtn(file) {
+          return this.showFileManagerMoveBtn(file);
+        },
+        // 当前行是否有任意可显示的操作按钮
+        showFileManagerActionBar(file) {
+          return this.showFileManagerRenameBtn(file)
+            || this.showFileManagerExtractBtn(file)
+            || this.showFileManagerMoveBtn(file)
+            || this.showFileManagerDeleteBtn(file);
+        },
+        // 全选当前目录内的全部项目（含文件与文件夹）
+        selectAllFileManagerItems() {
+          const total = this.fileManager.total || 0;
+          if (total === 0 || this.fileManager.selectedFiles.length > 0) {
+            return;
+          }
+          const params = this.buildFileManagerApiParams({
+            page_size: total,
+            page: 1
+          });
+          axios.get('/file_list', { params })
+            .then(response => {
+              if (response.data.success && response.data.data && response.data.data.list) {
+                const list = response.data.data.list;
+                this.fileManager.selectedFiles = list.map(item => item.fid);
+                const info = {};
+                list.forEach(item => {
+                  info[item.fid] = { file_name: item.file_name, dir: item.dir };
+                });
+                this.fileManager.selectedFilesInfo = info;
+                this.fileManagerTotalHover = false;
+              } else {
+                alert(response.data.message || '获取文件列表失败');
+              }
+            })
+            .catch(error => {
+              console.error('全选项目时出错:', error);
+              alert('获取文件列表时出错: ' + (error.response?.data?.message || error.message));
+            });
+        },
+        // 将当前页选中项同步到 selectedFilesInfo，便于跨页批量操作
+        syncFileManagerSelectionInfo() {
+          if (!this.fileManager.selectedFilesInfo) {
+            this.fileManager.selectedFilesInfo = {};
+          }
+          this.fileManager.fileList.forEach(item => {
+            if (this.fileManager.selectedFiles.includes(item.fid)) {
+              this.fileManager.selectedFilesInfo[item.fid] = {
+                file_name: item.file_name,
+                dir: item.dir
+              };
+            }
+          });
+        },
         selectFileForManager(event, file) {
-          // 如果是文件夹，不允许选择
-          if (file.dir) return;
-          
-          // 如果是Shift+点击，选择范围
+          const currentIndex = this.fileManager.fileList.indexOf(file);
+          if (currentIndex === -1) return;
+
+          // 如果是Shift+点击，选择范围（含文件与文件夹）
           if (event.shiftKey && this.fileManager.selectedFiles.length > 0) {
-            // 找出所有已选中文件的索引
-            const selectedIndices = this.fileManager.selectedFiles.map(id => 
-              this.fileManager.fileList.findIndex(file => file.fid === id)
-            ).filter(index => index !== -1); // 过滤掉未找到的文件
-            
+            const selectedIndices = this.fileManager.selectedFiles.map(id =>
+              this.fileManager.fileList.findIndex(item => item.fid === id)
+            ).filter(index => index !== -1);
+
             if (selectedIndices.length > 0) {
-              // 找出已选中文件中最靠前的索引
               const earliestSelectedIndex = Math.min(...selectedIndices);
-              // 确定最终的选择范围
-              const startIndex = Math.min(earliestSelectedIndex, this.fileManager.fileList.indexOf(file));
-              const endIndex = Math.max(earliestSelectedIndex, this.fileManager.fileList.indexOf(file));
-              
-              // 获取范围内所有文件的ID（排除文件夹）
+              const startIndex = Math.min(earliestSelectedIndex, currentIndex);
+              const endIndex = Math.max(earliestSelectedIndex, currentIndex);
               this.fileManager.selectedFiles = this.fileManager.fileList
                 .slice(startIndex, endIndex + 1)
-                .filter(file => !file.dir) // 只选择文件，不选择文件夹
-                .map(file => file.fid);
+                .map(item => item.fid);
             } else {
-              // 如果没有有效的选中文件（可能是由于列表刷新），则只选择当前文件
               this.fileManager.selectedFiles = [file.fid];
             }
-          } 
-          // 如果是Ctrl/Cmd+点击，切换单个文件选择状态
+          }
+          // 如果是Ctrl/Cmd+点击，切换单个项目选择状态
           else if (event.ctrlKey || event.metaKey) {
             if (this.fileManager.selectedFiles.includes(file.fid)) {
               this.fileManager.selectedFiles = this.fileManager.selectedFiles.filter(id => id !== file.fid);
             } else {
               this.fileManager.selectedFiles.push(file.fid);
             }
-          } 
-          // 普通点击，清除当前选择并选择当前文件
+          }
+          // 普通点击，清除当前选择并选择当前项目
           else {
             if (this.fileManager.selectedFiles.length === 1 && this.fileManager.selectedFiles.includes(file.fid)) {
               this.fileManager.selectedFiles = [];
@@ -14816,15 +14974,16 @@
               this.fileManager.selectedFiles = [file.fid];
             }
           }
-          
-          // 更新最后选择的文件索引，只有在有选择文件时才更新
+
+          this.syncFileManagerSelectionInfo();
+
           if (this.fileManager.selectedFiles.length > 0) {
-            this.fileManager.lastSelectedFileIndex = this.fileManager.fileList.indexOf(file);
+            this.fileManager.lastSelectedFileIndex = currentIndex;
           } else {
             this.fileManager.lastSelectedFileIndex = -1;
+            this.fileManager.selectedFilesInfo = {};
           }
-          
-          // 阻止事件冒泡
+
           event.stopPropagation();
         },
         formatFileSize(fileSize) {
@@ -15281,14 +15440,8 @@
             }
           });
         },
-        // 开始移动文件
+        // 开始移动文件或文件夹
         startMoveFile(file) {
-          // 如果是文件夹，不允许移动
-          if (file.dir) {
-            this.showToast('暂不支持移动文件夹');
-            return;
-          }
-
           // 设置移动模式相关参数
           this.fileSelect.moveMode = true;
           this.fileSelect.moveFileIds = this.fileManager.selectedFiles.length > 0 && this.fileManager.selectedFiles.includes(file.fid)
@@ -15332,11 +15485,11 @@
             return;
           }
 
-          // 确定待解压文件列表：若当前行在选中列表中且选中了多个压缩文件，则解压全部选中的压缩包；否则只解压当前文件
+          // 确定待解压文件列表：若当前行在选中列表中，则解压全部选中的压缩包（含跨页全选）
           let filesToExtract = [file];
           if (this.fileManager.selectedFiles.length > 0 && this.fileManager.selectedFiles.includes(file.fid)) {
-            const selectedArchives = this.fileManager.fileList.filter(
-              f => !f.dir && this.isArchiveFile(f.file_name) && this.fileManager.selectedFiles.includes(f.fid)
+            const selectedArchives = this.getFileManagerSelectedItems().filter(
+              item => !item.dir && this.isArchiveFile(item.file_name)
             );
             if (selectedArchives.length > 0) {
               filesToExtract = selectedArchives;
@@ -15557,12 +15710,16 @@
             return;
           }
 
-          // 正常处理点击事件
+          // 文件夹：普通点击进入，Ctrl/Shift/Cmd+点击多选
           if (file.dir) {
-            this.navigateToFolder(file.fid, file.file_name);
-          } else {
-            this.selectFileForManager(event, file);
+            if (event.shiftKey || event.ctrlKey || event.metaKey) {
+              this.selectFileForManager(event, file);
+            } else {
+              this.navigateToFolder(file.fid, file.file_name);
+            }
+            return;
           }
+          this.selectFileForManager(event, file);
         },
         loadFileList(folderId) {
           this.fileManager.currentFolder = folderId || 'root';
@@ -15626,36 +15783,6 @@
           // 最后重新加载文件列表
           this.loadFileListWithoutLoading(this.fileManager.currentFolder);
         },
-        navigateToFolder(folderId, folderName) {
-          this.fileManager.selectedFiles = []; // 清空选中的文件
-          
-          if (folderId === 'root') {
-            // 回到根目录
-            this.fileManager.paths = [];
-          } else {
-            // 查找是否已经在路径中
-            const index = this.fileManager.paths.findIndex(path => path.fid === folderId);
-            
-            if (index !== -1) {
-              // 如果已存在，截取到该位置
-              this.fileManager.paths = this.fileManager.paths.slice(0, index + 1);
-            } else {
-              // 否则添加到路径
-              this.fileManager.paths.push({
-                fid: folderId,
-                name: folderName
-              });
-            }
-          }
-          
-          // 保存当前目录到localStorage（为每个账号单独保存）
-          localStorage.setItem(`quarkAutoSave_fileManagerLastFolder_${this.fileManager.selectedAccountIndex}`, folderId);
-          
-          // 重置页码并加载新文件夹内容，不显示加载动画
-          this.fileManager.currentPage = 1;
-          this.loadFileListWithoutLoading(folderId);
-        },
-        
         // 添加一个不显示加载动画的文件列表加载方法
         loadFileListWithoutLoading(folderId) {
           this.fileManager.currentFolder = folderId || 'root';
@@ -15822,24 +15949,23 @@
           // 如果点击不在表格内且不在分页控制区域内，则清除选择
           if (tableElement && !tableElement.contains(event.target) &&
               paginationElement && !paginationElement.contains(event.target)) {
-            this.fileManager.selectedFiles = [];
-            this.fileManager.lastSelectedFileIndex = -1;
+            this.clearFileManagerSelection();
           }
         },
         deleteSelectedFilesForManager(clickedFid, clickedFname, isDir, deleteRecords = false) {
-          // 如果是文件夹或者没有选中的文件，则按原来的方式删除单个文件
-          if (isDir || this.fileManager.selectedFiles.length === 0) {
+          // 无选中时，删除当前点击的单个项目
+          if (this.fileManager.selectedFiles.length === 0) {
             this.deleteFile({ fid: clickedFid, file_name: clickedFname, dir: isDir });
             return;
           }
           
-          // 如果点击的文件不在选中列表中，也按原来的方式删除单个文件
+          // 点击项不在选中列表中，只删除当前点击的单个项目
           if (!this.fileManager.selectedFiles.includes(clickedFid)) {
             this.deleteFile({ fid: clickedFid, file_name: clickedFname, dir: isDir });
             return;
           }
           
-          // 多选删除
+          // 多选删除（含全选：文件与文件夹混合）
           const selectedCount = this.fileManager.selectedFiles.length;
           
           // 根据选中数量使用不同的确认提示
@@ -15856,13 +15982,11 @@
             
             // 创建一个Promise数组来处理所有删除请求
             const deletePromises = this.fileManager.selectedFiles.map(fid => {
-              // 查找对应的文件对象，获取文件名
-              const fileObj = this.fileManager.fileList.find(file => file.fid === fid);
-              const fileName = fileObj ? fileObj.file_name : '';
+              const fileInfo = this.getFileManagerItemInfo(fid);
               
               return axios.post('/delete_file', {
                 fid: fid,
-                file_name: fileName,
+                file_name: fileInfo.file_name,
                 delete_records: deleteRecords,
                 save_path: save_path,
                 account_index: this.fileManager.selectedAccountIndex
@@ -15891,6 +16015,7 @@
 
                 // 如果有成功删除的文件，刷新文件列表以确保缓存同步
                 if (successCount > 0) {
+                  this.clearFileManagerSelection();
                   this.refreshCurrentFolderCache();
                   // 如果命名预览模态框是打开的，也要刷新它
                   if ($('#fileSelectModal').hasClass('show')) {

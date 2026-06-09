@@ -8978,3 +8978,55 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
 .history-select-all-btn:hover {
   color: var(--focus-border-color);
 }
+
+/* 文件整理：操作按钮 flex 容器，隐藏项不占位，可见按钮自动左对齐紧凑排列 */
+.selectable-files .file-manager-action-btns {
+  display: none;
+  align-items: center;
+  gap: 3px;
+  position: absolute;
+  left: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.selectable-files tr:hover .file-size-cell .file-manager-action-btns,
+.selectable-files tr.selected-file .file-size-cell .file-manager-action-btns {
+  display: inline-flex !important;
+}
+
+.selectable-files .file-manager-action-btns .rename-record-btn,
+.selectable-files .file-manager-action-btns .extract-record-btn,
+.selectable-files .file-manager-action-btns .move-record-btn,
+.selectable-files .file-manager-action-btns .delete-record-btn,
+body .selectable-files tbody tr:hover .file-size-cell .file-manager-action-btns .rename-record-btn,
+body .selectable-files tbody tr:hover .file-size-cell .file-manager-action-btns .extract-record-btn,
+body .selectable-files tbody tr:hover .file-size-cell .file-manager-action-btns .move-record-btn,
+body .selectable-files tbody tr:hover .file-size-cell .file-manager-action-btns .delete-record-btn,
+body .selectable-files tr.selected-file .file-size-cell .file-manager-action-btns .rename-record-btn,
+body .selectable-files tr.selected-file .file-size-cell .file-manager-action-btns .extract-record-btn,
+body .selectable-files tr.selected-file .file-size-cell .file-manager-action-btns .move-record-btn,
+body .selectable-files tr.selected-file .file-size-cell .file-manager-action-btns .delete-record-btn {
+  position: static !important;
+  left: auto !important;
+  top: auto !important;
+  right: auto !important;
+  transform: none !important;
+  display: inline-flex !important;
+  visibility: visible !important;
+  flex-shrink: 0;
+}
+
+/* 文件名展开行：按钮容器顶部对齐 */
+body .selectable-files tbody tr:hover:has([style*="white-space: normal"]) .file-size-cell .file-manager-action-btns,
+body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .file-size-cell .file-manager-action-btns {
+  top: 8px !important;
+  transform: none !important;
+}
+
+/* 无操作按钮时（如多选未选中行）悬停仍显示文件大小 */
+body .selectable-files tbody tr:hover .file-size-cell:not(:has(.file-manager-action-btns)) .file-size-value,
+body .selectable-files tr.selected-file .file-size-cell:not(:has(.file-manager-action-btns)) .file-size-value {
+  display: inline !important;
+  visibility: visible !important;
+}

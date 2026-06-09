@@ -4453,7 +4453,7 @@ def move_file():
         if response["code"] == 0:
             return jsonify({
                 "success": True,
-                "message": f"成功移动 {len(file_ids)} 个文件",
+                "message": f"成功移动 {len(file_ids)} 个项目",
                 "moved_count": len(file_ids)
             })
         else:
