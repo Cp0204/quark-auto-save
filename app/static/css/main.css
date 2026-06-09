@@ -9113,4 +9113,37 @@ body .selectable-files tbody tr:hover:not(.selected-file) .file-size-cell:not(:h
   table.selectable-files tbody tr {
     touch-action: manipulation;
   }
+
+  /* 选择保存到的文件夹模态框：触摸端交互优化 */
+  #fileSelectModal.savepath-select-mode .table tr:hover:not(.selected-file) {
+    background-color: transparent !important;
+  }
+
+  #fileSelectModal.savepath-select-mode .table tr.selected-file,
+  #fileSelectModal.savepath-select-mode .table tr.selected-file:hover {
+    background-color: var(--button-gray-background-color) !important;
+  }
+
+  #fileSelectModal.savepath-select-mode .table tbody tr {
+    touch-action: manipulation;
+  }
+
+  /* 保存路径模态框：操作列略加宽，避免「删除文件和记录」截断 */
+  #fileSelectModal.savepath-select-mode .table .col-action,
+  #fileSelectModal.savepath-select-mode .table th.col-action {
+    width: 192px;
+    min-width: 192px;
+    max-width: 192px;
+  }
+}
+
+/* 保存路径模态框：全选悬停高亮 */
+#fileSelectModal.savepath-select-mode .modal-footer .history-select-all-btn:hover,
+#fileSelectModal.savepath-select-mode .modal-footer .history-select-all-btn:active {
+  color: var(--focus-border-color) !important;
+}
+
+/* 保存路径模态框：隐藏操作链接但保留列宽与行高 */
+#fileSelectModal.savepath-select-mode .file-select-action-links-hidden {
+  visibility: hidden;
 }

@@ -2638,7 +2638,7 @@
     </div>
 
     <!-- 模态框 文件选择 -->
-    <div class="modal" tabindex="-1" id="fileSelectModal">
+    <div class="modal" tabindex="-1" id="fileSelectModal" :class="{'savepath-select-mode': isSavepathSelectModal()}">
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header">
@@ -2740,7 +2740,7 @@
                   </div>
                 </div>
               </div>
-              <table class="table table-hover table-sm">
+              <table class="table table-hover table-sm" :class="{'selectable-files': isSavepathSelectModal()}">
                 <thead>
                   <tr>
                     <th scope="col" class="col-filename cursor-pointer" style="padding-left: 5px; font-family: inherit; letter-spacing: normal;" @click="sortFileList('file_name')">文件名 <i v-if="fileSelect.sortBy === 'file_name'" :class="fileSelect.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
@@ -2763,7 +2763,7 @@
                 </thead>
                 <tbody>
                   <tr v-for="(file, key) in fileSelect.fileList" :key="key" 
-                      @click="fileSelect.selectDir ? (file.dir ? navigateTo(file.fid, file.file_name) : selectFileItem($event, file.fid)) : selectStartFid(file.fid)" 
+                      @click="handleFileSelectRowClick(file, $event)" 
                       :class="{
                         'cursor-pointer': (fileSelect.previewRegex ? file.dir : (file.dir || !fileSelect.selectShare || (!fileSelect.selectDir && !file.dir))),
                         'selected-file': fileSelect.selectedFiles.includes(file.fid)
@@ -2812,9 +2812,11 @@
                       <td class="col-size" v-if="file.dir" style="vertical-align: top;">{{ file.include_items }} 项</td>
                       <td class="col-size" v-else style="vertical-align: top;">{{file.size | size}}</td>
                       <td class="col-date" style="vertical-align: top;">{{file.updated_at | ts2date}}</td>
-                      <td class="col-action" v-if="!fileSelect.selectShare && !fileSelect.moveMode" style="vertical-align: top;">
-                        <a @click.stop.prevent="deleteSelectedFiles(file.fid, file.file_name, file.dir)" style="cursor: pointer;">删除文件</a>
-                        <a @click.stop.prevent="deleteSelectedFiles(file.fid, file.file_name, file.dir, true)" style="cursor: pointer; margin-left: 10px;">删除文件和记录</a>
+                      <td class="col-action file-select-action-cell" v-if="!fileSelect.selectShare && !fileSelect.moveMode" style="vertical-align: top;">
+                        <span class="file-select-action-links" :class="{'file-select-action-links-hidden': isSavepathSelectModal() && !showFileSelectDeleteLinks(file)}">
+                          <a @click.stop.prevent="deleteSelectedFiles(file.fid, file.file_name, file.dir)" style="cursor: pointer;">删除文件</a>
+                          <a @click.stop.prevent="deleteSelectedFiles(file.fid, file.file_name, file.dir, true)" style="cursor: pointer; margin-left: 10px;">删除文件和记录</a>
+                        </span>
                       </td>
                     </template>
                   </tr>
@@ -2824,7 +2826,9 @@
           </div>
           <div class="modal-footer" v-if="fileSelect.selectDir && !fileSelect.previewRegex">
             <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
-              <span v-if="fileSelect.selectShare && smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length > 1 && isCurrentResourceInSearchResults()">第 {{ smart_param.currentResourceIndex + 1 }}/{{ smart_param.taskSuggestions.data.length }} 个资源，</span><span v-if="fileSelect.selectShare">分享者：{{ getFileSelectShareAuthorDisplay() }}，</span>共 {{ fileSelect.fileList.length }} 个项目<span v-if="fileSelect.selectedFiles.length > 0">，已选中 {{ fileSelect.selectedFiles.length }} 个项目</span>
+              <span v-if="fileSelect.selectShare && smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length > 1 && isCurrentResourceInSearchResults()">第 {{ smart_param.currentResourceIndex + 1 }}/{{ smart_param.taskSuggestions.data.length }} 个资源，</span><span v-if="fileSelect.selectShare">分享者：{{ getFileSelectShareAuthorDisplay() }}，</span><span class="history-total-records-wrap"
+                    @mouseenter="fileSelectTotalHover = true"
+                    @mouseleave="fileSelectTotalHover = false">共 {{ fileSelect.fileList.length }} 个项目<template v-if="isSavepathSelectModal() && fileSelect.selectedFiles.length === 0 && fileSelectTotalHover && fileSelect.fileList.length > 0">，<span class="history-select-all-btn" @click.stop="selectAllFileSelectItems">全选</span></template></span><span v-if="fileSelect.selectedFiles.length > 0">，已选中 {{ fileSelect.selectedFiles.length }} 个项目</span>
             </div>
             <button type="button" class="btn btn-primary btn-cancel" @click="$('#fileSelectModal').modal('hide')"><span class="btn-text">取消</span></button>
             <!-- 连续浏览按钮组（仅在资源搜索模式下且当前资源在搜索结果中时显示） -->
@@ -3566,6 +3570,7 @@
         lastSelectedRecordIndex: -1, // 记录最后选择的记录索引，用于Shift选择
         historyTotalHover: false, // 转存记录左下角「共 x 条记录」悬停状态
         fileManagerTotalHover: false, // 文件整理左下角「共 x 个项目」悬停状态
+        fileSelectTotalHover: false, // 保存路径模态框左下角「共 x 个项目」悬停状态
         _lastTaskFilter: "",
         _lastNameFilter: "",
         _lastStatusFilter: "",
@@ -4836,6 +4841,7 @@
         $('#fileSelectModal').on('hidden.bs.modal', () => {
           this.fileSelect.selectedFiles = [];
           this.fileSelect.lastSelectedFileIndex = -1;
+          this.fileSelectTotalHover = false;
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
           this.fileSelect.moveFileIds = [];
@@ -4954,6 +4960,7 @@
         $('#fileSelectModal').on('hidden.bs.modal', () => {
           this.fileSelect.selectedFiles = [];
           this.fileSelect.lastSelectedFileIndex = -1;
+          this.fileSelectTotalHover = false;
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
           this.fileSelect.moveFileIds = [];
@@ -5084,6 +5091,17 @@
           } catch (e) {
             return typeof window.ontouchstart !== 'undefined';
           }
+        },
+        // 是否为「选择保存到的文件夹」模态框
+        isSavepathSelectModal() {
+          if (!this.fileSelect.selectDir || this.fileSelect.previewRegex || this.fileSelect.selectShare || this.fileSelect.moveMode) {
+            return false;
+          }
+          if (this.fileManager.extract.selectExtractFolderMode) {
+            return false;
+          }
+          const modal = document.getElementById('fileSelectModal');
+          return modal && modal.getAttribute('data-modal-type') === 'target';
         },
         // 从日期字符串（YYYY-MM-DD）中提取月份
         getDateMonthFromString(dateStr) {
@@ -12256,6 +12274,9 @@
           this.fileSelect.fileList = [];
           this.fileSelect.paths = [];
           this.fileSelect.index = index;
+          this.fileSelect.selectedFiles = [];
+          this.fileSelect.lastSelectedFileIndex = -1;
+          this.fileSelectTotalHover = false;
           // 重置排序状态为默认值 - 选择需转存的文件夹模态框默认修改时间倒序
           this.fileSelect.sortBy = "updated_at";
           this.fileSelect.sortOrder = "desc";
@@ -12558,6 +12579,10 @@
             // 使用重试机制调用getShareDetail
             this.getShareDetail(0, 1);
           } else {
+            if (this.isSavepathSelectModal()) {
+              this.fileSelect.selectedFiles = [];
+              this.fileSelect.lastSelectedFileIndex = -1;
+            }
             if (fid == "0") {
               this.fileSelect.paths = []
             } else {
@@ -14434,6 +14459,123 @@
 
           // 阻止事件继续传播，避免与其他点击事件处理器冲突
           event.stopPropagation();
+        },
+        // 保存路径模态框：无选中时各行显示删除链接；有选中时仅在选中行显示
+        showFileSelectDeleteLinks(file) {
+          if (!this.isSavepathSelectModal()) {
+            return true;
+          }
+          const count = this.fileSelect.selectedFiles.length;
+          if (count === 0) {
+            return true;
+          }
+          return this.fileSelect.selectedFiles.includes(file.fid);
+        },
+        // 全选当前目录内的全部项目（含文件与文件夹）
+        selectAllFileSelectItems() {
+          if (!this.isSavepathSelectModal()) {
+            return;
+          }
+          if (this.fileSelect.selectedFiles.length > 0 || !this.fileSelect.fileList || this.fileSelect.fileList.length === 0) {
+            return;
+          }
+          this.fileSelect.selectedFiles = this.fileSelect.fileList.map(item => item.fid);
+          this.fileSelectTotalHover = false;
+        },
+        // 处理文件选择模态框行点击
+        handleFileSelectRowClick(file, event) {
+          if (this.isSavepathSelectModal()) {
+            if (this.isMobileDevice()) {
+              if (file.dir) {
+                const isSelected = this.fileSelect.selectedFiles.includes(file.fid);
+                if (isSelected && this.fileSelect.selectedFiles.length === 1) {
+                  this.navigateTo(file.fid, file.file_name);
+                  return;
+                }
+                this.selectFileItemMobile(file);
+                return;
+              }
+              this.selectFileItemMobile(file);
+              return;
+            }
+            if (file.dir) {
+              if (event.shiftKey || event.ctrlKey || event.metaKey) {
+                this.selectFileItemForSavepath(event, file);
+              } else {
+                this.navigateTo(file.fid, file.file_name);
+              }
+              return;
+            }
+            this.selectFileItemForSavepath(event, file);
+            return;
+          }
+          if (this.fileSelect.selectDir) {
+            if (file.dir) {
+              this.navigateTo(file.fid, file.file_name);
+            } else {
+              this.selectFileItem(event, file.fid);
+            }
+          } else {
+            this.selectStartFid(file.fid);
+          }
+        },
+        // 保存路径模态框：桌面端多选（含文件夹）
+        selectFileItemForSavepath(event, file) {
+          const currentIndex = this.fileSelect.fileList.findIndex(item => item.fid === file.fid);
+          if (currentIndex === -1) return;
+
+          if (event.shiftKey && this.fileSelect.selectedFiles.length > 0) {
+            const selectedIndices = this.fileSelect.selectedFiles.map(id =>
+              this.fileSelect.fileList.findIndex(item => item.fid === id)
+            ).filter(index => index !== -1);
+
+            if (selectedIndices.length > 0) {
+              const earliestSelectedIndex = Math.min(...selectedIndices);
+              const startIndex = Math.min(earliestSelectedIndex, currentIndex);
+              const endIndex = Math.max(earliestSelectedIndex, currentIndex);
+              this.fileSelect.selectedFiles = this.fileSelect.fileList
+                .slice(startIndex, endIndex + 1)
+                .map(item => item.fid);
+            } else {
+              this.fileSelect.selectedFiles = [file.fid];
+            }
+          } else if (event.ctrlKey || event.metaKey) {
+            if (this.fileSelect.selectedFiles.includes(file.fid)) {
+              this.fileSelect.selectedFiles = this.fileSelect.selectedFiles.filter(id => id !== file.fid);
+            } else {
+              this.fileSelect.selectedFiles.push(file.fid);
+            }
+          } else {
+            if (this.fileSelect.selectedFiles.length === 1 && this.fileSelect.selectedFiles.includes(file.fid)) {
+              this.fileSelect.selectedFiles = [];
+            } else {
+              this.fileSelect.selectedFiles = [file.fid];
+            }
+          }
+
+          if (this.fileSelect.selectedFiles.length > 0) {
+            this.fileSelect.lastSelectedFileIndex = currentIndex;
+          } else {
+            this.fileSelect.lastSelectedFileIndex = -1;
+          }
+          event.stopPropagation();
+        },
+        // 保存路径模态框：触摸端点击切换选中
+        selectFileItemMobile(file) {
+          const currentIndex = this.fileSelect.fileList.findIndex(item => item.fid === file.fid);
+          if (currentIndex === -1) return;
+
+          if (this.fileSelect.selectedFiles.includes(file.fid)) {
+            this.fileSelect.selectedFiles = this.fileSelect.selectedFiles.filter(id => id !== file.fid);
+          } else {
+            this.fileSelect.selectedFiles.push(file.fid);
+          }
+
+          if (this.fileSelect.selectedFiles.length > 0) {
+            this.fileSelect.lastSelectedFileIndex = currentIndex;
+          } else {
+            this.fileSelect.lastSelectedFileIndex = -1;
+          }
         },
         selectFileItem(event, fileId) {
           // 如果是在预览模式或选择分享模式，不允许选择
@@ -17916,6 +18058,7 @@
         $('#fileSelectModal').on('hidden.bs.modal', () => {
           this.fileSelect.selectedFiles = [];
           this.fileSelect.lastSelectedFileIndex = -1;
+          this.fileSelectTotalHover = false;
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
           this.fileSelect.moveFileIds = [];
@@ -18011,6 +18154,7 @@
         $('#fileSelectModal').on('hidden.bs.modal', () => {
           this.fileSelect.selectedFiles = [];
           this.fileSelect.lastSelectedFileIndex = -1;
+          this.fileSelectTotalHover = false;
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
           this.fileSelect.moveFileIds = [];
