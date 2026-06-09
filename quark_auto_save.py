@@ -11,10 +11,12 @@ import sys
 import json
 import time
 import random
+import logging
 import requests
 import importlib
 import urllib.parse
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 
 # 添加数据库导入
 try:
@@ -43,6 +45,65 @@ except ImportError:
             
             def get_task_metrics(self, *args, **kwargs):
                 return None
+
+_SCRIPT_LOGGER = None
+
+
+def _setup_script_logging():
+    """初始化转存脚本日志（懒加载；子进程 stdout 由 run.py 按级别转发）。"""
+    global _SCRIPT_LOGGER
+    if _SCRIPT_LOGGER is not None:
+        return _SCRIPT_LOGGER
+
+    debug = os.environ.get("DEBUG", "false").lower() == "true"
+    level = logging.DEBUG if debug else logging.INFO
+
+    logger = logging.getLogger("quark_auto_save")
+    logger.setLevel(level)
+    logger.propagate = False
+
+    if logger.handlers:
+        _SCRIPT_LOGGER = logger
+        return logger
+
+    # 子进程模式：输出到 stdout，由父进程捕获并写入 runtime.log
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
+    stream_handler.setLevel(level)
+    logger.addHandler(stream_handler)
+
+    # 独立运行（终端直接执行）时额外写入 runtime.log，避免与子进程重复写文件
+    try:
+        stdout_is_pipe = not os.isatty(sys.stdout.fileno())
+    except Exception:
+        stdout_is_pipe = True
+
+    if not stdout_is_pipe:
+        try:
+            log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "logs")
+            os.makedirs(log_dir, exist_ok=True)
+            file_handler = RotatingFileHandler(
+                os.path.join(log_dir, "runtime.log"),
+                maxBytes=5 * 1024 * 1024,
+                backupCount=2,
+                encoding="utf-8",
+            )
+            file_handler.setFormatter(logging.Formatter(
+                fmt="[%(asctime)s][%(levelname)s] %(message)s",
+                datefmt="%m-%d %H:%M:%S",
+            ))
+            file_handler.setLevel(level)
+            logger.addHandler(file_handler)
+        except Exception:
+            pass
+
+    _SCRIPT_LOGGER = logger
+    return logger
+
+
+def _get_logger():
+    return _setup_script_logging()
+
 
 def notify_calendar_changed_safe(reason):
     """安全地触发SSE通知，避免导入错误
@@ -1575,7 +1636,7 @@ class Quark:
                 
             return response
         except Exception as e:
-            print(f"_send_request error:\n{e}")
+            _get_logger().debug(f"_send_request error:\n{e}")
             fake_response = requests.Response()
             fake_response.status_code = 500
             fake_response._content = b'{"code": -1, "status": 500, "message": "request error"}'
@@ -1717,14 +1778,7 @@ class Quark:
                     # 对于inner error，尝试重试
                     if retry_count < max_retries:
                         retry_count += 1
-                        # 静默重试，不输出重试信息，避免日志污染
-                        # 只有在调试模式下才记录详细重试信息
-                        try:
-                            import os
-                            if os.environ.get("DEBUG", "false").lower() == "true":
-                                print(f"[DEBUG] 遇到inner error，进行第{retry_count}次重试...")
-                        except:
-                            pass  # 如果无法获取DEBUG环境变量，静默处理
+                        _get_logger().debug(f"遇到inner error，进行第{retry_count}次重试...")
                         time.sleep(1)  # 等待1秒后重试
                         continue
                     else:
@@ -2974,7 +3028,9 @@ class Quark:
             try:
                 error_text = str(stoken or "")
                 if self.is_recoverable_error(error_text):
-                    print(f"分享详情获取失败（网络异常）: {error_text}")
+                    _get_logger().warning(
+                        f"《{task['taskname']}》分享详情获取失败（网络异常，本轮跳过）: {error_text}"
+                    )
                     return  # 直接返回，不设置 shareurl_ban
             except Exception:
                 pass
@@ -2987,7 +3043,9 @@ class Quark:
         if isinstance(share_detail, dict) and share_detail.get("error"):
             error_text = str(share_detail.get("error") or "")
             if self.is_recoverable_error(error_text):
-                print(f"获取分享详情失败（网络异常）: {error_text}")
+                _get_logger().warning(
+                    f"《{task['taskname']}》获取分享详情失败（网络异常，本轮跳过）: {error_text}"
+                )
                 return  # 直接返回，不设置 shareurl_ban
             else:
                 task["shareurl_ban"] = self.format_unrecoverable_error(error_text) if hasattr(self, 'format_unrecoverable_error') else error_text
@@ -7272,6 +7330,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
 
 def main():
     global CONFIG_DATA
+    _setup_script_logging()
     start_time = datetime.now()
     print(f"===============程序开始===============")
     print(f"⏰ 执行时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")

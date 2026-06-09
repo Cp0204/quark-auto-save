@@ -1377,6 +1377,18 @@ except Exception as e:
     logging.warning(f"初始化运行日志文件处理器失败: {e}")
 
 
+def _log_subprocess_line(stripped_line: str) -> None:
+    """将子进程 stdout 按 [LEVEL] 前缀分级写入日志（与 quark_auto_save 的 logging 格式对齐）。"""
+    if stripped_line.startswith("[DEBUG]"):
+        logging.debug(stripped_line[7:].lstrip())
+    elif stripped_line.startswith("[WARNING]"):
+        logging.warning(stripped_line[9:].lstrip())
+    elif stripped_line.startswith("[ERROR]"):
+        logging.error(stripped_line[7:].lstrip())
+    else:
+        logging.info(stripped_line)
+
+
 def _parse_runtime_log_line(line: str) -> dict:
     """解析单行日志文本，提取时间、级别与内容。"""
     text = (line or "").rstrip("\n")
@@ -2839,7 +2851,7 @@ def run_script_now():
                     logging.info("")
                     last_was_empty = True
                 else:
-                    logging.info(stripped_line)
+                    _log_subprocess_line(stripped_line)
                     last_was_empty = False
                 
                 yield f"data: {line}\n\n"
@@ -4701,7 +4713,7 @@ def run_python(args):
                     logging.info("")
                     last_was_empty = True
                 else:
-                    logging.info(stripped_line)
+                    _log_subprocess_line(stripped_line)
                     last_was_empty = False
         finally:
             _crontab_task_process.stdout.close()
