@@ -4982,6 +4982,8 @@ def get_history_records():
     
     # 是否只请求所有任务名称
     get_all_task_names = request.args.get("get_all_task_names", "").lower() in ["true", "1", "yes"]
+    # 是否仅返回符合筛选条件的记录 ID（用于全选）
+    ids_only = request.args.get("ids_only", "").lower() in ["true", "1", "yes"]
     
     # 初始化数据库
     db = RecordDB()
@@ -5002,13 +5004,15 @@ def get_history_records():
                 task_name_filter=task_name_filter,
                 keyword_filter=keyword_filter,
                 task_name_list=task_name_list,
-                exclude_task_names=["rename", "undo_rename"]
+                exclude_task_names=["rename", "undo_rename"],
+                ids_only=ids_only
             )
             # 添加所有任务名称到结果中
             result["all_task_names"] = all_task_names
             
             # 处理记录格式化
-            format_records(result["records"])
+            if not ids_only and result.get("records"):
+                format_records(result["records"])
             
             return jsonify({"success": True, "data": result})
         else:
@@ -5024,11 +5028,13 @@ def get_history_records():
         task_name_filter=task_name_filter,
         keyword_filter=keyword_filter,
         task_name_list=task_name_list,
-        exclude_task_names=["rename", "undo_rename"]
+        exclude_task_names=["rename", "undo_rename"],
+        ids_only=ids_only
     )
     
     # 处理记录格式化
-    format_records(result["records"])
+    if not ids_only and result.get("records"):
+        format_records(result["records"])
     
     return jsonify({"success": True, "data": result})
 

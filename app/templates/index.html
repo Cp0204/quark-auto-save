@@ -1784,7 +1784,9 @@
             <!-- 分页控制 -->
             <div class="pagination-container d-flex justify-content-between align-items-center mt-3">
               <div class="page-info text-secondary">
-                显示 {{ history.pagination && history.pagination.total_records > 0 ? ((historyParams.page - 1) * historyParams.page_size + 1) + '-' + Math.min(historyParams.page * historyParams.page_size, history.pagination.total_records) : '0' }} 条，共 {{ history.pagination ? history.pagination.total_records : 0 }} 条记录{{ selectedRecords.length > 0 ? '，已选中 ' + selectedRecords.length + ' 条记录' : '' }}
+                显示 {{ history.pagination && history.pagination.total_records > 0 ? ((historyParams.page - 1) * historyParams.page_size + 1) + '-' + Math.min(historyParams.page * historyParams.page_size, history.pagination.total_records) : '0' }} 条，<span class="history-total-records-wrap"
+                      @mouseenter="historyTotalHover = true"
+                      @mouseleave="historyTotalHover = false">共 {{ history.pagination ? history.pagination.total_records : 0 }} 条记录<template v-if="selectedRecords.length === 0 && historyTotalHover && history.pagination && history.pagination.total_records > 0">，<span class="history-select-all-btn" @click.stop="selectAllHistoryRecords">全选</span></template></span>{{ selectedRecords.length > 0 ? '，已选中 ' + selectedRecords.length + ' 条记录' : '' }}
               </div>
               <div class="pagination-controls d-flex align-items-center">
                 <button type="button" class="btn btn-outline-secondary btn-sm mx-1" :class="{ disabled: historyParams.page <= 1 }" @click="changePage(historyParams.page - 1)" :disabled="historyParams.page <= 1">
@@ -3558,6 +3560,7 @@
         toastMessage: "",
         selectedRecords: [],
         lastSelectedRecordIndex: -1, // 记录最后选择的记录索引，用于Shift选择
+        historyTotalHover: false, // 转存记录左下角「共 x 条记录」悬停状态
         _lastTaskFilter: "",
         _lastNameFilter: "",
         _lastStatusFilter: "",
@@ -12807,9 +12810,12 @@
             (this._lastStatusFilter !== this.historyStatusFilter);
           
           if (isFilterChanged) {
-            // 筛选条件变化时重置为第一页
+            // 筛选条件变化时重置为第一页并清空选择
             params.page = 1;
             this.gotoPage = 1;
+            this.selectedRecords = [];
+            this.lastSelectedRecordIndex = -1;
+            this.historyTotalHover = false;
           }
           
           // 记录当前筛选条件
@@ -14072,6 +14078,47 @@
           
           // 更新数据模型，如果为空则默认为0
           this.formData[field] = event.target.value === '' ? 0 : parseInt(event.target.value);
+        },
+        // 构建转存记录 API 请求参数（筛选条件与当前列表一致）
+        buildHistoryApiParams(overrides = {}) {
+          const params = {
+            sort_by: this.historyParams.sortBy || "transfer_time",
+            order: this.historyParams.order || "desc",
+            page_size: parseInt(this.historyParams.page_size || 15),
+            page: this.historyParams.page || 1,
+            ...overrides
+          };
+          if (this.historyTaskSelected) {
+            params.task_name = this.historyTaskSelected;
+          }
+          if (this.historyNameFilter) {
+            params.keyword = this.historyNameFilter;
+          }
+          return params;
+        },
+        // 全选当前筛选条件下的全部转存记录
+        selectAllHistoryRecords() {
+          const total = this.history.pagination ? this.history.pagination.total_records : 0;
+          if (total === 0 || this.selectedRecords.length > 0) {
+            return;
+          }
+          const params = this.buildHistoryApiParams({ ids_only: true });
+          if (!this.prepareStatusFilterParams(params, false)) {
+            return;
+          }
+          axios.get('/history_records', { params })
+            .then(response => {
+              if (response.data.success && response.data.data && response.data.data.ids) {
+                this.selectedRecords = response.data.data.ids;
+                this.historyTotalHover = false;
+              } else {
+                alert(response.data.message || '获取记录列表失败');
+              }
+            })
+            .catch(error => {
+              console.error('全选记录时出错:', error);
+              alert('获取记录列表时出错: ' + (error.response?.data?.message || error.message));
+            });
         },
         selectRecord(event, recordId) {
           // 获取当前记录的索引

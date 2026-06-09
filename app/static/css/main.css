@@ -8965,3 +8965,16 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
     grid-template-columns: 1fr;
   }
 }
+
+/* 转存记录分页：「共 x 条记录」悬停显示全选 */
+.history-total-records-wrap {
+  cursor: default;
+}
+
+.history-select-all-btn {
+  cursor: pointer;
+}
+
+.history-select-all-btn:hover {
+  color: var(--focus-border-color);
+}

@@ -168,7 +168,7 @@ class RecordDB:
     @retry_on_locked(max_retries=3, base_delay=0.1)
     def get_records(self, page=1, page_size=20, sort_by="transfer_time", order="desc", 
                    task_name_filter="", keyword_filter="", exclude_task_names=None,
-                   task_name_list=None):
+                   task_name_list=None, ids_only=False):
         """获取转存记录列表，支持分页、排序和筛选
         
         Args:
@@ -222,6 +222,22 @@ class RecordDB:
         count_sql = f"SELECT COUNT(*) FROM transfer_records {where_sql}"
         cursor.execute(count_sql, params)
         total_records = cursor.fetchone()[0]
+        
+        # 仅返回 ID 列表（用于全选等场景，跳过分页与排序）
+        if ids_only:
+            query_sql = f"SELECT id FROM transfer_records {where_sql}"
+            cursor.execute(query_sql, params)
+            ids = [row[0] for row in cursor.fetchall()]
+            total_pages = (total_records + page_size - 1) // page_size if total_records > 0 else 1
+            return {
+                "ids": ids,
+                "pagination": {
+                    "total_records": total_records,
+                    "total_pages": total_pages,
+                    "current_page": page,
+                    "page_size": page_size
+                }
+            }
         
         # 获取分页数据
         if sort_by in ["task_name", "original_name", "renamed_to"]:
