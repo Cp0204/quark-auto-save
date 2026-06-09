@@ -1771,7 +1771,7 @@
                     </td>
                     <td class="file-size-cell">
                       <span class="file-size-value">{{ record.file_size_readable }}</span>
-                      <span class="delete-record-btn" @click.stop="deleteRecord(record.id, record.original_name)" title="删除记录">
+                      <span v-if="showHistoryDeleteBtn(record)" class="delete-record-btn" @click.stop="deleteRecord(record.id, record.original_name)" title="删除记录">
                         <i class="bi bi-trash3"></i>
                       </span>
                     </td>
@@ -14128,6 +14128,14 @@
             params.keyword = this.historyNameFilter;
           }
           return params;
+        },
+        // 转存记录：无选中时各行悬停可删；有选中时仅在选中行显示删除按钮
+        showHistoryDeleteBtn(record) {
+          const count = this.selectedRecords.length;
+          if (count === 0) {
+            return true;
+          }
+          return this.selectedRecords.includes(record.id);
         },
         // 全选当前筛选条件下的全部转存记录
         selectAllHistoryRecords() {

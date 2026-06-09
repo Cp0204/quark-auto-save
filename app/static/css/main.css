@@ -9030,3 +9030,9 @@ body .selectable-files tr.selected-file .file-size-cell:not(:has(.file-manager-a
   display: inline !important;
   visibility: visible !important;
 }
+
+/* 转存记录：已有选中时，未选中行悬停仅背景高亮，保留大小列文字 */
+.selectable-records tbody tr:hover .file-size-cell:not(:has(.delete-record-btn)) .file-size-value {
+  display: inline-block !important;
+  visibility: visible !important;
+}
