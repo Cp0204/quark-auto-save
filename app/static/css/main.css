@@ -9024,9 +9024,8 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   transform: none !important;
 }
 
-/* 无操作按钮时（如多选未选中行）悬停仍显示文件大小 */
-body .selectable-files tbody tr:hover .file-size-cell:not(:has(.file-manager-action-btns)) .file-size-value,
-body .selectable-files tr.selected-file .file-size-cell:not(:has(.file-manager-action-btns)) .file-size-value {
+/* 无操作按钮时（如多选未选中行）悬停仍显示文件大小；已选中行不在此列 */
+body .selectable-files tbody tr:hover:not(.selected-file) .file-size-cell:not(:has(.file-manager-action-btns)) .file-size-value {
   display: inline !important;
   visibility: visible !important;
 }
@@ -9035,4 +9034,83 @@ body .selectable-files tr.selected-file .file-size-cell:not(:has(.file-manager-a
 .selectable-records tbody tr:hover .file-size-cell:not(:has(.delete-record-btn)) .file-size-value {
   display: inline-block !important;
   visibility: visible !important;
+}
+
+/* --------------- 移动端：转存记录与文件整理交互优化 --------------- */
+/* 窄屏 + 无悬停主输入（触摸设备），与 isMobileDevice() 判断保持一致 */
+@media (max-width: 768px) and (hover: none) {
+  /* 去除行悬停背景，仅保留选中态高亮 */
+  table.selectable-records tbody tr:hover,
+  table.selectable-files tbody tr:hover,
+  .selectable-files tbody tr:hover {
+    background-color: transparent !important;
+  }
+
+  table.selectable-records tbody tr.selected-record,
+  .selectable-files tr.selected-file,
+  table.selectable-files tbody tr.selected-file {
+    background-color: var(--button-gray-background-color) !important;
+  }
+
+  /* 转存记录：未选中行悬停时不显示删除按钮；选中行始终显示（含触摸悬停态） */
+  .selectable-records tbody tr:hover:not(.selected-record) .delete-record-btn,
+  .selectable-records tbody tr:hover:not(.selected-record) .file-size-cell .delete-record-btn {
+    visibility: hidden !important;
+    display: none !important;
+  }
+
+  .selectable-records tbody tr:hover:not(.selected-record) .file-size-cell .file-size-value {
+    display: inline-block !important;
+  }
+
+  .selectable-records tbody tr.selected-record .delete-record-btn,
+  .selectable-records tbody tr.selected-record .file-size-cell .delete-record-btn,
+  .selectable-records tbody tr.selected-record:hover .delete-record-btn,
+  .selectable-records tbody tr.selected-record:hover .file-size-cell .delete-record-btn {
+    visibility: visible !important;
+    display: flex !important;
+  }
+
+  .selectable-records tbody tr.selected-record .file-size-cell .file-size-value,
+  .selectable-records tbody tr.selected-record:hover .file-size-cell .file-size-value {
+    display: none !important;
+  }
+
+  /* 文件整理：未选中行悬停时不显示操作按钮；选中行始终显示（含触摸悬停态） */
+  .selectable-files tr:hover:not(.selected-file) .file-size-cell .file-manager-action-btns,
+  .selectable-files tbody tr:hover:not(.selected-file) .file-size-cell .file-manager-action-btns,
+  body .selectable-files tbody tr:hover:not(.selected-file) .file-size-cell .file-manager-action-btns {
+    display: none !important;
+  }
+
+  .selectable-files tr:hover:not(.selected-file) .file-size-cell .file-size-value,
+  .selectable-files tbody tr:hover:not(.selected-file) .file-size-cell .file-size-value,
+  body .selectable-files tbody tr:hover:not(.selected-file) .file-size-cell .file-size-value {
+    display: inline !important;
+    visibility: visible !important;
+  }
+
+  .selectable-files tr.selected-file .file-size-cell .file-manager-action-btns,
+  .selectable-files tr.selected-file:hover .file-size-cell .file-manager-action-btns,
+  body .selectable-files tr.selected-file .file-size-cell .file-manager-action-btns,
+  body .selectable-files tr.selected-file:hover .file-size-cell .file-manager-action-btns {
+    display: inline-flex !important;
+  }
+
+  /* 选中行始终隐藏大小列文本（含触摸悬停态，覆盖全局显示规则） */
+  body .selectable-files tbody tr.selected-file .file-size-cell .file-size-value,
+  body .selectable-files tbody tr.selected-file:hover .file-size-cell .file-size-value {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* 移动端全选按钮始终可点击 */
+  .history-select-all-btn {
+    cursor: pointer;
+  }
+
+  /* 禁用双击缩放，保留捏合缩放 */
+  table.selectable-files tbody tr {
+    touch-action: manipulation;
+  }
 }

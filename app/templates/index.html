@@ -5074,6 +5074,17 @@
         this.stopRuntimeLogPolling();
       },
       methods: {
+        // 是否为触摸移动端（窄屏且主输入无法悬停，排除窄屏桌面鼠标窗口）
+        isMobileDevice() {
+          if (typeof window === 'undefined' || window.innerWidth > 768) {
+            return false;
+          }
+          try {
+            return window.matchMedia('(hover: none)').matches;
+          } catch (e) {
+            return typeof window.ontouchstart !== 'undefined';
+          }
+        },
         // 从日期字符串（YYYY-MM-DD）中提取月份
         getDateMonthFromString(dateStr) {
           try {
@@ -14129,9 +14140,12 @@
           }
           return params;
         },
-        // 转存记录：无选中时各行悬停可删；有选中时仅在选中行显示删除按钮
+        // 转存记录：无选中时各行悬停可删；有选中时仅在选中行显示删除按钮；移动端仅选中行显示
         showHistoryDeleteBtn(record) {
           const count = this.selectedRecords.length;
+          if (this.isMobileDevice()) {
+            return count > 0 && this.selectedRecords.includes(record.id);
+          }
           if (count === 0) {
             return true;
           }
@@ -14165,6 +14179,17 @@
           // 获取当前记录的索引
           const currentIndex = this.filteredHistoryRecords.findIndex(record => record.id === recordId);
           if (currentIndex === -1) return;
+
+          // 移动端：点击切换选中，支持多选
+          if (this.isMobileDevice()) {
+            if (this.selectedRecords.includes(recordId)) {
+              this.selectedRecords = this.selectedRecords.filter(id => id !== recordId);
+            } else {
+              this.selectedRecords.push(recordId);
+            }
+            this.lastSelectedRecordIndex = this.selectedRecords.length > 0 ? currentIndex : -1;
+            return;
+          }
           
           // 如果是Shift+点击，选择范围
           if (event.shiftKey && this.selectedRecords.length > 0) {
@@ -14379,14 +14404,8 @@
             return;
           }
           
-          // 检查点击是否在表格内
-          const tableElement = document.querySelector('.table.selectable-records');
-          // 检查点击是否在分页控制区域
-          const paginationElement = document.querySelector('.pagination-container');
-          
-          // 如果点击不在表格内且不在分页控制区域内，则清除选择
-          if (tableElement && !tableElement.contains(event.target) && 
-              paginationElement && !paginationElement.contains(event.target)) {
+          // 点击表格内保留选中；表格外（含分页、筛选区等）取消选中
+          if (!event.target.closest('.table.selectable-records')) {
             this.selectedRecords = [];
             this.lastSelectedRecordIndex = -1;
           }
@@ -14856,6 +14875,9 @@
         },
         // 多选/全选时：重命名仅支持单项，多选时隐藏
         showFileManagerRenameBtn(file) {
+          if (this.isMobileDevice() && this.fileManager.selectedFiles.length === 0) {
+            return false;
+          }
           const count = this.fileManager.selectedFiles.length;
           if (count > 1) {
             return false;
@@ -14867,6 +14889,9 @@
         },
         // 多选/全选时：仅当选中项全部为压缩包时显示云解压
         showFileManagerExtractBtn(file) {
+          if (this.isMobileDevice() && this.fileManager.selectedFiles.length === 0) {
+            return false;
+          }
           if (file.dir || !this.isArchiveFile(file.file_name)) {
             return false;
           }
@@ -14884,6 +14909,9 @@
         },
         // 多选/全选时：移动支持批量，仅在选中行显示
         showFileManagerMoveBtn(file) {
+          if (this.isMobileDevice() && this.fileManager.selectedFiles.length === 0) {
+            return false;
+          }
           const count = this.fileManager.selectedFiles.length;
           if (count === 0) {
             return true;
@@ -14993,6 +15021,26 @@
           }
 
           event.stopPropagation();
+        },
+        // 移动端：点击切换选中，支持多选
+        selectFileForManagerMobile(file) {
+          const currentIndex = this.fileManager.fileList.indexOf(file);
+          if (currentIndex === -1) return;
+
+          if (this.fileManager.selectedFiles.includes(file.fid)) {
+            this.fileManager.selectedFiles = this.fileManager.selectedFiles.filter(id => id !== file.fid);
+          } else {
+            this.fileManager.selectedFiles.push(file.fid);
+          }
+
+          this.syncFileManagerSelectionInfo();
+
+          if (this.fileManager.selectedFiles.length > 0) {
+            this.fileManager.lastSelectedFileIndex = currentIndex;
+          } else {
+            this.fileManager.lastSelectedFileIndex = -1;
+            this.fileManager.selectedFilesInfo = {};
+          }
         },
         formatFileSize(fileSize) {
           const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -15718,6 +15766,22 @@
             return;
           }
 
+          // 移动端：单击选中/取消；文件夹已单独选中时再次点击则进入
+          if (this.isMobileDevice()) {
+            if (file.dir) {
+              const isSelected = this.fileManager.selectedFiles.includes(file.fid);
+              // 仅当前文件夹被单独选中时，再次点击视为进入（无需快速连点，避免触发系统缩放）
+              if (isSelected && this.fileManager.selectedFiles.length === 1) {
+                this.navigateToFolder(file.fid, file.file_name);
+                return;
+              }
+              this.selectFileForManagerMobile(file);
+              return;
+            }
+            this.selectFileForManagerMobile(file);
+            return;
+          }
+
           // 文件夹：普通点击进入，Ctrl/Shift/Cmd+点击多选
           if (file.dir) {
             if (event.shiftKey || event.ctrlKey || event.metaKey) {
@@ -15949,14 +16013,8 @@
             return;
           }
 
-          // 检查点击是否在表格内
-          const tableElement = document.querySelector('.table.selectable-files');
-          // 检查点击是否在分页控制区域
-          const paginationElement = document.querySelector('.pagination-container');
-
-          // 如果点击不在表格内且不在分页控制区域内，则清除选择
-          if (tableElement && !tableElement.contains(event.target) &&
-              paginationElement && !paginationElement.contains(event.target)) {
+          // 点击表格内保留选中；表格外（含分页、面包屑等）取消选中
+          if (!event.target.closest('.table.selectable-files')) {
             this.clearFileManagerSelection();
           }
         },
