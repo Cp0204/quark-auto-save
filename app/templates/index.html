@@ -2851,6 +2851,7 @@
               <span v-else-if="fileSelect.moveMode">移动到当前文件夹</span>
               <span v-else>{{fileSelect.selectShare ? '转存当前文件夹' : '保存到当前文件夹'}}</span>
             </button>
+            <button type="button" class="btn btn-primary btn-sm" v-if="fileSelect.moveMode" @click="moveFilesToCurrentFolder(true)"><span class="btn-text">移动并前往当前文件夹</span></button>
             <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && !fileManager.extract.selectExtractFolderMode && fileSelect.index === -1 && createTask.taskData.taskname" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="generateCustomFolderPath(createTask.taskData)"></span>」文件夹</button>
             <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && !fileManager.extract.selectExtractFolderMode && fileSelect.index !== null && fileSelect.index >= 0 && formData.tasklist[fileSelect.index]" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="formData.tasklist[fileSelect.index].taskname"></span>」文件夹</button>
           </div>
@@ -12664,8 +12665,8 @@
             this.smart_param.showSuggestions = false;
           }
         },
-        // 移动文件或文件夹到当前文件夹
-        moveFilesToCurrentFolder() {
+        // 移动文件或文件夹到当前文件夹（navigateToTarget 为 true 时移动后导航到目标文件夹）
+        moveFilesToCurrentFolder(navigateToTarget = false) {
           if (!this.fileSelect.moveFileIds || this.fileSelect.moveFileIds.length === 0) {
             alert('没有选择要移动的项目');
             return;
@@ -12727,12 +12728,26 @@
 
               // 延迟刷新以确保后端处理完成
               setTimeout(() => {
-                // 刷新当前页面显示（源目录）
+                if (navigateToTarget) {
+                  const navId = targetFolderId === '0' ? 'root' : targetFolderId;
+                  const targetFolderName = this.fileSelect.paths.length > 0
+                    ? this.fileSelect.paths[this.fileSelect.paths.length - 1].name
+                    : '';
+                  this.navigateToFolder(navId, targetFolderName);
+                }
+
+                // 刷新当前页面显示（未导航时为源目录，导航后为目标目录）
                 this.refreshCurrentFolderCache();
 
-                // 如果目标目录不同于源目录，也刷新目标目录的缓存
-                if (targetFolderId !== sourceFolderId) {
-                  this.refreshFolderCache(targetFolderId); // 刷新目标目录缓存
+                if (navigateToTarget) {
+                  // 前往目标文件夹后，额外刷新源目录缓存
+                  const normalizedSourceId = sourceFolderId === '0' ? 'root' : sourceFolderId;
+                  const normalizedTargetId = targetFolderId === '0' ? 'root' : targetFolderId;
+                  if (normalizedSourceId !== normalizedTargetId) {
+                    this.refreshFolderCache(normalizedSourceId);
+                  }
+                } else if (targetFolderId !== sourceFolderId) {
+                  this.refreshFolderCache(targetFolderId);
                 }
 
                 // 刷新源目录的上级目录（更新源文件夹的项目数量）
