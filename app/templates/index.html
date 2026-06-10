@@ -2811,7 +2811,7 @@
                     <template v-if="!fileSelect.previewRegex">
                       <td class="col-size" v-if="file.dir" style="vertical-align: top;">{{ file.include_items }} 项</td>
                       <td class="col-size" v-else style="vertical-align: top;">{{file.size | size}}</td>
-                      <td class="col-date" style="vertical-align: top;">{{file.updated_at | ts2date}}</td>
+                      <td class="col-date" style="vertical-align: top;">{{ formatDate(file.updated_at) }}</td>
                       <td class="col-action file-select-action-cell" v-if="!fileSelect.selectShare && !fileSelect.moveMode" style="vertical-align: top;">
                         <span class="file-select-action-links" :class="{'file-select-action-links-hidden': isSavepathSelectModal() && !showFileSelectDeleteLinks(file)}">
                           <a @click.stop.prevent="deleteSelectedFiles(file.fid, file.file_name, file.dir)" style="cursor: pointer;">删除文件</a>
@@ -4509,10 +4509,6 @@
         }
       },
       filters: {
-        ts2date: function (value) {
-          const date = new Date(value);
-          return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
-        },
         size: function (value) {
           if (!value) return "";
           const unitArr = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];

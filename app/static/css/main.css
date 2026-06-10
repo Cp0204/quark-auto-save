@@ -1897,11 +1897,11 @@ button.close:focus,
   max-width: 90px;
 }
 
-/* 修改日期列 - 固定宽度 */
+/* 修改日期列 - 固定宽度（适配 YYYY-MM-DD HH:mm:ss 格式） */
 #fileSelectModal .table .col-date {
-  width: 140px;
-  min-width: 140px;
-  max-width: 140px;
+  width: 168px;
+  min-width: 168px;
+  max-width: 168px;
 }
 
 /* 操作列 - 固定宽度 */
@@ -3997,21 +3997,21 @@ input::-moz-list-button {
   /* 针对选择需转存的文件夹/选择起始文件模式 - 4列表格 */
   #fileSelectModal[data-modal-type="source"] .breadcrumb,
   #fileSelectModal[data-modal-type="start-file"] .breadcrumb {
-    min-width: 690px; /* 4列表格总宽度: 230px + 230px + 90px + 140px */
+    min-width: 718px; /* 4列表格总宽度: 230px + 230px + 90px + 168px */
   }
 
   #fileSelectModal[data-modal-type="source"] .table,
   #fileSelectModal[data-modal-type="start-file"] .table {
-    width: 690px;
+    width: 718px;
   }
 
   /* 针对选择保存到的文件夹模式 - 带操作列的表格 */
   #fileSelectModal[data-modal-type="target"] .breadcrumb {
-    min-width: 648px; /* 4列表格总宽度: 230px + 90px + 140px + 188px */
+    min-width: 676px; /* 4列表格总宽度: 230px + 90px + 168px + 188px */
   }
 
   #fileSelectModal[data-modal-type="target"] .table {
-    width: 648px;
+    width: 676px;
   }
 
   /* 针对命名预览模式 - 2列表格 */
