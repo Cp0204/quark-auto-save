@@ -4678,9 +4678,9 @@ def run_python(args):
         if isinstance(args, str):
             import shlex
             args_list = shlex.split(args)
-            command = [PYTHON_PATH] + args_list
+            command = [PYTHON_PATH, "-u"] + args_list
         else:
-            command = [PYTHON_PATH] + list(args)
+            command = [PYTHON_PATH, "-u"] + list(args)
         
         # 启动进程并记录，实时输出日志
         _crontab_task_process = subprocess.Popen(

@@ -2020,7 +2020,7 @@ class Quark:
     def query_task(self, task_id, quiet=False):
         """quiet=True 时不打印轮询进度（用于 dir_check_and_save 递归转存，避免刷屏）"""
         retry_index = 0
-        printed = False
+        dot_started = False
         while True:
             url = f"{self.BASE_URL}/1/clouddrive/task"
             querystring = {
@@ -2033,23 +2033,25 @@ class Quark:
                 "__t": datetime.now().timestamp(),
             }
             response = self._send_request("GET", url, params=querystring).json()
-            if response["data"]["status"] != 0:
-                if printed:
-                    print()
+            data = response.get("data") or {}
+            status = data.get("status", 0)
+            task_title = data.get("task_title", "分享-转存")
+
+            # 必须带换行：子进程由 run.py 按行读取 stdout，无换行的 print 会延迟或丢失
+            if retry_index == 0 and not quiet:
+                print(f"正在等待「{task_title}」执行结果", flush=True)
+
+            if status != 0:
+                if dot_started:
+                    print(flush=True)
                 break
-            else:
-                if not quiet:
-                    if retry_index == 0:
-                        print(
-                            f"正在等待「{response['data']['task_title']}」执行结果",
-                            end="",
-                            flush=True,
-                        )
-                    else:
-                        print(".", end="", flush=True)
-                    printed = True
-                retry_index += 1
-                time.sleep(0.500)
+
+            if not quiet and retry_index > 0:
+                print(".", end="", flush=True)
+                dot_started = True
+
+            retry_index += 1
+            time.sleep(0.500)
         return response
 
     def _transfer_poll_quiet(self, task, subdir_path):
