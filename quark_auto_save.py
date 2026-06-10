@@ -2020,7 +2020,7 @@ class Quark:
     def query_task(self, task_id, quiet=False):
         """quiet=True 时不打印轮询进度（用于 dir_check_and_save 递归转存，避免刷屏）"""
         retry_index = 0
-        dot_started = False
+        line_started = False
         while True:
             url = f"{self.BASE_URL}/1/clouddrive/task"
             querystring = {
@@ -2037,18 +2037,25 @@ class Quark:
             status = data.get("status", 0)
             task_title = data.get("task_title", "分享-转存")
 
-            # 必须带换行：子进程由 run.py 按行读取 stdout，无换行的 print 会延迟或丢失
-            if retry_index == 0 and not quiet:
-                print(f"正在等待「{task_title}」执行结果", flush=True)
-
             if status != 0:
-                if dot_started:
+                if line_started:
+                    # 结束同一行的进度点，readline 可采集完整一行
                     print(flush=True)
+                elif not quiet:
+                    # 首次轮询即完成：补打完整行，避免日志丢失
+                    print(f"正在等待「{task_title}」执行结果", flush=True)
                 break
 
-            if not quiet and retry_index > 0:
-                print(".", end="", flush=True)
-                dot_started = True
+            if not quiet:
+                if retry_index == 0:
+                    print(
+                        f"正在等待「{task_title}」执行结果",
+                        end="",
+                        flush=True,
+                    )
+                    line_started = True
+                else:
+                    print(".", end="", flush=True)
 
             retry_index += 1
             time.sleep(0.500)
