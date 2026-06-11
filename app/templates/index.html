@@ -1695,7 +1695,7 @@
               </div>
             </div>
             
-            <div class="table-responsive">
+            <div class="table-responsive" ref="historyTableContainer">
               <table class="table table-hover selectable-records">
                 <thead>
                   <tr>
@@ -1782,7 +1782,7 @@
             </div>
             
             <!-- 分页控制 -->
-            <div class="pagination-container d-flex justify-content-between align-items-center mt-3">
+            <div class="pagination-container d-flex justify-content-between align-items-center mt-3" ref="historyPaginationContainer">
               <div class="page-info text-secondary">
                 显示 {{ history.pagination && history.pagination.total_records > 0 ? ((historyParams.page - 1) * historyParams.page_size + 1) + '-' + Math.min(historyParams.page * historyParams.page_size, history.pagination.total_records) : '0' }} 条，<span class="history-total-records-wrap"
                       @mouseenter="historyTotalHover = true"
@@ -1838,10 +1838,10 @@
                 <button type="button" class="btn btn-outline-secondary btn-sm mr-2" @click="changePage(gotoPage)">确定</button>
                 <div class="dropdown">
                   <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
-                    {{ historyParams.page_size === 99999 ? '全部记录' : historyParams.page_size + ' 条/页' }}
+                    {{ getHistoryPageSizeButtonLabel() }}
                   </button>
                   <div class="dropdown-menu">
-                    <a class="dropdown-item" href="#" v-for="size in [15, 30, 50, 100, 500, 1000, 'all']" :key="size" @click.prevent="changePageSizeTo(size)">{{ size === 'all' ? '全部记录' : size + ' 条/页' }}</a>
+                    <a class="dropdown-item" href="#" v-for="size in getHistoryPageSizeOptions()" :key="'history-' + size" @click.prevent="changePageSizeTo(size)">{{ getHistoryPageSizeOptionLabel(size) }}</a>
                   </div>
                 </div>
               </div>
@@ -1966,7 +1966,7 @@
             </nav>
 
             <!-- 文件表格 -->
-            <div class="table-responsive">
+            <div class="table-responsive" ref="fileManagerTableContainer">
               <table class="table table-hover selectable-files">
                 <thead>
                   <tr>
@@ -2049,7 +2049,7 @@
             </div>
             
             <!-- 分页区域 -->
-            <div class="pagination-container d-flex justify-content-between align-items-center mt-3">
+            <div class="pagination-container d-flex justify-content-between align-items-center mt-3" ref="fileManagerPaginationContainer">
               <div class="page-info text-secondary">
                 显示 {{ fileManager.total > 0 ? ((fileManager.currentPage - 1) * fileManager.pageSize + 1) + '-' + Math.min(fileManager.currentPage * fileManager.pageSize, fileManager.total) : '0-0' }} 项，<span class="history-total-records-wrap"
                       @mouseenter="fileManagerTotalHover = true"
@@ -2097,10 +2097,10 @@
                 <button type="button" class="btn btn-outline-secondary btn-sm mr-2" @click="changeFolderPage(fileManager.gotoPage)">确定</button>
                 <div class="dropdown">
                   <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
-                    {{ fileManager.pageSize === 99999 ? '全部项目' : fileManager.pageSize + ' 项/页' }}
+                    {{ getFileManagerPageSizeButtonLabel() }}
                   </button>
                   <div class="dropdown-menu">
-                    <a class="dropdown-item" href="#" v-for="size in [15, 30, 50, 100, 500, 1000, 'all']" :key="size" @click.prevent="changeFileManagerPageSize(size)">{{ size === 'all' ? '全部项目' : size + ' 项/页' }}</a>
+                    <a class="dropdown-item" href="#" v-for="size in getFileManagerPageSizeOptions()" :key="'filemanager-' + size" @click.prevent="changeFileManagerPageSize(size)">{{ getFileManagerPageSizeOptionLabel(size) }}</a>
                   </div>
                 </div>
               </div>
@@ -4582,6 +4582,7 @@
           this.$nextTick(function() {
             this.syncHistoryJumpInputWidth();
             this.syncFileManagerJumpInputWidth();
+            this.refreshActiveTabAutoPageSize({ resetPage: false });
           });
         },
         // 页面宽度模式变化（窄/中/宽），触发布局重算
@@ -4596,6 +4597,7 @@
           this.$nextTick(function() {
             this.syncHistoryJumpInputWidth();
             this.syncFileManagerJumpInputWidth();
+            this.refreshActiveTabAutoPageSize({ resetPage: false });
           });
         },
 
@@ -4804,6 +4806,7 @@
           this.$nextTick(function() {
             this.syncHistoryJumpInputWidth();
             this.syncFileManagerJumpInputWidth();
+            this.refreshActiveTabAutoPageSize({ resetPage: false });
           });
         },
         'fileManager.pattern': {
@@ -4893,16 +4896,10 @@
         }
         
         // 从本地存储中恢复用户设置的每页记录数
-        const savedPageSize = localStorage.getItem('quarkAutoSave_pageSize');
-        if (savedPageSize) {
-          this.historyParams.page_size = savedPageSize === 'all' ? 99999 : parseInt(savedPageSize);
-        }
+        this.restoreHistoryPageSizeFromStorage();
         
         // 从本地存储中恢复文件管理器的每页显示数
-        const savedFileManagerPageSize = localStorage.getItem('quarkAutoSave_fileManagerPageSize');
-        if (savedFileManagerPageSize) {
-          this.fileManager.pageSize = savedFileManagerPageSize === 'all' ? 99999 : parseInt(savedFileManagerPageSize);
-        }
+        this.restoreFileManagerPageSizeFromStorage();
         
         // 从本地存储中恢复页面宽度设置
         const savedPageWidthMode = localStorage.getItem('quarkAutoSave_pageWidthMode');
@@ -9390,11 +9387,7 @@
 
           // 当切换到文件整理标签时加载文件列表
           if (tab === 'filemanager') {
-            // 从本地存储中恢复文件管理器的分页大小设置
-            const savedFileManagerPageSize = localStorage.getItem('quarkAutoSave_fileManagerPageSize');
-            if (savedFileManagerPageSize) {
-              this.fileManager.pageSize = savedFileManagerPageSize === 'all' ? 99999 : parseInt(savedFileManagerPageSize);
-            }
+            this.restoreFileManagerPageSizeFromStorage();
             // 获取账号详细信息
             this.fetchAccountsDetail();
             this.loadFileListWithoutLoading(this.fileManager.currentFolder);
@@ -12934,6 +12927,9 @@
           // 此方法保留但不再使用
         },
         loadHistoryRecords() {
+          if (this.isHistoryPageSizeAuto()) {
+            this.historyParams.page_size = this.calculateAutoPageSize('history');
+          }
           // 构建请求参数
           const params = {
             sort_by: this.historyParams.sortBy || "transfer_time",
@@ -12998,6 +12994,7 @@
               console.error('Error:', response.data.message);
             }
             this.history.hasLoaded = true;
+            this.refineAutoPageSizeAfterRender('history');
           }).catch(error => {
             console.error('Error loading history records:', error);
             this.history.hasLoaded = true;
@@ -13212,10 +13209,297 @@
         },
         
         changePageSizeTo(size) {
-          this.historyParams.page_size = size === 'all' ? 99999 : size;
-          // 保存用户设置的每页记录数到本地存储
           localStorage.setItem('quarkAutoSave_pageSize', size.toString());
+          if (size === 'auto') {
+            this.applyHistoryAutoPageSize({ resetPage: true });
+            return;
+          }
+          this.historyParams.page_size = size === 'all' ? 99999 : size;
           this.changePageSize();
+        },
+
+        // 桌面端是否支持「自动」分页（窄屏/移动端不展示该选项）
+        isDesktopPaginationAutoSupported() {
+          return typeof window !== 'undefined' && window.innerWidth > 768;
+        },
+        isHistoryPageSizeAuto() {
+          return localStorage.getItem('quarkAutoSave_pageSize') === 'auto';
+        },
+        isFileManagerPageSizeAuto() {
+          return localStorage.getItem('quarkAutoSave_fileManagerPageSize') === 'auto';
+        },
+        getHistoryPageSizeOptions() {
+          const base = [15, 30, 50, 100, 500, 1000, 'all'];
+          return this.isDesktopPaginationAutoSupported() ? ['auto'].concat(base) : base;
+        },
+        getFileManagerPageSizeOptions() {
+          const base = [15, 30, 50, 100, 500, 1000, 'all'];
+          return this.isDesktopPaginationAutoSupported() ? ['auto'].concat(base) : base;
+        },
+        getHistoryPageSizeOptionLabel(size) {
+          if (size === 'auto') return '自动分页';
+          if (size === 'all') return '全部记录';
+          return size + ' 条/页';
+        },
+        getFileManagerPageSizeOptionLabel(size) {
+          if (size === 'auto') return '自动分页';
+          if (size === 'all') return '全部项目';
+          return size + ' 项/页';
+        },
+        getHistoryPageSizeButtonLabel() {
+          if (this.isHistoryPageSizeAuto()) return '自动分页';
+          if (this.historyParams.page_size === 99999) return '全部记录';
+          return this.historyParams.page_size + ' 条/页';
+        },
+        getFileManagerPageSizeButtonLabel() {
+          if (this.isFileManagerPageSizeAuto()) return '自动分页';
+          if (this.fileManager.pageSize === 99999) return '全部项目';
+          return this.fileManager.pageSize + ' 项/页';
+        },
+        // 根据当前可视区域动态计算每页条数/项数（预留分页控制区域）
+        calculateAutoPageSize(context) {
+          const tableRefName = context === 'history' ? 'historyTableContainer' : 'fileManagerTableContainer';
+          const paginationRefName = context === 'history' ? 'historyPaginationContainer' : 'fileManagerPaginationContainer';
+          const tableContainer = this.$refs[tableRefName];
+          const paginationEl = this.$refs[paginationRefName];
+          const fallback = context === 'history'
+            ? (parseInt(this.historyParams.page_size, 10) || 15)
+            : (parseInt(this.fileManager.pageSize, 10) || 15);
+
+          if (!tableContainer || !paginationEl || typeof window === 'undefined') {
+            return fallback;
+          }
+
+          const tableEl = tableContainer.querySelector('table');
+          if (!tableEl) {
+            return fallback;
+          }
+
+          const thead = tableEl.querySelector('thead');
+          const tbody = tableEl.querySelector('tbody');
+          const viewportBottom = window.innerHeight;
+          const theadRect = thead ? thead.getBoundingClientRect() : null;
+          // 数据行起点：表头在视口内时从表头下方算起；表头已滚出视口时从视口顶部算起，避免滚动后高估可用高度
+          let rowsStartY = 0;
+          if (theadRect) {
+            if (theadRect.bottom > 0) {
+              rowsStartY = theadRect.bottom;
+            }
+          } else {
+            rowsStartY = Math.max(tableContainer.getBoundingClientRect().top, 0);
+          }
+          const paginationStyle = window.getComputedStyle(paginationEl);
+          const paginationMarginTop = parseFloat(paginationStyle.marginTop) || 0;
+          const paginationReserved = paginationEl.offsetHeight + paginationMarginTop + 8;
+          const availableHeight = viewportBottom - rowsStartY - paginationReserved;
+
+          if (availableHeight <= 0) {
+            return 5;
+          }
+
+          let rowHeight = 42;
+          let hasMeasuredRow = false;
+          if (tbody) {
+            const rows = tbody.querySelectorAll('tr');
+            for (let i = 0; i < rows.length; i++) {
+              const row = rows[i];
+              if (row.querySelector('td[colspan]')) {
+                continue;
+              }
+              const measuredHeight = row.getBoundingClientRect().height;
+              if (measuredHeight > 0) {
+                rowHeight = measuredHeight;
+                hasMeasuredRow = true;
+                break;
+              }
+            }
+          }
+
+          rowHeight = Math.max(rowHeight, 32);
+          const calculated = Math.floor(availableHeight / rowHeight);
+          const pageSize = Math.max(5, Math.min(1000, calculated));
+
+          // 无真实行高时略保守，避免首次估算偏大导致溢出
+          if (!hasMeasuredRow && pageSize > 5) {
+            return Math.max(5, pageSize - 1);
+          }
+          return pageSize;
+        },
+        // 切换到自动分页前滚回顶部，确保测量基于页面初始布局
+        scrollToTopForAutoPageSizeMeasure(callback) {
+          if (typeof window === 'undefined') {
+            if (typeof callback === 'function') {
+              callback();
+            }
+            return;
+          }
+          if (window.scrollY > 0) {
+            window.scrollTo(0, 0);
+          }
+          const self = this;
+          requestAnimationFrame(function() {
+            self.$nextTick(function() {
+              if (typeof callback === 'function') {
+                callback();
+              }
+            });
+          });
+        },
+        applyHistoryAutoPageSize(options) {
+          const opts = options || {};
+          const resetPage = opts.resetPage !== false;
+          const self = this;
+          const applySize = function() {
+            const newSize = self.calculateAutoPageSize('history');
+            const prevSize = self.historyParams.page_size;
+            self.historyParams.page_size = newSize;
+            if (resetPage) {
+              self.historyParams.page = 1;
+              self.gotoPage = 1;
+              self.changePageSize();
+              return;
+            }
+            if (newSize === prevSize) {
+              return;
+            }
+            const oldStart = (self.historyParams.page - 1) * prevSize;
+            const newPage = Math.max(1, Math.floor(oldStart / newSize) + 1);
+            self.historyParams.page = newPage;
+            self.gotoPage = newPage;
+            self.changePage(newPage);
+          };
+          if (resetPage) {
+            this.scrollToTopForAutoPageSizeMeasure(applySize);
+            return;
+          }
+          this.$nextTick(applySize);
+        },
+        applyFileManagerAutoPageSize(options) {
+          const opts = options || {};
+          const resetPage = opts.resetPage !== false;
+          const self = this;
+          const applySize = function() {
+            const newSize = self.calculateAutoPageSize('filemanager');
+            const prevSize = self.fileManager.pageSize;
+            self.fileManager.pageSize = newSize;
+            if (resetPage) {
+              self.fileManager.currentPage = 1;
+              self.loadFileListWithoutLoading(self.fileManager.currentFolder);
+              return;
+            }
+            if (newSize === prevSize) {
+              return;
+            }
+            const oldStart = (self.fileManager.currentPage - 1) * prevSize;
+            const newPage = Math.max(1, Math.floor(oldStart / newSize) + 1);
+            self.fileManager.currentPage = newPage;
+            self.loadFileListWithoutLoading(self.fileManager.currentFolder);
+          };
+          if (resetPage) {
+            this.scrollToTopForAutoPageSizeMeasure(applySize);
+            return;
+          }
+          this.$nextTick(applySize);
+        },
+        refineAutoPageSizeAfterRender(context) {
+          if (context === 'history' && !this.isHistoryPageSizeAuto()) return;
+          if (context === 'filemanager' && !this.isFileManagerPageSizeAuto()) return;
+          if (this._autoPageSizeRefining) return;
+
+          const self = this;
+          this.$nextTick(function() {
+            const newSize = self.calculateAutoPageSize(context);
+            const currentSize = context === 'history'
+              ? self.historyParams.page_size
+              : self.fileManager.pageSize;
+            if (!newSize || newSize === currentSize) {
+              return;
+            }
+
+            self._autoPageSizeRefining = true;
+            if (context === 'history') {
+              self.historyParams.page_size = newSize;
+              self.historyParams.page = 1;
+              self.gotoPage = 1;
+              self.changePageSize();
+            } else {
+              self.fileManager.pageSize = newSize;
+              self.fileManager.currentPage = 1;
+              self.loadFileListWithoutLoading(self.fileManager.currentFolder);
+            }
+            self.$nextTick(function() {
+              self._autoPageSizeRefining = false;
+            });
+          });
+        },
+        refreshActiveTabAutoPageSize(options) {
+          if (this.activeTab === 'history' && this.isHistoryPageSizeAuto()) {
+            this.applyHistoryAutoPageSize(options || { resetPage: false });
+          } else if (this.activeTab === 'filemanager' && this.isFileManagerPageSizeAuto()) {
+            this.applyFileManagerAutoPageSize(options || { resetPage: false });
+          }
+        },
+        // 监听窗口/视口高度变化，自动模式时实时重算分页大小
+        setupAutoPageSizeResizeListener() {
+          const self = this;
+          if (this._onAutoPageSizeResize) {
+            return;
+          }
+          this._lastAutoPageSizeViewportHeight = window.innerHeight;
+          this._onAutoPageSizeResize = this.debounce(function() {
+            const heightChanged = window.innerHeight !== self._lastAutoPageSizeViewportHeight;
+            self._lastAutoPageSizeViewportHeight = window.innerHeight;
+            self.syncHistoryJumpInputWidth();
+            self.syncFileManagerJumpInputWidth();
+            if (heightChanged) {
+              self.refreshActiveTabAutoPageSize({ resetPage: false });
+            }
+          }, 100);
+          window.addEventListener('resize', this._onAutoPageSizeResize);
+          if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', this._onAutoPageSizeResize);
+          }
+          if (window.ResizeObserver) {
+            this._autoPageSizeResizeObserver = new ResizeObserver(function() {
+              self._onAutoPageSizeResize();
+            });
+            const observeTarget = document.documentElement;
+            if (observeTarget) {
+              this._autoPageSizeResizeObserver.observe(observeTarget);
+            }
+          }
+        },
+        teardownAutoPageSizeResizeListener() {
+          if (this._onAutoPageSizeResize) {
+            window.removeEventListener('resize', this._onAutoPageSizeResize);
+            if (window.visualViewport) {
+              window.visualViewport.removeEventListener('resize', this._onAutoPageSizeResize);
+            }
+            this._onAutoPageSizeResize = null;
+          }
+          if (this._autoPageSizeResizeObserver) {
+            this._autoPageSizeResizeObserver.disconnect();
+            this._autoPageSizeResizeObserver = null;
+          }
+        },
+        restoreHistoryPageSizeFromStorage() {
+          const savedPageSize = localStorage.getItem('quarkAutoSave_pageSize');
+          if (savedPageSize === 'auto') {
+            // 自动模式在页面渲染后、加载数据时再计算具体条数
+            return;
+          }
+          if (savedPageSize) {
+            this.historyParams.page_size = savedPageSize === 'all' ? 99999 : parseInt(savedPageSize, 10);
+          }
+        },
+        restoreFileManagerPageSizeFromStorage() {
+          const savedPageSize = localStorage.getItem('quarkAutoSave_fileManagerPageSize');
+          if (savedPageSize === 'auto') {
+            return;
+          }
+          if (savedPageSize) {
+            this.fileManager.pageSize = savedPageSize === 'all' ? 99999 : parseInt(savedPageSize, 10);
+          }
         },
 
         // 转存记录分页：跳转页码输入框宽度与「最后一页」按钮一致；无该按钮时用 32px
@@ -16071,25 +16355,21 @@
           this.loadFileListWithoutLoading(this.fileManager.currentFolder);
         },
         changeFileManagerPageSize(size) {
-          // 先更新内存中的值
+          localStorage.setItem('quarkAutoSave_fileManagerPageSize', size.toString());
+          if (size === 'auto') {
+            this.applyFileManagerAutoPageSize({ resetPage: true });
+            return;
+          }
           this.fileManager.pageSize = size === 'all' ? 99999 : size;
           this.fileManager.currentPage = 1;
-          
-          // 然后保存到localStorage
-          localStorage.setItem('quarkAutoSave_fileManagerPageSize', size.toString());
-          
-          // 最后重新加载文件列表
           this.loadFileListWithoutLoading(this.fileManager.currentFolder);
         },
         // 添加一个不显示加载动画的文件列表加载方法
         loadFileListWithoutLoading(folderId) {
           this.fileManager.currentFolder = folderId || 'root';
 
-          // 从localStorage读取分页大小设置（仅在初始化时使用）
-          // 在changeFileManagerPageSize方法中，我们已经确保了正确的执行顺序
-          const savedFileManagerPageSize = localStorage.getItem('quarkAutoSave_fileManagerPageSize');
-          if (savedFileManagerPageSize && this.fileManager.pageSize === 15) { // 只在默认值时读取
-            this.fileManager.pageSize = savedFileManagerPageSize === 'all' ? 99999 : parseInt(savedFileManagerPageSize);
+          if (this.isFileManagerPageSizeAuto()) {
+            this.fileManager.pageSize = this.calculateAutoPageSize('filemanager');
           }
 
           const params = {
@@ -16116,6 +16396,7 @@
               // 检测当前的命名模式
               this.detectFileManagerNamingMode();
               this.fileManager.hasLoaded = true;
+              this.refineAutoPageSizeAfterRender('filemanager');
             })
             .catch(error => {
               console.error('获取文件列表失败:', error);
@@ -18071,9 +18352,10 @@
         debounce(func, wait) {
           let timeout;
           return function executedFunction(...args) {
+            const context = this;
             const later = () => {
               clearTimeout(timeout);
-              func(...args);
+              func.apply(context, args);
             };
             clearTimeout(timeout);
             timeout = setTimeout(later, wait);
@@ -18194,10 +18476,8 @@
         }
         
         // 从本地存储中恢复用户设置的每页记录数
-        const savedPageSize = localStorage.getItem('quarkAutoSave_pageSize');
-        if (savedPageSize) {
-          this.historyParams.page_size = savedPageSize === 'all' ? 99999 : parseInt(savedPageSize);
-        }
+        this.restoreHistoryPageSizeFromStorage();
+        this.restoreFileManagerPageSizeFromStorage();
         
         // 从本地存储中恢复页面宽度设置
         const savedPageWidthMode = localStorage.getItem('quarkAutoSave_pageWidthMode');
@@ -18276,12 +18556,8 @@
         $('#fileSelectModal').on('shown.bs.modal', this.checkPreviewScrollbar);
         // 监听窗口大小改变，重新检查滚动条状态
         window.addEventListener('resize', this.checkPreviewScrollbar);
-        // 分页跳转输入框宽度随末页按钮变化（窗口缩放、布局变化）
-        this._onPaginationJumpResize = this.debounce(function() {
-          this.syncHistoryJumpInputWidth();
-          this.syncFileManagerJumpInputWidth();
-        }, 60);
-        window.addEventListener('resize', this._onPaginationJumpResize);
+        // 自动分页：监听窗口高度变化并实时重算
+        this.setupAutoPageSizeResizeListener();
         
         // 初始化时检查所有任务的命名模式
         setTimeout(() => {
@@ -18374,10 +18650,7 @@
         // 移除点击事件监听器
         document.removeEventListener('click', this.handleOutsideClick);
         document.removeEventListener('click', this.handleRenameOutsideClick);
-        if (this._onPaginationJumpResize) {
-          window.removeEventListener('resize', this._onPaginationJumpResize);
-          this._onPaginationJumpResize = null;
-        }
+        this.teardownAutoPageSizeResizeListener();
         
         // 移除日历页面resize监听器
         if (this.calendarResizeHandler) {
