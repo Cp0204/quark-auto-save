@@ -3092,6 +3092,9 @@
             <div class="file-selection-info mr-auto" v-else-if="createTask.movieData" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
               {{ createTask.movieData.title + (createTask.movieData.year ? ' (' + createTask.movieData.year + ')' : '') }}
             </div>
+            <div class="file-selection-info mr-auto" v-else-if="isTaskListCreateMode() && createTask.taskData.shareurl" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+              {{ getCreateTaskListShareAuthorFooterText() }}
+            </div>
             <button type="button" class="btn btn-primary btn-cancel" @click="cancelCreateTask">取消</button>
             <template v-if="createTask.isEditMode">
               <button type="button" class="btn btn-primary" :disabled="createTask.loading" @click="confirmEditTask">
@@ -3852,7 +3855,7 @@
           movieData: null, // 存储当前要创建任务的影视作品数据
           isEditMode: false, // 是否为编辑模式
           editTaskIndex: null, // 编辑的任务索引
-          shareAuthor: '', // 编辑模式展示用；创建保存时不参与写入配置
+          shareAuthor: '', // 编辑/任务列表创建模式左下角展示用；创建保存时不参与写入配置
           taskData: {
             taskname: "",
             shareurl: "",
@@ -11013,6 +11016,16 @@
           }
           return `当前资源分享者：${author}`;
         },
+        // 是否为任务列表页面的创建任务模式（非编辑、非影视发现）
+        isTaskListCreateMode() {
+          return !this.createTask.isEditMode && !this.createTask.movieData;
+        },
+        // 任务列表创建任务模态框左下角分享者文案（不含已订阅天数）
+        getCreateTaskListShareAuthorFooterText() {
+          let author = (this.createTask.shareAuthor || '').trim();
+          if (!author) author = '加载中';
+          return `当前资源分享者：${author}`;
+        },
         // 任务列表：分享者与订阅天数悬停文案（读取配置 share_author_name / shareurl_subscribed_since）
         getTaskShareSubscriptionHoverText(task) {
           if (!task) return '';
@@ -11063,6 +11076,49 @@
           if (!resourceId) return;
           if (resourceId === this.editTaskShareAuthorResourceId) return;
           this.refreshEditTaskShareAuthor(url, resourceId);
+        },
+        // 任务列表创建任务模态框：分享 ID 变化时刷新左下角分享者信息
+        maybeRefreshTaskListCreateShareAuthor(shareurl) {
+          if (!this.isTaskListCreateMode()) return;
+          const url = (shareurl || '').trim();
+          if (!url || !/pan\.(quark|qoark)\.cn\/s\//i.test(url)) {
+            this.editTaskShareAuthorResourceId = null;
+            this.createTask.shareAuthor = '';
+            return;
+          }
+          const resourceId = this.getResourceIdFromUrl(url);
+          if (!resourceId) return;
+          if (resourceId === this.editTaskShareAuthorResourceId) return;
+          this.refreshTaskListCreateShareAuthor(url, resourceId);
+        },
+        // 任务列表创建任务模态框：根据分享链接请求分享者昵称
+        refreshTaskListCreateShareAuthor(shareurl, resourceId) {
+          if (!this.isTaskListCreateMode()) return;
+          const url = (shareurl || '').trim();
+          if (!url || !/pan\.(quark|qoark)\.cn\/s\//i.test(url)) {
+            this.editTaskShareAuthorResourceId = null;
+            this.createTask.shareAuthor = '';
+            return;
+          }
+          const pwdId = resourceId || this.getResourceIdFromUrl(url);
+          const reqId = ++this.editTaskShareAuthorReqId;
+          this.createTask.shareAuthor = '';
+          axios.get('/get_share_author', { params: { shareurl: url } })
+            .then(response => {
+              if (reqId !== this.editTaskShareAuthorReqId) return;
+              let fetchedName = '';
+              if (response.data.success) {
+                fetchedName = (response.data.data && response.data.data.author_name) || '';
+              }
+              this.createTask.shareAuthor = (fetchedName || '').trim() || '未知';
+              if (pwdId) {
+                this.editTaskShareAuthorResourceId = pwdId;
+              }
+            })
+            .catch(() => {
+              if (reqId !== this.editTaskShareAuthorReqId) return;
+              this.createTask.shareAuthor = '未知';
+            });
         },
         // 编辑任务模态框：根据分享链接请求分享者昵称
         refreshEditTaskShareAuthor(shareurl, resourceId) {
@@ -11193,16 +11249,22 @@
           this.refreshFileSelectShareAuthor(url, resourceId);
         },
         onEditTaskShareurlInput() {
-          if (!this.createTask.isEditMode) return;
           clearTimeout(this.editTaskShareAuthorTimer);
           this.editTaskShareAuthorTimer = setTimeout(() => {
-            this.maybeRefreshEditTaskShareAuthor(this.createTask.taskData.shareurl);
+            if (this.createTask.isEditMode) {
+              this.maybeRefreshEditTaskShareAuthor(this.createTask.taskData.shareurl);
+            } else if (this.isTaskListCreateMode()) {
+              this.maybeRefreshTaskListCreateShareAuthor(this.createTask.taskData.shareurl);
+            }
           }, 500);
         },
         changeShareurl(task) {
           if (!task.shareurl) {
             if (this.createTask.isEditMode && task === this.createTask.taskData) {
               this.createTask.shareAuthor = '';
+            } else if (this.isTaskListCreateMode() && task === this.createTask.taskData) {
+              this.createTask.shareAuthor = '';
+              this.editTaskShareAuthorResourceId = null;
             }
             return;
           }
@@ -11258,6 +11320,15 @@
                   this.$set(task, "shareurl_ban", undefined);
                 }
                 if (this.createTask.isEditMode && task === this.createTask.taskData) {
+                  const authorName = this.extractShareAuthorName(share_detail);
+                  if (authorName) {
+                    this.createTask.shareAuthor = authorName;
+                    const resourceId = this.getResourceIdFromUrl(task.shareurl);
+                    if (resourceId) {
+                      this.editTaskShareAuthorResourceId = resourceId;
+                    }
+                  }
+                } else if (this.isTaskListCreateMode() && task === this.createTask.taskData) {
                   const authorName = this.extractShareAuthorName(share_detail);
                   if (authorName) {
                     this.createTask.shareAuthor = authorName;
@@ -12630,6 +12701,8 @@
               this.createTask.taskData.shareurl = this.fileSelect.shareurl;
               if (this.createTask.isEditMode) {
                 this.maybeRefreshEditTaskShareAuthor(this.createTask.taskData.shareurl);
+              } else if (this.isTaskListCreateMode()) {
+                this.maybeRefreshTaskListCreateShareAuthor(this.createTask.taskData.shareurl);
               }
             } else if (this.fileSelect.index !== null && this.fileSelect.index >= 0 && this.formData.tasklist[this.fileSelect.index]) {
               this.formData.tasklist[this.fileSelect.index].shareurl_ban = undefined;
