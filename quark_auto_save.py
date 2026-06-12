@@ -11,10 +11,12 @@ import sys
 import json
 import time
 import random
+import logging
 import requests
 import importlib
 import urllib.parse
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 
 # 添加数据库导入
 try:
@@ -43,6 +45,65 @@ except ImportError:
             
             def get_task_metrics(self, *args, **kwargs):
                 return None
+
+_SCRIPT_LOGGER = None
+
+
+def _setup_script_logging():
+    """初始化转存脚本日志（懒加载；子进程 stdout 由 run.py 按级别转发）。"""
+    global _SCRIPT_LOGGER
+    if _SCRIPT_LOGGER is not None:
+        return _SCRIPT_LOGGER
+
+    debug = os.environ.get("DEBUG", "false").lower() == "true"
+    level = logging.DEBUG if debug else logging.INFO
+
+    logger = logging.getLogger("quark_auto_save")
+    logger.setLevel(level)
+    logger.propagate = False
+
+    if logger.handlers:
+        _SCRIPT_LOGGER = logger
+        return logger
+
+    # 子进程模式：输出到 stdout，由父进程捕获并写入 runtime.log
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
+    stream_handler.setLevel(level)
+    logger.addHandler(stream_handler)
+
+    # 独立运行（终端直接执行）时额外写入 runtime.log，避免与子进程重复写文件
+    try:
+        stdout_is_pipe = not os.isatty(sys.stdout.fileno())
+    except Exception:
+        stdout_is_pipe = True
+
+    if not stdout_is_pipe:
+        try:
+            log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "logs")
+            os.makedirs(log_dir, exist_ok=True)
+            file_handler = RotatingFileHandler(
+                os.path.join(log_dir, "runtime.log"),
+                maxBytes=5 * 1024 * 1024,
+                backupCount=2,
+                encoding="utf-8",
+            )
+            file_handler.setFormatter(logging.Formatter(
+                fmt="[%(asctime)s][%(levelname)s] %(message)s",
+                datefmt="%m-%d %H:%M:%S",
+            ))
+            file_handler.setLevel(level)
+            logger.addHandler(file_handler)
+        except Exception:
+            pass
+
+    _SCRIPT_LOGGER = logger
+    return logger
+
+
+def _get_logger():
+    return _setup_script_logging()
+
 
 def notify_calendar_changed_safe(reason):
     """安全地触发SSE通知，避免导入错误
@@ -1272,6 +1333,104 @@ def apply_subtitle_naming_rule(filename, task_settings):
     return f"{name_without_ext}.{subtitle_naming_rule}{ext}"
 
 
+# 已知文件格式扩展名（小写），用于识别命名规则末尾是否指定了文件扩展名
+KNOWN_FILE_EXTENSIONS = frozenset({
+    # 视频
+    "mp4", "mkv", "avi", "mov", "rmvb", "flv", "wmv", "m4v", "ts", "webm", "3gp", "f4v", "mpg", "mpeg",
+    # 音频
+    "mp3", "flac", "wav", "aac", "m4a", "wma", "ogg", "ape",
+    # 图片
+    "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "ico", "tiff", "tif", "heic", "heif",
+    # 文档
+    "doc", "docx", "pdf", "txt", "xls", "xlsx", "ppt", "pptx", "csv", "md", "rtf", "odt", "ods", "odp",
+    # 压缩
+    "zip", "rar", "7z", "tar", "gz", "bz2", "xz", "tgz",
+    # 字幕
+    "srt", "ass", "ssa", "vtt", "sup",
+    # 其他
+    "nfo", "torrent", "iso", "lrc", "json", "xml", "html", "htm",
+})
+
+_NAMING_PATTERN_EXT_RE = re.compile(r"\.([a-zA-Z0-9]{1,10})$")
+
+
+def parse_naming_pattern_extension(pattern):
+    """
+    解析顺序/剧集命名规则末尾是否指定了文件扩展名。
+    仅当末尾的 .xxx 为已知文件格式扩展名时才识别，避免将剧名中的点号或 SP/正片 等误判为扩展名。
+
+    Returns:
+        tuple: (pattern_base, specified_extension)
+        specified_extension 为带点号的扩展名（如 '.mp4'），未指定时为 None
+    """
+    if not pattern:
+        return pattern, None
+
+    match = _NAMING_PATTERN_EXT_RE.search(pattern)
+    if not match:
+        return pattern, None
+
+    ext_lower = match.group(1).lower()
+    if ext_lower not in KNOWN_FILE_EXTENSIONS:
+        return pattern, None
+
+    pattern_base = pattern[: match.start()]
+    forced_ext = "." + match.group(1)
+    return pattern_base, forced_ext
+
+
+def is_standalone_sequence_pattern(pattern):
+    """是否为未指定文件扩展名的单独 {} 占位符模式（沿用原有纯数字已命名判断逻辑）。"""
+    pattern_base, forced_ext = parse_naming_pattern_extension(pattern)
+    return pattern_base == "{}" and not forced_ext
+
+
+def build_sequence_naming_filename(pattern, sequence_num, original_filename):
+    """根据顺序命名规则生成文件名；规则末尾可指定文件扩展名以替换原文件扩展名。"""
+    pattern_base, forced_ext = parse_naming_pattern_extension(pattern)
+    seq_str = f"{sequence_num:02d}"
+
+    if pattern_base == "{}":
+        name_part = seq_str
+    else:
+        name_part = pattern_base.replace("{}", seq_str)
+
+    if forced_ext:
+        return name_part + forced_ext
+
+    file_ext = os.path.splitext(original_filename)[1]
+    return name_part + file_ext
+
+
+def build_episode_naming_filename(pattern, episode_num, original_filename):
+    """根据剧集命名规则生成文件名；规则末尾可指定文件扩展名以替换原文件扩展名。"""
+    pattern_base, forced_ext = parse_naming_pattern_extension(pattern)
+    ep_str = f"{episode_num:02d}"
+
+    if pattern_base == "[]":
+        name_part = ep_str
+    else:
+        name_part = pattern_base.replace("[]", ep_str)
+
+    if forced_ext:
+        return name_part + forced_ext
+
+    file_ext = os.path.splitext(original_filename)[1]
+    return name_part + file_ext
+
+
+def build_sequence_regex_pattern(sequence_pattern):
+    """构建顺序命名用于检测已命名文件的正则表达式（含规则末尾指定的文件扩展名）。"""
+    pattern_base, forced_ext = parse_naming_pattern_extension(sequence_pattern)
+    if pattern_base == "{}":
+        regex_pattern = r"(\d+)"
+    else:
+        regex_pattern = re.escape(pattern_base).replace("\\{\\}", "(\\d+)")
+    if forced_ext:
+        regex_pattern = regex_pattern + re.escape(forced_ext)
+    return regex_pattern
+
+
 class Config:
     # 下载配置
     def download_file(url, save_path):
@@ -1369,7 +1528,29 @@ class Config:
                 }
                 if task.get("media_id"):
                     del task["media_id"]
-                    
+
+        # 补全任务分享订阅元数据（资源 ID、订阅起始时间；分享者由 Web 服务后台拉取）
+        now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        date_only_re = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+        for task in config_data.get("tasklist", []) or []:
+            shareurl = (task.get("shareurl") or "").strip()
+            if not shareurl:
+                continue
+            match = re.search(
+                r"pan\.(quark|qoark)\.cn/s/([a-zA-Z0-9]+)", shareurl, re.IGNORECASE
+            )
+            resource_id = match.group(2) if match else ""
+            if not resource_id:
+                continue
+            if not task.get("share_resource_id"):
+                task["share_resource_id"] = resource_id
+            existing_since = task.get("shareurl_subscribed_since")
+            if not existing_since:
+                task["shareurl_subscribed_since"] = now_ts
+            else:
+                since_str = str(existing_since).strip()
+                if date_only_re.match(since_str):
+                    task["shareurl_subscribed_since"] = f"{since_str} 00:00:00"
 
 
 class Quark:
@@ -1455,10 +1636,10 @@ class Quark:
                 
             return response
         except Exception as e:
-            print(f"_send_request error:\n{e}")
+            _get_logger().debug(f"_send_request error:\n{e}")
             fake_response = requests.Response()
             fake_response.status_code = 500
-            fake_response._content = b'{"status": 500, "message": "request error"}'
+            fake_response._content = b'{"code": -1, "status": 500, "message": "request error"}'
             return fake_response
 
     def init(self):
@@ -1531,9 +1712,10 @@ class Quark:
             "POST", url, json=payload, params=querystring
         ).json()
         if response.get("status") == 200:
-            return True, response["data"]["stoken"]
+            data = response.get("data") or {}
+            return True, data.get("stoken"), data.get("author")
         else:
-            return False, response["message"]
+            return False, response.get("message"), None
 
     def is_recoverable_error(self, error_message):
         """
@@ -1596,14 +1778,7 @@ class Quark:
                     # 对于inner error，尝试重试
                     if retry_count < max_retries:
                         retry_count += 1
-                        # 静默重试，不输出重试信息，避免日志污染
-                        # 只有在调试模式下才记录详细重试信息
-                        try:
-                            import os
-                            if os.environ.get("DEBUG", "false").lower() == "true":
-                                print(f"[DEBUG] 遇到inner error，进行第{retry_count}次重试...")
-                        except:
-                            pass  # 如果无法获取DEBUG环境变量，静默处理
+                        _get_logger().debug(f"遇到inner error，进行第{retry_count}次重试...")
                         time.sleep(1)  # 等待1秒后重试
                         continue
                     else:
@@ -1661,6 +1836,7 @@ class Quark:
         page = 1
         # 优化：增加每页大小，减少API调用次数
         page_size = kwargs.get("page_size", 200)  # 从50增加到200
+        max_retries = 3
 
         while True:
             url = f"{self.BASE_URL}/1/clouddrive/file/sort"
@@ -1676,20 +1852,57 @@ class Quark:
                 "_sort": "file_type:asc,updated_at:desc",
                 "_fetch_full_path": kwargs.get("fetch_full_path", 0),
             }
-            response = self._send_request("GET", url, params=querystring).json()
-            if response["code"] != 0:
-                return {"error": response["message"]}
-            if response["data"]["list"]:
-                file_list += response["data"]["list"]
+            retry_count = 0
+            response = None
+            while True:
+                try:
+                    response = self._send_request("GET", url, params=querystring).json()
+                except Exception:
+                    response = {"code": -1, "message": "request error"}
+
+                if isinstance(response, dict) and response.get("message"):
+                    error_message = response.get("message", "")
+                    if "inner error" in error_message.lower():
+                        if retry_count < max_retries:
+                            retry_count += 1
+                            time.sleep(1)
+                            continue
+
+                code = response.get("code") if isinstance(response, dict) else -1
+                status = response.get("status") if isinstance(response, dict) else None
+                if code not in (0, None):
+                    if retry_count < max_retries and (
+                        code == -1 or "request error" in str(response.get("message", "")).lower()
+                    ):
+                        retry_count += 1
+                        time.sleep(1)
+                        continue
+                    return {"error": response.get("message", "unknown error")}
+                if status not in (None, 200):
+                    if retry_count < max_retries:
+                        retry_count += 1
+                        time.sleep(1)
+                        continue
+                    return {"error": response.get("message", "request error")}
+                break
+
+            data = response.get("data") or {}
+            metadata = response.get("metadata") or {}
+            page_list = data.get("list") or []
+
+            if page_list:
+                file_list += page_list
                 page += 1
             else:
                 break
-            if len(file_list) >= response["metadata"]["_total"]:
+
+            total = metadata.get("_total") if isinstance(metadata, dict) else None
+            if isinstance(total, int) and len(file_list) >= total:
                 break
-        
+
         # 修复文件夹大小显示问题：当include_items字段不存在时，通过额外API调用获取
         file_list = self._fix_folder_sizes(file_list)
-        
+
         return file_list
 
     def _fix_folder_sizes(self, file_list):
@@ -1807,7 +2020,7 @@ class Quark:
     def query_task(self, task_id, quiet=False):
         """quiet=True 时不打印轮询进度（用于 dir_check_and_save 递归转存，避免刷屏）"""
         retry_index = 0
-        printed = False
+        line_started = False
         while True:
             url = f"{self.BASE_URL}/1/clouddrive/task"
             querystring = {
@@ -1820,23 +2033,32 @@ class Quark:
                 "__t": datetime.now().timestamp(),
             }
             response = self._send_request("GET", url, params=querystring).json()
-            if response["data"]["status"] != 0:
-                if printed:
-                    print()
+            data = response.get("data") or {}
+            status = data.get("status", 0)
+            task_title = data.get("task_title", "分享-转存")
+
+            if status != 0:
+                if line_started:
+                    # 结束同一行的进度点，readline 可采集完整一行
+                    print(flush=True)
+                elif not quiet:
+                    # 首次轮询即完成：补打完整行，避免日志丢失
+                    print(f"正在等待「{task_title}」执行结果", flush=True)
                 break
-            else:
-                if not quiet:
-                    if retry_index == 0:
-                        print(
-                            f"正在等待「{response['data']['task_title']}」执行结果",
-                            end="",
-                            flush=True,
-                        )
-                    else:
-                        print(".", end="", flush=True)
-                    printed = True
-                retry_index += 1
-                time.sleep(0.500)
+
+            if not quiet:
+                if retry_index == 0:
+                    print(
+                        f"正在等待「{task_title}」执行结果",
+                        end="",
+                        flush=True,
+                    )
+                    line_started = True
+                else:
+                    print(".", end="", flush=True)
+
+            retry_index += 1
+            time.sleep(0.500)
         return response
 
     def _transfer_poll_quiet(self, task, subdir_path):
@@ -2045,15 +2267,23 @@ class Quark:
         extracted_folder_name = extracted_folder.get("file_name")
         
         # 第三步：获取解压后的所有文件
-        extracted_files = self.ls_dir(extracted_folder_fid)
-        
-        # 收集所有需要处理的文件（递归获取）
         all_files = []
         folders_to_delete = [extracted_folder_fid]  # 需要删除的文件夹列表
-        
+        list_read_failed = None
+
         def collect_files_recursive(folder_fid, relative_path=""):
             """递归收集文件夹内的所有文件"""
+            nonlocal list_read_failed
+            if list_read_failed:
+                return
             files = self.ls_dir(folder_fid)
+            if not isinstance(files, list):
+                list_read_failed = (
+                    files.get("error", "request error")
+                    if isinstance(files, dict)
+                    else "request error"
+                )
+                return
             for f in files:
                 file_relative_path = f"{relative_path}/{f['file_name']}" if relative_path else f['file_name']
                 if f.get("dir"):
@@ -2069,7 +2299,10 @@ class Quark:
                     })
         
         collect_files_recursive(extracted_folder_fid)
-        
+        if list_read_failed:
+            print(f"  ❌ 读取解压目录失败: {list_read_failed}")
+            return {"success": False, "message": list_read_failed}
+
         # 第四步：应用过滤规则并删除被过滤掉的文件
         if task and task.get("filterwords"):
             # 应用过滤规则，获取通过过滤的文件列表
@@ -2358,7 +2591,7 @@ class Quark:
     def do_save_check(self, shareurl, savepath):
         try:
             pwd_id, passcode, pdir_fid, _ = self.extract_url(shareurl)
-            _, stoken = self.get_stoken(pwd_id, passcode)
+            _, stoken, _ = self.get_stoken(pwd_id, passcode)
             share_file_list = self.get_detail(pwd_id, stoken, pdir_fid)["list"]
             fid_list = [item["fid"] for item in share_file_list]
             fid_token_list = [item["share_fid_token"] for item in share_file_list]
@@ -2798,13 +3031,15 @@ class Quark:
             print(f"提取链接参数失败，请检查分享链接是否有效")
             return
         # 获取分享详情
-        is_sharing, stoken = self.get_stoken(pwd_id, passcode)
+        is_sharing, stoken, _ = self.get_stoken(pwd_id, passcode)
         if not is_sharing:
             # 如果是可恢复错误（网络/临时），不要设置为失效资源
             try:
                 error_text = str(stoken or "")
                 if self.is_recoverable_error(error_text):
-                    print(f"分享详情获取失败（网络异常）: {error_text}")
+                    _get_logger().warning(
+                        f"《{task['taskname']}》分享详情获取失败（网络异常，本轮跳过）: {error_text}"
+                    )
                     return  # 直接返回，不设置 shareurl_ban
             except Exception:
                 pass
@@ -2817,7 +3052,9 @@ class Quark:
         if isinstance(share_detail, dict) and share_detail.get("error"):
             error_text = str(share_detail.get("error") or "")
             if self.is_recoverable_error(error_text):
-                print(f"获取分享详情失败（网络异常）: {error_text}")
+                _get_logger().warning(
+                    f"《{task['taskname']}》获取分享详情失败（网络异常，本轮跳过）: {error_text}"
+                )
                 return  # 直接返回，不设置 shareurl_ban
             else:
                 task["shareurl_ban"] = self.format_unrecoverable_error(error_text) if hasattr(self, 'format_unrecoverable_error') else error_text
@@ -2852,13 +3089,7 @@ class Quark:
             task["regex_pattern"] = None
             # 构建顺序命名的正则表达式
             sequence_pattern = task["sequence_naming"]
-            # 将{}替换为(\d+)用于匹配
-            if sequence_pattern == "{}":
-                # 对于单独的{}，使用特殊匹配
-                regex_pattern = "(\\d+)"
-            else:
-                regex_pattern = re.escape(sequence_pattern).replace('\\{\\}', '(\\d+)')
-            task["regex_pattern"] = regex_pattern
+            task["regex_pattern"] = build_sequence_regex_pattern(sequence_pattern)
         # 支持剧集命名模式
         elif task.get("use_episode_naming") and task.get("episode_naming"):
             # 剧集命名模式下已经在do_save中打印了剧集命名信息，这里不再重复打印
@@ -3025,12 +3256,13 @@ class Quark:
             # 顺序命名模式
             current_sequence = 1
             sequence_pattern = task["sequence_naming"]
+            use_digit_only_sequence_check = is_standalone_sequence_pattern(sequence_pattern)
             regex_pattern = task.get("regex_pattern")
             
             # 查找目录中现有的最大序号
             for dir_file in dir_file_list:
                 if not dir_file["dir"]:  # 只检查文件
-                    if sequence_pattern == "{}":
+                    if use_digit_only_sequence_check:
                         # 对于单独的{}，直接尝试匹配整个文件名是否为数字
                         file_name_without_ext = os.path.splitext(dir_file["file_name"])[0]
                         if file_name_without_ext.isdigit():
@@ -3139,10 +3371,10 @@ class Quark:
             
             # 为每个文件分配序号
             for share_file in filtered_share_files:
-                # 获取文件扩展名
-                file_ext = os.path.splitext(share_file["file_name"])[1]
                 # 生成新文件名
-                save_name = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
+                save_name = build_sequence_naming_filename(
+                    sequence_pattern, current_sequence, share_file["file_name"]
+                )
                 
                 # 应用字幕命名规则
                 save_name = apply_subtitle_naming_rule(save_name, task)
@@ -3162,7 +3394,7 @@ class Quark:
                 
                 if not file_exists:
                     # 设置保存文件名（单独的{}不在这里重命名，而是在do_rename_task中处理）
-                    if sequence_pattern == "{}":
+                    if use_digit_only_sequence_check:
                         share_file["save_name"] = share_file["file_name"]  # 保持原文件名，稍后在do_rename_task中处理
                     else:
                         share_file["save_name"] = save_name
@@ -3317,10 +3549,9 @@ class Quark:
                     if episode_num is not None:
                         # 根据剧集命名模式生成目标文件名
                         episode_pattern = task["episode_naming"]
-                        if episode_pattern == "[]":
-                            target_name = f"{episode_num:02d}{file_ext}"
-                        else:
-                            target_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                        target_name = build_episode_naming_filename(
+                            episode_pattern, episode_num, original_name
+                        )
                         
                         # 应用字幕命名规则
                         target_name = apply_subtitle_naming_rule(target_name, task)
@@ -3879,6 +4110,8 @@ class Quark:
                     if self._is_auto_extract_enabled(auto_extract_mode):
                         # 获取刚转存的文件列表（转存后可能有延迟，支持重试）
                         fresh_files = self.ls_dir(to_pdir_fid)
+                        if not isinstance(fresh_files, list):
+                            fresh_files = []
                         max_retries = 3
                         retry_delay = 2
 
@@ -3900,6 +4133,8 @@ class Quark:
                                     for _ in range(max_retries - 1):
                                         time.sleep(retry_delay)
                                         fresh_files = self.ls_dir(to_pdir_fid)
+                                        if not isinstance(fresh_files, list):
+                                            fresh_files = []
                                         for f in fresh_files:
                                             if f["file_name"] == saved_item["file_name"]:
                                                 archive_file = f
@@ -4035,12 +4270,8 @@ class Quark:
                 return False, []
             # 使用顺序命名模式
             sequence_pattern = task["sequence_naming"]
-            # 替换占位符为正则表达式捕获组
-            if sequence_pattern == "{}":
-                # 对于单独的{}，使用特殊匹配
-                regex_pattern = "(\\d+)"
-            else:
-                regex_pattern = re.escape(sequence_pattern).replace('\\{\\}', '(\\d+)')
+            use_digit_only_sequence_check = is_standalone_sequence_pattern(sequence_pattern)
+            regex_pattern = build_sequence_regex_pattern(sequence_pattern)
             
             savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
             if not self.savepath_fid.get(savepath):
@@ -4071,7 +4302,7 @@ class Quark:
                 if dir_file.get("dir", False):
                     continue  # 跳过文件夹
 
-                if sequence_pattern == "{}":
+                if use_digit_only_sequence_check:
                     # 对于单独的{}，直接尝试匹配整个文件名是否为数字
                     file_name_without_ext = os.path.splitext(dir_file["file_name"])[0]
                     if file_name_without_ext.isdigit():
@@ -4110,7 +4341,7 @@ class Quark:
                     for record in records:
                         renamed_to = record.get("renamed_to", "")
                         if renamed_to:
-                            if sequence_pattern == "{}":
+                            if use_digit_only_sequence_check:
                                 # 对于单独的{}，直接尝试匹配整个文件名是否为数字
                                 file_name_without_ext = os.path.splitext(renamed_to)[0]
                                 if file_name_without_ext.isdigit():
@@ -4145,7 +4376,7 @@ class Quark:
             sorted_files = []
             
             # 对于单独的{}模式，增加额外检查
-            if sequence_pattern == "{}":
+            if use_digit_only_sequence_check:
                 # 收集所有不是纯数字命名的文件
                 for dir_file in dir_file_list:
                     if dir_file["dir"]:
@@ -4190,13 +4421,9 @@ class Quark:
             # 对排序好的文件应用顺序命名
             for dir_file in sorted_files:
                 current_sequence += 1
-                file_ext = os.path.splitext(dir_file["file_name"])[1]
-                # 根据顺序命名模式生成新的文件名
-                if sequence_pattern == "{}":
-                    # 对于单独的{}，直接使用数字序号作为文件名，不再使用日期格式
-                    save_name = f"{current_sequence:02d}{file_ext}"
-                else:
-                    save_name = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
+                save_name = build_sequence_naming_filename(
+                    sequence_pattern, current_sequence, dir_file["file_name"]
+                )
                 
                 # 应用字幕命名规则
                 save_name = apply_subtitle_naming_rule(save_name, task)
@@ -4337,7 +4564,7 @@ class Quark:
                         return False, []
                     
                     # 获取分享详情
-                    is_sharing, stoken = self.get_stoken(pwd_id, passcode)
+                    is_sharing, stoken, _ = self.get_stoken(pwd_id, passcode)
                     if not is_sharing:
                         # 如果任务已经有 shareurl_ban，说明已经在 do_save_task 中处理过了，不需要重复输出
                         if not task.get("shareurl_ban"):
@@ -4412,10 +4639,9 @@ class Quark:
                             
                             # 构建可能的新文件名
                             if episode_num is not None:
-                                if episode_pattern == "[]":
-                                    new_name = f"{episode_num:02d}{file_ext}"
-                                else:
-                                    new_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                                new_name = build_episode_naming_filename(
+                                    episode_pattern, episode_num, original_name
+                                )
                                 # 应用字幕命名规则
                                 new_name = apply_subtitle_naming_rule(new_name, task)
                             else:
@@ -4484,13 +4710,9 @@ class Quark:
                     for share_file in sorted_files:
                         episode_num = extract_episode_number_local(share_file["file_name"])
                         if episode_num is not None:
-                            # 生成新文件名
-                            file_ext = os.path.splitext(share_file["file_name"])[1]
-                            if episode_pattern == "[]":
-                                # 对于单独的[]，直接使用数字序号作为文件名
-                                save_name = f"{episode_num:02d}{file_ext}"
-                            else:
-                                save_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                            save_name = build_episode_naming_filename(
+                                episode_pattern, episode_num, share_file["file_name"]
+                            )
                             
                             # 应用字幕命名规则
                             save_name = apply_subtitle_naming_rule(save_name, task)
@@ -4542,8 +4764,9 @@ class Quark:
                                 fname = f["file_name"]
                                 ep_num = extract_episode_number_local(fname)
                                 if ep_num is not None:
-                                    ext = os.path.splitext(fname)[1]
-                                    save_name = episode_pattern.replace("[]", f"{ep_num:02d}") + ext if episode_pattern != "[]" else f"{ep_num:02d}{ext}"
+                                    save_name = build_episode_naming_filename(
+                                        episode_pattern, ep_num, fname
+                                    )
                                     save_name = apply_subtitle_naming_rule(save_name, task)
                                 else:
                                     save_name = fname
@@ -4633,12 +4856,9 @@ class Quark:
                                                             moved_file_name = moved_file["file_name"]
                                                             episode_num = extract_episode_number_local(moved_file_name)
                                                             if episode_num is not None:
-                                                                # 根据剧集命名规则生成 save_name
-                                                                file_ext = os.path.splitext(moved_file_name)[1]
-                                                                if episode_pattern == "[]":
-                                                                    save_name = f"{episode_num:02d}{file_ext}"
-                                                                else:
-                                                                    save_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
+                                                                save_name = build_episode_naming_filename(
+                                                                    episode_pattern, episode_num, moved_file_name
+                                                                )
                                                                 # 应用字幕命名规则
                                                                 save_name = apply_subtitle_naming_rule(save_name, task)
                                                             else:
@@ -4806,25 +5026,13 @@ class Quark:
                 # 检查是否需要重命名
                 episode_num = extract_episode_number_local(dir_file["file_name"])
                 if episode_num is not None:
-                    # 根据剧集命名模式生成目标文件名
-                    file_ext = os.path.splitext(dir_file["file_name"])[1]
-                    if episode_pattern == "[]":
-                        # 使用完整的剧集号识别逻辑，而不是简单的纯数字判断
-                        # 生成新文件名
-                        new_name = f"{episode_num:02d}{file_ext}"
-                        # 应用字幕命名规则
-                        new_name = apply_subtitle_naming_rule(new_name, task)
-                        # 只有当当前文件名与目标文件名不同时才重命名
-                        if dir_file["file_name"] != new_name:
-                            rename_operations.append((dir_file, new_name, episode_num))
-                    else:
-                        # 生成目标文件名
-                        new_name = episode_pattern.replace("[]", f"{episode_num:02d}") + file_ext
-                        # 应用字幕命名规则
-                        new_name = apply_subtitle_naming_rule(new_name, task)
-                        # 检查文件名是否已经符合目标格式
-                        if dir_file["file_name"] != new_name:
-                            rename_operations.append((dir_file, new_name, episode_num))
+                    new_name = build_episode_naming_filename(
+                        episode_pattern, episode_num, dir_file["file_name"]
+                    )
+                    # 应用字幕命名规则
+                    new_name = apply_subtitle_naming_rule(new_name, task)
+                    if dir_file["file_name"] != new_name:
+                        rename_operations.append((dir_file, new_name, episode_num))
             
             # 按剧集号排序
             rename_operations.sort(key=lambda x: x[2])
@@ -5808,15 +6016,10 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                             for i, node in enumerate(file_nodes):
                                 # 提取序号（从1开始）
                                 file_num = i + 1
-                                # 获取原始文件的扩展名
                                 orig_filename = remove_file_icons(node.tag)
-                                file_ext = os.path.splitext(orig_filename)[1]
-                                # 生成新的文件名（使用顺序命名模式）
-                                if sequence_pattern == "{}":
-                                    # 对于单独的{}，直接使用数字序号作为文件名
-                                    new_filename = f"{file_num:02d}{file_ext}"
-                                else:
-                                    new_filename = sequence_pattern.replace("{}", f"{file_num:02d}") + file_ext
+                                new_filename = build_sequence_naming_filename(
+                                    sequence_pattern, file_num, orig_filename
+                                )
                                 # 获取适当的图标
                                 icon = get_file_icon(orig_filename, is_dir=node.data.get("is_dir", False))
                                 # 添加到显示列表
@@ -7136,6 +7339,7 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
 
 def main():
     global CONFIG_DATA
+    _setup_script_logging()
     start_time = datetime.now()
     print(f"===============程序开始===============")
     print(f"⏰ 执行时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")

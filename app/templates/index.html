@@ -844,6 +844,24 @@
               </div>
             </div>
 
+            <div class="form-group">
+              <div class="input-group">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">资源搜索优选分享者</span>
+                </div>
+                <input type="text" class="form-control" v-model="formData.task_settings.search_preferred_sharers" placeholder="可选，输入优质资源分享者昵称，多个昵称用竖线分隔，如：张*三|李*四|王*五" title="设置资源搜索优选分享者昵称，多个昵称用竖线分隔。搜索结果中，匹配昵称的分享链接将以浅灰色高亮显示。高亮优先级依次为：当前选中资源（深蓝色）、当前订阅资源分享者的其他资源（浅蓝色）、优选分享者资源（浅灰色）">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <div class="input-group">
+                <div class="input-group-prepend">
+                  <span class="input-group-text">资源搜索屏蔽分享者</span>
+                </div>
+                <input type="text" class="form-control" v-model="formData.task_settings.search_blocked_sharers" placeholder="可选，输入需要屏蔽的资源分享者昵称，多个昵称用竖线分隔，如：张*三|李*四|王*五" title="设置资源搜索屏蔽分享者昵称，多个昵称用竖线分隔。搜索结果中，匹配昵称的分享链接将被自动隐藏，不会显示在列表中">
+              </div>
+            </div>
+
             <div class="form-group task-auto-search-group">
               <div class="task-auto-search-item">
                 <div class="input-group">
@@ -1214,6 +1232,7 @@
                       <option v-if="formData.tmdb_api_key" value="progress">任务进度</option>
                       <option value="update_time">更新时间</option>
                       <option value="airtime">播出时间</option>
+                      <option value="subscribe_duration">订阅时长</option>
                     </select>
                     <span class="tasklist-sort-pill tasklist-sort-order" @click="toggleTasklistSortOrder" title="切换升降序">
                       {{ tasklistSort.order === 'asc' ? '升序排列' : '降序排列' }}
@@ -1259,7 +1278,7 @@
             <div v-for="(task, index) in sortedTasklist" :key="'list-'+index" class="task mb-3" v-show="shouldShowTasklist">
               <template v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task) && tasklistFilterByStatus(task)">
                 <hr>
-                <div class="form-group row" style="align-items:center">
+                <div class="form-group row" style="align-items:center" :title="getTaskShareSubscriptionHoverText(task)">
                   <div class="col pl-0" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="true" :aria-controls="'collapse_'+index">
                     <div class="btn btn-block text-left">
                       <i class="bi bi-caret-right-fill"></i> #<span v-html="`${String((task.__originalIndex !== undefined ? task.__originalIndex : index) + 1).padStart(2, '0')} ${task.taskname}`"></span>
@@ -1317,30 +1336,32 @@
                       <div class="input-group">
                         <input type="text" name="taskname[]" class="form-control" v-model="task.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(task.__originalIndex !== undefined ? task.__originalIndex : index, task)" @input="changeTaskname(task.__originalIndex !== undefined ? task.__originalIndex : index, task)">
                         <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.index === (task.__originalIndex !== undefined ? task.__originalIndex : index) && (smart_param.taskSuggestions.success || smart_param.isSearching)">
-                          <div class="dropdown-item text-muted" v-if="smart_param.isSearching" style="font-size:14px; padding: 0 8px; text-align: left;">
-                            <span v-if="smart_param.validating">
-                              <i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i> 
-                              正在验证链接有效性...（{{ smart_param.validateProgress.current }}/{{ smart_param.validateProgress.total }}）<span v-if="smart_param.validateProgress.valid > 0">已找到 {{ smart_param.validateProgress.valid }} 个有效链接</span>
-                            </span>
-                            <span v-else>正在搜索资源...</span>
-                          </div>
-                          <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
-                            {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
-                          </div>
-                          <div
-                            v-for="suggestion in smart_param.taskSuggestions.data || []"
-                            :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')"
-                            class="dropdown-item cursor-pointer"
-                            :class="{ 'current-suggestion': isCurrentSuggestion(suggestion) }"
-                            @click.prevent="selectSuggestion(task.__originalIndex !== undefined ? task.__originalIndex : index, suggestion)"
-                            style="font-size: 14px;"
-                            :title="getSuggestionHoverTitle(suggestion)"
-                          >
-                            <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
-                            <small class="text-muted">
-                              <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '').split('#')[0] }}</a>
-                              <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date, suggestion.pansou_source, suggestion.source) : ''">{{ suggestion.source }}</span></template>
-                            </small>
+                          <div class="task-suggestions-inner">
+                            <div class="dropdown-item text-muted" v-if="smart_param.isSearching" style="font-size:14px; padding: 0 8px; text-align: left;">
+                              <span v-if="smart_param.validating">
+                                <i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i> 
+                                正在验证链接有效性...（{{ smart_param.validateProgress.current }}/{{ smart_param.validateProgress.total }}）<span v-if="smart_param.validateProgress.valid > 0">已找到 {{ smart_param.validateProgress.valid }} 个有效链接</span>
+                              </span>
+                              <span v-else>正在搜索资源...</span>
+                            </div>
+                            <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
+                              {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
+                            </div>
+                            <div
+                              v-for="(suggestion, suggestionIndex) in smart_param.taskSuggestions.data || []"
+                              :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')"
+                              class="dropdown-item cursor-pointer"
+                              :class="{ 'current-suggestion': isCurrentSuggestion(suggestion), 'same-sharer-suggestion': isSameSharerSuggestion(suggestion), 'preferred-sharer-suggestion': isPreferredSharerSuggestion(suggestion) }"
+                              @click.prevent="selectSuggestion(task.__originalIndex !== undefined ? task.__originalIndex : index, suggestion)"
+                              style="font-size: 14px;"
+                              :title="getSuggestionHoverTitle(suggestion, suggestionIndex)"
+                            >
+                              <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
+                              <small class="text-muted">
+                                <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '').split('#')[0] }}</a>
+                                <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date, suggestion.pansou_source, suggestion.source) : ''">{{ suggestion.source }}</span></template>
+                              </small>
+                            </div>
                           </div>
                         </div>
                         <div class="input-group-append" title="资源搜索">
@@ -1434,7 +1455,7 @@
                   <div class="form-group row" title="匹配到的目录及其所有子目录、文件都会参与更新，并应用与根目录相同的正则命名和过滤规则（剧集、顺序命名仅支持对根目录文件重命名）。目录是逐级索引的，无法直接指定某个深层目录；目录层级或文件数量过多时会明显增加扫描耗时，慎用.*">
                     <label class="col-sm-2 col-form-label">更新目录</label>
                     <div class="col-sm-10">
-                      <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如 4K|1080P">
+                      <input type="text" name="update_subdir[]" class="form-control" v-model="task.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如：4K|1080P">
                     </div>
                   </div>
 
@@ -1500,7 +1521,9 @@
                      v-for="(task, index) in sortedTasklist"
                      :key="'poster-'+(task.taskname || index)"
                      v-if="(taskDirSelected == '' || task.taskname == taskDirSelected) && task.taskname.includes(taskNameFilter) && tasklistFilterByType(task) && tasklistFilterByStatus(task)">
-                  <div class="discovery-poster" @mouseenter="handleManagementPosterHover($event, getCalendarTaskByName(task.taskname) || {})">
+                  <div class="discovery-poster"
+                       :title="getTaskShareSubscriptionHoverText(task)"
+                       @mouseenter="handleManagementPosterHover($event, getCalendarTaskByName(task.taskname) || {})">
                     <img :src="getEpisodePosterUrl(getTasklistPosterLikeEpisode(task))"
                          :alt="task.taskname"
                          referrerpolicy="no-referrer"
@@ -1672,7 +1695,7 @@
               </div>
             </div>
             
-            <div class="table-responsive">
+            <div class="table-responsive" ref="historyTableContainer">
               <table class="table table-hover selectable-records">
                 <thead>
                   <tr>
@@ -1748,7 +1771,7 @@
                     </td>
                     <td class="file-size-cell">
                       <span class="file-size-value">{{ record.file_size_readable }}</span>
-                      <span class="delete-record-btn" @click.stop="deleteRecord(record.id, record.original_name)" title="删除记录">
+                      <span v-if="showHistoryDeleteBtn(record)" class="delete-record-btn" @click.stop="deleteRecord(record.id, record.original_name)" title="删除记录">
                         <i class="bi bi-trash3"></i>
                       </span>
                     </td>
@@ -1759,9 +1782,11 @@
             </div>
             
             <!-- 分页控制 -->
-            <div class="pagination-container d-flex justify-content-between align-items-center mt-3">
+            <div class="pagination-container d-flex justify-content-between align-items-center mt-3" ref="historyPaginationContainer">
               <div class="page-info text-secondary">
-                显示 {{ history.pagination && history.pagination.total_records > 0 ? ((historyParams.page - 1) * historyParams.page_size + 1) + '-' + Math.min(historyParams.page * historyParams.page_size, history.pagination.total_records) : '0' }} 条，共 {{ history.pagination ? history.pagination.total_records : 0 }} 条记录{{ selectedRecords.length > 0 ? '，已选中 ' + selectedRecords.length + ' 条记录' : '' }}
+                显示 {{ history.pagination && history.pagination.total_records > 0 ? ((historyParams.page - 1) * historyParams.page_size + 1) + '-' + Math.min(historyParams.page * historyParams.page_size, history.pagination.total_records) : '0' }} 条，<span class="history-total-records-wrap"
+                      @mouseenter="historyTotalHover = true"
+                      @mouseleave="historyTotalHover = false">共 {{ history.pagination ? history.pagination.total_records : 0 }} 条记录<template v-if="selectedRecords.length === 0 && historyTotalHover && history.pagination && history.pagination.total_records > 0">，<span class="history-select-all-btn" @click.stop="selectAllHistoryRecords">全选</span></template></span>{{ selectedRecords.length > 0 ? '，已选中 ' + selectedRecords.length + ' 条记录' : '' }}
               </div>
               <div class="pagination-controls d-flex align-items-center">
                 <button type="button" class="btn btn-outline-secondary btn-sm mx-1" :class="{ disabled: historyParams.page <= 1 }" @click="changePage(historyParams.page - 1)" :disabled="historyParams.page <= 1">
@@ -1813,10 +1838,10 @@
                 <button type="button" class="btn btn-outline-secondary btn-sm mr-2" @click="changePage(gotoPage)">确定</button>
                 <div class="dropdown">
                   <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
-                    {{ historyParams.page_size === 99999 ? '全部记录' : historyParams.page_size + ' 条/页' }}
+                    {{ getHistoryPageSizeButtonLabel() }}
                   </button>
                   <div class="dropdown-menu">
-                    <a class="dropdown-item" href="#" v-for="size in [15, 30, 50, 100, 500, 1000, 'all']" :key="size" @click.prevent="changePageSizeTo(size)">{{ size === 'all' ? '全部记录' : size + ' 条/页' }}</a>
+                    <a class="dropdown-item" href="#" v-for="size in getHistoryPageSizeOptions()" :key="'history-' + size" @click.prevent="changePageSizeTo(size)">{{ getHistoryPageSizeOptionLabel(size) }}</a>
                   </div>
                 </div>
               </div>
@@ -1941,7 +1966,7 @@
             </nav>
 
             <!-- 文件表格 -->
-            <div class="table-responsive">
+            <div class="table-responsive" ref="fileManagerTableContainer">
               <table class="table table-hover selectable-files">
                 <thead>
                   <tr>
@@ -2001,17 +2026,19 @@
                       </td>
                       <td class="file-size-cell">
                         <span class="file-size-value">{{ file.dir ? (file.include_items + ' 项') : formatFileSize(file.size || file.file_size) }}</span>
-                        <span class="rename-record-btn" @click.stop="startRenameFile(file)" title="重命名文件">
-                          <i class="bi bi-pencil"></i>
-                        </span>
-                        <span v-if="!file.dir && isArchiveFile(file.file_name)" class="extract-record-btn" @click.stop="startExtractFile(file)" title="云解压">
-                          <i class="bi bi-file-zip"></i>
-                        </span>
-                        <span class="move-record-btn" @click.stop="startMoveFile(file)" title="移动文件">
-                          <i class="bi bi-arrow-up-right-circle"></i>
-                        </span>
-                        <span class="delete-record-btn" @click.stop="deleteSelectedFilesForManager(file.fid, file.file_name, file.dir)" title="删除文件">
-                          <i class="bi bi-trash3"></i>
+                        <span v-if="showFileManagerActionBar(file)" class="file-manager-action-btns">
+                          <span v-if="showFileManagerRenameBtn(file)" class="rename-record-btn" @click.stop="startRenameFile(file)" title="重命名">
+                            <i class="bi bi-pencil"></i>
+                          </span>
+                          <span v-if="showFileManagerExtractBtn(file)" class="extract-record-btn" @click.stop="startExtractFile(file)" title="云解压">
+                            <i class="bi bi-file-zip"></i>
+                          </span>
+                          <span v-if="showFileManagerMoveBtn(file)" class="move-record-btn" @click.stop="startMoveFile(file)" title="移动">
+                            <i class="bi bi-arrow-up-right-circle"></i>
+                          </span>
+                          <span v-if="showFileManagerDeleteBtn(file)" class="delete-record-btn" @click.stop="deleteSelectedFilesForManager(file.fid, file.file_name, file.dir)" title="删除">
+                            <i class="bi bi-trash3"></i>
+                          </span>
                         </span>
                       </td>
                       <td>{{ formatDate(file.updated_at) }}</td>
@@ -2022,9 +2049,11 @@
             </div>
             
             <!-- 分页区域 -->
-            <div class="pagination-container d-flex justify-content-between align-items-center mt-3">
+            <div class="pagination-container d-flex justify-content-between align-items-center mt-3" ref="fileManagerPaginationContainer">
               <div class="page-info text-secondary">
-                显示 {{ fileManager.total > 0 ? ((fileManager.currentPage - 1) * fileManager.pageSize + 1) + '-' + Math.min(fileManager.currentPage * fileManager.pageSize, fileManager.total) : '0-0' }} 项，共 {{ fileManager.total }} 个项目{{ fileManager.selectedFiles.length > 0 ? '，已选中 ' + fileManager.selectedFiles.length + ' 项' : '' }}
+                显示 {{ fileManager.total > 0 ? ((fileManager.currentPage - 1) * fileManager.pageSize + 1) + '-' + Math.min(fileManager.currentPage * fileManager.pageSize, fileManager.total) : '0-0' }} 项，<span class="history-total-records-wrap"
+                      @mouseenter="fileManagerTotalHover = true"
+                      @mouseleave="fileManagerTotalHover = false">共 {{ fileManager.total }} 个项目<template v-if="fileManager.selectedFiles.length === 0 && fileManagerTotalHover && fileManager.total > 0">，<span class="history-select-all-btn" @click.stop="selectAllFileManagerItems">全选</span></template></span>{{ fileManager.selectedFiles.length > 0 ? '，已选中 ' + fileManager.selectedFiles.length + ' 项' : '' }}
               </div>
               <div class="pagination-controls d-flex align-items-center">
                 <button type="button" class="btn btn-outline-secondary btn-sm mx-1" :class="{ disabled: fileManager.currentPage <= 1 }" @click="changeFolderPage(fileManager.currentPage - 1)" :disabled="fileManager.currentPage <= 1">
@@ -2068,10 +2097,10 @@
                 <button type="button" class="btn btn-outline-secondary btn-sm mr-2" @click="changeFolderPage(fileManager.gotoPage)">确定</button>
                 <div class="dropdown">
                   <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-toggle="dropdown" aria-expanded="false">
-                    {{ fileManager.pageSize === 99999 ? '全部项目' : fileManager.pageSize + ' 项/页' }}
+                    {{ getFileManagerPageSizeButtonLabel() }}
                   </button>
                   <div class="dropdown-menu">
-                    <a class="dropdown-item" href="#" v-for="size in [15, 30, 50, 100, 500, 1000, 'all']" :key="size" @click.prevent="changeFileManagerPageSize(size)">{{ size === 'all' ? '全部项目' : size + ' 项/页' }}</a>
+                    <a class="dropdown-item" href="#" v-for="size in getFileManagerPageSizeOptions()" :key="'filemanager-' + size" @click.prevent="changeFileManagerPageSize(size)">{{ getFileManagerPageSizeOptionLabel(size) }}</a>
                   </div>
                 </div>
               </div>
@@ -2609,7 +2638,7 @@
     </div>
 
     <!-- 模态框 文件选择 -->
-    <div class="modal" tabindex="-1" id="fileSelectModal">
+    <div class="modal" tabindex="-1" id="fileSelectModal" :class="{'savepath-select-mode': isSavepathSelectModal()}">
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header">
@@ -2711,7 +2740,7 @@
                   </div>
                 </div>
               </div>
-              <table class="table table-hover table-sm">
+              <table class="table table-hover table-sm" :class="{'selectable-files': isSavepathSelectModal()}">
                 <thead>
                   <tr>
                     <th scope="col" class="col-filename cursor-pointer" style="padding-left: 5px; font-family: inherit; letter-spacing: normal;" @click="sortFileList('file_name')">文件名 <i v-if="fileSelect.sortBy === 'file_name'" :class="fileSelect.sortOrder === 'asc' ? 'bi bi-arrow-up' : 'bi bi-arrow-down'"></i></th>
@@ -2734,7 +2763,7 @@
                 </thead>
                 <tbody>
                   <tr v-for="(file, key) in fileSelect.fileList" :key="key" 
-                      @click="fileSelect.selectDir ? (file.dir ? navigateTo(file.fid, file.file_name) : selectFileItem($event, file.fid)) : selectStartFid(file.fid)" 
+                      @click="handleFileSelectRowClick(file, $event)" 
                       :class="{
                         'cursor-pointer': (fileSelect.previewRegex ? file.dir : (file.dir || !fileSelect.selectShare || (!fileSelect.selectDir && !file.dir))),
                         'selected-file': fileSelect.selectedFiles.includes(file.fid)
@@ -2782,10 +2811,12 @@
                     <template v-if="!fileSelect.previewRegex">
                       <td class="col-size" v-if="file.dir" style="vertical-align: top;">{{ file.include_items }} 项</td>
                       <td class="col-size" v-else style="vertical-align: top;">{{file.size | size}}</td>
-                      <td class="col-date" style="vertical-align: top;">{{file.updated_at | ts2date}}</td>
-                      <td class="col-action" v-if="!fileSelect.selectShare && !fileSelect.moveMode" style="vertical-align: top;">
-                        <a @click.stop.prevent="deleteSelectedFiles(file.fid, file.file_name, file.dir)" style="cursor: pointer;">删除文件</a>
-                        <a @click.stop.prevent="deleteSelectedFiles(file.fid, file.file_name, file.dir, true)" style="cursor: pointer; margin-left: 10px;">删除文件和记录</a>
+                      <td class="col-date" style="vertical-align: top;">{{ formatDate(file.updated_at) }}</td>
+                      <td class="col-action file-select-action-cell" v-if="!fileSelect.selectShare && !fileSelect.moveMode" style="vertical-align: top;">
+                        <span class="file-select-action-links" :class="{'file-select-action-links-hidden': isSavepathSelectModal() && !showFileSelectDeleteLinks(file)}">
+                          <a @click.stop.prevent="deleteSelectedFiles(file.fid, file.file_name, file.dir)" style="cursor: pointer;">删除文件</a>
+                          <a @click.stop.prevent="deleteSelectedFiles(file.fid, file.file_name, file.dir, true)" style="cursor: pointer; margin-left: 10px;">删除文件和记录</a>
+                        </span>
                       </td>
                     </template>
                   </tr>
@@ -2795,10 +2826,9 @@
           </div>
           <div class="modal-footer" v-if="fileSelect.selectDir && !fileSelect.previewRegex">
             <div class="file-selection-info mr-auto" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
-              <span v-if="fileSelect.selectShare && smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length > 1 && isCurrentResourceInSearchResults()">
-                第 {{ smart_param.currentResourceIndex + 1 }}/{{ smart_param.taskSuggestions.data.length }} 个资源，
-              </span>
-              共 {{ fileSelect.fileList.length }} 个项目<span v-if="fileSelect.selectedFiles.length > 0">，已选中 {{ fileSelect.selectedFiles.length }} 个项目</span>
+              <span v-if="fileSelect.selectShare && smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length > 1 && isCurrentResourceInSearchResults()">第 {{ smart_param.currentResourceIndex + 1 }}/{{ smart_param.taskSuggestions.data.length }} 个资源，</span><span v-if="fileSelect.selectShare">分享者：{{ getFileSelectShareAuthorDisplay() }}，</span><span class="history-total-records-wrap"
+                    @mouseenter="fileSelectTotalHover = true"
+                    @mouseleave="fileSelectTotalHover = false">共 {{ fileSelect.fileList.length }} 个项目<template v-if="isSavepathSelectModal() && fileSelect.selectedFiles.length === 0 && fileSelectTotalHover && fileSelect.fileList.length > 0">，<span class="history-select-all-btn" @click.stop="selectAllFileSelectItems">全选</span></template></span><span v-if="fileSelect.selectedFiles.length > 0">，已选中 {{ fileSelect.selectedFiles.length }} 个项目</span>
             </div>
             <button type="button" class="btn btn-primary btn-cancel" @click="$('#fileSelectModal').modal('hide')"><span class="btn-text">取消</span></button>
             <!-- 连续浏览按钮组（仅在资源搜索模式下且当前资源在搜索结果中时显示） -->
@@ -2821,6 +2851,7 @@
               <span v-else-if="fileSelect.moveMode">移动到当前文件夹</span>
               <span v-else>{{fileSelect.selectShare ? '转存当前文件夹' : '保存到当前文件夹'}}</span>
             </button>
+            <button type="button" class="btn btn-primary btn-sm" v-if="fileSelect.moveMode" @click="moveFilesToCurrentFolder(true)"><span class="btn-text">移动并前往当前文件夹</span></button>
             <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && !fileManager.extract.selectExtractFolderMode && fileSelect.index === -1 && createTask.taskData.taskname" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="generateCustomFolderPath(createTask.taskData)"></span>」文件夹</button>
             <button type="button" class="btn btn-primary btn-sm" v-if="!fileSelect.selectShare && !fileSelect.moveMode && !fileManager.extract.selectExtractFolderMode && fileSelect.index !== null && fileSelect.index >= 0 && formData.tasklist[fileSelect.index]" @click="selectCurrentFolder(true)">保存到当前位置的「<span class="badge badge-light" v-html="formData.tasklist[fileSelect.index].taskname"></span>」文件夹</button>
           </div>
@@ -2880,30 +2911,32 @@
                   <div class="input-group">
                     <input type="text" name="taskname[]" class="form-control" v-model="createTask.taskData.taskname" placeholder="必填" @focus="smart_param.showSuggestions=true;focusTaskname(-1, createTask.taskData)" @input="changeTaskname(-1, createTask.taskData)">
                     <div class="dropdown-menu show task-suggestions" v-if="smart_param.showSuggestions && smart_param.index === -1 && (smart_param.taskSuggestions.success || smart_param.isSearching)">
-                      <div class="dropdown-item text-muted" v-if="smart_param.isSearching" style="font-size:14px; padding: 0 8px; text-align: left;">
-                        <span v-if="smart_param.validating">
-                          <i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
-                          正在验证链接有效性...（{{ smart_param.validateProgress.current }}/{{ smart_param.validateProgress.total }}）<span v-if="smart_param.validateProgress.valid > 0">已找到 {{ smart_param.validateProgress.valid }} 个有效链接</span>
-                        </span>
-                        <span v-else>正在搜索资源...</span>
-                      </div>
-                      <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
-                        {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
-                      </div>
-                      <div
-                        v-for="suggestion in smart_param.taskSuggestions.data || []"
-                        :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')"
-                        class="dropdown-item cursor-pointer"
-                        :class="{ 'current-suggestion': isCurrentSuggestion(suggestion) }"
-                        @click.prevent="selectSuggestion(-1, suggestion)"
-                        style="font-size: 14px;"
-                        :title="getSuggestionHoverTitle(suggestion)"
-                      >
-                        <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
-                        <small class="text-muted">
-                          <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '').split('#')[0] }}</a>
-                          <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date, suggestion.pansou_source, suggestion.source) : ''">{{ suggestion.source }}</span></template>
-                        </small>
+                      <div class="task-suggestions-inner">
+                        <div class="dropdown-item text-muted" v-if="smart_param.isSearching" style="font-size:14px; padding: 0 8px; text-align: left;">
+                          <span v-if="smart_param.validating">
+                            <i class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
+                            正在验证链接有效性...（{{ smart_param.validateProgress.current }}/{{ smart_param.validateProgress.total }}）<span v-if="smart_param.validateProgress.valid > 0">已找到 {{ smart_param.validateProgress.valid }} 个有效链接</span>
+                          </span>
+                          <span v-else>正在搜索资源...</span>
+                        </div>
+                        <div class="dropdown-item text-muted" v-else style="font-size:14px; padding-left: 8px; text-align: left;">
+                          {{ smart_param.taskSuggestions.message ? smart_param.taskSuggestions.message : smart_param.taskSuggestions.data && smart_param.taskSuggestions.data.length ? `以下资源由 ${(smart_param.taskSuggestions.source || '').replace(/,\s*/g, '、')} 搜索提供（仅显示有效链接，共 ${(smart_param.taskSuggestions.data || []).length} 个），如有侵权请联系资源发布方` : "未搜索到有效资源" }}
+                        </div>
+                        <div
+                          v-for="(suggestion, suggestionIndex) in smart_param.taskSuggestions.data || []"
+                          :key="(suggestion.shareurl || '') + '_' + (suggestion.taskname || '') + '_' + (suggestion.publish_date || '')"
+                          class="dropdown-item cursor-pointer"
+                          :class="{ 'current-suggestion': isCurrentSuggestion(suggestion), 'same-sharer-suggestion': isSameSharerSuggestion(suggestion), 'preferred-sharer-suggestion': isPreferredSharerSuggestion(suggestion) }"
+                          @click.prevent="selectSuggestion(-1, suggestion)"
+                          style="font-size: 14px;"
+                          :title="getSuggestionHoverTitle(suggestion, suggestionIndex)"
+                        >
+                          <span v-html="suggestion.verify ? '✅': ''"></span> {{ suggestion.taskname }}
+                          <small class="text-muted">
+                            <a :href="suggestion.shareurl" target="_blank" @click.stop> · {{ suggestion.shareurl.replace(/^https?:\/\/pan\.(quark|qoark)\.cn\/s\//, '').split('#')[0] }}</a>
+                            <template v-if="suggestion.source"><span class="source-badge" :class="suggestion.source.toLowerCase()" :data-publish-date="suggestion.publish_date ? ' · ' + formatPublishDate(suggestion.publish_date, suggestion.pansou_source, suggestion.source) : ''">{{ suggestion.source }}</span></template>
+                          </small>
+                        </div>
                       </div>
                     </div>
                     <div class="input-group-append" title="资源搜索">
@@ -2928,7 +2961,7 @@
                 <label class="col-sm-2 col-form-label">分享链接</label>
                 <div class="col-sm-10">
                   <div class="input-group">
-                    <input type="text" name="shareurl[]" class="form-control" v-model="createTask.taskData.shareurl" placeholder="必填" @blur="changeShareurl(createTask.taskData)">
+                    <input type="text" name="shareurl[]" class="form-control" v-model="createTask.taskData.shareurl" placeholder="必填" @blur="changeShareurl(createTask.taskData)" @input="onEditTaskShareurlInput">
                     <div class="input-group-append" v-if="createTask.taskData.shareurl">
                       <button type="button" class="btn btn-outline-secondary" @click="fileSelect.selectDir=true;fileSelect.previewRegex=false;showShareSelect(-1)" title="选择需转存的文件夹"><i class="bi bi-folder"></i></button>
                       <div class="input-group-text">
@@ -2997,7 +3030,7 @@
               <div class="form-group row" title="匹配到的目录及其所有子目录、文件都会参与更新，并应用与根目录相同的正则命名和过滤规则（剧集、顺序命名仅支持对根目录文件重命名）。目录是逐级索引的，无法直接指定某个深层目录；目录层级或文件数量过多时会明显增加扫描耗时，慎用.*">
                 <label class="col-sm-2 col-form-label">更新目录</label>
                 <div class="col-sm-10">
-                  <input type="text" name="update_subdir[]" class="form-control" v-model="createTask.taskData.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如 4K|1080P">
+                  <input type="text" name="update_subdir[]" class="form-control" v-model="createTask.taskData.update_subdir" placeholder="可选，输入需要更新的子目录的文件夹名称（或正则表达式），多个项目用竖线分隔，如：4K|1080P">
                 </div>
               </div>
 
@@ -3053,8 +3086,14 @@
             </div>
           </div>
           <div class="modal-footer">
-            <div class="file-selection-info mr-auto" v-if="createTask.movieData" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+            <div class="file-selection-info mr-auto" v-if="createTask.isEditMode && createTask.taskData.shareurl" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+              {{ getEditTaskShareAuthorFooterText() }}
+            </div>
+            <div class="file-selection-info mr-auto" v-else-if="createTask.movieData" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
               {{ createTask.movieData.title + (createTask.movieData.year ? ' (' + createTask.movieData.year + ')' : '') }}
+            </div>
+            <div class="file-selection-info mr-auto" v-else-if="isTaskListCreateMode() && createTask.taskData.shareurl" style="color: var(--dark-text-color); font-size: 0.875rem; line-height: 1.5;">
+              {{ getCreateTaskListShareAuthorFooterText() }}
             </div>
             <button type="button" class="btn btn-primary btn-cancel" @click="cancelCreateTask">取消</button>
             <template v-if="createTask.isEditMode">
@@ -3176,7 +3215,7 @@
                     <div class="input-group-prepend">
                       <span class="input-group-text" style="background-color: var(--button-gray-background-color);" title="节目在本地时区的播出时间，用于精确判断剧集是否已播出，24小时制，格式为HH:MM ±Nd（N为天数），其中+Nd表示相对原始播出日期延后、-Nd表示提前，不填写±Nd表示播出日期不偏移，若整体留空则使用节目原始播出日期并以系统配置的播出集数刷新时间作为判断依据">播出时间</span>
                     </div>
-                    <input type="text" class="form-control no-spinner" v-model="editMetadata.form.local_air_time" :placeholder="editMetadata.form.local_air_time ? '' : '输入节目的播出时间，格式为 HH:MM，如 20:00'" title="节目在本地时区的播出时间，用于精确判断剧集是否已播出，24小时制，格式为HH:MM ±Nd（N为天数），其中+Nd表示相对原始播出日期延后、-Nd表示提前，不填写±Nd表示播出日期不偏移，若整体留空则使用节目原始播出日期并以系统配置的播出集数刷新时间作为判断依据">
+                    <input type="text" class="form-control no-spinner" v-model="editMetadata.form.local_air_time" :placeholder="editMetadata.form.local_air_time ? '' : '输入节目的播出时间，格式为 HH:MM，例如 20:00'" title="节目在本地时区的播出时间，用于精确判断剧集是否已播出，24小时制，格式为HH:MM ±Nd（N为天数），其中+Nd表示相对原始播出日期延后、-Nd表示提前，不填写±Nd表示播出日期不偏移，若整体留空则使用节目原始播出日期并以系统配置的播出集数刷新时间作为判断依据">
                   </div>
                 </div>
                 <div class="col-md-6 mb-2">
@@ -3304,7 +3343,9 @@
             tv_naming_rule: "剧名 - S季数E[]",
             tv_ignore_extension: true,
             subtitle_naming_rule: "zh",
-            subtitle_add_language_code: false
+            subtitle_add_language_code: false,
+            search_preferred_sharers: "",
+            search_blocked_sharers: ""
           },
           source: {
             cloudsaver: {
@@ -3498,7 +3539,8 @@
           lastSelectedFileIndex: -1, // 记录最后选择的文件索引
           canUndoRename: false,
           moveMode: false, // 是否为移动文件模式
-          moveFileIds: [] // 要移动的文件ID列表
+          moveFileIds: [], // 要移动的文件ID列表
+          shareAuthor: '' // 选择需转存的文件夹模态框左下角展示用
         },
         historyParams: {
           sortBy: "transfer_time",
@@ -3530,6 +3572,9 @@
         toastMessage: "",
         selectedRecords: [],
         lastSelectedRecordIndex: -1, // 记录最后选择的记录索引，用于Shift选择
+        historyTotalHover: false, // 转存记录左下角「共 x 条记录」悬停状态
+        fileManagerTotalHover: false, // 文件整理左下角「共 x 个项目」悬停状态
+        fileSelectTotalHover: false, // 保存路径模态框左下角「共 x 个项目」悬停状态
         _lastTaskFilter: "",
         _lastNameFilter: "",
         _lastStatusFilter: "",
@@ -3590,6 +3635,8 @@
           include_folders: false,
           // 选中的文件
           selectedFiles: [],
+          // 全选时缓存的项目信息（fid -> { file_name, dir }），用于跨页批量操作
+          selectedFilesInfo: {},
           // 上次选中的文件索引
           lastSelectedFileIndex: -1,
           // 跳转到页码
@@ -3763,7 +3810,7 @@
         tasklistSort: (() => {
           try {
             const saved = JSON.parse(localStorage.getItem('tasklist_sort_options') || '{}');
-            let by = ['index','name','progress','update_time','airtime'].includes(saved.by) ? saved.by : 'index';
+            let by = ['index','name','progress','update_time','airtime','subscribe_duration'].includes(saved.by) ? saved.by : 'index';
             const order = (saved.order === 'asc' || saved.order === 'desc') ? saved.order : 'asc';
             // 注意：这里无法检查 TMDB API 配置，会在 mounted 中处理
             return { by, order };
@@ -3793,6 +3840,14 @@
         // 兼容旧字段（不再使用独立 SSE 实例）
         tasklistSSE: null,
         calendarSSE: null,
+        // 编辑任务：分享者查询请求序号（用于忽略过期响应）
+        editTaskShareAuthorReqId: 0,
+        editTaskShareAuthorTimer: null,
+        editTaskShareAuthorResourceId: null, // 已加载分享者信息的资源 ID（pwd_id）
+        // 选择需转存的文件夹模态框：分享者查询请求序号（用于忽略过期响应）
+        fileSelectShareAuthorReqId: 0,
+        fileSelectShareAuthorResourceId: null, // 已加载分享者信息的资源 ID（pwd_id）
+        _taskShareSnapshot: {}, // 配置加载/保存后各任务分享资源快照，用于检测换链
         // 创建任务相关数据
         createTask: {
           loading: false,
@@ -3800,6 +3855,7 @@
           movieData: null, // 存储当前要创建任务的影视作品数据
           isEditMode: false, // 是否为编辑模式
           editTaskIndex: null, // 编辑的任务索引
+          shareAuthor: '', // 编辑/任务列表创建模式左下角展示用；创建保存时不参与写入配置
           taskData: {
             taskname: "",
             shareurl: "",
@@ -4224,8 +4280,8 @@
         shouldShowTasklist() {
           const { by } = this.tasklistSort || { by: 'index' };
           
-          // 任务编号和任务名称排序不需要额外数据，可以直接显示
-          if (by === 'index' || by === 'name') {
+          // 任务编号、任务名称、订阅时长排序不需要额外数据，可以直接显示
+          if (by === 'index' || by === 'name' || by === 'subscribe_duration') {
             return true;
           }
           
@@ -4314,6 +4370,15 @@
             return [];
           }
           return this.history.records;
+        },
+        // 当前选中项是否全部为可云解压的压缩包（用于多选/全选时控制按钮显示）
+        fileManagerSelectionCanBatchExtract() {
+          const selected = this.fileManager.selectedFiles;
+          if (!selected || selected.length === 0) {
+            return false;
+          }
+          const items = this.getFileManagerSelectedItems();
+          return items.length > 0 && items.every(item => !item.dir && this.isArchiveFile(item.file_name));
         },
         historyTasks() {
           // 如果已经通过API加载了所有任务名称，则使用它
@@ -4448,10 +4513,6 @@
         }
       },
       filters: {
-        ts2date: function (value) {
-          const date = new Date(value);
-          return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
-        },
         size: function (value) {
           if (!value) return "";
           const unitArr = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
@@ -4521,6 +4582,7 @@
           this.$nextTick(function() {
             this.syncHistoryJumpInputWidth();
             this.syncFileManagerJumpInputWidth();
+            this.refreshActiveTabAutoPageSize({ resetPage: false });
           });
         },
         // 页面宽度模式变化（窄/中/宽），触发布局重算
@@ -4535,6 +4597,7 @@
           this.$nextTick(function() {
             this.syncHistoryJumpInputWidth();
             this.syncFileManagerJumpInputWidth();
+            this.refreshActiveTabAutoPageSize({ resetPage: false });
           });
         },
 
@@ -4743,6 +4806,7 @@
           this.$nextTick(function() {
             this.syncHistoryJumpInputWidth();
             this.syncFileManagerJumpInputWidth();
+            this.refreshActiveTabAutoPageSize({ resetPage: false });
           });
         },
         'fileManager.pattern': {
@@ -4780,6 +4844,7 @@
         $('#fileSelectModal').on('hidden.bs.modal', () => {
           this.fileSelect.selectedFiles = [];
           this.fileSelect.lastSelectedFileIndex = -1;
+          this.fileSelectTotalHover = false;
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
           this.fileSelect.moveFileIds = [];
@@ -4810,6 +4875,13 @@
             }
           }
         });
+
+        // 创建任务弹窗关闭时（含点 X）清空残留分享者，避免下次创建误用旧昵称
+        $('#createTaskModal').on('hidden.bs.modal', () => {
+          if (!this.createTask.isEditMode) {
+            this.resetCreateTaskShareAuthorState();
+          }
+        });
         
         // 检查本地存储中的标签页状态
         const savedTab = localStorage.getItem('quarkAutoSave_activeTab');
@@ -4824,16 +4896,10 @@
         }
         
         // 从本地存储中恢复用户设置的每页记录数
-        const savedPageSize = localStorage.getItem('quarkAutoSave_pageSize');
-        if (savedPageSize) {
-          this.historyParams.page_size = savedPageSize === 'all' ? 99999 : parseInt(savedPageSize);
-        }
+        this.restoreHistoryPageSizeFromStorage();
         
         // 从本地存储中恢复文件管理器的每页显示数
-        const savedFileManagerPageSize = localStorage.getItem('quarkAutoSave_fileManagerPageSize');
-        if (savedFileManagerPageSize) {
-          this.fileManager.pageSize = savedFileManagerPageSize === 'all' ? 99999 : parseInt(savedFileManagerPageSize);
-        }
+        this.restoreFileManagerPageSizeFromStorage();
         
         // 从本地存储中恢复页面宽度设置
         const savedPageWidthMode = localStorage.getItem('quarkAutoSave_pageWidthMode');
@@ -4891,6 +4957,7 @@
         $('#fileSelectModal').on('hidden.bs.modal', () => {
           this.fileSelect.selectedFiles = [];
           this.fileSelect.lastSelectedFileIndex = -1;
+          this.fileSelectTotalHover = false;
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
           this.fileSelect.moveFileIds = [];
@@ -4900,6 +4967,8 @@
           document.getElementById('fileSelectModal').style.zIndex = '';
           // 重置资源浏览索引
           this.smart_param.currentResourceIndex = -1;
+          // 清空选择需转存的文件夹模态框分享者缓存
+          this.resetFileSelectShareAuthorState();
           
           // 修复滚动问题：如果创建任务模态框仍然打开，确保其可以正常滚动
           const createTaskModal = document.getElementById('createTaskModal');
@@ -5009,6 +5078,28 @@
         this.stopRuntimeLogPolling();
       },
       methods: {
+        // 是否为触摸移动端（窄屏且主输入无法悬停，排除窄屏桌面鼠标窗口）
+        isMobileDevice() {
+          if (typeof window === 'undefined' || window.innerWidth > 768) {
+            return false;
+          }
+          try {
+            return window.matchMedia('(hover: none)').matches;
+          } catch (e) {
+            return typeof window.ontouchstart !== 'undefined';
+          }
+        },
+        // 是否为「选择保存到的文件夹」模态框
+        isSavepathSelectModal() {
+          if (!this.fileSelect.selectDir || this.fileSelect.previewRegex || this.fileSelect.selectShare || this.fileSelect.moveMode) {
+            return false;
+          }
+          if (this.fileManager.extract.selectExtractFolderMode) {
+            return false;
+          }
+          const modal = document.getElementById('fileSelectModal');
+          return modal && modal.getAttribute('data-modal-type') === 'target';
+        },
         // 从日期字符串（YYYY-MM-DD）中提取月份
         getDateMonthFromString(dateStr) {
           try {
@@ -5183,6 +5274,7 @@
           if (key === 'progress') return '任务进度';
           if (key === 'update_time') return '更新时间';
           if (key === 'airtime') return '播出时间';
+          if (key === 'subscribe_duration') return '订阅时长';
           return '任务编号';
         },
         // 任务列表排序：保存到localStorage
@@ -5194,7 +5286,7 @@
         // 任务列表排序：切换排序字段
         // 仅切换排序字段，不改变当前升降序
         changeTasklistSortBy(by) {
-          if (!['index','name','progress','update_time','airtime'].includes(by)) return;
+          if (!['index','name','progress','update_time','airtime','subscribe_duration'].includes(by)) return;
           if (this.tasklistSort.by !== by) {
             this.tasklistSort.by = by;
             // 不重置、不切换 order，保持现状
@@ -5400,6 +5492,42 @@
                 const aTime = aRecord && aRecord.full ? new Date(aRecord.full).getTime() : 0;
                 const bTime = bRecord && bRecord.full ? new Date(bRecord.full).getTime() : 0;
                 cmp = aTime - bTime;
+              } else if (by === 'subscribe_duration') {
+                // 按连续订阅时长排序（与悬停「已订阅 x 天」一致，基于 shareurl_subscribed_since）
+                // 升序：订阅天数由短到长 → 时间戳较新（较大）在前；降序相反
+                // 相同 shareurl_subscribed_since 时按任务编号兜底（升序视角下编号大者视为更短）
+                const getSinceMs = (task) => {
+                  const normalized = this.normalizeShareSubscribedSince(task && task.shareurl_subscribed_since);
+                  if (!normalized) return null;
+                  const parts = String(normalized).trim().split(/\s+/);
+                  const dp = parts[0].split('-').map(Number);
+                  if (dp.length !== 3 || dp.some((n) => Number.isNaN(n))) return null;
+                  let h = 0;
+                  let min = 0;
+                  let sec = 0;
+                  if (parts[1]) {
+                    const tp = parts[1].split(':').map(Number);
+                    if (tp.length >= 3 && tp.every((n) => !Number.isNaN(n))) {
+                      h = tp[0];
+                      min = tp[1];
+                      sec = tp[2];
+                    }
+                  }
+                  return new Date(dp[0], dp[1] - 1, dp[2], h, min, sec).getTime();
+                };
+                const aMs = getSinceMs(a.t);
+                const bMs = getSinceMs(b.t);
+                const aMissing = aMs == null;
+                const bMissing = bMs == null;
+                if (aMissing !== bMissing) {
+                  cmp = aMissing ? 1 : -1; // 无订阅时间的任务排在后面
+                } else if (!aMissing && !bMissing && aMs !== bMs) {
+                  cmp = bMs - aMs; // 升序：较新时间戳（订阅更短）在前
+                } else if (a.idx !== b.idx) {
+                  // 同 shareurl_subscribed_since：按任务列表编号（0-based 索引）兜底
+                  // 升序订阅时长时编号越大视为订阅越晚、时长越短，应排在前面
+                  cmp = b.idx - a.idx;
+                }
               } else {
                 // 按任务名称中的编号排序（解析 #XX 格式）
                 const aNum = parseInt((a.t.taskname || '').match(/^#?(\d+)/)?.[1] || '0');
@@ -6043,23 +6171,59 @@
             return '';
           }
         },
-        // 仅当有有效信息时返回悬停提示，否则返回null以不显示
-        getSuggestionHoverTitle(suggestion) {
-          if (!suggestion) return null;
+        // 判断资源信息是否为有效内容（排除占位文本）
+        getSuggestionResourceContent(suggestion) {
+          if (!suggestion) return '';
           let content = (suggestion.content || '').trim();
-          if (!content) return null;
+          if (!content) return '';
           // 统一标点为英文冒号，统一逗号
           const normalized = content
             .replace(/：/g, ':')
             .replace(/，/g, ',')
             .replace(/\s+/g, ' ')
             .trim();
-          // 仅在明确的占位文本时隐藏：
+          // 仅在明确的占位文本时视为无信息：
           // 1) 全文就是“大小:-”
-          if (/^大小\s*:\s*-$/i.test(normalized)) return null;
+          if (/^大小\s*:\s*-$/i.test(normalized)) return '';
           // 2) 完全匹配“类别:xx, 文件类型:yy, 大小:-”这类占位
-          if (/^类别\s*:[^,]*,\s*文件类型\s*:[^,]*,\s*大小\s*:\s*-$/i.test(normalized)) return null;
+          if (/^类别\s*:[^,]*,\s*文件类型\s*:[^,]*,\s*大小\s*:\s*-$/i.test(normalized)) return '';
+          // 3) 全文就是“链接:”且冒号后无实际内容
+          if (/^链接\s*:\s*$/i.test(normalized)) return '';
           return content;
+        },
+        // 资源搜索结果悬停提示：资源序号、资源信息（有则显示）、分享者信息（获取不到时显示未知）
+        getSuggestionHoverTitle(suggestion, index) {
+          if (!suggestion) return null;
+          // 浏览器原生 title 提示约有 512 字符上限，超长会被截断导致分享者信息丢失
+          const TITLE_MAX = 480;
+          const CONTENT_MAX = 300;
+          const seq = (index != null && index >= 0) ? index + 1 : 0;
+          const seqPart = seq > 0 ? `#${seq}` : '';
+          const author = (suggestion.share_author_name || '').trim();
+          const authorPart = `分享者：${author || '未知'}`;
+          const rawContent = this.getSuggestionResourceContent(suggestion);
+          const parts = [];
+          if (seqPart) parts.push(seqPart);
+          if (rawContent) {
+            let overhead = 0;
+            if (seqPart && authorPart) {
+              overhead = seqPart.length + authorPart.length + 4;
+            } else if (seqPart) {
+              overhead = seqPart.length + 2;
+            } else if (authorPart) {
+              overhead = authorPart.length + 2;
+            }
+            const contentBudget = Math.min(
+              CONTENT_MAX,
+              Math.max(80, TITLE_MAX - overhead)
+            );
+            const content = rawContent.length > contentBudget
+              ? rawContent.slice(0, contentBudget) + '...'
+              : rawContent;
+            parts.push(content);
+          }
+          parts.push(authorPart);
+          return parts.join('\n\n');
         },
         // 获取插件展示名称（支持别名，仅用于WebUI显示）
         getPluginDisplayName(pluginName) {
@@ -6114,15 +6278,65 @@
           
           if (message.includes("分享者用户封禁链接查看受限") || 
               message.includes("文件涉及违规内容") ||
-              message.includes("分享地址已失效")) {
+              message.includes("分享地址已失效") ||
+              message.includes("文件不存在")) {
             return "该分享已失效，不可访问";
           } else if (message.includes("好友已取消了分享")) {
             return "该分享已被取消，无法访问";
           } else if (message.includes("文件已被分享者删除") || message === "文件已被分享者删除或文件夹为空") {
             return "该分享已被删除，无法访问";
+          } else if (message.includes("分享地址已过期")) {
+            return "该分享已过期，无法访问";
           }
           
           return message;
+        },
+        // 判断分享错误是否为可恢复的网络/服务端临时错误
+        isRecoverableShareError(message) {
+          if (!message) return false;
+          const text = String(message);
+          return text.includes("inner error") ||
+            text.includes("request error") ||
+            text.includes("网络错误") ||
+            text.includes("服务端错误") ||
+            text.includes("临时错误");
+        },
+        // 判断分享资源是否已失效（用于资源搜索过滤等场景）
+        isInvalidShareError(message) {
+          if (!message) return false;
+          if (this.isRecoverableShareError(message)) return false;
+
+          const text = String(message);
+          const knownFormattedBans = [
+            "该分享已失效，不可访问",
+            "该分享已过期，无法访问",
+            "该分享已被删除，无法访问",
+            "该分享已被取消，无法访问",
+            "分享不存在"
+          ];
+          const formatted = this.formatShareUrlBanMessage(text);
+          if (formatted && knownFormattedBans.includes(formatted)) {
+            return true;
+          }
+          for (const term of knownFormattedBans) {
+            if (text.includes(term)) return true;
+          }
+
+          const rawInvalidTerms = [
+            "分享者用户封禁链接查看受限",
+            "好友已取消了分享",
+            "文件已被分享者删除",
+            "文件不存在",
+            "文件夹为空",
+            "分享地址已失效",
+            "分享地址已过期",
+            "文件涉及违规内容",
+            "文件已被分享者删除或文件夹为空",
+            "分享为空",
+            "分享不存在",
+            "提取链接参数失败"
+          ];
+          return rawInvalidTerms.some(term => text.includes(term));
         },
 
         // 追剧日历相关方法
@@ -7346,7 +7560,7 @@
                 } catch (e) {}
                 // 等待视图更新后再显示提示
                 await this.$nextTick();
-                this.showToast('播出时间格式不正确，请输入 HH:MM 格式，如 20:00，或带日期偏移如 19:30 +1d 或 19:30 -1d');
+                this.showToast('播出时间格式不正确，请输入 HH:MM 格式，例如 20:00，或带日期偏移如 19:30 +1d 或 19:30 -1d');
                 return;
               }
             }
@@ -7779,6 +7993,7 @@
                           // 后端推送导致的任务列表更新，不应触发"未保存修改"提示
                           this.suppressConfigModifiedOnce = true;
                           this.formData.tasklist = cfg.tasklist || [];
+                          this.snapshotTaskShareResourceIds();
                           // 同步任务名集合用于筛选
                           this.calendar.taskNames = (this.formData.tasklist || []).map(t => t.taskname).filter(Boolean);
                           // 如任务数量变化，重建与任务相关的最新文件映射的键集合
@@ -8832,6 +9047,7 @@
         onAccountChange() {
           // 保存选中的账号索引到localStorage
           localStorage.setItem('quarkAutoSave_selectedAccountIndex', this.fileManager.selectedAccountIndex.toString());
+          this.clearFileManagerSelection();
 
           // 获取新账号最后一次访问的目录
           const newAccountLastFolder = localStorage.getItem(`quarkAutoSave_fileManagerLastFolder_${this.fileManager.selectedAccountIndex}`) || 'root';
@@ -9171,11 +9387,7 @@
 
           // 当切换到文件整理标签时加载文件列表
           if (tab === 'filemanager') {
-            // 从本地存储中恢复文件管理器的分页大小设置
-            const savedFileManagerPageSize = localStorage.getItem('quarkAutoSave_fileManagerPageSize');
-            if (savedFileManagerPageSize) {
-              this.fileManager.pageSize = savedFileManagerPageSize === 'all' ? 99999 : parseInt(savedFileManagerPageSize);
-            }
+            this.restoreFileManagerPageSizeFromStorage();
             // 获取账号详细信息
             this.fetchAccountsDetail();
             this.loadFileListWithoutLoading(this.fileManager.currentFolder);
@@ -9261,6 +9473,7 @@
               // 直接赋值，排序通过计算属性处理（属于系统性加载，抑制未保存提示）
               this.suppressConfigModifiedOnce = true;
               this.formData.tasklist = config_data.tasklist || [];
+              this.snapshotTaskShareResourceIds();
 
               // 获取所有任务父目录
               this.formData.tasklist.forEach(item => {
@@ -9348,6 +9561,8 @@
                   tv_ignore_extension: true,
                   subtitle_naming_rule: "zh",
                   subtitle_add_language_code: false,
+                  search_preferred_sharers: "",
+                  search_blocked_sharers: "",
                   auto_search_resources: "enabled",
                   auto_search_resources_on_edit: "enabled",
                   auto_extract_archive: "disabled"
@@ -9370,6 +9585,12 @@
               }
               if (config_data.task_settings.subtitle_add_language_code === undefined) {
                 config_data.task_settings.subtitle_add_language_code = false;
+              }
+              if (config_data.task_settings.search_preferred_sharers === undefined) {
+                config_data.task_settings.search_preferred_sharers = "";
+              }
+              if (config_data.task_settings.search_blocked_sharers === undefined) {
+                config_data.task_settings.search_blocked_sharers = "";
               }
               // 确保自动搜索资源设置存在
               if (!config_data.task_settings.auto_search_resources) {
@@ -9523,7 +9744,24 @@
             return e.returnValue;
           }
         },
-        saveConfig() {
+        async saveConfig() {
+          // WebUI 账号：禁止保存空的用户名或密码
+          const webui = this.formData.webui || {};
+          const webuiUsername = String(webui.username ?? '').trim();
+          const webuiPassword = String(webui.password ?? '').trim();
+          if (!webuiUsername && !webuiPassword) {
+            this.showToast('用户名和密码不能为空');
+            return;
+          }
+          if (!webuiUsername) {
+            this.showToast('用户名不能为空');
+            return;
+          }
+          if (!webuiPassword) {
+            this.showToast('密码不能为空');
+            return;
+          }
+
           // 保存前处理每个任务的命名模式
           if (this.formData.tasklist && this.formData.tasklist.length > 0) {
             this.formData.tasklist.forEach(task => {
@@ -9541,12 +9779,18 @@
               // 应用全局插件配置
               this.applyGlobalPluginConfig(task);
             });
+            try {
+              await this.prepareAllTasksShareMetadataForSave();
+            } catch (e) {
+              console.warn('更新任务分享元数据失败:', e);
+            }
           }
           
           axios.post('/update', this.formData)
             .then(response => {
               if (response.data.success) {
                 this.configModified = false;
+                this.snapshotTaskShareResourceIds();
                 // 使用Toast通知替代alert
                 this.showToast(response.data.message);
                 // 保存成功后更新用户信息
@@ -10498,30 +10742,525 @@
 
 
         },
+        // 从列表移除任务并保存；删除后重拍分享快照，避免索引错位导致 shareurl_subscribed_since 被误刷新
+        finalizeTaskRemoval(index) {
+          this.formData.tasklist.splice(index, 1);
+          this.snapshotTaskShareResourceIds();
+          this.saveConfig();
+        },
         removeTask(index) {
           if (!confirm("确定要删除任务 [#" + (index + 1) + ": " + this.formData.tasklist[index].taskname + "] 吗？")) return;
           const task = this.formData.tasklist[index];
           const taskName = task.taskname || task.task_name;
           // 一次性任务（skip_calendar）不做日历清理，直接删除并保存
           if (task.skip_calendar === true) {
-            this.formData.tasklist.splice(index, 1);
-            this.saveConfig();
+            this.finalizeTaskRemoval(index);
             return;
           }
           // 非一次性任务：先请求后端清理（含数据库与海报文件），再删除任务并保存配置
           axios.post('/api/calendar/purge_by_task', { task_name: taskName })
             .then(() => {
-              this.formData.tasklist.splice(index, 1);
-              this.saveConfig();
+              this.finalizeTaskRemoval(index);
             })
             .catch(() => {
-              this.formData.tasklist.splice(index, 1);
-              this.saveConfig();
+              this.finalizeTaskRemoval(index);
             });
         },
-        changeShareurl(task) {
-          if (!task.shareurl)
+        // 本地日期时间 YYYY-MM-DD HH:MM:SS（用于订阅起始时间戳）
+        formatLocalDateTime(date) {
+          const dt = date instanceof Date ? date : new Date(date);
+          const y = dt.getFullYear();
+          const m = String(dt.getMonth() + 1).padStart(2, '0');
+          const day = String(dt.getDate()).padStart(2, '0');
+          const h = String(dt.getHours()).padStart(2, '0');
+          const min = String(dt.getMinutes()).padStart(2, '0');
+          const sec = String(dt.getSeconds()).padStart(2, '0');
+          return `${y}-${m}-${day} ${h}:${min}:${sec}`;
+        },
+        // 规范订阅时间戳；仅日期则补 00:00:00
+        normalizeShareSubscribedSince(sinceStr) {
+          if (!sinceStr) return null;
+          const s = String(sinceStr).trim();
+          if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s)) return s;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return `${s} 00:00:00`;
+          return s;
+        },
+        // 按自然日计算订阅天数（当日为第 1 天；忽略时分秒）
+        getShareSubscriptionDays(sinceDateStr) {
+          if (!sinceDateStr) return null;
+          const datePart = String(sinceDateStr).trim().split(/\s+/)[0];
+          const parts = datePart.split('-').map(Number);
+          if (parts.length !== 3 || parts.some(n => Number.isNaN(n))) return null;
+          const since = new Date(parts[0], parts[1] - 1, parts[2]);
+          const now = new Date();
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const diff = Math.floor((today - since) / (24 * 60 * 60 * 1000));
+          if (diff < 0) return null;
+          return diff + 1;
+        },
+        snapshotTaskShareResourceIds() {
+          const snap = {};
+          (this.formData.tasklist || []).forEach((t, i) => {
+            snap[i] = {
+              share_resource_id: t.share_resource_id || this.getResourceIdFromUrl(t.shareurl) || null,
+              shareurl_subscribed_since: t.shareurl_subscribed_since || null,
+              share_author_name: t.share_author_name || null,
+            };
+          });
+          this._taskShareSnapshot = snap;
+        },
+        buildPreviousTaskFromSnapshot(snap) {
+          if (!snap) return null;
+          return {
+            share_resource_id: snap.share_resource_id || null,
+            share_author_name: snap.share_author_name,
+            shareurl_subscribed_since: snap.shareurl_subscribed_since,
+          };
+        },
+        fetchShareAuthorMeta(shareurl) {
+          const url = (shareurl || '').trim();
+          if (!url) return Promise.resolve('');
+          return axios.get('/get_share_author', { params: { shareurl: url } })
+            .then(res => {
+              if (res.data && res.data.success && res.data.data) {
+                return (res.data.data.author_name || '').trim();
+              }
+              return '';
+            })
+            .catch(() => '');
+        },
+        async applyTaskShareMetadataOnSave(task, previousTask, authorNameHint) {
+          if (!task || !task.shareurl) return;
+          const newId = this.getResourceIdFromUrl(task.shareurl);
+          if (!newId) return;
+
+          let oldId = previousTask
+            ? (previousTask.share_resource_id || this.getResourceIdFromUrl(previousTask.shareurl || ''))
+            : null;
+          const existingId = String(task.share_resource_id || '').trim() || null;
+          // 任务自身资源 ID 与当前链接一致时视为未换链（防止删除任务后快照索引错位误判）
+          if (existingId && existingId === newId) {
+            oldId = existingId;
+          }
+          const nowTs = this.formatLocalDateTime(new Date());
+          // 仅编辑保存时信任界面上的分享者提示；创建任务必须按当前链接重新拉取
+          let hintName = '';
+          if (previousTask && authorNameHint) {
+            hintName = String(authorNameHint).trim();
+            if (hintName === '未知' || hintName === '加载中') {
+              hintName = '';
+            }
+          }
+
+          if (oldId !== newId) {
+            task.share_resource_id = newId;
+            task.shareurl_subscribed_since = nowTs;
+            let authorName = hintName;
+            if (!authorName) {
+              authorName = await this.fetchShareAuthorMeta(task.shareurl);
+            }
+            if (authorName) task.share_author_name = authorName;
+          } else {
+            if (!task.share_resource_id) task.share_resource_id = newId;
+            if (!task.shareurl_subscribed_since) {
+              task.shareurl_subscribed_since = nowTs;
+            } else {
+              const normalized = this.normalizeShareSubscribedSince(task.shareurl_subscribed_since);
+              if (normalized && normalized !== task.shareurl_subscribed_since) {
+                task.shareurl_subscribed_since = normalized;
+              }
+            }
+            if (!task.share_author_name && task.shareurl) {
+              const authorName = hintName || await this.fetchShareAuthorMeta(task.shareurl);
+              if (authorName) task.share_author_name = authorName;
+            }
+          }
+        },
+        async prepareAllTasksShareMetadataForSave() {
+          const tasks = this.formData.tasklist || [];
+          for (let i = 0; i < tasks.length; i++) {
+            const snap = this._taskShareSnapshot ? this._taskShareSnapshot[i] : null;
+            await this.applyTaskShareMetadataOnSave(
+              tasks[i],
+              this.buildPreviousTaskFromSnapshot(snap),
+              null
+            );
+          }
+        },
+        getSavedTaskForSuggestions() {
+          if (!this.smart_param) return null;
+          if (this.smart_param.index === -1 && this.createTask && this.createTask.isEditMode && this.createTask.editTaskIndex != null) {
+            return (this.formData.tasklist && this.formData.tasklist[this.createTask.editTaskIndex]) || null;
+          }
+          if (this.smart_param.index >= 0 && this.formData.tasklist) {
+            return this.formData.tasklist[this.smart_param.index] || null;
+          }
+          return null;
+        },
+        isSameSharerAsSavedTask(suggestion) {
+          if (!suggestion) return false;
+          const savedTask = this.getSavedTaskForSuggestions();
+          if (!savedTask) return false;
+          const savedId = savedTask.share_resource_id || this.getResourceIdFromUrl(savedTask.shareurl);
+          const suggestionId = this.getResourceIdFromUrl(suggestion.shareurl);
+          if (!savedId || !suggestionId || suggestionId === savedId) return false;
+
+          const savedAuthorName = (savedTask.share_author_name || '').trim();
+          const sugAuthorName = (suggestion.share_author_name || '').trim();
+          return !!(savedAuthorName && sugAuthorName && savedAuthorName === sugAuthorName);
+        },
+        isSameSharerSuggestion(suggestion) {
+          if (!suggestion || this.isCurrentSuggestion(suggestion)) return false;
+          return this.isSameSharerAsSavedTask(suggestion);
+        },
+        // 解析系统配置中的资源搜索优选分享者列表（竖线分隔）
+        getSearchPreferredSharers() {
+          const raw = (this.formData.task_settings && this.formData.task_settings.search_preferred_sharers) || '';
+          if (!String(raw).trim()) return [];
+          return String(raw)
+            .split('|')
+            .map((name) => name.trim())
+            .filter((name) => name.length > 0);
+        },
+        // 解析系统配置中的资源搜索屏蔽分享者列表（竖线分隔）
+        getSearchBlockedSharers() {
+          const raw = (this.formData.task_settings && this.formData.task_settings.search_blocked_sharers) || '';
+          if (!String(raw).trim()) return [];
+          return String(raw)
+            .split('|')
+            .map((name) => name.trim())
+            .filter((name) => name.length > 0);
+        },
+        // 分享者昵称是否与屏蔽列表匹配（精确匹配，含夸克脱敏字符如 *）
+        isBlockedSharerByName(authorName) {
+          const blocked = this.getSearchBlockedSharers();
+          if (!blocked.length) return false;
+          const name = (authorName || '').trim();
+          if (!name) return false;
+          return blocked.includes(name);
+        },
+        isBlockedSharerSuggestion(suggestion) {
+          if (!suggestion) return false;
+          return this.isBlockedSharerByName(suggestion.share_author_name);
+        },
+        // 从搜索结果中移除屏蔽分享者的资源
+        filterBlockedSharersFromResults(results) {
+          if (!Array.isArray(results) || results.length === 0) return results || [];
+          const blocked = this.getSearchBlockedSharers();
+          if (!blocked.length) return results;
+          return results.filter((item) => !this.isBlockedSharerSuggestion(item));
+        },
+        // 分享者昵称是否与优选列表匹配（精确匹配，含夸克脱敏字符如 *）
+        isPreferredSharerSuggestion(suggestion) {
+          if (!suggestion || this.isCurrentSuggestion(suggestion) || this.isSameSharerSuggestion(suggestion)) {
+            return false;
+          }
+          const preferred = this.getSearchPreferredSharers();
+          if (!preferred.length) return false;
+          const authorName = (suggestion.share_author_name || '').trim();
+          if (!authorName) return false;
+          return preferred.includes(authorName);
+        },
+        getEditTaskSavedResourceId() {
+          if (!this.createTask.isEditMode || this.createTask.editTaskIndex == null) return null;
+          const saved = this.formData.tasklist && this.formData.tasklist[this.createTask.editTaskIndex];
+          if (!saved) return null;
+          return saved.share_resource_id || this.getResourceIdFromUrl(saved.shareurl);
+        },
+        isEditTaskPreviewingSavedResource() {
+          const currentId = this.getResourceIdFromUrl(this.createTask.taskData.shareurl);
+          const savedId = this.getEditTaskSavedResourceId();
+          return !!(currentId && savedId && currentId === savedId);
+        },
+        getEditTaskSubscriptionDays() {
+          if (!this.isEditTaskPreviewingSavedResource()) return null;
+          const saved = this.formData.tasklist && this.formData.tasklist[this.createTask.editTaskIndex];
+          if (!saved) return null;
+          return this.getShareSubscriptionDays(saved.shareurl_subscribed_since);
+        },
+        // 已保存任务在配置中的分享者昵称（仅当预览资源 ID 与已保存一致时可用作回退）
+        getEditTaskSavedShareAuthorName() {
+          if (!this.createTask.isEditMode || this.createTask.editTaskIndex == null) return '';
+          const saved = this.formData.tasklist && this.formData.tasklist[this.createTask.editTaskIndex];
+          if (!saved) return '';
+          const currentId = this.getResourceIdFromUrl(this.createTask.taskData.shareurl);
+          const savedId = saved.share_resource_id || this.getResourceIdFromUrl(saved.shareurl);
+          if (!currentId || !savedId || currentId !== savedId) return '';
+          return (saved.share_author_name || '').trim();
+        },
+        resolveEditTaskShareAuthorDisplay(fetchedName) {
+          const name = (fetchedName || '').trim();
+          if (name && name !== '未知') return name;
+          const fallback = this.getEditTaskSavedShareAuthorName();
+          return fallback || name || '未知';
+        },
+        getEditTaskShareAuthorFooterText() {
+          let author = (this.createTask.shareAuthor || '').trim();
+          if (!author) {
+            const fallback = this.getEditTaskSavedShareAuthorName();
+            author = fallback || '加载中';
+          } else if (author === '未知') {
+            const fallback = this.getEditTaskSavedShareAuthorName();
+            if (fallback) author = fallback;
+          }
+          const days = this.getEditTaskSubscriptionDays();
+          if (days != null) {
+            return `当前资源分享者：${author}，已订阅 ${days} 天`;
+          }
+          return `当前资源分享者：${author}`;
+        },
+        // 是否为任务列表页面的创建任务模式（非编辑、非影视发现）
+        isTaskListCreateMode() {
+          return !this.createTask.isEditMode && !this.createTask.movieData;
+        },
+        // 任务列表创建任务模态框左下角分享者文案（不含已订阅天数）
+        getCreateTaskListShareAuthorFooterText() {
+          let author = (this.createTask.shareAuthor || '').trim();
+          if (!author) author = '加载中';
+          return `当前资源分享者：${author}`;
+        },
+        // 任务列表：分享者与订阅天数悬停文案（读取配置 share_author_name / shareurl_subscribed_since）
+        getTaskShareSubscriptionHoverText(task) {
+          if (!task) return '';
+          const author = (task.share_author_name || '').trim();
+          const days = this.getShareSubscriptionDays(task.shareurl_subscribed_since);
+          if (!author && days == null) return '';
+          const authorDisplay = author || '未知';
+          if (days != null) {
+            return `资源分享者：${authorDisplay}，已订阅${days}天`;
+          }
+          return `资源分享者：${authorDisplay}`;
+        },
+        // 创建任务前清空分享者缓存，避免沿用上一条编辑任务留下的昵称
+        resetCreateTaskShareAuthorState() {
+          this.createTask.shareAuthor = '';
+          this.editTaskShareAuthorResourceId = null;
+          if (this.editTaskShareAuthorTimer) {
+            clearTimeout(this.editTaskShareAuthorTimer);
+            this.editTaskShareAuthorTimer = null;
+          }
+          this.editTaskShareAuthorReqId = (this.editTaskShareAuthorReqId || 0) + 1;
+        },
+        // 从分享详情或 token 响应中提取分享者昵称
+        extractShareAuthorName(shareDetail) {
+          if (!shareDetail) return '';
+          if (shareDetail.author_name) {
+            return String(shareDetail.author_name).trim();
+          }
+          const author = shareDetail.author;
+          if (author && typeof author === 'object') {
+            const name = author.nick_name || author.nickname || author.user_name || author.name || '';
+            if (String(name).trim()) {
+              return String(name).trim();
+            }
+          }
+          return '';
+        },
+        // 编辑任务模态框：分享 ID 变化时刷新左下角分享者信息
+        maybeRefreshEditTaskShareAuthor(shareurl) {
+          if (!this.createTask.isEditMode) return;
+          const url = (shareurl || '').trim();
+          if (!url || !/pan\.(quark|qoark)\.cn\/s\//i.test(url)) {
+            this.editTaskShareAuthorResourceId = null;
+            this.createTask.shareAuthor = '';
             return;
+          }
+          const resourceId = this.getResourceIdFromUrl(url);
+          if (!resourceId) return;
+          if (resourceId === this.editTaskShareAuthorResourceId) return;
+          this.refreshEditTaskShareAuthor(url, resourceId);
+        },
+        // 任务列表创建任务模态框：分享 ID 变化时刷新左下角分享者信息
+        maybeRefreshTaskListCreateShareAuthor(shareurl) {
+          if (!this.isTaskListCreateMode()) return;
+          const url = (shareurl || '').trim();
+          if (!url || !/pan\.(quark|qoark)\.cn\/s\//i.test(url)) {
+            this.editTaskShareAuthorResourceId = null;
+            this.createTask.shareAuthor = '';
+            return;
+          }
+          const resourceId = this.getResourceIdFromUrl(url);
+          if (!resourceId) return;
+          if (resourceId === this.editTaskShareAuthorResourceId) return;
+          this.refreshTaskListCreateShareAuthor(url, resourceId);
+        },
+        // 任务列表创建任务模态框：根据分享链接请求分享者昵称
+        refreshTaskListCreateShareAuthor(shareurl, resourceId) {
+          if (!this.isTaskListCreateMode()) return;
+          const url = (shareurl || '').trim();
+          if (!url || !/pan\.(quark|qoark)\.cn\/s\//i.test(url)) {
+            this.editTaskShareAuthorResourceId = null;
+            this.createTask.shareAuthor = '';
+            return;
+          }
+          const pwdId = resourceId || this.getResourceIdFromUrl(url);
+          const reqId = ++this.editTaskShareAuthorReqId;
+          this.createTask.shareAuthor = '';
+          axios.get('/get_share_author', { params: { shareurl: url } })
+            .then(response => {
+              if (reqId !== this.editTaskShareAuthorReqId) return;
+              let fetchedName = '';
+              if (response.data.success) {
+                fetchedName = (response.data.data && response.data.data.author_name) || '';
+              }
+              this.createTask.shareAuthor = (fetchedName || '').trim() || '未知';
+              if (pwdId) {
+                this.editTaskShareAuthorResourceId = pwdId;
+              }
+            })
+            .catch(() => {
+              if (reqId !== this.editTaskShareAuthorReqId) return;
+              this.createTask.shareAuthor = '未知';
+            });
+        },
+        // 编辑任务模态框：根据分享链接请求分享者昵称
+        refreshEditTaskShareAuthor(shareurl, resourceId) {
+          if (!this.createTask.isEditMode) return;
+          const url = (shareurl || '').trim();
+          if (!url || !/pan\.(quark|qoark)\.cn\/s\//i.test(url)) {
+            this.editTaskShareAuthorResourceId = null;
+            this.createTask.shareAuthor = '';
+            return;
+          }
+          const pwdId = resourceId || this.getResourceIdFromUrl(url);
+          const reqId = ++this.editTaskShareAuthorReqId;
+          // 请求期间保留配置中的昵称，避免失效链接先闪「未知」
+          this.createTask.shareAuthor = this.getEditTaskSavedShareAuthorName() || '';
+          axios.get('/get_share_author', { params: { shareurl: url } })
+            .then(response => {
+              if (reqId !== this.editTaskShareAuthorReqId) return;
+              let fetchedName = '';
+              if (response.data.success) {
+                fetchedName = (response.data.data && response.data.data.author_name) || '';
+              }
+              this.createTask.shareAuthor = this.resolveEditTaskShareAuthorDisplay(fetchedName);
+              if (pwdId) {
+                this.editTaskShareAuthorResourceId = pwdId;
+              }
+            })
+            .catch(() => {
+              if (reqId !== this.editTaskShareAuthorReqId) return;
+              this.createTask.shareAuthor = this.resolveEditTaskShareAuthorDisplay('');
+            });
+        },
+        // 选择需转存的文件夹模态框：从搜索结果或任务配置获取分享者昵称（无需请求）
+        getFileSelectShareAuthorFromSources() {
+          const shareurl = (this.fileSelect.shareurl || '').trim();
+          const resourceId = this.getResourceIdFromUrl(shareurl);
+          if (!resourceId) return '';
+
+          if (this.smart_param.taskSuggestions.data && this.smart_param.taskSuggestions.data.length > 0) {
+            if (this.smart_param.currentResourceIndex >= 0 &&
+                this.smart_param.currentResourceIndex < this.smart_param.taskSuggestions.data.length) {
+              const current = this.smart_param.taskSuggestions.data[this.smart_param.currentResourceIndex];
+              const currentId = this.getResourceIdFromUrl(current.shareurl);
+              if (currentId === resourceId) {
+                const name = (current.share_author_name || '').trim();
+                if (name) return name;
+              }
+            }
+            for (const item of this.smart_param.taskSuggestions.data) {
+              const itemId = this.getResourceIdFromUrl(item.shareurl);
+              if (itemId && itemId === resourceId) {
+                const name = (item.share_author_name || '').trim();
+                if (name) return name;
+              }
+            }
+          }
+
+          if (this.fileSelect.index !== null && this.fileSelect.index >= 0 && this.formData.tasklist[this.fileSelect.index]) {
+            const task = this.formData.tasklist[this.fileSelect.index];
+            const savedId = task.share_resource_id || this.getResourceIdFromUrl(task.shareurl);
+            if (savedId && savedId === resourceId) {
+              return (task.share_author_name || '').trim();
+            }
+          }
+
+          return '';
+        },
+        resolveFileSelectShareAuthorDisplay(fetchedName) {
+          const name = (fetchedName || '').trim();
+          if (name && name !== '未知') return name;
+          const fallback = this.getFileSelectShareAuthorFromSources();
+          return fallback || name || '未知';
+        },
+        getFileSelectShareAuthorDisplay() {
+          let author = (this.fileSelect.shareAuthor || '').trim();
+          if (!author) {
+            const fallback = this.getFileSelectShareAuthorFromSources();
+            author = fallback || '加载中';
+          } else if (author === '未知') {
+            const fallback = this.getFileSelectShareAuthorFromSources();
+            if (fallback) author = fallback;
+          }
+          return author;
+        },
+        resetFileSelectShareAuthorState() {
+          this.fileSelect.shareAuthor = '';
+          this.fileSelectShareAuthorResourceId = null;
+          this.fileSelectShareAuthorReqId = (this.fileSelectShareAuthorReqId || 0) + 1;
+        },
+        refreshFileSelectShareAuthor(shareurl, resourceId) {
+          if (!this.fileSelect.selectShare) return;
+          const url = (shareurl || this.fileSelect.shareurl || '').trim();
+          if (!url || !/pan\.(quark|qoark)\.cn\/s\//i.test(url)) {
+            this.fileSelectShareAuthorResourceId = null;
+            this.fileSelect.shareAuthor = '';
+            return;
+          }
+          const pwdId = resourceId || this.getResourceIdFromUrl(url);
+          const reqId = ++this.fileSelectShareAuthorReqId;
+          this.fileSelect.shareAuthor = this.getFileSelectShareAuthorFromSources() || '';
+          axios.get('/get_share_author', { params: { shareurl: url } })
+            .then(response => {
+              if (reqId !== this.fileSelectShareAuthorReqId) return;
+              let fetchedName = '';
+              if (response.data.success) {
+                fetchedName = (response.data.data && response.data.data.author_name) || '';
+              }
+              this.fileSelect.shareAuthor = this.resolveFileSelectShareAuthorDisplay(fetchedName);
+              if (pwdId) {
+                this.fileSelectShareAuthorResourceId = pwdId;
+              }
+            })
+            .catch(() => {
+              if (reqId !== this.fileSelectShareAuthorReqId) return;
+              this.fileSelect.shareAuthor = this.resolveFileSelectShareAuthorDisplay('');
+            });
+        },
+        maybeRefreshFileSelectShareAuthor(shareurl) {
+          if (!this.fileSelect.selectShare) return;
+          const url = (shareurl || this.fileSelect.shareurl || '').trim();
+          if (!url || !/pan\.(quark|qoark)\.cn\/s\//i.test(url)) {
+            this.fileSelectShareAuthorResourceId = null;
+            this.fileSelect.shareAuthor = '';
+            return;
+          }
+          const resourceId = this.getResourceIdFromUrl(url);
+          if (!resourceId) return;
+          if (resourceId === this.fileSelectShareAuthorResourceId && this.fileSelect.shareAuthor) return;
+          this.refreshFileSelectShareAuthor(url, resourceId);
+        },
+        onEditTaskShareurlInput() {
+          clearTimeout(this.editTaskShareAuthorTimer);
+          this.editTaskShareAuthorTimer = setTimeout(() => {
+            if (this.createTask.isEditMode) {
+              this.maybeRefreshEditTaskShareAuthor(this.createTask.taskData.shareurl);
+            } else if (this.isTaskListCreateMode()) {
+              this.maybeRefreshTaskListCreateShareAuthor(this.createTask.taskData.shareurl);
+            }
+          }, 500);
+        },
+        changeShareurl(task) {
+          if (!task.shareurl) {
+            if (this.createTask.isEditMode && task === this.createTask.taskData) {
+              this.createTask.shareAuthor = '';
+            } else if (this.isTaskListCreateMode() && task === this.createTask.taskData) {
+              this.createTask.shareAuthor = '';
+              this.editTaskShareAuthorResourceId = null;
+            }
+            return;
+          }
           this.$set(task, "shareurl_ban", undefined);
           // 从URL中提取任务名
           try {
@@ -10572,6 +11311,25 @@
                   task.taskname = task.taskname == "" ? share_detail.share.title : task.taskname;
                   task.savepath = task.savepath.replace(/TASKNAME/g, share_detail.share.title);
                   this.$set(task, "shareurl_ban", undefined);
+                }
+                if (this.createTask.isEditMode && task === this.createTask.taskData) {
+                  const authorName = this.extractShareAuthorName(share_detail);
+                  if (authorName) {
+                    this.createTask.shareAuthor = authorName;
+                    const resourceId = this.getResourceIdFromUrl(task.shareurl);
+                    if (resourceId) {
+                      this.editTaskShareAuthorResourceId = resourceId;
+                    }
+                  }
+                } else if (this.isTaskListCreateMode() && task === this.createTask.taskData) {
+                  const authorName = this.extractShareAuthorName(share_detail);
+                  if (authorName) {
+                    this.createTask.shareAuthor = authorName;
+                    const resourceId = this.getResourceIdFromUrl(task.shareurl);
+                    if (resourceId) {
+                      this.editTaskShareAuthorResourceId = resourceId;
+                    }
+                  }
                 }
               }
             })
@@ -11054,15 +11812,6 @@
         },
         // 添加新方法来验证搜索结果
         validateSearchResults(searchData, sessionId) {
-          const invalidTerms = [
-            "分享者用户封禁链接查看受限",
-            "好友已取消了分享",
-            "文件已被分享者删除",
-            "文件夹为空",
-            "分享地址已失效",
-            "文件涉及违规内容"
-          ];
-
           // 如果没有搜索结果，直接返回
           if (!searchData.data || searchData.data.length === 0) {
             this.smart_param.taskSuggestions = searchData;
@@ -11117,40 +11866,36 @@
                   // 检查文件列表是否为空
                   const shareDetail = response.data.data;
                   if (shareDetail.list && shareDetail.list.length > 0) {
+                    const enriched = { ...link };
+                    enriched.share_author_name = this.extractShareAuthorName(shareDetail);
+                    // 屏蔽分享者：匹配昵称的资源不进入结果列表
+                    if (this.isBlockedSharerByName(enriched.share_author_name)) {
+                      resolve(null);
+                      return;
+                    }
                     // 链接有效，添加到有效结果列表
                     this.smart_param.validateProgress.valid++;
-                    
-                    resolve(link);
+                    resolve(enriched);
                     return;
                   }
                 } else {
-                  // 检查是否包含已知的失效原因
-                  const error = response.data.data.error || "";
-                  let isInvalid = false;
+                  // 检查是否包含已知的失效原因（兼容原始 API 文案与格式化后的用户可见文案）
+                  const error = (response.data && response.data.data && response.data.data.error)
+                    ? String(response.data.data.error)
+                    : ((response.data && response.data.message) ? String(response.data.message) : "");
 
-                  // 如果是可恢复的网络错误或服务端临时错误，视为有效（网络问题，不是资源问题）
-                  if (error.includes("request error") ||
-                      error.includes("inner error") ||
-                      error.includes("网络错误") ||
-                      error.includes("服务端错误") ||
-                      error.includes("临时错误")) {
-                    this.smart_param.validateProgress.valid++;
-                    resolve(link);
-                    return;
-                  }
-
-                  for (const term of invalidTerms) {
-                    if (error.includes(term)) {
-                      isInvalid = true;
-                      break;
+                  // 非失效错误（含可恢复网络错误）则保留该结果
+                  if (!this.isInvalidShareError(error)) {
+                    const enriched = { ...link };
+                    if (response.data.data) {
+                      enriched.share_author_name = this.extractShareAuthorName(response.data.data);
                     }
-                  }
-
-                  // 如果不是已知的失效原因，保留该结果
-                  if (!isInvalid) {
+                    if (this.isBlockedSharerByName(enriched.share_author_name)) {
+                      resolve(null);
+                      return;
+                    }
                     this.smart_param.validateProgress.valid++;
-                    
-                    resolve(link);
+                    resolve(enriched);
                     return;
                   }
                 }
@@ -11164,7 +11909,7 @@
                 this.smart_param.validateProgress.current++;
                 this.smart_param.validateProgress.valid++;
                 
-                resolve(link);
+                resolve({ ...link });
               });
             });
           };
@@ -11193,14 +11938,15 @@
             
             // 动态排序（按发布时间/日期降序）
             validResults.sort((a, b) => getItemTs(b) - getItemTs(a));
+            const visibleResults = this.filterBlockedSharersFromResults(validResults);
             
             // 每批次都增量更新到界面，显示当前有效数量并保持正在验证状态
             if (sessionId !== this.smart_param.searchSessionId || !this.smart_param.validating) return; // 渲染前再次检查会话
             this.smart_param.taskSuggestions = {
               success: searchData.success,
               source: searchData.source,
-              data: [...validResults],
-              message: `已找到${validResults.length}个有效链接，验证继续进行中...`
+              data: [...visibleResults],
+              message: `已找到${visibleResults.length}个有效链接，验证继续进行中...`
             };
             
             // 继续处理下一批
@@ -11209,44 +11955,55 @@
           
           // 开始批量处理前重置快速显示标记
           this.smart_param._hasShownInterimResults = false;
+          // 清除上一次验证的超时定时器
+          if (this.smart_param._validateTimeoutId) {
+            clearTimeout(this.smart_param._validateTimeoutId);
+            this.smart_param._validateTimeoutId = null;
+          }
           processBatch();
           
-          // 设置超时，避免永久等待
-          setTimeout(() => {
-            // 如果验证还在进行中，强制完成
+          // 按结果数量动态计算超时：每条约 300ms，最少 60 秒，最多 10 分钟
+          const totalCount = searchData.data.length;
+          const validateTimeoutMs = Math.min(600000, Math.max(60000, totalCount * 300));
+          this.smart_param._validateTimeoutId = setTimeout(() => {
+            // 验证仍在进行中则提前结束，未检验的链接不纳入结果（避免失效资源被当作有效）
             if (this.smart_param.validating && sessionId === this.smart_param.searchSessionId) {
-              // 在收尾前立即取消会话，避免后续批次继续追加导致重复
               this.smart_param.validating = false;
               this.smart_param.searchSessionId++;
-              // 将剩余未验证的链接添加到结果中
-              const remaining = toProcess.filter(item => item.shareurl);
-              validResults.push(...remaining);
-              
-              // 更新进度统计
-              this.smart_param.validateProgress.current = this.smart_param.validateProgress.total;
-              this.smart_param.validateProgress.valid = validResults.length;
-              
-              // 完成验证
-              this.finishValidation(searchData, validResults);
-              
+              const skippedUnvalidated = toProcess.filter(item => item.shareurl).length;
+              toProcess.length = 0;
+              this.finishValidation(searchData, validResults, { skippedUnvalidated });
             }
-          }, 30000); // 30秒超时
+          }, validateTimeoutMs);
         },
         // 完成验证并更新搜索结果
-        finishValidation(searchData, validResults) {
+        finishValidation(searchData, validResults, extraOptions = {}) {
+          // 清除验证超时定时器
+          if (this.smart_param._validateTimeoutId) {
+            clearTimeout(this.smart_param._validateTimeoutId);
+            this.smart_param._validateTimeoutId = null;
+          }
           // 清除快速显示标记
           this.smart_param._hasShownInterimResults = false;
           
           // 结束前做一次排序，确保最终顺序正确
           const getItemTs = (item) => this.parsePublishTs(item && item.publish_date, item && item.source, item && item.pansou_source);
           validResults.sort((a, b) => getItemTs(b) - getItemTs(a));
+          const visibleResults = this.filterBlockedSharersFromResults(validResults);
           
           // 更新搜索结果
+          let message = visibleResults.length === 0 ? "未找到有效的分享链接" : searchData.message;
+          const skipped = extraOptions.skippedUnvalidated || 0;
+          if (skipped > 0) {
+            message = visibleResults.length > 0
+              ? `验证超时，已省略 ${skipped} 个未检验链接（仅显示已验证的有效链接，共 ${visibleResults.length} 个）`
+              : `验证超时，${skipped} 个链接未完成检验，未找到已验证的有效链接`;
+          }
           const result = {
             success: searchData.success,
             source: searchData.source,
-            data: validResults,
-            message: validResults.length === 0 ? "未找到有效的分享链接" : searchData.message
+            data: visibleResults,
+            message: message
           };
           
           
@@ -11296,6 +12053,8 @@
               }
               // 更新当前分享链接并重新加载内容
               this.fileSelect.shareurl = previousResource.shareurl;
+              this.fileSelectShareAuthorResourceId = null;
+              this.fileSelect.shareAuthor = (previousResource.share_author_name || '').trim() || this.getFileSelectShareAuthorFromSources() || '';
               this.getShareDetail(0, 1);
             }
           }
@@ -11325,6 +12084,8 @@
               }
               // 更新当前分享链接并重新加载内容
               this.fileSelect.shareurl = nextResource.shareurl;
+              this.fileSelectShareAuthorResourceId = null;
+              this.fileSelect.shareAuthor = (nextResource.share_author_name || '').trim() || this.getFileSelectShareAuthorFromSources() || '';
               this.getShareDetail(0, 1);
             }
           }
@@ -11574,6 +12335,9 @@
           this.fileSelect.fileList = [];
           this.fileSelect.paths = [];
           this.fileSelect.index = index;
+          this.fileSelect.selectedFiles = [];
+          this.fileSelect.lastSelectedFileIndex = -1;
+          this.fileSelectTotalHover = false;
           // 重置排序状态为默认值 - 选择需转存的文件夹模态框默认修改时间倒序
           this.fileSelect.sortBy = "updated_at";
           this.fileSelect.sortOrder = "desc";
@@ -11672,6 +12436,20 @@
               this.manualSortFileList(this.fileSelect.sortBy, this.fileSelect.sortOrder);
               this.fileSelect.paths = response.data.data.paths;
               this.fileSelect.stoken = response.data.data.stoken;
+
+              // 更新选择需转存的文件夹模态框左下角分享者信息
+              if (this.fileSelect.selectShare) {
+                const authorName = this.extractShareAuthorName(response.data.data);
+                if (authorName) {
+                  this.fileSelect.shareAuthor = this.resolveFileSelectShareAuthorDisplay(authorName);
+                  const pwdId = this.getResourceIdFromUrl(this.fileSelect.shareurl);
+                  if (pwdId) {
+                    this.fileSelectShareAuthorResourceId = pwdId;
+                  }
+                } else {
+                  this.maybeRefreshFileSelectShareAuthor();
+                }
+              }
               
               // 检查文件列表是否为空，仅在预览界面显示错误，不影响任务本身
               if (this.fileSelect.selectShare && (!this.fileSelect.fileList || this.fileSelect.fileList.length === 0)) {
@@ -11789,6 +12567,15 @@
             // 如果没有搜索结果，重置currentResourceIndex
             this.smart_param.currentResourceIndex = -1;
           }
+
+          // 选择需转存的文件夹：切换资源时重置分享者缓存，并先用本地来源预填
+          if (this.fileSelect.selectShare) {
+            const openingResourceId = this.getResourceIdFromUrl(this.fileSelect.shareurl);
+            if (openingResourceId !== this.fileSelectShareAuthorResourceId) {
+              this.fileSelectShareAuthorResourceId = null;
+            }
+            this.fileSelect.shareAuthor = this.getFileSelectShareAuthorFromSources() || '';
+          }
           
           // 根据不同条件设置模态框类型
           if (this.fileSelect.previewRegex) {
@@ -11853,6 +12640,10 @@
             // 使用重试机制调用getShareDetail
             this.getShareDetail(0, 1);
           } else {
+            if (this.isSavepathSelectModal()) {
+              this.fileSelect.selectedFiles = [];
+              this.fileSelect.lastSelectedFileIndex = -1;
+            }
             if (fid == "0") {
               this.fileSelect.paths = []
             } else {
@@ -11901,6 +12692,11 @@
               // 只有在用户点击"转存当前文件夹"时才更新分享链接
               // 使用用户最终访问的分享链接地址（包含用户导航后的路径）
               this.createTask.taskData.shareurl = this.fileSelect.shareurl;
+              if (this.createTask.isEditMode) {
+                this.maybeRefreshEditTaskShareAuthor(this.createTask.taskData.shareurl);
+              } else if (this.isTaskListCreateMode()) {
+                this.maybeRefreshTaskListCreateShareAuthor(this.createTask.taskData.shareurl);
+              }
             } else if (this.fileSelect.index !== null && this.fileSelect.index >= 0 && this.formData.tasklist[this.fileSelect.index]) {
               this.formData.tasklist[this.fileSelect.index].shareurl_ban = undefined;
               // 如果是分享文件夹且文件列表为空，则设置shareurl_ban
@@ -11935,10 +12731,10 @@
             this.smart_param.showSuggestions = false;
           }
         },
-        // 移动文件到当前文件夹
-        moveFilesToCurrentFolder() {
+        // 移动文件或文件夹到当前文件夹（navigateToTarget 为 true 时移动后导航到目标文件夹）
+        moveFilesToCurrentFolder(navigateToTarget = false) {
           if (!this.fileSelect.moveFileIds || this.fileSelect.moveFileIds.length === 0) {
-            alert('没有选择要移动的文件');
+            alert('没有选择要移动的项目');
             return;
           }
 
@@ -11952,14 +12748,30 @@
 
           const fileCount = this.fileSelect.moveFileIds.length;
           const confirmMessage = fileCount === 1
-            ? '确定要移动此文件吗？'
-            : `确定要移动选中的 ${fileCount} 个文件吗？`;
+            ? '确定要移动此项目吗？'
+            : `确定要移动选中的 ${fileCount} 个项目吗？`;
 
           if (!confirm(confirmMessage)) {
             return;
           }
 
-          // 调用移动文件API
+          // 文件夹不能移动到自身或其子目录内
+          for (const fid of this.fileSelect.moveFileIds) {
+            const itemInfo = this.getFileManagerItemInfo(fid);
+            if (!itemInfo.dir) {
+              continue;
+            }
+            if (fid === targetFolderId) {
+              alert('不能将文件夹移动到自身');
+              return;
+            }
+            if (this.fileSelect.paths.some(pathItem => pathItem.fid === fid)) {
+              alert('不能将文件夹移动到其自身内部');
+              return;
+            }
+          }
+
+          // 调用移动 API
           axios.post('/move_file', {
             file_ids: this.fileSelect.moveFileIds,
             target_folder_id: targetFolderId,
@@ -11967,7 +12779,7 @@
           })
           .then(response => {
             if (response.data.success) {
-              this.showToast(`成功移动 ${response.data.moved_count} 个文件`);
+              this.showToast(`成功移动 ${response.data.moved_count} 个项目`);
 
               // 关闭模态框
               $('#fileSelectModal').modal('hide');
@@ -11977,17 +12789,31 @@
               this.fileSelect.moveFileIds = [];
               this.fileSelect.index = null; // 重置index避免后续访问undefined
 
-              // 清空选中的文件
-              this.fileManager.selectedFiles = [];
+              // 清空选中的项目
+              this.clearFileManagerSelection();
 
               // 延迟刷新以确保后端处理完成
               setTimeout(() => {
-                // 刷新当前页面显示（源目录）
+                if (navigateToTarget) {
+                  const navId = targetFolderId === '0' ? 'root' : targetFolderId;
+                  const targetFolderName = this.fileSelect.paths.length > 0
+                    ? this.fileSelect.paths[this.fileSelect.paths.length - 1].name
+                    : '';
+                  this.navigateToFolder(navId, targetFolderName);
+                }
+
+                // 刷新当前页面显示（未导航时为源目录，导航后为目标目录）
                 this.refreshCurrentFolderCache();
 
-                // 如果目标目录不同于源目录，也刷新目标目录的缓存
-                if (targetFolderId !== sourceFolderId) {
-                  this.refreshFolderCache(targetFolderId); // 刷新目标目录缓存
+                if (navigateToTarget) {
+                  // 前往目标文件夹后，额外刷新源目录缓存
+                  const normalizedSourceId = sourceFolderId === '0' ? 'root' : sourceFolderId;
+                  const normalizedTargetId = targetFolderId === '0' ? 'root' : targetFolderId;
+                  if (normalizedSourceId !== normalizedTargetId) {
+                    this.refreshFolderCache(normalizedSourceId);
+                  }
+                } else if (targetFolderId !== sourceFolderId) {
+                  this.refreshFolderCache(targetFolderId);
                 }
 
                 // 刷新源目录的上级目录（更新源文件夹的项目数量）
@@ -12101,6 +12927,9 @@
           // 此方法保留但不再使用
         },
         loadHistoryRecords() {
+          if (this.isHistoryPageSizeAuto()) {
+            this.historyParams.page_size = this.calculateAutoPageSize('history');
+          }
           // 构建请求参数
           const params = {
             sort_by: this.historyParams.sortBy || "transfer_time",
@@ -12130,9 +12959,12 @@
             (this._lastStatusFilter !== this.historyStatusFilter);
           
           if (isFilterChanged) {
-            // 筛选条件变化时重置为第一页
+            // 筛选条件变化时重置为第一页并清空选择
             params.page = 1;
             this.gotoPage = 1;
+            this.selectedRecords = [];
+            this.lastSelectedRecordIndex = -1;
+            this.historyTotalHover = false;
           }
           
           // 记录当前筛选条件
@@ -12162,6 +12994,7 @@
               console.error('Error:', response.data.message);
             }
             this.history.hasLoaded = true;
+            this.refineAutoPageSizeAfterRender('history');
           }).catch(error => {
             console.error('Error loading history records:', error);
             this.history.hasLoaded = true;
@@ -12376,10 +13209,297 @@
         },
         
         changePageSizeTo(size) {
-          this.historyParams.page_size = size === 'all' ? 99999 : size;
-          // 保存用户设置的每页记录数到本地存储
           localStorage.setItem('quarkAutoSave_pageSize', size.toString());
+          if (size === 'auto') {
+            this.applyHistoryAutoPageSize({ resetPage: true });
+            return;
+          }
+          this.historyParams.page_size = size === 'all' ? 99999 : size;
           this.changePageSize();
+        },
+
+        // 桌面端是否支持「自动」分页（窄屏/移动端不展示该选项）
+        isDesktopPaginationAutoSupported() {
+          return typeof window !== 'undefined' && window.innerWidth > 768;
+        },
+        isHistoryPageSizeAuto() {
+          return localStorage.getItem('quarkAutoSave_pageSize') === 'auto';
+        },
+        isFileManagerPageSizeAuto() {
+          return localStorage.getItem('quarkAutoSave_fileManagerPageSize') === 'auto';
+        },
+        getHistoryPageSizeOptions() {
+          const base = [15, 30, 50, 100, 500, 1000, 'all'];
+          return this.isDesktopPaginationAutoSupported() ? ['auto'].concat(base) : base;
+        },
+        getFileManagerPageSizeOptions() {
+          const base = [15, 30, 50, 100, 500, 1000, 'all'];
+          return this.isDesktopPaginationAutoSupported() ? ['auto'].concat(base) : base;
+        },
+        getHistoryPageSizeOptionLabel(size) {
+          if (size === 'auto') return '自动分页';
+          if (size === 'all') return '全部记录';
+          return size + ' 条/页';
+        },
+        getFileManagerPageSizeOptionLabel(size) {
+          if (size === 'auto') return '自动分页';
+          if (size === 'all') return '全部项目';
+          return size + ' 项/页';
+        },
+        getHistoryPageSizeButtonLabel() {
+          if (this.isHistoryPageSizeAuto()) return '自动分页';
+          if (this.historyParams.page_size === 99999) return '全部记录';
+          return this.historyParams.page_size + ' 条/页';
+        },
+        getFileManagerPageSizeButtonLabel() {
+          if (this.isFileManagerPageSizeAuto()) return '自动分页';
+          if (this.fileManager.pageSize === 99999) return '全部项目';
+          return this.fileManager.pageSize + ' 项/页';
+        },
+        // 根据当前可视区域动态计算每页条数/项数（预留分页控制区域）
+        calculateAutoPageSize(context) {
+          const tableRefName = context === 'history' ? 'historyTableContainer' : 'fileManagerTableContainer';
+          const paginationRefName = context === 'history' ? 'historyPaginationContainer' : 'fileManagerPaginationContainer';
+          const tableContainer = this.$refs[tableRefName];
+          const paginationEl = this.$refs[paginationRefName];
+          const fallback = context === 'history'
+            ? (parseInt(this.historyParams.page_size, 10) || 15)
+            : (parseInt(this.fileManager.pageSize, 10) || 15);
+
+          if (!tableContainer || !paginationEl || typeof window === 'undefined') {
+            return fallback;
+          }
+
+          const tableEl = tableContainer.querySelector('table');
+          if (!tableEl) {
+            return fallback;
+          }
+
+          const thead = tableEl.querySelector('thead');
+          const tbody = tableEl.querySelector('tbody');
+          const viewportBottom = window.innerHeight;
+          const theadRect = thead ? thead.getBoundingClientRect() : null;
+          // 数据行起点：表头在视口内时从表头下方算起；表头已滚出视口时从视口顶部算起，避免滚动后高估可用高度
+          let rowsStartY = 0;
+          if (theadRect) {
+            if (theadRect.bottom > 0) {
+              rowsStartY = theadRect.bottom;
+            }
+          } else {
+            rowsStartY = Math.max(tableContainer.getBoundingClientRect().top, 0);
+          }
+          const paginationStyle = window.getComputedStyle(paginationEl);
+          const paginationMarginTop = parseFloat(paginationStyle.marginTop) || 0;
+          const paginationReserved = paginationEl.offsetHeight + paginationMarginTop + 8;
+          const availableHeight = viewportBottom - rowsStartY - paginationReserved;
+
+          if (availableHeight <= 0) {
+            return 5;
+          }
+
+          let rowHeight = 42;
+          let hasMeasuredRow = false;
+          if (tbody) {
+            const rows = tbody.querySelectorAll('tr');
+            for (let i = 0; i < rows.length; i++) {
+              const row = rows[i];
+              if (row.querySelector('td[colspan]')) {
+                continue;
+              }
+              const measuredHeight = row.getBoundingClientRect().height;
+              if (measuredHeight > 0) {
+                rowHeight = measuredHeight;
+                hasMeasuredRow = true;
+                break;
+              }
+            }
+          }
+
+          rowHeight = Math.max(rowHeight, 32);
+          const calculated = Math.floor(availableHeight / rowHeight);
+          const pageSize = Math.max(5, Math.min(1000, calculated));
+
+          // 无真实行高时略保守，避免首次估算偏大导致溢出
+          if (!hasMeasuredRow && pageSize > 5) {
+            return Math.max(5, pageSize - 1);
+          }
+          return pageSize;
+        },
+        // 切换到自动分页前滚回顶部，确保测量基于页面初始布局
+        scrollToTopForAutoPageSizeMeasure(callback) {
+          if (typeof window === 'undefined') {
+            if (typeof callback === 'function') {
+              callback();
+            }
+            return;
+          }
+          if (window.scrollY > 0) {
+            window.scrollTo(0, 0);
+          }
+          const self = this;
+          requestAnimationFrame(function() {
+            self.$nextTick(function() {
+              if (typeof callback === 'function') {
+                callback();
+              }
+            });
+          });
+        },
+        applyHistoryAutoPageSize(options) {
+          const opts = options || {};
+          const resetPage = opts.resetPage !== false;
+          const self = this;
+          const applySize = function() {
+            const newSize = self.calculateAutoPageSize('history');
+            const prevSize = self.historyParams.page_size;
+            self.historyParams.page_size = newSize;
+            if (resetPage) {
+              self.historyParams.page = 1;
+              self.gotoPage = 1;
+              self.changePageSize();
+              return;
+            }
+            if (newSize === prevSize) {
+              return;
+            }
+            const oldStart = (self.historyParams.page - 1) * prevSize;
+            const newPage = Math.max(1, Math.floor(oldStart / newSize) + 1);
+            self.historyParams.page = newPage;
+            self.gotoPage = newPage;
+            self.changePage(newPage);
+          };
+          if (resetPage) {
+            this.scrollToTopForAutoPageSizeMeasure(applySize);
+            return;
+          }
+          this.$nextTick(applySize);
+        },
+        applyFileManagerAutoPageSize(options) {
+          const opts = options || {};
+          const resetPage = opts.resetPage !== false;
+          const self = this;
+          const applySize = function() {
+            const newSize = self.calculateAutoPageSize('filemanager');
+            const prevSize = self.fileManager.pageSize;
+            self.fileManager.pageSize = newSize;
+            if (resetPage) {
+              self.fileManager.currentPage = 1;
+              self.loadFileListWithoutLoading(self.fileManager.currentFolder);
+              return;
+            }
+            if (newSize === prevSize) {
+              return;
+            }
+            const oldStart = (self.fileManager.currentPage - 1) * prevSize;
+            const newPage = Math.max(1, Math.floor(oldStart / newSize) + 1);
+            self.fileManager.currentPage = newPage;
+            self.loadFileListWithoutLoading(self.fileManager.currentFolder);
+          };
+          if (resetPage) {
+            this.scrollToTopForAutoPageSizeMeasure(applySize);
+            return;
+          }
+          this.$nextTick(applySize);
+        },
+        refineAutoPageSizeAfterRender(context) {
+          if (context === 'history' && !this.isHistoryPageSizeAuto()) return;
+          if (context === 'filemanager' && !this.isFileManagerPageSizeAuto()) return;
+          if (this._autoPageSizeRefining) return;
+
+          const self = this;
+          this.$nextTick(function() {
+            const newSize = self.calculateAutoPageSize(context);
+            const currentSize = context === 'history'
+              ? self.historyParams.page_size
+              : self.fileManager.pageSize;
+            if (!newSize || newSize === currentSize) {
+              return;
+            }
+
+            self._autoPageSizeRefining = true;
+            if (context === 'history') {
+              self.historyParams.page_size = newSize;
+              self.historyParams.page = 1;
+              self.gotoPage = 1;
+              self.changePageSize();
+            } else {
+              self.fileManager.pageSize = newSize;
+              self.fileManager.currentPage = 1;
+              self.loadFileListWithoutLoading(self.fileManager.currentFolder);
+            }
+            self.$nextTick(function() {
+              self._autoPageSizeRefining = false;
+            });
+          });
+        },
+        refreshActiveTabAutoPageSize(options) {
+          if (this.activeTab === 'history' && this.isHistoryPageSizeAuto()) {
+            this.applyHistoryAutoPageSize(options || { resetPage: false });
+          } else if (this.activeTab === 'filemanager' && this.isFileManagerPageSizeAuto()) {
+            this.applyFileManagerAutoPageSize(options || { resetPage: false });
+          }
+        },
+        // 监听窗口/视口高度变化，自动模式时实时重算分页大小
+        setupAutoPageSizeResizeListener() {
+          const self = this;
+          if (this._onAutoPageSizeResize) {
+            return;
+          }
+          this._lastAutoPageSizeViewportHeight = window.innerHeight;
+          this._onAutoPageSizeResize = this.debounce(function() {
+            const heightChanged = window.innerHeight !== self._lastAutoPageSizeViewportHeight;
+            self._lastAutoPageSizeViewportHeight = window.innerHeight;
+            self.syncHistoryJumpInputWidth();
+            self.syncFileManagerJumpInputWidth();
+            if (heightChanged) {
+              self.refreshActiveTabAutoPageSize({ resetPage: false });
+            }
+          }, 100);
+          window.addEventListener('resize', this._onAutoPageSizeResize);
+          if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', this._onAutoPageSizeResize);
+          }
+          if (window.ResizeObserver) {
+            this._autoPageSizeResizeObserver = new ResizeObserver(function() {
+              self._onAutoPageSizeResize();
+            });
+            const observeTarget = document.documentElement;
+            if (observeTarget) {
+              this._autoPageSizeResizeObserver.observe(observeTarget);
+            }
+          }
+        },
+        teardownAutoPageSizeResizeListener() {
+          if (this._onAutoPageSizeResize) {
+            window.removeEventListener('resize', this._onAutoPageSizeResize);
+            if (window.visualViewport) {
+              window.visualViewport.removeEventListener('resize', this._onAutoPageSizeResize);
+            }
+            this._onAutoPageSizeResize = null;
+          }
+          if (this._autoPageSizeResizeObserver) {
+            this._autoPageSizeResizeObserver.disconnect();
+            this._autoPageSizeResizeObserver = null;
+          }
+        },
+        restoreHistoryPageSizeFromStorage() {
+          const savedPageSize = localStorage.getItem('quarkAutoSave_pageSize');
+          if (savedPageSize === 'auto') {
+            // 自动模式在页面渲染后、加载数据时再计算具体条数
+            return;
+          }
+          if (savedPageSize) {
+            this.historyParams.page_size = savedPageSize === 'all' ? 99999 : parseInt(savedPageSize, 10);
+          }
+        },
+        restoreFileManagerPageSizeFromStorage() {
+          const savedPageSize = localStorage.getItem('quarkAutoSave_fileManagerPageSize');
+          if (savedPageSize === 'auto') {
+            return;
+          }
+          if (savedPageSize) {
+            this.fileManager.pageSize = savedPageSize === 'all' ? 99999 : parseInt(savedPageSize, 10);
+          }
         },
 
         // 转存记录分页：跳转页码输入框宽度与「最后一页」按钮一致；无该按钮时用 32px
@@ -12730,6 +13850,7 @@
                           // 后端推送导致的任务列表更新，不应触发"未保存修改"提示
                           this.suppressConfigModifiedOnce = true;
                           this.formData.tasklist = cfg.tasklist || [];
+                          this.snapshotTaskShareResourceIds();
                           // 同步任务名集合用于筛选
                           this.calendar.taskNames = (this.formData.tasklist || []).map(t => t.taskname).filter(Boolean);
                           // 如任务数量变化，重建与任务相关的最新文件映射的键集合
@@ -13395,10 +14516,73 @@
           // 更新数据模型，如果为空则默认为0
           this.formData[field] = event.target.value === '' ? 0 : parseInt(event.target.value);
         },
+        // 构建转存记录 API 请求参数（筛选条件与当前列表一致）
+        buildHistoryApiParams(overrides = {}) {
+          const params = {
+            sort_by: this.historyParams.sortBy || "transfer_time",
+            order: this.historyParams.order || "desc",
+            page_size: parseInt(this.historyParams.page_size || 15),
+            page: this.historyParams.page || 1,
+            ...overrides
+          };
+          if (this.historyTaskSelected) {
+            params.task_name = this.historyTaskSelected;
+          }
+          if (this.historyNameFilter) {
+            params.keyword = this.historyNameFilter;
+          }
+          return params;
+        },
+        // 转存记录：无选中时各行悬停可删；有选中时仅在选中行显示删除按钮；移动端仅选中行显示
+        showHistoryDeleteBtn(record) {
+          const count = this.selectedRecords.length;
+          if (this.isMobileDevice()) {
+            return count > 0 && this.selectedRecords.includes(record.id);
+          }
+          if (count === 0) {
+            return true;
+          }
+          return this.selectedRecords.includes(record.id);
+        },
+        // 全选当前筛选条件下的全部转存记录
+        selectAllHistoryRecords() {
+          const total = this.history.pagination ? this.history.pagination.total_records : 0;
+          if (total === 0 || this.selectedRecords.length > 0) {
+            return;
+          }
+          const params = this.buildHistoryApiParams({ ids_only: true });
+          if (!this.prepareStatusFilterParams(params, false)) {
+            return;
+          }
+          axios.get('/history_records', { params })
+            .then(response => {
+              if (response.data.success && response.data.data && response.data.data.ids) {
+                this.selectedRecords = response.data.data.ids;
+                this.historyTotalHover = false;
+              } else {
+                alert(response.data.message || '获取记录列表失败');
+              }
+            })
+            .catch(error => {
+              console.error('全选记录时出错:', error);
+              alert('获取记录列表时出错: ' + (error.response?.data?.message || error.message));
+            });
+        },
         selectRecord(event, recordId) {
           // 获取当前记录的索引
           const currentIndex = this.filteredHistoryRecords.findIndex(record => record.id === recordId);
           if (currentIndex === -1) return;
+
+          // 移动端：点击切换选中，支持多选
+          if (this.isMobileDevice()) {
+            if (this.selectedRecords.includes(recordId)) {
+              this.selectedRecords = this.selectedRecords.filter(id => id !== recordId);
+            } else {
+              this.selectedRecords.push(recordId);
+            }
+            this.lastSelectedRecordIndex = this.selectedRecords.length > 0 ? currentIndex : -1;
+            return;
+          }
           
           // 如果是Shift+点击，选择范围
           if (event.shiftKey && this.selectedRecords.length > 0) {
@@ -13613,14 +14797,8 @@
             return;
           }
           
-          // 检查点击是否在表格内
-          const tableElement = document.querySelector('.table.selectable-records');
-          // 检查点击是否在分页控制区域
-          const paginationElement = document.querySelector('.pagination-container');
-          
-          // 如果点击不在表格内且不在分页控制区域内，则清除选择
-          if (tableElement && !tableElement.contains(event.target) && 
-              paginationElement && !paginationElement.contains(event.target)) {
+          // 点击表格内保留选中；表格外（含分页、筛选区等）取消选中
+          if (!event.target.closest('.table.selectable-records')) {
             this.selectedRecords = [];
             this.lastSelectedRecordIndex = -1;
           }
@@ -13649,6 +14827,123 @@
 
           // 阻止事件继续传播，避免与其他点击事件处理器冲突
           event.stopPropagation();
+        },
+        // 保存路径模态框：无选中时各行显示删除链接；有选中时仅在选中行显示
+        showFileSelectDeleteLinks(file) {
+          if (!this.isSavepathSelectModal()) {
+            return true;
+          }
+          const count = this.fileSelect.selectedFiles.length;
+          if (count === 0) {
+            return true;
+          }
+          return this.fileSelect.selectedFiles.includes(file.fid);
+        },
+        // 全选当前目录内的全部项目（含文件与文件夹）
+        selectAllFileSelectItems() {
+          if (!this.isSavepathSelectModal()) {
+            return;
+          }
+          if (this.fileSelect.selectedFiles.length > 0 || !this.fileSelect.fileList || this.fileSelect.fileList.length === 0) {
+            return;
+          }
+          this.fileSelect.selectedFiles = this.fileSelect.fileList.map(item => item.fid);
+          this.fileSelectTotalHover = false;
+        },
+        // 处理文件选择模态框行点击
+        handleFileSelectRowClick(file, event) {
+          if (this.isSavepathSelectModal()) {
+            if (this.isMobileDevice()) {
+              if (file.dir) {
+                const isSelected = this.fileSelect.selectedFiles.includes(file.fid);
+                if (isSelected && this.fileSelect.selectedFiles.length === 1) {
+                  this.navigateTo(file.fid, file.file_name);
+                  return;
+                }
+                this.selectFileItemMobile(file);
+                return;
+              }
+              this.selectFileItemMobile(file);
+              return;
+            }
+            if (file.dir) {
+              if (event.shiftKey || event.ctrlKey || event.metaKey) {
+                this.selectFileItemForSavepath(event, file);
+              } else {
+                this.navigateTo(file.fid, file.file_name);
+              }
+              return;
+            }
+            this.selectFileItemForSavepath(event, file);
+            return;
+          }
+          if (this.fileSelect.selectDir) {
+            if (file.dir) {
+              this.navigateTo(file.fid, file.file_name);
+            } else {
+              this.selectFileItem(event, file.fid);
+            }
+          } else {
+            this.selectStartFid(file.fid);
+          }
+        },
+        // 保存路径模态框：桌面端多选（含文件夹）
+        selectFileItemForSavepath(event, file) {
+          const currentIndex = this.fileSelect.fileList.findIndex(item => item.fid === file.fid);
+          if (currentIndex === -1) return;
+
+          if (event.shiftKey && this.fileSelect.selectedFiles.length > 0) {
+            const selectedIndices = this.fileSelect.selectedFiles.map(id =>
+              this.fileSelect.fileList.findIndex(item => item.fid === id)
+            ).filter(index => index !== -1);
+
+            if (selectedIndices.length > 0) {
+              const earliestSelectedIndex = Math.min(...selectedIndices);
+              const startIndex = Math.min(earliestSelectedIndex, currentIndex);
+              const endIndex = Math.max(earliestSelectedIndex, currentIndex);
+              this.fileSelect.selectedFiles = this.fileSelect.fileList
+                .slice(startIndex, endIndex + 1)
+                .map(item => item.fid);
+            } else {
+              this.fileSelect.selectedFiles = [file.fid];
+            }
+          } else if (event.ctrlKey || event.metaKey) {
+            if (this.fileSelect.selectedFiles.includes(file.fid)) {
+              this.fileSelect.selectedFiles = this.fileSelect.selectedFiles.filter(id => id !== file.fid);
+            } else {
+              this.fileSelect.selectedFiles.push(file.fid);
+            }
+          } else {
+            if (this.fileSelect.selectedFiles.length === 1 && this.fileSelect.selectedFiles.includes(file.fid)) {
+              this.fileSelect.selectedFiles = [];
+            } else {
+              this.fileSelect.selectedFiles = [file.fid];
+            }
+          }
+
+          if (this.fileSelect.selectedFiles.length > 0) {
+            this.fileSelect.lastSelectedFileIndex = currentIndex;
+          } else {
+            this.fileSelect.lastSelectedFileIndex = -1;
+          }
+          event.stopPropagation();
+        },
+        // 保存路径模态框：触摸端点击切换选中
+        selectFileItemMobile(file) {
+          const currentIndex = this.fileSelect.fileList.findIndex(item => item.fid === file.fid);
+          if (currentIndex === -1) return;
+
+          if (this.fileSelect.selectedFiles.includes(file.fid)) {
+            this.fileSelect.selectedFiles = this.fileSelect.selectedFiles.filter(id => id !== file.fid);
+          } else {
+            this.fileSelect.selectedFiles.push(file.fid);
+          }
+
+          if (this.fileSelect.selectedFiles.length > 0) {
+            this.fileSelect.lastSelectedFileIndex = currentIndex;
+          } else {
+            this.fileSelect.lastSelectedFileIndex = -1;
+          }
         },
         selectFileItem(event, fileId) {
           // 如果是在预览模式或选择分享模式，不允许选择
@@ -14019,7 +15314,7 @@
           this.loadHistoryRecords();
         },
         navigateToFolder(folderId, folderName) {
-          this.fileManager.selectedFiles = []; // 清空选中的文件
+          this.clearFileManagerSelection();
           
           if (folderId === 'root') {
             // 回到根目录
@@ -14047,43 +15342,177 @@
           this.fileManager.currentPage = 1;
           this.loadFileListWithoutLoading(folderId);
         },
+        // 清空文件整理页面的选中状态
+        clearFileManagerSelection() {
+          this.fileManager.selectedFiles = [];
+          this.fileManager.selectedFilesInfo = {};
+          this.fileManager.lastSelectedFileIndex = -1;
+          this.fileManagerTotalHover = false;
+        },
+        // 构建文件列表 API 请求参数
+        buildFileManagerApiParams(overrides = {}) {
+          return {
+            folder_id: this.fileManager.currentFolder || 'root',
+            sort_by: this.fileManager.sortBy,
+            order: this.fileManager.sortOrder,
+            page_size: this.fileManager.pageSize,
+            page: this.fileManager.currentPage,
+            account_index: this.fileManager.selectedAccountIndex,
+            ...overrides
+          };
+        },
+        // 获取文件整理页面中项目的名称与类型（优先当前页，其次全选缓存）
+        getFileManagerItemInfo(fid) {
+          const fromList = this.fileManager.fileList.find(file => file.fid === fid);
+          if (fromList) {
+            return { file_name: fromList.file_name, dir: fromList.dir };
+          }
+          if (this.fileManager.selectedFilesInfo && this.fileManager.selectedFilesInfo[fid]) {
+            return this.fileManager.selectedFilesInfo[fid];
+          }
+          return { file_name: '', dir: false };
+        },
+        // 将当前选中项转为可操作对象列表（合并当前页与全选缓存，支持跨页）
+        getFileManagerSelectedItems() {
+          return this.fileManager.selectedFiles.map(fid => {
+            const fromList = this.fileManager.fileList.find(file => file.fid === fid);
+            if (fromList) {
+              return fromList;
+            }
+            const info = this.getFileManagerItemInfo(fid);
+            return { fid, file_name: info.file_name, dir: info.dir };
+          });
+        },
+        // 多选/全选时：重命名仅支持单项，多选时隐藏
+        showFileManagerRenameBtn(file) {
+          if (this.isMobileDevice() && this.fileManager.selectedFiles.length === 0) {
+            return false;
+          }
+          const count = this.fileManager.selectedFiles.length;
+          if (count > 1) {
+            return false;
+          }
+          if (count === 1) {
+            return this.fileManager.selectedFiles.includes(file.fid);
+          }
+          return true;
+        },
+        // 多选/全选时：仅当选中项全部为压缩包时显示云解压
+        showFileManagerExtractBtn(file) {
+          if (this.isMobileDevice() && this.fileManager.selectedFiles.length === 0) {
+            return false;
+          }
+          if (file.dir || !this.isArchiveFile(file.file_name)) {
+            return false;
+          }
+          const count = this.fileManager.selectedFiles.length;
+          if (count === 0) {
+            return true;
+          }
+          if (!this.fileManager.selectedFiles.includes(file.fid)) {
+            return false;
+          }
+          if (count === 1) {
+            return true;
+          }
+          return this.fileManagerSelectionCanBatchExtract;
+        },
+        // 多选/全选时：移动支持批量，仅在选中行显示
+        showFileManagerMoveBtn(file) {
+          if (this.isMobileDevice() && this.fileManager.selectedFiles.length === 0) {
+            return false;
+          }
+          const count = this.fileManager.selectedFiles.length;
+          if (count === 0) {
+            return true;
+          }
+          return this.fileManager.selectedFiles.includes(file.fid);
+        },
+        // 多选/全选时：删除支持批量，仅在选中行显示
+        showFileManagerDeleteBtn(file) {
+          return this.showFileManagerMoveBtn(file);
+        },
+        // 当前行是否有任意可显示的操作按钮
+        showFileManagerActionBar(file) {
+          return this.showFileManagerRenameBtn(file)
+            || this.showFileManagerExtractBtn(file)
+            || this.showFileManagerMoveBtn(file)
+            || this.showFileManagerDeleteBtn(file);
+        },
+        // 全选当前目录内的全部项目（含文件与文件夹）
+        selectAllFileManagerItems() {
+          const total = this.fileManager.total || 0;
+          if (total === 0 || this.fileManager.selectedFiles.length > 0) {
+            return;
+          }
+          const params = this.buildFileManagerApiParams({
+            page_size: total,
+            page: 1
+          });
+          axios.get('/file_list', { params })
+            .then(response => {
+              if (response.data.success && response.data.data && response.data.data.list) {
+                const list = response.data.data.list;
+                this.fileManager.selectedFiles = list.map(item => item.fid);
+                const info = {};
+                list.forEach(item => {
+                  info[item.fid] = { file_name: item.file_name, dir: item.dir };
+                });
+                this.fileManager.selectedFilesInfo = info;
+                this.fileManagerTotalHover = false;
+              } else {
+                alert(response.data.message || '获取文件列表失败');
+              }
+            })
+            .catch(error => {
+              console.error('全选项目时出错:', error);
+              alert('获取文件列表时出错: ' + (error.response?.data?.message || error.message));
+            });
+        },
+        // 将当前页选中项同步到 selectedFilesInfo，便于跨页批量操作
+        syncFileManagerSelectionInfo() {
+          if (!this.fileManager.selectedFilesInfo) {
+            this.fileManager.selectedFilesInfo = {};
+          }
+          this.fileManager.fileList.forEach(item => {
+            if (this.fileManager.selectedFiles.includes(item.fid)) {
+              this.fileManager.selectedFilesInfo[item.fid] = {
+                file_name: item.file_name,
+                dir: item.dir
+              };
+            }
+          });
+        },
         selectFileForManager(event, file) {
-          // 如果是文件夹，不允许选择
-          if (file.dir) return;
-          
-          // 如果是Shift+点击，选择范围
+          const currentIndex = this.fileManager.fileList.indexOf(file);
+          if (currentIndex === -1) return;
+
+          // 如果是Shift+点击，选择范围（含文件与文件夹）
           if (event.shiftKey && this.fileManager.selectedFiles.length > 0) {
-            // 找出所有已选中文件的索引
-            const selectedIndices = this.fileManager.selectedFiles.map(id => 
-              this.fileManager.fileList.findIndex(file => file.fid === id)
-            ).filter(index => index !== -1); // 过滤掉未找到的文件
-            
+            const selectedIndices = this.fileManager.selectedFiles.map(id =>
+              this.fileManager.fileList.findIndex(item => item.fid === id)
+            ).filter(index => index !== -1);
+
             if (selectedIndices.length > 0) {
-              // 找出已选中文件中最靠前的索引
               const earliestSelectedIndex = Math.min(...selectedIndices);
-              // 确定最终的选择范围
-              const startIndex = Math.min(earliestSelectedIndex, this.fileManager.fileList.indexOf(file));
-              const endIndex = Math.max(earliestSelectedIndex, this.fileManager.fileList.indexOf(file));
-              
-              // 获取范围内所有文件的ID（排除文件夹）
+              const startIndex = Math.min(earliestSelectedIndex, currentIndex);
+              const endIndex = Math.max(earliestSelectedIndex, currentIndex);
               this.fileManager.selectedFiles = this.fileManager.fileList
                 .slice(startIndex, endIndex + 1)
-                .filter(file => !file.dir) // 只选择文件，不选择文件夹
-                .map(file => file.fid);
+                .map(item => item.fid);
             } else {
-              // 如果没有有效的选中文件（可能是由于列表刷新），则只选择当前文件
               this.fileManager.selectedFiles = [file.fid];
             }
-          } 
-          // 如果是Ctrl/Cmd+点击，切换单个文件选择状态
+          }
+          // 如果是Ctrl/Cmd+点击，切换单个项目选择状态
           else if (event.ctrlKey || event.metaKey) {
             if (this.fileManager.selectedFiles.includes(file.fid)) {
               this.fileManager.selectedFiles = this.fileManager.selectedFiles.filter(id => id !== file.fid);
             } else {
               this.fileManager.selectedFiles.push(file.fid);
             }
-          } 
-          // 普通点击，清除当前选择并选择当前文件
+          }
+          // 普通点击，清除当前选择并选择当前项目
           else {
             if (this.fileManager.selectedFiles.length === 1 && this.fileManager.selectedFiles.includes(file.fid)) {
               this.fileManager.selectedFiles = [];
@@ -14091,16 +15520,37 @@
               this.fileManager.selectedFiles = [file.fid];
             }
           }
-          
-          // 更新最后选择的文件索引，只有在有选择文件时才更新
+
+          this.syncFileManagerSelectionInfo();
+
           if (this.fileManager.selectedFiles.length > 0) {
-            this.fileManager.lastSelectedFileIndex = this.fileManager.fileList.indexOf(file);
+            this.fileManager.lastSelectedFileIndex = currentIndex;
           } else {
             this.fileManager.lastSelectedFileIndex = -1;
+            this.fileManager.selectedFilesInfo = {};
           }
-          
-          // 阻止事件冒泡
+
           event.stopPropagation();
+        },
+        // 移动端：点击切换选中，支持多选
+        selectFileForManagerMobile(file) {
+          const currentIndex = this.fileManager.fileList.indexOf(file);
+          if (currentIndex === -1) return;
+
+          if (this.fileManager.selectedFiles.includes(file.fid)) {
+            this.fileManager.selectedFiles = this.fileManager.selectedFiles.filter(id => id !== file.fid);
+          } else {
+            this.fileManager.selectedFiles.push(file.fid);
+          }
+
+          this.syncFileManagerSelectionInfo();
+
+          if (this.fileManager.selectedFiles.length > 0) {
+            this.fileManager.lastSelectedFileIndex = currentIndex;
+          } else {
+            this.fileManager.lastSelectedFileIndex = -1;
+            this.fileManager.selectedFilesInfo = {};
+          }
         },
         formatFileSize(fileSize) {
           const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -14556,14 +16006,8 @@
             }
           });
         },
-        // 开始移动文件
+        // 开始移动文件或文件夹
         startMoveFile(file) {
-          // 如果是文件夹，不允许移动
-          if (file.dir) {
-            this.showToast('暂不支持移动文件夹');
-            return;
-          }
-
           // 设置移动模式相关参数
           this.fileSelect.moveMode = true;
           this.fileSelect.moveFileIds = this.fileManager.selectedFiles.length > 0 && this.fileManager.selectedFiles.includes(file.fid)
@@ -14607,11 +16051,11 @@
             return;
           }
 
-          // 确定待解压文件列表：若当前行在选中列表中且选中了多个压缩文件，则解压全部选中的压缩包；否则只解压当前文件
+          // 确定待解压文件列表：若当前行在选中列表中，则解压全部选中的压缩包（含跨页全选）
           let filesToExtract = [file];
           if (this.fileManager.selectedFiles.length > 0 && this.fileManager.selectedFiles.includes(file.fid)) {
-            const selectedArchives = this.fileManager.fileList.filter(
-              f => !f.dir && this.isArchiveFile(f.file_name) && this.fileManager.selectedFiles.includes(f.fid)
+            const selectedArchives = this.getFileManagerSelectedItems().filter(
+              item => !item.dir && this.isArchiveFile(item.file_name)
             );
             if (selectedArchives.length > 0) {
               filesToExtract = selectedArchives;
@@ -14832,12 +16276,32 @@
             return;
           }
 
-          // 正常处理点击事件
-          if (file.dir) {
-            this.navigateToFolder(file.fid, file.file_name);
-          } else {
-            this.selectFileForManager(event, file);
+          // 移动端：单击选中/取消；文件夹已单独选中时再次点击则进入
+          if (this.isMobileDevice()) {
+            if (file.dir) {
+              const isSelected = this.fileManager.selectedFiles.includes(file.fid);
+              // 仅当前文件夹被单独选中时，再次点击视为进入（无需快速连点，避免触发系统缩放）
+              if (isSelected && this.fileManager.selectedFiles.length === 1) {
+                this.navigateToFolder(file.fid, file.file_name);
+                return;
+              }
+              this.selectFileForManagerMobile(file);
+              return;
+            }
+            this.selectFileForManagerMobile(file);
+            return;
           }
+
+          // 文件夹：普通点击进入，Ctrl/Shift/Cmd+点击多选
+          if (file.dir) {
+            if (event.shiftKey || event.ctrlKey || event.metaKey) {
+              this.selectFileForManager(event, file);
+            } else {
+              this.navigateToFolder(file.fid, file.file_name);
+            }
+            return;
+          }
+          this.selectFileForManager(event, file);
         },
         loadFileList(folderId) {
           this.fileManager.currentFolder = folderId || 'root';
@@ -14891,55 +16355,21 @@
           this.loadFileListWithoutLoading(this.fileManager.currentFolder);
         },
         changeFileManagerPageSize(size) {
-          // 先更新内存中的值
+          localStorage.setItem('quarkAutoSave_fileManagerPageSize', size.toString());
+          if (size === 'auto') {
+            this.applyFileManagerAutoPageSize({ resetPage: true });
+            return;
+          }
           this.fileManager.pageSize = size === 'all' ? 99999 : size;
           this.fileManager.currentPage = 1;
-          
-          // 然后保存到localStorage
-          localStorage.setItem('quarkAutoSave_fileManagerPageSize', size.toString());
-          
-          // 最后重新加载文件列表
           this.loadFileListWithoutLoading(this.fileManager.currentFolder);
         },
-        navigateToFolder(folderId, folderName) {
-          this.fileManager.selectedFiles = []; // 清空选中的文件
-          
-          if (folderId === 'root') {
-            // 回到根目录
-            this.fileManager.paths = [];
-          } else {
-            // 查找是否已经在路径中
-            const index = this.fileManager.paths.findIndex(path => path.fid === folderId);
-            
-            if (index !== -1) {
-              // 如果已存在，截取到该位置
-              this.fileManager.paths = this.fileManager.paths.slice(0, index + 1);
-            } else {
-              // 否则添加到路径
-              this.fileManager.paths.push({
-                fid: folderId,
-                name: folderName
-              });
-            }
-          }
-          
-          // 保存当前目录到localStorage（为每个账号单独保存）
-          localStorage.setItem(`quarkAutoSave_fileManagerLastFolder_${this.fileManager.selectedAccountIndex}`, folderId);
-          
-          // 重置页码并加载新文件夹内容，不显示加载动画
-          this.fileManager.currentPage = 1;
-          this.loadFileListWithoutLoading(folderId);
-        },
-        
         // 添加一个不显示加载动画的文件列表加载方法
         loadFileListWithoutLoading(folderId) {
           this.fileManager.currentFolder = folderId || 'root';
 
-          // 从localStorage读取分页大小设置（仅在初始化时使用）
-          // 在changeFileManagerPageSize方法中，我们已经确保了正确的执行顺序
-          const savedFileManagerPageSize = localStorage.getItem('quarkAutoSave_fileManagerPageSize');
-          if (savedFileManagerPageSize && this.fileManager.pageSize === 15) { // 只在默认值时读取
-            this.fileManager.pageSize = savedFileManagerPageSize === 'all' ? 99999 : parseInt(savedFileManagerPageSize);
+          if (this.isFileManagerPageSizeAuto()) {
+            this.fileManager.pageSize = this.calculateAutoPageSize('filemanager');
           }
 
           const params = {
@@ -14966,6 +16396,7 @@
               // 检测当前的命名模式
               this.detectFileManagerNamingMode();
               this.fileManager.hasLoaded = true;
+              this.refineAutoPageSizeAfterRender('filemanager');
             })
             .catch(error => {
               console.error('获取文件列表失败:', error);
@@ -15089,32 +16520,25 @@
             return;
           }
 
-          // 检查点击是否在表格内
-          const tableElement = document.querySelector('.table.selectable-files');
-          // 检查点击是否在分页控制区域
-          const paginationElement = document.querySelector('.pagination-container');
-
-          // 如果点击不在表格内且不在分页控制区域内，则清除选择
-          if (tableElement && !tableElement.contains(event.target) &&
-              paginationElement && !paginationElement.contains(event.target)) {
-            this.fileManager.selectedFiles = [];
-            this.fileManager.lastSelectedFileIndex = -1;
+          // 点击表格内保留选中；表格外（含分页、面包屑等）取消选中
+          if (!event.target.closest('.table.selectable-files')) {
+            this.clearFileManagerSelection();
           }
         },
         deleteSelectedFilesForManager(clickedFid, clickedFname, isDir, deleteRecords = false) {
-          // 如果是文件夹或者没有选中的文件，则按原来的方式删除单个文件
-          if (isDir || this.fileManager.selectedFiles.length === 0) {
+          // 无选中时，删除当前点击的单个项目
+          if (this.fileManager.selectedFiles.length === 0) {
             this.deleteFile({ fid: clickedFid, file_name: clickedFname, dir: isDir });
             return;
           }
           
-          // 如果点击的文件不在选中列表中，也按原来的方式删除单个文件
+          // 点击项不在选中列表中，只删除当前点击的单个项目
           if (!this.fileManager.selectedFiles.includes(clickedFid)) {
             this.deleteFile({ fid: clickedFid, file_name: clickedFname, dir: isDir });
             return;
           }
           
-          // 多选删除
+          // 多选删除（含全选：文件与文件夹混合）
           const selectedCount = this.fileManager.selectedFiles.length;
           
           // 根据选中数量使用不同的确认提示
@@ -15131,13 +16555,11 @@
             
             // 创建一个Promise数组来处理所有删除请求
             const deletePromises = this.fileManager.selectedFiles.map(fid => {
-              // 查找对应的文件对象，获取文件名
-              const fileObj = this.fileManager.fileList.find(file => file.fid === fid);
-              const fileName = fileObj ? fileObj.file_name : '';
+              const fileInfo = this.getFileManagerItemInfo(fid);
               
               return axios.post('/delete_file', {
                 fid: fid,
-                file_name: fileName,
+                file_name: fileInfo.file_name,
                 delete_records: deleteRecords,
                 save_path: save_path,
                 account_index: this.fileManager.selectedAccountIndex
@@ -15166,6 +16588,7 @@
 
                 // 如果有成功删除的文件，刷新文件列表以确保缓存同步
                 if (successCount > 0) {
+                  this.clearFileManagerSelection();
                   this.refreshCurrentFolderCache();
                   // 如果命名预览模态框是打开的，也要刷新它
                   if ($('#fileSelectModal').hasClass('show')) {
@@ -15607,6 +17030,7 @@
             this.createTask.isEditMode = false;
             this.createTask.editTaskIndex = null;
             this.createTask.error = null;
+            this.resetCreateTaskShareAuthorState();
             // 使用 newTask 的完整结构初始化，再由智能填充覆盖
             this.createTask.taskData = { ...this.newTask };
             // 应用系统配置的执行周期默认选项
@@ -15649,6 +17073,7 @@
             // 重置编辑模式状态
             this.createTask.isEditMode = false;
             this.createTask.editTaskIndex = null;
+            this.resetCreateTaskShareAuthorState();
             
             // 重置任务数据为默认值，使用 newTask 的完整结构
             this.createTask.taskData = { ...this.newTask };
@@ -15719,12 +17144,15 @@
             }
             
             const task = this.formData.tasklist[taskIndex];
-            
+            // 分享订阅字段由服务启动 / 加载配置时自动迁移补全，此处仅读取展示
             // 设置编辑模式
             this.createTask.isEditMode = true;
             this.createTask.editTaskIndex = taskIndex;
             this.createTask.movieData = null;
             this.createTask.error = null;
+            // 先用配置中的昵称占位，避免链接失效时接口失败只能显示「未知」
+            this.createTask.shareAuthor = (task.share_author_name || '').trim();
+            this.editTaskShareAuthorResourceId = null;
             
             // 复制任务数据到编辑表单
             this.createTask.taskData = { ...task };
@@ -15746,6 +17174,9 @@
             
             // 打开模态框
             $('#createTaskModal').modal('show');
+            this.$nextTick(() => {
+              this.maybeRefreshEditTaskShareAuthor(this.createTask.taskData.shareurl);
+            });
           } catch (error) {
             console.error('打开编辑任务模态框时出错:', error);
             this.showToast('打开编辑任务失败');
@@ -16375,13 +17806,14 @@
           $('#createTaskModal').modal('hide');
           this.createTask.movieData = null;
           this.createTask.error = null;
+          this.resetCreateTaskShareAuthorState();
           // 重置编辑模式状态
           this.createTask.isEditMode = false;
           this.createTask.editTaskIndex = null;
           // 重置任务数据，使用 newTask 的完整结构
           this.createTask.taskData = { ...this.newTask };
         },
-        confirmCreateTask() {
+        async confirmCreateTask() {
           // 确认创建任务
           if (this.createTask.loading) return;
 
@@ -16415,11 +17847,18 @@
             newTask.pattern = newTask.episode_naming;
           }
 
+          try {
+            await this.applyTaskShareMetadataOnSave(newTask, null, null);
+          } catch (e) {
+            console.warn('新任务分享元数据写入失败:', e);
+          }
+
           // 添加到任务列表
           if (!this.formData.tasklist) {
             this.formData.tasklist = [];
           }
           this.formData.tasklist.push(newTask);
+          this.snapshotTaskShareResourceIds();
 
           // 保存配置（不显示配置更新消息）
           axios.post('/update', this.formData)
@@ -16446,7 +17885,7 @@
               this.createTask.loading = false;
             });
         },
-        confirmEditTask() {
+        async confirmEditTask() {
           // 确认编辑任务
           if (this.createTask.loading) return;
 
@@ -16480,9 +17919,23 @@
             updatedTask.pattern = updatedTask.episode_naming;
           }
 
+          const editIdx = this.createTask.editTaskIndex;
+          const prevSnap = (editIdx != null && this._taskShareSnapshot) ? this._taskShareSnapshot[editIdx] : null;
+          try {
+            const authorName = (this.createTask.shareAuthor && this.createTask.shareAuthor !== '未知' && this.createTask.shareAuthor !== '加载中')
+              ? this.createTask.shareAuthor : '';
+            await this.applyTaskShareMetadataOnSave(
+              updatedTask,
+              this.buildPreviousTaskFromSnapshot(prevSnap),
+              authorName
+            );
+          } catch (e) {
+            console.warn('编辑任务分享元数据写入失败:', e);
+          }
+
           // 更新任务列表中的任务
-          if (this.createTask.editTaskIndex !== null && this.formData.tasklist && this.formData.tasklist[this.createTask.editTaskIndex]) {
-            this.$set(this.formData.tasklist, this.createTask.editTaskIndex, updatedTask);
+          if (editIdx !== null && this.formData.tasklist && this.formData.tasklist[editIdx]) {
+            this.$set(this.formData.tasklist, editIdx, updatedTask);
           }
 
           // 保存配置（不显示配置更新消息）
@@ -16490,6 +17943,7 @@
             .then(response => {
               if (response.data.success) {
                 this.configModified = false;
+                this.snapshotTaskShareResourceIds();
                 // 显示任务编辑成功消息
                 this.showToast('任务编辑成功', 'success');
                 // 保存成功后更新用户信息
@@ -16510,7 +17964,7 @@
               this.createTask.loading = false;
             });
         },
-        confirmEditAndRunTask() {
+        async confirmEditAndRunTask() {
           // 确认编辑任务并立即运行
           if (this.createTask.loading) return;
 
@@ -16544,9 +17998,23 @@
             updatedTask.pattern = updatedTask.episode_naming;
           }
 
+          const editIdx = this.createTask.editTaskIndex;
+          const prevSnap = (editIdx != null && this._taskShareSnapshot) ? this._taskShareSnapshot[editIdx] : null;
+          try {
+            const authorName = (this.createTask.shareAuthor && this.createTask.shareAuthor !== '未知' && this.createTask.shareAuthor !== '加载中')
+              ? this.createTask.shareAuthor : '';
+            await this.applyTaskShareMetadataOnSave(
+              updatedTask,
+              this.buildPreviousTaskFromSnapshot(prevSnap),
+              authorName
+            );
+          } catch (e) {
+            console.warn('编辑任务分享元数据写入失败:', e);
+          }
+
           // 更新任务列表中的任务
-          if (this.createTask.editTaskIndex !== null && this.formData.tasklist && this.formData.tasklist[this.createTask.editTaskIndex]) {
-            this.$set(this.formData.tasklist, this.createTask.editTaskIndex, updatedTask);
+          if (editIdx !== null && this.formData.tasklist && this.formData.tasklist[editIdx]) {
+            this.$set(this.formData.tasklist, editIdx, updatedTask);
           }
 
           // 保存配置
@@ -16554,6 +18022,7 @@
             .then(response => {
               if (response.data.success) {
                 this.configModified = false;
+                this.snapshotTaskShareResourceIds();
                 this.showToast('任务编辑成功并开始运行', 'success');
                 this.fetchUserInfo();
                 this.updateTasklistMetadata();
@@ -16576,7 +18045,7 @@
               this.createTask.loading = false;
             });
         },
-        confirmCreateAndRunTask() {
+        async confirmCreateAndRunTask() {
           // 确认创建并运行任务
           if (this.createTask.loading) return;
 
@@ -16610,11 +18079,18 @@
             newTask.pattern = newTask.episode_naming;
           }
 
+          try {
+            await this.applyTaskShareMetadataOnSave(newTask, null, null);
+          } catch (e) {
+            console.warn('新任务分享元数据写入失败:', e);
+          }
+
           // 添加到任务列表
           if (!this.formData.tasklist) {
             this.formData.tasklist = [];
           }
           this.formData.tasklist.push(newTask);
+          this.snapshotTaskShareResourceIds();
 
           // 保存配置（不显示配置更新消息）
           axios.post('/update', this.formData)
@@ -16828,19 +18304,16 @@
             const taskName = task.taskname || task.task_name;
             // 一次性任务（skip_calendar）不做日历清理，直接删除并保存
             if (task.skip_calendar === true) {
-              this.formData.tasklist.splice(index, 1);
-              this.saveConfig();
+              this.finalizeTaskRemoval(index);
               return;
             }
             // 非一次性任务：删除前执行清理
             axios.post('/api/calendar/purge_by_task', { task_name: taskName })
               .then(() => {
-                this.formData.tasklist.splice(index, 1);
-                this.saveConfig();
+                this.finalizeTaskRemoval(index);
               })
               .catch(() => {
-                this.formData.tasklist.splice(index, 1);
-                this.saveConfig();
+                this.finalizeTaskRemoval(index);
               });
           }
         },
@@ -16879,9 +18352,10 @@
         debounce(func, wait) {
           let timeout;
           return function executedFunction(...args) {
+            const context = this;
             const later = () => {
               clearTimeout(timeout);
-              func(...args);
+              func.apply(context, args);
             };
             clearTimeout(timeout);
             timeout = setTimeout(later, wait);
@@ -16950,6 +18424,7 @@
         $('#fileSelectModal').on('hidden.bs.modal', () => {
           this.fileSelect.selectedFiles = [];
           this.fileSelect.lastSelectedFileIndex = -1;
+          this.fileSelectTotalHover = false;
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
           this.fileSelect.moveFileIds = [];
@@ -16980,6 +18455,13 @@
             }
           }
         });
+
+        // 创建任务弹窗关闭时（含点 X）清空残留分享者，避免下次创建误用旧昵称
+        $('#createTaskModal').on('hidden.bs.modal', () => {
+          if (!this.createTask.isEditMode) {
+            this.resetCreateTaskShareAuthorState();
+          }
+        });
         
         // 检查本地存储中的标签页状态
         const savedTab = localStorage.getItem('quarkAutoSave_activeTab');
@@ -16994,10 +18476,8 @@
         }
         
         // 从本地存储中恢复用户设置的每页记录数
-        const savedPageSize = localStorage.getItem('quarkAutoSave_pageSize');
-        if (savedPageSize) {
-          this.historyParams.page_size = savedPageSize === 'all' ? 99999 : parseInt(savedPageSize);
-        }
+        this.restoreHistoryPageSizeFromStorage();
+        this.restoreFileManagerPageSizeFromStorage();
         
         // 从本地存储中恢复页面宽度设置
         const savedPageWidthMode = localStorage.getItem('quarkAutoSave_pageWidthMode');
@@ -17038,6 +18518,7 @@
         $('#fileSelectModal').on('hidden.bs.modal', () => {
           this.fileSelect.selectedFiles = [];
           this.fileSelect.lastSelectedFileIndex = -1;
+          this.fileSelectTotalHover = false;
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
           this.fileSelect.moveFileIds = [];
@@ -17075,12 +18556,8 @@
         $('#fileSelectModal').on('shown.bs.modal', this.checkPreviewScrollbar);
         // 监听窗口大小改变，重新检查滚动条状态
         window.addEventListener('resize', this.checkPreviewScrollbar);
-        // 分页跳转输入框宽度随末页按钮变化（窗口缩放、布局变化）
-        this._onPaginationJumpResize = this.debounce(function() {
-          this.syncHistoryJumpInputWidth();
-          this.syncFileManagerJumpInputWidth();
-        }, 60);
-        window.addEventListener('resize', this._onPaginationJumpResize);
+        // 自动分页：监听窗口高度变化并实时重算
+        this.setupAutoPageSizeResizeListener();
         
         // 初始化时检查所有任务的命名模式
         setTimeout(() => {
@@ -17173,10 +18650,7 @@
         // 移除点击事件监听器
         document.removeEventListener('click', this.handleOutsideClick);
         document.removeEventListener('click', this.handleRenameOutsideClick);
-        if (this._onPaginationJumpResize) {
-          window.removeEventListener('resize', this._onPaginationJumpResize);
-          this._onPaginationJumpResize = null;
-        }
+        this.teardownAutoPageSizeResizeListener();
         
         // 移除日历页面resize监听器
         if (this.calendarResizeHandler) {

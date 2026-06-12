@@ -47,13 +47,25 @@ from quark_auto_save import Config, format_bytes
 
 # 添加导入全局extract_episode_number和sort_file_by_name函数
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from quark_auto_save import extract_episode_number, sort_file_by_name, chinese_to_arabic, is_date_format, apply_subtitle_naming_rule
+from quark_auto_save import (
+    extract_episode_number,
+    sort_file_by_name,
+    chinese_to_arabic,
+    is_date_format,
+    apply_subtitle_naming_rule,
+    parse_naming_pattern_extension,
+    build_sequence_naming_filename,
+    build_episode_naming_filename,
+    build_sequence_regex_pattern,
+    is_standalone_sequence_pattern,
+)
 
 # 导入豆瓣服务
 from sdk.douban_service import douban_service
 
 # 导入追剧日历相关模块
 from utils.task_extractor import TaskExtractor
+from utils.auto_backup import ensure_daily_backup_if_due
 from sdk.tmdb_service import TMDBService
 from sdk.trakt_service import TraktService
 from sdk.db import CalendarDB
@@ -1365,6 +1377,18 @@ except Exception as e:
     logging.warning(f"初始化运行日志文件处理器失败: {e}")
 
 
+def _log_subprocess_line(stripped_line: str) -> None:
+    """将子进程 stdout 按 [LEVEL] 前缀分级写入日志（与 quark_auto_save 的 logging 格式对齐）。"""
+    if stripped_line.startswith("[DEBUG]"):
+        logging.debug(stripped_line[7:].lstrip())
+    elif stripped_line.startswith("[WARNING]"):
+        logging.warning(stripped_line[9:].lstrip())
+    elif stripped_line.startswith("[ERROR]"):
+        logging.error(stripped_line[7:].lstrip())
+    else:
+        logging.info(stripped_line)
+
+
 def _parse_runtime_log_line(line: str) -> dict:
     """解析单行日志文本，提取时间、级别与内容。"""
     text = (line or "").rstrip("\n")
@@ -2051,6 +2075,92 @@ def gen_md5(string):
     return md5.hexdigest()
 
 
+# WebUI 登录防暴力破解：15 分钟内同一 IP 失败 5 次则锁定 15 分钟
+LOGIN_MAX_FAILURES = 5
+LOGIN_FAILURE_WINDOW_SECONDS = 15 * 60
+LOGIN_LOCKOUT_SECONDS = 15 * 60
+_login_guard_lock = Lock()
+_login_guard_by_ip = {}
+
+
+def get_client_ip():
+    """获取客户端 IP（支持反向代理 X-Forwarded-For）"""
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        ip = forwarded.split(",")[0].strip()
+        if ip:
+            return ip
+    return request.remote_addr or "unknown"
+
+
+def _login_guard_prune_entry(entry, now):
+    """清理过期失败记录与已结束的锁定"""
+    window_start = now - LOGIN_FAILURE_WINDOW_SECONDS
+    entry["failures"] = [t for t in (entry.get("failures") or []) if t >= window_start]
+    if float(entry.get("locked_until") or 0) <= now:
+        entry["locked_until"] = 0
+
+
+def _login_guard_cleanup_stale(now):
+    """移除无失败记录且未锁定的 IP 条目，避免内存长期增长"""
+    stale_ips = []
+    for ip, entry in _login_guard_by_ip.items():
+        _login_guard_prune_entry(entry, now)
+        if not entry["failures"] and float(entry.get("locked_until") or 0) <= now:
+            stale_ips.append(ip)
+    for ip in stale_ips:
+        del _login_guard_by_ip[ip]
+
+
+def check_login_lockout(ip):
+    """若 IP 处于锁定状态，返回 (True, 剩余秒数)；否则 (False, 0)"""
+    now = time.time()
+    with _login_guard_lock:
+        entry = _login_guard_by_ip.get(ip)
+        if not entry:
+            return False, 0
+        _login_guard_prune_entry(entry, now)
+        locked_until = float(entry.get("locked_until") or 0)
+        if locked_until > now:
+            return True, int(locked_until - now + 0.999)
+        return False, 0
+
+
+def clear_login_attempts(ip):
+    """登录成功后清除该 IP 的失败记录"""
+    with _login_guard_lock:
+        _login_guard_by_ip.pop(ip, None)
+
+
+def record_login_failure(ip):
+    """
+    记录一次登录失败。
+    返回 (是否已锁定, 剩余锁定秒数, 当前窗口内失败次数)
+    """
+    now = time.time()
+    with _login_guard_lock:
+        entry = _login_guard_by_ip.setdefault(ip, {"failures": [], "locked_until": 0})
+        _login_guard_prune_entry(entry, now)
+        entry["failures"].append(now)
+        fail_count = len(entry["failures"])
+        if fail_count >= LOGIN_MAX_FAILURES:
+            entry["locked_until"] = now + LOGIN_LOCKOUT_SECONDS
+            remain = LOGIN_LOCKOUT_SECONDS
+            logging.info(
+                f">>> 登录 IP {ip} 连续失败 {fail_count} 次，已锁定 {remain // 60} 分钟"
+            )
+            _login_guard_cleanup_stale(now)
+            return True, remain, fail_count
+        _login_guard_cleanup_stale(now)
+        return False, 0, fail_count
+
+
+def login_lockout_message(remain_seconds):
+    """生成锁定提示文案"""
+    minutes = max(1, (remain_seconds + 59) // 60)
+    return f"登录尝试次数过多，请 {minutes} 分钟后再试"
+
+
 def get_login_token():
     username = config_data["webui"]["username"]
     password = config_data["webui"]["password"]
@@ -2100,30 +2210,71 @@ def serve_cache_images(filename):
 # 登录页面
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    client_ip = get_client_ip()
+
+    def _render_lockout():
+        locked, remain = check_login_lockout(client_ip)
+        if locked:
+            return render_template(
+                "login.html", message=login_lockout_message(remain), locked=True
+            )
+        return None
+
     if request.method == "POST":
+        lock_resp = _render_lockout()
+        if lock_resp:
+            logging.info(f">>> 登录被拒绝：IP {client_ip} 处于锁定状态")
+            return lock_resp
+
         username = config_data["webui"]["username"]
         password = config_data["webui"]["password"]
         input_username = request.form.get("username")
         input_password = request.form.get("password")
-        
+
+        def _login_fail(message, log_msg=None):
+            if log_msg:
+                logging.info(log_msg)
+            is_locked, remain, fail_count = record_login_failure(client_ip)
+            if is_locked:
+                return render_template(
+                    "login.html",
+                    message=login_lockout_message(remain),
+                    locked=True,
+                )
+            # 渐进延迟，拖慢自动化暴力尝试
+            delay = min(fail_count, 5)
+            if delay > 0:
+                time.sleep(delay)
+            return render_template("login.html", message=message)
+
         # 验证用户名和密码
         if not input_username or not input_password:
-            logging.info(">>> 登录失败：用户名或密码为空")
-            return render_template("login.html", message="用户名和密码不能为空")
-        elif username != input_username:
-            logging.info(f">>> 登录失败：用户名错误 {input_username}")
-            return render_template("login.html", message="用户名或密码错误")
-        elif password != input_password:
-            logging.info(f">>> 用户 {input_username} 登录失败：密码错误")
-            return render_template("login.html", message="用户名或密码错误")
-        else:
-            logging.info(f">>> 用户 {username} 登录成功")
-            session.permanent = True
-            session["token"] = get_login_token()
-            return redirect(url_for("index"))
+            return _login_fail(
+                "用户名和密码不能为空",
+                ">>> 登录失败：用户名或密码为空",
+            )
+        if username != input_username:
+            return _login_fail(
+                "用户名或密码错误",
+                f">>> 登录失败：用户名错误 {input_username}",
+            )
+        if password != input_password:
+            return _login_fail(
+                "用户名或密码错误",
+                f">>> 用户 {input_username} 登录失败：密码错误",
+            )
+
+        clear_login_attempts(client_ip)
+        logging.info(f">>> 用户 {username} 登录成功")
+        session.permanent = True
+        session["token"] = get_login_token()
+        return redirect(url_for("index"))
 
     if is_login():
         return redirect(url_for("index"))
+    lock_resp = _render_lockout()
+    if lock_resp:
+        return lock_resp
     return render_template("login.html", error=None)
 
 
@@ -2183,6 +2334,8 @@ def get_data():
             'calendar_refresh_interval_seconds': DEFAULT_REFRESH_SECONDS,
             'aired_refresh_time': '00:00',
             'cloud_unarchive_timeout_seconds': 100,
+            'backup_enabled': True,
+            'backup_max_count': 4,
         }
     else:
         if 'calendar_refresh_interval_seconds' not in perf:
@@ -2191,6 +2344,10 @@ def get_data():
             data['performance']['aired_refresh_time'] = '00:00'
         if 'cloud_unarchive_timeout_seconds' not in perf or perf.get('cloud_unarchive_timeout_seconds') in [None, ""]:
             data['performance']['cloud_unarchive_timeout_seconds'] = 100
+        if 'backup_enabled' not in perf:
+            data['performance']['backup_enabled'] = True
+        if 'backup_max_count' not in perf:
+            data['performance']['backup_max_count'] = 4
     
     # 确保海报语言有默认值
     if 'poster_language' not in data:
@@ -2264,6 +2421,14 @@ def get_data():
     data["source"].setdefault("cloudsaver", {"server": "", "username": "", "password": "", "token": ""})
     # PanSou 默认字段
     data["source"].setdefault("pansou", {"server": "https://so.252035.xyz"})
+
+    # 旧版升级：打开 Web 时若配置仍缺字段则自动补全并写回（服务未重启时也能迁移）
+    if migrate_task_share_metadata_fields(data, fetch_author=False):
+        Config.write_json(CONFIG_PATH, data)
+        global config_data
+        config_data = data
+    if _tasklist_needs_share_author_migration(data):
+        start_share_author_metadata_migration_background()
 
     # 发送webui信息，但不发送密码原文
     data["webui"] = {
@@ -2393,9 +2558,17 @@ def update():
     for key, value in request.json.items():
         if key not in dont_save_keys:
             if key == "webui":
-                # 更新webui凭据
-                config_data["webui"]["username"] = value.get("username", config_data["webui"]["username"])
-                config_data["webui"]["password"] = value.get("password", config_data["webui"]["password"])
+                # 更新 webui 凭据（禁止保存空用户名或密码）
+                username = str(value.get("username", "") or "").strip()
+                password = str(value.get("password", "") or "").strip()
+                if not username and not password:
+                    return jsonify({"success": False, "message": "用户名和密码不能为空"})
+                if not username:
+                    return jsonify({"success": False, "message": "用户名不能为空"})
+                if not password:
+                    return jsonify({"success": False, "message": "密码不能为空"})
+                config_data["webui"]["username"] = username
+                config_data["webui"]["password"] = password
             elif key == "plugins":
                 # 处理插件配置中的多账号支持字段
                 if "plex" in value and "quark_root_path" in value["plex"]:
@@ -2603,6 +2776,8 @@ def update():
         config_data['performance'].setdefault('aired_refresh_time', '00:00')
         if config_data['performance'].get('cloud_unarchive_timeout_seconds') in [None, ""]:
             config_data['performance']['cloud_unarchive_timeout_seconds'] = 100
+        config_data['performance'].setdefault('backup_enabled', True)
+        config_data['performance'].setdefault('backup_max_count', 4)
     Config.write_json(CONFIG_PATH, config_data)
     # 更新session token，确保当前会话在用户名密码更改后仍然有效
     session["token"] = get_login_token()
@@ -2676,7 +2851,7 @@ def run_script_now():
                     logging.info("")
                     last_was_empty = True
                 else:
-                    logging.info(stripped_line)
+                    _log_subprocess_line(stripped_line)
                     last_was_empty = False
                 
                 yield f"data: {line}\n\n"
@@ -3694,6 +3869,199 @@ def _resolve_qoark_redirect(url: str) -> str:
         return url
 
 
+_share_author_metadata_migration_lock = Lock()
+_share_author_metadata_migration_running = False
+
+
+def _extract_share_resource_id_from_url(shareurl):
+    """从分享链接提取资源 ID（pwd_id）"""
+    if not shareurl:
+        return ""
+    match = re.search(r"pan\.(quark|qoark)\.cn/s/([a-zA-Z0-9]+)", shareurl, re.IGNORECASE)
+    return match.group(2) if match else ""
+
+
+def _tasklist_needs_share_author_migration(config_or_data):
+    """是否仍有任务缺少分享者信息"""
+    for task in (config_or_data or {}).get("tasklist") or []:
+        if (task.get("shareurl") or "").strip() and not (task.get("share_author_name") or "").strip():
+            return True
+    return False
+
+
+_SHARE_SUBSCRIBED_SINCE_FMT = "%Y-%m-%d %H:%M:%S"
+_SHARE_SUBSCRIBED_DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_SHARE_SUBSCRIBED_FULL_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
+
+
+def _format_share_subscribed_since(dt=None):
+    """格式化为 YYYY-MM-DD HH:MM:SS"""
+    if dt is None:
+        dt = datetime.now()
+    return dt.strftime(_SHARE_SUBSCRIBED_SINCE_FMT)
+
+
+def _normalize_share_subscribed_since(value):
+    """规范为 YYYY-MM-DD HH:MM:SS；仅日期则补 00:00:00"""
+    if not value:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    if _SHARE_SUBSCRIBED_FULL_RE.match(s):
+        return s
+    if _SHARE_SUBSCRIBED_DATE_ONLY_RE.match(s):
+        return f"{s} 00:00:00"
+    return s
+
+
+def migrate_task_share_metadata_fields(config_or_data, fetch_author=False):
+    """
+    为旧版任务补全分享订阅元数据：
+    share_resource_id、shareurl_subscribed_since（缺省补当前时刻；仅日期则补 00:00:00）、share_author_name（可选拉取）
+    返回是否有字段被修改
+    """
+    tasks = (config_or_data or {}).get("tasklist") or []
+    if not tasks:
+        return False
+
+    now_ts = _format_share_subscribed_since()
+    changed = False
+    account = Quark("", 0) if fetch_author else None
+
+    for task in tasks:
+        shareurl = (task.get("shareurl") or "").strip()
+        if not shareurl:
+            continue
+
+        resource_id = _extract_share_resource_id_from_url(shareurl)
+        if not resource_id:
+            continue
+
+        if not task.get("share_resource_id"):
+            task["share_resource_id"] = resource_id
+            changed = True
+        existing_since = task.get("shareurl_subscribed_since")
+        if not existing_since:
+            task["shareurl_subscribed_since"] = now_ts
+            changed = True
+        else:
+            normalized_since = _normalize_share_subscribed_since(existing_since)
+            if normalized_since and normalized_since != existing_since:
+                task["shareurl_subscribed_since"] = normalized_since
+                changed = True
+
+        if not fetch_author or not account:
+            continue
+        if task.get("share_author_name"):
+            continue
+
+        try:
+            resolved_url = shareurl
+            if "pan.qoark.cn" in resolved_url:
+                resolved_url = _resolve_qoark_redirect(resolved_url)
+            pwd_id, passcode, _, _ = account.extract_url(resolved_url)
+            if not pwd_id:
+                continue
+            is_sharing, _result, author = account.get_stoken(pwd_id, passcode)
+            if not is_sharing or not author:
+                continue
+            author_name = _extract_share_author_name(author)
+            if author_name:
+                task["share_author_name"] = author_name
+                changed = True
+            time.sleep(0.25)
+        except Exception as e:
+            task_name = task.get("taskname") or task.get("task_name") or ""
+            logging.warning(f"补全任务「{task_name}」分享者信息失败: {e}")
+
+    return changed
+
+
+def start_share_author_metadata_migration_background():
+    """后台为缺少分享者的任务拉取昵称并写回配置（不阻塞启动）"""
+    global _share_author_metadata_migration_running, config_data
+
+    with _share_author_metadata_migration_lock:
+        if _share_author_metadata_migration_running:
+            return
+        _share_author_metadata_migration_running = True
+
+    def _run():
+        global _share_author_metadata_migration_running, config_data
+        try:
+            cfg = Config.read_json(CONFIG_PATH)
+            if not _tasklist_needs_share_author_migration(cfg):
+                return
+            if migrate_task_share_metadata_fields(cfg, fetch_author=True):
+                Config.write_json(CONFIG_PATH, cfg)
+                config_data = cfg
+                logging.info(">>> 已为旧任务补全分享者信息并写入配置")
+        except Exception as e:
+            logging.warning(f"后台补全任务分享者信息失败: {e}")
+        finally:
+            with _share_author_metadata_migration_lock:
+                _share_author_metadata_migration_running = False
+
+    Thread(target=_run, daemon=True).start()
+
+
+def ensure_task_share_metadata_migrated(config_or_data=None):
+    """
+    升级迁移：同步补全资源 ID / 订阅日并落盘；分享者信息后台补全。
+    config_or_data 为空时从配置文件读取。
+    """
+    global config_data
+
+    cfg = config_or_data
+    if cfg is None:
+        cfg = Config.read_json(CONFIG_PATH)
+
+    changed = migrate_task_share_metadata_fields(cfg, fetch_author=False)
+    if changed:
+        Config.write_json(CONFIG_PATH, cfg)
+        if config_or_data is not None:
+            config_data = cfg
+        logging.info(">>> 已为旧任务补全分享订阅基线（资源ID/订阅起始日）")
+
+    if _tasklist_needs_share_author_migration(cfg):
+        start_share_author_metadata_migration_background()
+
+    return cfg
+
+
+def _extract_share_author_name(author):
+    """从分享 token 接口返回的 author 对象中提取分享者昵称"""
+    if not isinstance(author, dict):
+        return ""
+    return (author.get("nick_name") or author.get("nickname") or author.get("user_name") or "").strip()
+
+
+# 获取分享者昵称（轻量接口，仅调用 token API）
+@app.route("/get_share_author", methods=["GET"])
+def get_share_author():
+    if not is_login():
+        return jsonify({"success": False, "message": "未登录"})
+
+    shareurl = request.args.get("shareurl", "")
+    if shareurl and "pan.qoark.cn" in shareurl:
+        shareurl = _resolve_qoark_redirect(shareurl)
+
+    account = Quark("", 0)
+    pwd_id, passcode, _, _ = account.extract_url(shareurl)
+    if not pwd_id:
+        return jsonify({"success": True, "data": {"author_name": ""}})
+
+    is_sharing, result, author = account.get_stoken(pwd_id, passcode)
+    if not is_sharing:
+        return jsonify({"success": False, "data": {"error": result}})
+
+    return jsonify({
+        "success": True,
+        "data": {"author_name": _extract_share_author_name(author)},
+    })
+
+
 # 获取分享详情接口
 @app.route("/get_share_detail", methods=["GET", "POST"])
 def get_share_detail():
@@ -3717,8 +4085,9 @@ def get_share_detail():
     account.episode_patterns = request.json.get("regex", {}).get("episode_patterns", []) if request.method == "POST" else []
     
     pwd_id, passcode, pdir_fid, paths = account.extract_url(shareurl)
+    share_author = None
     if not stoken:
-        is_sharing, stoken = account.get_stoken(pwd_id, passcode)
+        is_sharing, stoken, share_author = account.get_stoken(pwd_id, passcode)
         if not is_sharing:
             return jsonify({"success": False, "data": {"error": stoken}})
     share_detail = account.get_detail(pwd_id, stoken, pdir_fid, _fetch_share=1)
@@ -3728,6 +4097,9 @@ def get_share_detail():
 
     share_detail["paths"] = paths
     share_detail["stoken"] = stoken
+    if share_author:
+        share_detail["author"] = share_author
+        share_detail["author_name"] = _extract_share_author_name(share_author)
 
     # 处理文件夹的include_items字段，确保空文件夹显示为0项而不是undefined
     if "list" in share_detail and isinstance(share_detail["list"], list):
@@ -3754,14 +4126,9 @@ def get_share_detail():
         if regex.get("use_sequence_naming") and regex.get("sequence_naming"):
             # 顺序命名模式预览
             sequence_pattern = regex.get("sequence_naming")
+            use_digit_only_sequence_check = is_standalone_sequence_pattern(sequence_pattern)
             current_sequence = 1
-            
-            # 构建顺序命名的正则表达式
-            if sequence_pattern == "{}":
-                # 对于单独的{}，使用特殊匹配
-                regex_pattern = "(\\d+)"
-            else:
-                regex_pattern = re.escape(sequence_pattern).replace('\\{\\}', '(\\d+)')
+            regex_pattern = build_sequence_regex_pattern(sequence_pattern)
             
             # 实现与实际重命名相同的排序算法
             def extract_sort_value(file):
@@ -3774,7 +4141,7 @@ def get_share_detail():
                     continue  # 跳过目录
                 
                 # 检查文件是否已符合命名规则
-                if sequence_pattern == "{}":
+                if use_digit_only_sequence_check:
                     # 对于单独的{}，检查文件名是否为纯数字
                     file_name_without_ext = os.path.splitext(f["file_name"])[0]
                     if file_name_without_ext.isdigit():
@@ -3803,15 +4170,9 @@ def get_share_detail():
             # 为每个文件分配序号
             for file in sorted_files:
                 if not file.get("filtered"):
-                    # 获取文件扩展名
-                    file_ext = os.path.splitext(file["file_name"])[1]
-                    # 生成预览文件名
-                    if sequence_pattern == "{}":
-                        # 对于单独的{}，直接使用数字序号作为文件名
-                        file["file_name_re"] = f"{current_sequence:02d}{file_ext}"
-                    else:
-                        # 替换所有的{}为当前序号
-                        file["file_name_re"] = sequence_pattern.replace("{}", f"{current_sequence:02d}") + file_ext
+                    file["file_name_re"] = build_sequence_naming_filename(
+                        sequence_pattern, current_sequence, file["file_name"]
+                    )
                     
                     # 应用字幕命名规则
                     file["file_name_re"] = apply_subtitle_naming_rule(file["file_name_re"], config_data["task_settings"])
@@ -3847,12 +4208,13 @@ def get_share_detail():
             # 处理未被过滤的文件
             for file in share_detail["list"]:
                 if not file["dir"] and not file.get("filtered"):  # 只处理未被过滤的非目录文件
-                    extension = os.path.splitext(file["file_name"])[1]
                     # 从文件名中提取集号
                     episode_num = extract_episode_number(file["file_name"], episode_patterns=episode_patterns)
 
                     if episode_num is not None:
-                        file["file_name_re"] = episode_pattern.replace("[]", f"{episode_num:02d}") + extension
+                        file["file_name_re"] = build_episode_naming_filename(
+                            episode_pattern, episode_num, file["file_name"]
+                        )
                         # 应用字幕命名规则
                         file["file_name_re"] = apply_subtitle_naming_rule(file["file_name_re"], config_data["task_settings"])
                         # 添加episode_number字段用于前端排序
@@ -4091,7 +4453,7 @@ def move_file():
         if response["code"] == 0:
             return jsonify({
                 "success": True,
-                "message": f"成功移动 {len(file_ids)} 个文件",
+                "message": f"成功移动 {len(file_ids)} 个项目",
                 "moved_count": len(file_ids)
             })
         else:
@@ -4316,9 +4678,9 @@ def run_python(args):
         if isinstance(args, str):
             import shlex
             args_list = shlex.split(args)
-            command = [PYTHON_PATH] + args_list
+            command = [PYTHON_PATH, "-u"] + args_list
         else:
-            command = [PYTHON_PATH] + list(args)
+            command = [PYTHON_PATH, "-u"] + list(args)
         
         # 启动进程并记录，实时输出日志
         _crontab_task_process = subprocess.Popen(
@@ -4351,7 +4713,7 @@ def run_python(args):
                     logging.info("")
                     last_was_empty = True
                 else:
-                    logging.info(stripped_line)
+                    _log_subprocess_line(stripped_line)
                     last_was_empty = False
         finally:
             _crontab_task_process.stdout.close()
@@ -4402,6 +4764,11 @@ def run_python(args):
         import traceback
         logging.error(f">>> 异常堆栈: {traceback.format_exc()}")
     finally:
+        # 每日首次定时任务执行后自动备份 config 目录下的 data.db 与 quark_config.json
+        try:
+            ensure_daily_backup_if_due(CONFIG_PATH, config_data)
+        except Exception as backup_err:
+            logging.warning(f">>> 自动备份异常: {backup_err}")
         # 任务完成，清除进程对象
         _crontab_task_process = None
 
@@ -4578,6 +4945,9 @@ def init():
     # 同步更新任务的插件配置
     sync_task_plugins_config()
 
+    # 旧版升级：自动补全任务分享订阅元数据（无需打开编辑窗口）
+    ensure_task_share_metadata_migrated(config_data)
+
     # 更新配置
     Config.write_json(CONFIG_PATH, config_data)
 
@@ -4612,6 +4982,8 @@ def get_history_records():
     
     # 是否只请求所有任务名称
     get_all_task_names = request.args.get("get_all_task_names", "").lower() in ["true", "1", "yes"]
+    # 是否仅返回符合筛选条件的记录 ID（用于全选）
+    ids_only = request.args.get("ids_only", "").lower() in ["true", "1", "yes"]
     
     # 初始化数据库
     db = RecordDB()
@@ -4632,13 +5004,15 @@ def get_history_records():
                 task_name_filter=task_name_filter,
                 keyword_filter=keyword_filter,
                 task_name_list=task_name_list,
-                exclude_task_names=["rename", "undo_rename"]
+                exclude_task_names=["rename", "undo_rename"],
+                ids_only=ids_only
             )
             # 添加所有任务名称到结果中
             result["all_task_names"] = all_task_names
             
             # 处理记录格式化
-            format_records(result["records"])
+            if not ids_only and result.get("records"):
+                format_records(result["records"])
             
             return jsonify({"success": True, "data": result})
         else:
@@ -4654,11 +5028,13 @@ def get_history_records():
         task_name_filter=task_name_filter,
         keyword_filter=keyword_filter,
         task_name_list=task_name_list,
-        exclude_task_names=["rename", "undo_rename"]
+        exclude_task_names=["rename", "undo_rename"],
+        ids_only=ids_only
     )
     
     # 处理记录格式化
-    format_records(result["records"])
+    if not ids_only and result.get("records"):
+        format_records(result["records"])
     
     return jsonify({"success": True, "data": result})
 
@@ -5394,8 +5770,9 @@ def preview_rename():
             
             sequence = 1
             for file in filtered_files:
-                extension = os.path.splitext(file["file_name"])[1] if not file["dir"] else ""
-                new_name = pattern.replace("{}", f"{sequence:02d}") + extension
+                new_name = build_sequence_naming_filename(
+                    pattern, sequence, file["file_name"]
+                )
                 # 应用字幕命名规则
                 new_name = apply_subtitle_naming_rule(new_name, config_data["task_settings"])
                 preview_results.append({
@@ -5429,12 +5806,13 @@ def preview_rename():
             # 处理未被过滤的文件
             for file in filtered_files:
                 if not file["dir"] and not file.get("filtered"):  # 只处理未被过滤的非目录文件
-                    extension = os.path.splitext(file["file_name"])[1]
                     # 从文件名中提取集号
                     episode_num = extract_episode_number(file["file_name"], episode_patterns=episode_patterns)
 
                     if episode_num is not None:
-                        new_name = pattern.replace("[]", f"{episode_num:02d}") + extension
+                        new_name = build_episode_naming_filename(
+                            pattern, episode_num, file["file_name"]
+                        )
                         # 应用字幕命名规则
                         new_name = apply_subtitle_naming_rule(new_name, config_data["task_settings"])
                         preview_results.append({

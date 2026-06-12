@@ -1897,11 +1897,11 @@ button.close:focus,
   max-width: 90px;
 }
 
-/* 修改日期列 - 固定宽度 */
+/* 修改日期列 - 固定宽度（适配 YYYY-MM-DD HH:mm:ss 格式） */
 #fileSelectModal .table .col-date {
-  width: 140px;
-  min-width: 140px;
-  max-width: 140px;
+  width: 168px;
+  min-width: 168px;
+  max-width: 168px;
 }
 
 /* 操作列 - 固定宽度 */
@@ -2127,6 +2127,7 @@ button.close:focus,
 .task-suggestions {
   width: 100%;
   max-height: 511px;
+  overflow-x: auto;
   overflow-y: auto;
   transform: translate(0, 0);
   top: 100%;
@@ -2140,6 +2141,13 @@ button.close:focus,
   box-sizing: border-box; /* 确保边框计入总高度 */
 }
 
+/* 内层滚动区域：统一各行高亮宽度（以当次结果最长一行为准），外层下拉框宽度不变 */
+.task-suggestions-inner {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+}
+
 /* 移除下拉菜单项的内部空白 */
 .task-suggestions .dropdown-item {
   padding: 0 8px;
@@ -2147,6 +2155,7 @@ button.close:focus,
   height: 30px; /* 内容高度改为30px */
   line-height: 30px; /* 行高同样调整 */
   box-sizing: border-box;
+  width: 100%; /* 拉齐至内层统一宽度 */
   color: var(--dark-text-color); /* 文本颜色 */
   transition: background-color 0.2s, color 0.2s;
   font-size: 14px !important; /* 文本字号 */
@@ -3988,21 +3997,21 @@ input::-moz-list-button {
   /* 针对选择需转存的文件夹/选择起始文件模式 - 4列表格 */
   #fileSelectModal[data-modal-type="source"] .breadcrumb,
   #fileSelectModal[data-modal-type="start-file"] .breadcrumb {
-    min-width: 690px; /* 4列表格总宽度: 230px + 230px + 90px + 140px */
+    min-width: 718px; /* 4列表格总宽度: 230px + 230px + 90px + 168px */
   }
 
   #fileSelectModal[data-modal-type="source"] .table,
   #fileSelectModal[data-modal-type="start-file"] .table {
-    width: 690px;
+    width: 718px;
   }
 
   /* 针对选择保存到的文件夹模式 - 带操作列的表格 */
   #fileSelectModal[data-modal-type="target"] .breadcrumb {
-    min-width: 648px; /* 4列表格总宽度: 230px + 90px + 140px + 188px */
+    min-width: 676px; /* 4列表格总宽度: 230px + 90px + 168px + 188px */
   }
 
   #fileSelectModal[data-modal-type="target"] .table {
-    width: 648px;
+    width: 676px;
   }
 
   /* 针对命名预览模式 - 2列表格 */
@@ -6401,6 +6410,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 #createTaskModal .task-suggestions {
   width: 100%;
   max-height: 511px;
+  overflow-x: auto;
   overflow-y: auto;
   transform: translate(0, 0);
   top: 100%;
@@ -6412,6 +6422,7 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
   height: 30px;
   line-height: 30px;
   box-sizing: border-box;
+  width: 100%;
 }
 
 #createTaskModal .task-suggestions .dropdown-item:hover {
@@ -6476,6 +6487,38 @@ body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .fil
 
 .task-suggestions .dropdown-item.current-suggestion small a {
   color: #fff;
+}
+
+/* 同分享者其他资源（非当前使用）高亮 */
+.task-suggestions .dropdown-item.same-sharer-suggestion:not(.current-suggestion) {
+  background-color: #e6f1ff;
+}
+
+.task-suggestions .dropdown-item.same-sharer-suggestion:not(.current-suggestion) small a {
+  color: inherit;
+}
+
+/* 资源搜索优选分享者（优先级低于当前选中与同分享者） */
+.task-suggestions .dropdown-item.preferred-sharer-suggestion:not(.current-suggestion):not(.same-sharer-suggestion) {
+  background-color: var(--button-gray-background-color);
+}
+
+.task-suggestions .dropdown-item.preferred-sharer-suggestion:not(.current-suggestion):not(.same-sharer-suggestion) small a {
+  color: inherit;
+}
+
+/* 列表视图：高亮项悬停时使用通用悬停样式（模态框因 #createTaskModal 选择器优先级更高，天然具备此效果） */
+.task-suggestions .dropdown-item.current-suggestion:hover,
+.task-suggestions .dropdown-item.same-sharer-suggestion:not(.current-suggestion):hover,
+.task-suggestions .dropdown-item.preferred-sharer-suggestion:not(.current-suggestion):not(.same-sharer-suggestion):hover {
+  background-color: var(--button-gray-background-color);
+  color: var(--dark-text-color);
+}
+
+.task-suggestions .dropdown-item.current-suggestion:hover small a,
+.task-suggestions .dropdown-item.same-sharer-suggestion:not(.current-suggestion):hover small a,
+.task-suggestions .dropdown-item.preferred-sharer-suggestion:not(.current-suggestion):not(.same-sharer-suggestion):hover small a {
+  color: var(--dark-text-color);
 }
 
 /* 创建任务模态框移动端响应式样式 */
@@ -8921,4 +8964,186 @@ div:has(> .collapse:not(.show)):has(+ .row.title[title^="资源搜索"]) {
   .task-auto-search-group {
     grid-template-columns: 1fr;
   }
+}
+
+/* 转存记录分页：「共 x 条记录」悬停显示全选 */
+.history-total-records-wrap {
+  cursor: default;
+}
+
+.history-select-all-btn {
+  cursor: pointer;
+}
+
+.history-select-all-btn:hover {
+  color: var(--focus-border-color);
+}
+
+/* 文件整理：操作按钮 flex 容器，隐藏项不占位，可见按钮自动左对齐紧凑排列 */
+.selectable-files .file-manager-action-btns {
+  display: none;
+  align-items: center;
+  gap: 3px;
+  position: absolute;
+  left: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.selectable-files tr:hover .file-size-cell .file-manager-action-btns,
+.selectable-files tr.selected-file .file-size-cell .file-manager-action-btns {
+  display: inline-flex !important;
+}
+
+.selectable-files .file-manager-action-btns .rename-record-btn,
+.selectable-files .file-manager-action-btns .extract-record-btn,
+.selectable-files .file-manager-action-btns .move-record-btn,
+.selectable-files .file-manager-action-btns .delete-record-btn,
+body .selectable-files tbody tr:hover .file-size-cell .file-manager-action-btns .rename-record-btn,
+body .selectable-files tbody tr:hover .file-size-cell .file-manager-action-btns .extract-record-btn,
+body .selectable-files tbody tr:hover .file-size-cell .file-manager-action-btns .move-record-btn,
+body .selectable-files tbody tr:hover .file-size-cell .file-manager-action-btns .delete-record-btn,
+body .selectable-files tr.selected-file .file-size-cell .file-manager-action-btns .rename-record-btn,
+body .selectable-files tr.selected-file .file-size-cell .file-manager-action-btns .extract-record-btn,
+body .selectable-files tr.selected-file .file-size-cell .file-manager-action-btns .move-record-btn,
+body .selectable-files tr.selected-file .file-size-cell .file-manager-action-btns .delete-record-btn {
+  position: static !important;
+  left: auto !important;
+  top: auto !important;
+  right: auto !important;
+  transform: none !important;
+  display: inline-flex !important;
+  visibility: visible !important;
+  flex-shrink: 0;
+}
+
+/* 文件名展开行：按钮容器顶部对齐 */
+body .selectable-files tbody tr:hover:has([style*="white-space: normal"]) .file-size-cell .file-manager-action-btns,
+body .selectable-files tr.selected-file:has([style*="white-space: normal"]) .file-size-cell .file-manager-action-btns {
+  top: 8px !important;
+  transform: none !important;
+}
+
+/* 无操作按钮时（如多选未选中行）悬停仍显示文件大小；已选中行不在此列 */
+body .selectable-files tbody tr:hover:not(.selected-file) .file-size-cell:not(:has(.file-manager-action-btns)) .file-size-value {
+  display: inline !important;
+  visibility: visible !important;
+}
+
+/* 转存记录：已有选中时，未选中行悬停仅背景高亮，保留大小列文字 */
+.selectable-records tbody tr:hover .file-size-cell:not(:has(.delete-record-btn)) .file-size-value {
+  display: inline-block !important;
+  visibility: visible !important;
+}
+
+/* --------------- 移动端：转存记录与文件整理交互优化 --------------- */
+/* 窄屏 + 无悬停主输入（触摸设备），与 isMobileDevice() 判断保持一致 */
+@media (max-width: 768px) and (hover: none) {
+  /* 去除行悬停背景，仅保留选中态高亮 */
+  table.selectable-records tbody tr:hover,
+  table.selectable-files tbody tr:hover,
+  .selectable-files tbody tr:hover {
+    background-color: transparent !important;
+  }
+
+  table.selectable-records tbody tr.selected-record,
+  .selectable-files tr.selected-file,
+  table.selectable-files tbody tr.selected-file {
+    background-color: var(--button-gray-background-color) !important;
+  }
+
+  /* 转存记录：未选中行悬停时不显示删除按钮；选中行始终显示（含触摸悬停态） */
+  .selectable-records tbody tr:hover:not(.selected-record) .delete-record-btn,
+  .selectable-records tbody tr:hover:not(.selected-record) .file-size-cell .delete-record-btn {
+    visibility: hidden !important;
+    display: none !important;
+  }
+
+  .selectable-records tbody tr:hover:not(.selected-record) .file-size-cell .file-size-value {
+    display: inline-block !important;
+  }
+
+  .selectable-records tbody tr.selected-record .delete-record-btn,
+  .selectable-records tbody tr.selected-record .file-size-cell .delete-record-btn,
+  .selectable-records tbody tr.selected-record:hover .delete-record-btn,
+  .selectable-records tbody tr.selected-record:hover .file-size-cell .delete-record-btn {
+    visibility: visible !important;
+    display: flex !important;
+  }
+
+  .selectable-records tbody tr.selected-record .file-size-cell .file-size-value,
+  .selectable-records tbody tr.selected-record:hover .file-size-cell .file-size-value {
+    display: none !important;
+  }
+
+  /* 文件整理：未选中行悬停时不显示操作按钮；选中行始终显示（含触摸悬停态） */
+  .selectable-files tr:hover:not(.selected-file) .file-size-cell .file-manager-action-btns,
+  .selectable-files tbody tr:hover:not(.selected-file) .file-size-cell .file-manager-action-btns,
+  body .selectable-files tbody tr:hover:not(.selected-file) .file-size-cell .file-manager-action-btns {
+    display: none !important;
+  }
+
+  .selectable-files tr:hover:not(.selected-file) .file-size-cell .file-size-value,
+  .selectable-files tbody tr:hover:not(.selected-file) .file-size-cell .file-size-value,
+  body .selectable-files tbody tr:hover:not(.selected-file) .file-size-cell .file-size-value {
+    display: inline !important;
+    visibility: visible !important;
+  }
+
+  .selectable-files tr.selected-file .file-size-cell .file-manager-action-btns,
+  .selectable-files tr.selected-file:hover .file-size-cell .file-manager-action-btns,
+  body .selectable-files tr.selected-file .file-size-cell .file-manager-action-btns,
+  body .selectable-files tr.selected-file:hover .file-size-cell .file-manager-action-btns {
+    display: inline-flex !important;
+  }
+
+  /* 选中行始终隐藏大小列文本（含触摸悬停态，覆盖全局显示规则） */
+  body .selectable-files tbody tr.selected-file .file-size-cell .file-size-value,
+  body .selectable-files tbody tr.selected-file:hover .file-size-cell .file-size-value {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* 移动端全选按钮始终可点击 */
+  .history-select-all-btn {
+    cursor: pointer;
+  }
+
+  /* 禁用双击缩放，保留捏合缩放 */
+  table.selectable-files tbody tr {
+    touch-action: manipulation;
+  }
+
+  /* 选择保存到的文件夹模态框：触摸端交互优化 */
+  #fileSelectModal.savepath-select-mode .table tr:hover:not(.selected-file) {
+    background-color: transparent !important;
+  }
+
+  #fileSelectModal.savepath-select-mode .table tr.selected-file,
+  #fileSelectModal.savepath-select-mode .table tr.selected-file:hover {
+    background-color: var(--button-gray-background-color) !important;
+  }
+
+  #fileSelectModal.savepath-select-mode .table tbody tr {
+    touch-action: manipulation;
+  }
+
+  /* 保存路径模态框：操作列略加宽，避免「删除文件和记录」截断 */
+  #fileSelectModal.savepath-select-mode .table .col-action,
+  #fileSelectModal.savepath-select-mode .table th.col-action {
+    width: 192px;
+    min-width: 192px;
+    max-width: 192px;
+  }
+}
+
+/* 保存路径模态框：全选悬停高亮 */
+#fileSelectModal.savepath-select-mode .modal-footer .history-select-all-btn:hover,
+#fileSelectModal.savepath-select-mode .modal-footer .history-select-all-btn:active {
+  color: var(--focus-border-color) !important;
+}
+
+/* 保存路径模态框：隐藏操作链接但保留列宽与行高 */
+#fileSelectModal.savepath-select-mode .file-select-action-links-hidden {
+  visibility: hidden;
 }
