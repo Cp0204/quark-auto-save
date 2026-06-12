@@ -3,6 +3,7 @@
 
 import re
 import json
+import time
 import requests
 
 
@@ -280,12 +281,45 @@ class Alist_sync:
         payload = json.dumps(
             {"path": path, "password": "", "page": 1, "per_page": 0, "refresh": True}
         )
-        response = self._send_request("POST", url, data=payload)
-        if response.status_code != 200:
-            print(f"获取Alist目录出错: {response}")
-            return False
-        else:
-            return response.json()["data"]["content"]
+        parent_path = "/" if path in ("", "/") else path.rsplit("/", 1)[0] or "/"
+        parent_payload = json.dumps(
+            {
+                "path": parent_path,
+                "password": "",
+                "page": 1,
+                "per_page": 0,
+                "refresh": True,
+            }
+        )
+        last_error = "unknown"
+        for attempt in range(4):
+            response = self._send_request("POST", url, data=payload)
+            if response.status_code != 200:
+                last_error = f"http {response.status_code}"
+            else:
+                try:
+                    data = response.json()
+                except Exception as e:
+                    last_error = f"invalid json: {e}"
+                else:
+                    if data.get("code") == 200 and isinstance(data.get("data"), dict):
+                        content = data["data"].get("content")
+                        if content is not None:
+                            return content
+                        last_error = "content is null"
+                    else:
+                        last_error = data.get("message") or "data is null"
+            if "object not found" in str(last_error).lower() and parent_path != path:
+                print(f"Alist目标目录不存在，先刷新父目录: {parent_path}")
+                self._send_request("POST", url, data=parent_payload)
+            if attempt < 3:
+                print(
+                    f"Alist目录暂不可读，稍后重试({attempt+1}/4): "
+                    f"{path} -> {last_error}"
+                )
+                time.sleep(2)
+        print(f"获取Alist目录失败: {path} -> {last_error}")
+        return False
 
     def get_path(self, path):
         url = f"{self.url}/api/fs/list"
