@@ -87,11 +87,11 @@ class PanSou:
         if not self.server:
             return {"success": False, "message": "PanSou未配置服务器"}
 
-        # 使用已验证的参数：kw + cloud_types=quark + res=all
+        # 与 PanSou 网页一致：res=merge 返回经排序/去重/过滤后的 merged_by_type，避免 TG 原始 results 的单字匹配噪声
         params = {
             "kw": keyword,
             "cloud_types": "quark",  # 单个类型用字符串，多个类型用逗号分隔
-            "res": "all"
+            "res": "merge"
         }
         
         # 优先使用 /api/search 路径
@@ -110,7 +110,7 @@ class PanSou:
         if "code" in result and result.get("code") != 0:
             return {"success": False, "message": result.get("message") or "PanSou搜索失败"}
         
-        # 解析结果：优先 results，然后 merged_by_type
+        # 解析结果：优先 merged_by_type（与 PanSou 网页一致），results 仅作兜底
         cleaned = []
         # 工具：移除标题中的链接
         def strip_links(text: str) -> str:
@@ -124,72 +124,71 @@ class PanSou:
             return s.strip()
         
         try:
-            # 1) results: 主要结果数组，每个结果包含 title 和 links
-            results = payload.get("results", [])
-            if isinstance(results, list):
-                for result_item in results:
-                    if not isinstance(result_item, dict):
-                        continue
-                    
-                    # 从 result_item 获取标题、内容和发布日期
-                    title = result_item.get("title", "")
-                    title = strip_links(title)
-                    content = result_item.get("content", "")
-                    datetime_str = result_item.get("datetime", "")  # 获取发布日期
-                    
-                    # 获取PanSou内部来源
-                    pansou_source = self._get_pansou_source(result_item)
-                    
-                    # 从 links 获取具体链接
-                    links = result_item.get("links", [])
+            # 1) merged_by_type: 主要数据源，使用 note 字段作为标题
+            merged = payload.get("merged_by_type")
+            if isinstance(merged, dict):
+                for cloud_type, links in merged.items():
                     if isinstance(links, list):
                         for link in links:
                             if isinstance(link, dict):
                                 url = link.get("url", "")
-                                link_type = link.get("type", "")
-                                if url:  # 确保有有效链接
+                                note = link.get("note", "")  # 使用 note 字段作为标题
+                                note = strip_links(note)
+                                datetime_str = link.get("datetime", "")  # 获取发布日期
+
+                                # 获取PanSou内部来源
+                                pansou_source = self._get_pansou_source(None, link)
+
+                                if url:
                                     # 解析 pan.qoark.cn 链接的重定向地址
                                     url = self._resolve_qoark_redirect(url)
                                     cleaned.append({
-                                        "taskname": title,
-                                        "content": content,
+                                        "taskname": note,
+                                        "content": note,  # 如果没有 content，使用 note
                                         "shareurl": url,
-                                        "tags": [link_type] if link_type else (result_item.get("tags", []) or []),
-                                        "publish_date": datetime_str,  # 原始时间（可能是 ISO）
+                                        "tags": [cloud_type] if cloud_type else [],
+                                        "publish_date": datetime_str,  # 原始时间
                                         "source": "PanSou",  # 添加来源标识
                                         "pansou_source": pansou_source  # 添加PanSou内部来源
                                     })
-            
-            # 2) merged_by_type: 兜底解析，使用 note 字段作为标题
+
+            # 2) results: 兜底，仅在 merged_by_type 为空时使用
             if not cleaned:
-                merged = payload.get("merged_by_type")
-                if isinstance(merged, dict):
-                    for cloud_type, links in merged.items():
+                results = payload.get("results", [])
+                if isinstance(results, list):
+                    for result_item in results:
+                        if not isinstance(result_item, dict):
+                            continue
+
+                        # 从 result_item 获取标题、内容和发布日期
+                        title = result_item.get("title", "")
+                        title = strip_links(title)
+                        content = result_item.get("content", "")
+                        datetime_str = result_item.get("datetime", "")  # 获取发布日期
+
+                        # 获取PanSou内部来源
+                        pansou_source = self._get_pansou_source(result_item)
+
+                        # 从 links 获取具体链接
+                        links = result_item.get("links", [])
                         if isinstance(links, list):
                             for link in links:
                                 if isinstance(link, dict):
-                                    # 从 merged_by_type 获取链接信息
                                     url = link.get("url", "")
-                                    note = link.get("note", "")  # 使用 note 字段作为标题
-                                    note = strip_links(note)
-                                    datetime_str = link.get("datetime", "")  # 获取发布日期
-                                    
-                                    # 获取PanSou内部来源
-                                    pansou_source = self._get_pansou_source(None, link)
-                                    
-                                    if url:
+                                    link_type = link.get("type", "")
+                                    if url:  # 确保有有效链接
                                         # 解析 pan.qoark.cn 链接的重定向地址
                                         url = self._resolve_qoark_redirect(url)
                                         cleaned.append({
-                                            "taskname": note,
-                                            "content": note,  # 如果没有 content，使用 note
+                                            "taskname": title,
+                                            "content": content,
                                             "shareurl": url,
-                                            "tags": [cloud_type] if cloud_type else [],
-                                            "publish_date": datetime_str,  # 原始时间
+                                            "tags": [link_type] if link_type else (result_item.get("tags", []) or []),
+                                            "publish_date": datetime_str,  # 原始时间（可能是 ISO）
                                             "source": "PanSou",  # 添加来源标识
                                             "pansou_source": pansou_source  # 添加PanSou内部来源
                                         })
-            
+
             # 3) 直接 data 数组兜底
             if not cleaned and isinstance(payload, list):
                 for item in payload:
