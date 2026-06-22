@@ -2216,20 +2216,20 @@ class Quark:
         
         if unarchive_result.get("code") == 23008:
             # 文件正在处理中，等待后重试
-            print(f"  ⏳ 文件正在处理中，等待 15 秒后重试...")
+            print(f"⏳ 文件正在处理中，等待 15 秒后重试...")
             time.sleep(15)
             unarchive_result = self.cloud_unarchive(archive_fid, "0")
         
         if unarchive_result.get("code") != 0:
             error_msg = unarchive_result.get("message", "未知错误")
-            print(f"  ❌ 云解压失败: {error_msg}")
+            print(f"❌ 云解压失败: {error_msg}")
             suggest_client = self._is_file_size_extract_error(error_msg)
             return {"success": False, "message": error_msg, "suggest_client": suggest_client}
         
         # 获取解压任务 ID
         unarchive_task_id = unarchive_result.get("data", {}).get("task_id")
         if not unarchive_task_id:
-            print(f"  ❌ 未获取到解压任务 ID")
+            print(f"❌ 未获取到解压任务 ID")
             return {"success": False, "message": "未获取到解压任务 ID"}
         
         # 第二步：等待解压任务完成（由配置控制超时时间，默认100秒，超时则放弃解压，按无法解压处理）
@@ -2245,10 +2245,10 @@ class Quark:
         if task_result.get("code") != 0:
             error_msg = task_result.get("message", "解压任务失败")
             if "超时" in error_msg:
-                print(f"  ⏱️ 云解压异常超时，放弃解压: {archive_name}")
+                print(f"⏱️ 云解压异常超时，放弃解压: {archive_name}")
                 print()
             else:
-                print(f"  ❌ {error_msg}")
+                print(f"❌ {error_msg}")
             suggest_client = self._is_file_size_extract_error(error_msg)
             return {"success": False, "message": error_msg, "suggest_client": suggest_client}
         
@@ -2258,7 +2258,7 @@ class Quark:
         extracted_list = unarchive_result_info.get("list", [])
         
         if not extracted_list:
-            print(f"  ⚠️ 未获取到解压结果")
+            print(f"⚠️ 未获取到解压结果")
             return {"success": False, "message": "未获取到解压结果"}
         
         # 解压后的文件夹（在根目录）
@@ -2300,7 +2300,7 @@ class Quark:
         
         collect_files_recursive(extracted_folder_fid)
         if list_read_failed:
-            print(f"  ❌ 读取解压目录失败: {list_read_failed}")
+            print(f"❌ 读取解压目录失败: {list_read_failed}")
             return {"success": False, "message": list_read_failed}
 
         # 第四步：应用过滤规则并删除被过滤掉的文件
@@ -2317,7 +2317,7 @@ class Quark:
                 for file_to_delete in files_to_delete:
                     delete_result = self.delete([file_to_delete["fid"]])
                     if delete_result.get("code") != 0:
-                        print(f"    ⚠️ 删除被过滤文件失败: {file_to_delete['file_name']} - {delete_result.get('message', '未知错误')}")
+                        print(f"⚠️ 删除被过滤文件失败: {file_to_delete['file_name']} - {delete_result.get('message', '未知错误')}")
                 
                 # 更新 all_files 列表，只保留通过过滤的文件
                 all_files = filtered_files
@@ -2339,7 +2339,7 @@ class Quark:
                         auto_subdirs.append(subdir_path)
                         task["_auto_extract_subdirs"] = auto_subdirs
             else:
-                print(f"  ❌ 移动文件夹失败: {move_result.get('message')}")
+                print(f"❌ 移动文件夹失败: {move_result.get('message')}")
         else:
             # 仅保留文件：将所有文件移动到目标目录（扁平化）
             for f in all_files:
@@ -2347,7 +2347,7 @@ class Quark:
                 if move_result.get("code") == 0:
                     moved_files.append(f)
                 else:
-                    print(f"    ❌ {f['file_name']}: {move_result.get('message')}")
+                    print(f"❌ {f['file_name']}: {move_result.get('message')}")
             
             # 删除解压后的空文件夹（从最深层开始删除）
             for folder_fid in reversed(folders_to_delete):
@@ -2365,7 +2365,7 @@ class Quark:
                     archive_deleted = True
                 else:
                     error_msg = delete_result.get("message", "未知错误")
-                    print(f"  ⚠️ 删除压缩文件失败: {error_msg}")
+                    print(f"⚠️ 删除压缩文件失败: {error_msg}")
                     # 重试：在目标目录中按文件名重新查找压缩包并删除（解压/移动后 fid 可能变化）
                     time.sleep(1)
                     try:
@@ -2391,7 +2391,7 @@ class Quark:
                     except Exception:
                         pass
                     if not archive_deleted:
-                        print(f"  ❌ 重试删除仍然失败")
+                        print(f"❌ 重试删除仍然失败")
 
         # 记录本次已解压的压缩包文件名，供 do_rename_task 根目录跳过再次转存（扁平化不写 _auto_extract_subdirs，需单独标记）
         if task is not None:
@@ -4143,7 +4143,7 @@ class Quark:
                                             break
                                 
                                 if not archive_file:
-                                    print(f"  ⚠️ 未在目标目录中找到压缩包 {saved_item['file_name']}，跳过自动解压（可能转存尚未同步）")
+                                    print(f"⚠️ 未在目标目录中找到压缩包 {saved_item['file_name']}，跳过自动解压（可能转存尚未同步）")
                                 
                                 if archive_file:
                                     # 执行自动解压
@@ -4834,7 +4834,7 @@ class Quark:
                                                             break
                                                 
                                                 if not archive_file:
-                                                    print(f"  ⚠️ 未在子目录中找到压缩包 {saved_item['file_name']}，跳过自动解压（可能转存尚未同步）")
+                                                    print(f"⚠️ 未在子目录中找到压缩包 {saved_item['file_name']}，跳过自动解压（可能转存尚未同步）")
                                                 
                                                 if archive_file:
                                                     # 执行自动解压

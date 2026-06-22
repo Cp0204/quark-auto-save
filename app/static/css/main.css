@@ -3281,23 +3281,25 @@ div.jsoneditor-treepath * {
   margin-right: 7px !important; /* "页"与"确定"按钮之间的距离 */
 }
 
-/* 页码跳转输入外层：宽度由内联样式与末页按钮同步 */
+/* 页码跳转输入外层 */
 .pagination-settings .pagination-jump-input-wrap {
   width: auto !important;
   min-width: 0 !important;
   display: inline-flex !important;
 }
 
-/* 「跳到第 x 页」数字框：宽度由 Vue 与末页按钮对齐；须带 .form-control 以压过全局 padding !important */
+/* 「跳到第 x 页」数字框：宽度随内容自适应，最小 32px */
 .pagination-settings .pagination-jump-page-input.form-control.form-control-sm {
   height: 32px;
   box-sizing: border-box;
   text-align: center;
-  padding: 0 0 0.5px 0 !important;
+  min-width: 32px;
+  width: 32px;
+  padding: 0 7px 0.5px !important;
   border-color: var(--dark-text-color);
   border-radius: 6px;
   -moz-appearance: textfield; /* Firefox */
-  transition: width 0.15s ease-out, min-width 0.15s ease-out, max-width 0.15s ease-out;
+  transition: width 0.15s ease-out;
 }
 
 /* 去掉输入框的上下箭头 */

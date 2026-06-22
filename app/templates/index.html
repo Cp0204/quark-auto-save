@@ -1817,7 +1817,7 @@
                   <span class="mx-1" v-if="getVisiblePageNumbers().length > 0 && getVisiblePageNumbers()[getVisiblePageNumbers().length - 1] < totalPages - 1">...</span>
                   
                   <!-- 最后一页按钮 -->
-                  <button v-if="totalPages > 1" type="button" class="btn btn-sm mx-1" ref="historyPaginationLastPageBtn"
+                  <button v-if="totalPages > 1" type="button" class="btn btn-sm mx-1"
                           :class="historyParams.page === totalPages ? 'btn-primary' : 'btn-outline-secondary'" 
                           @click="changePage(totalPages)">
                     {{ totalPages }}
@@ -1831,8 +1831,9 @@
               <div class="pagination-settings d-flex align-items-center">
                 <span class="text-secondary mr-1">跳到第</span>
                 <div class="input-group mx-1 pagination-jump-input-wrap">
-                  <input type="number" class="form-control form-control-sm pagination-jump-page-input" v-model.number="gotoPage" min="1" :max="totalPages"
-                         :style="{ width: historyJumpInputWidthPx + 'px', minWidth: historyJumpInputWidthPx + 'px', maxWidth: historyJumpInputWidthPx + 'px' }">
+                  <input type="number" class="form-control form-control-sm pagination-jump-page-input pagination-jump-page-input-history" v-model.number="gotoPage" min="1" :max="totalPages"
+                         :style="{ width: historyJumpInputWidth, minWidth: '32px', flex: '0 0 auto', padding: '0 7px 0.5px' }"
+                         @input="autoSizeJumpPageInput($event, 'history')">
                 </div>
                 <span class="text-secondary mr-2">页</span>
                 <button type="button" class="btn btn-outline-secondary btn-sm mr-2" @click="changePage(gotoPage)">确定</button>
@@ -2076,7 +2077,7 @@
                   
                   <span class="mx-1" v-if="getVisibleFolderPageNumbers().length > 0 && getVisibleFolderPageNumbers()[getVisibleFolderPageNumbers().length - 1] < fileManager.totalPages - 1">...</span>
                   
-                  <button v-if="fileManager.totalPages > 1" type="button" class="btn btn-sm mx-1" ref="fileManagerPaginationLastPageBtn"
+                  <button v-if="fileManager.totalPages > 1" type="button" class="btn btn-sm mx-1"
                           :class="fileManager.currentPage === fileManager.totalPages ? 'btn-primary' : 'btn-outline-secondary'" 
                           @click="changeFolderPage(fileManager.totalPages)">
                     {{ fileManager.totalPages }}
@@ -2090,8 +2091,9 @@
               <div class="pagination-settings d-flex align-items-center">
                 <span class="text-secondary mr-1">跳到第</span>
                 <div class="input-group mx-1 pagination-jump-input-wrap">
-                  <input type="number" class="form-control form-control-sm pagination-jump-page-input" v-model.number="fileManager.gotoPage" min="1" :max="fileManager.totalPages"
-                         :style="{ width: fileManagerJumpInputWidthPx + 'px', minWidth: fileManagerJumpInputWidthPx + 'px', maxWidth: fileManagerJumpInputWidthPx + 'px' }">
+                  <input type="number" class="form-control form-control-sm pagination-jump-page-input pagination-jump-page-input-filemanager" v-model.number="fileManager.gotoPage" min="1" :max="fileManager.totalPages"
+                         :style="{ width: fileManagerJumpInputWidth, minWidth: '32px', flex: '0 0 auto', padding: '0 7px 0.5px' }"
+                         @input="autoSizeJumpPageInput($event, 'fileManager')">
                 </div>
                 <span class="text-secondary mr-2">页</span>
                 <button type="button" class="btn btn-outline-secondary btn-sm mr-2" @click="changeFolderPage(fileManager.gotoPage)">确定</button>
@@ -3563,9 +3565,9 @@
           }
         })(),
         gotoPage: 1,
-        // 与末页页码按钮同宽的跳转输入框像素宽度；无末页按钮时为 32
-        historyJumpInputWidthPx: 32,
-        fileManagerJumpInputWidthPx: 32,
+        // 跳转页码输入框宽度（随内容自适应，最小 32px）
+        historyJumpInputWidth: '32px',
+        fileManagerJumpInputWidth: '32px',
         totalPages: 1,
         displayedPages: [],
         allTaskNames: [],
@@ -4580,8 +4582,6 @@
             }
           }
           this.$nextTick(function() {
-            this.syncHistoryJumpInputWidth();
-            this.syncFileManagerJumpInputWidth();
             this.refreshActiveTabAutoPageSize({ resetPage: false });
           });
         },
@@ -4595,8 +4595,6 @@
             }
           }
           this.$nextTick(function() {
-            this.syncHistoryJumpInputWidth();
-            this.syncFileManagerJumpInputWidth();
             this.refreshActiveTabAutoPageSize({ resetPage: false });
           });
         },
@@ -4802,11 +4800,15 @@
           if (newValue === 'discovery') {
             this.loadDiscoveryData();
           }
-          // 切换标签后分页 DOM 变化，重新对齐「跳到第 x 页」输入框与末页按钮宽度
+          // 切换标签后重新计算自动分页，并同步跳转输入框宽度
           this.$nextTick(function() {
-            this.syncHistoryJumpInputWidth();
-            this.syncFileManagerJumpInputWidth();
             this.refreshActiveTabAutoPageSize({ resetPage: false });
+            if (newValue === 'history') {
+              this.updateJumpPageInputWidth('history', this.gotoPage);
+            }
+            if (newValue === 'filemanager') {
+              this.updateJumpPageInputWidth('fileManager', this.fileManager.gotoPage);
+            }
           });
         },
         'fileManager.pattern': {
@@ -4815,13 +4817,12 @@
             this.detectFileManagerNamingMode();
           }
         },
-        // 总页数变化时末页按钮文案宽度变化，同步跳转输入框
-        totalPages: function() {
-          this.syncHistoryJumpInputWidth();
+        gotoPage(val) {
+          this.updateJumpPageInputWidth('history', val);
         },
-        'fileManager.totalPages': function() {
-          this.syncFileManagerJumpInputWidth();
-        }
+        'fileManager.gotoPage'(val) {
+          this.updateJumpPageInputWidth('fileManager', val);
+        },
       },
       mounted() {
         this.fetchData();
@@ -7752,23 +7753,7 @@
           try {
             const el = e && e.target;
             if (!el) return;
-            const val = String(el.value || '');
-            // 使用隐藏量尺精确测量当前文本宽度
-            let ruler = document.getElementById('season-width-ruler');
-            if (!ruler) {
-              ruler = document.createElement('span');
-              ruler.id = 'season-width-ruler';
-              ruler.style.position = 'absolute';
-              ruler.style.visibility = 'hidden';
-              ruler.style.whiteSpace = 'pre';
-              ruler.style.font = window.getComputedStyle(el).font;
-              document.body.appendChild(ruler);
-            }
-            ruler.style.font = window.getComputedStyle(el).font;
-            ruler.textContent = val || '1';
-            const textWidth = ruler.getBoundingClientRect().width;
-            // 左右 padding(16) + 边框(2)
-            const px = Math.max(32, Math.ceil(textWidth + 16 + 2));
+            const px = this.measureNumericInputWidth(el, el.value);
             if (this.editMetadata && this.editMetadata.display) {
               this.$set(this.editMetadata.display, 'seasonInputWidth', px + 'px');
             } else {
@@ -7780,21 +7765,7 @@
         measureSeasonInputWidth(val) {
           try {
             const el = document.querySelector('#editMetadataModal .edit-season-number');
-            if (!el) return 32;
-            let ruler = document.getElementById('season-width-ruler');
-            if (!ruler) {
-              ruler = document.createElement('span');
-              ruler.id = 'season-width-ruler';
-              ruler.style.position = 'absolute';
-              ruler.style.visibility = 'hidden';
-              ruler.style.whiteSpace = 'pre';
-              document.body.appendChild(ruler);
-            }
-            const style = window.getComputedStyle(el);
-            ruler.style.font = style.font;
-            ruler.textContent = String(val || '1');
-            const textWidth = ruler.getBoundingClientRect().width;
-            return Math.max(32, Math.ceil(textWidth + 16 + 2));
+            return this.measureNumericInputWidth(el, val);
           } catch (e) { return 32; }
         },
         
@@ -13449,8 +13420,6 @@
           this._onAutoPageSizeResize = this.debounce(function() {
             const heightChanged = window.innerHeight !== self._lastAutoPageSizeViewportHeight;
             self._lastAutoPageSizeViewportHeight = window.innerHeight;
-            self.syncHistoryJumpInputWidth();
-            self.syncFileManagerJumpInputWidth();
             if (heightChanged) {
               self.refreshActiveTabAutoPageSize({ resetPage: false });
             }
@@ -13502,36 +13471,66 @@
           }
         },
 
-        // 转存记录分页：跳转页码输入框宽度与「最后一页」按钮一致；无该按钮时用 32px
-        syncHistoryJumpInputWidth() {
-          var self = this;
-          this.$nextTick(function() {
-            var ref = self.$refs.historyPaginationLastPageBtn;
-            var el = Array.isArray(ref) ? ref[0] : ref;
-            var w = 32;
-            if (el && typeof el.getBoundingClientRect === 'function') {
-              var rw = Math.round(el.getBoundingClientRect().width);
-              if (rw > 0) {
-                w = rw;
-              }
-            }
-            self.historyJumpInputWidthPx = w;
-          });
+        // 获取数字输入框宽度量尺（季数、分页跳转等共用）
+        _getNumericInputWidthRuler(el) {
+          let ruler = document.getElementById('numeric-input-width-ruler');
+          if (!ruler) {
+            ruler = document.createElement('span');
+            ruler.id = 'numeric-input-width-ruler';
+            ruler.style.position = 'absolute';
+            ruler.style.visibility = 'hidden';
+            ruler.style.whiteSpace = 'pre';
+            document.body.appendChild(ruler);
+          }
+          if (el) {
+            ruler.style.font = window.getComputedStyle(el).font;
+          }
+          return ruler;
         },
-        // 文件整理分页：同上
-        syncFileManagerJumpInputWidth() {
-          var self = this;
-          this.$nextTick(function() {
-            var ref = self.$refs.fileManagerPaginationLastPageBtn;
-            var el = Array.isArray(ref) ? ref[0] : ref;
-            var w = 32;
-            if (el && typeof el.getBoundingClientRect === 'function') {
-              var rw = Math.round(el.getBoundingClientRect().width);
-              if (rw > 0) {
-                w = rw;
-              }
+        // 根据文本内容测量数字输入框宽度，最小 32px（读取元素实际左右内边距与边框）
+        measureNumericInputWidth(el, val) {
+          try {
+            if (!el) return 32;
+            const ruler = this._getNumericInputWidthRuler(el);
+            ruler.textContent = String(val || '1');
+            const textWidth = ruler.getBoundingClientRect().width;
+            const style = window.getComputedStyle(el);
+            const paddingX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+            const borderX = (parseFloat(style.borderLeftWidth) || 0) + (parseFloat(style.borderRightWidth) || 0);
+            return Math.max(32, Math.ceil(textWidth + paddingX + borderX));
+          } catch (e) { return 32; }
+        },
+        // 分页跳转输入框：根据输入内容自适应宽度
+        autoSizeJumpPageInput(e, context) {
+          try {
+            const el = e && e.target;
+            if (!el) return;
+            const px = this.measureNumericInputWidth(el, el.value);
+            const widthStr = px + 'px';
+            if (context === 'history') {
+              this.historyJumpInputWidth = widthStr;
+            } else if (context === 'fileManager') {
+              this.fileManagerJumpInputWidth = widthStr;
             }
-            self.fileManagerJumpInputWidthPx = w;
+          } catch (err) {}
+        },
+        // 程序更新 gotoPage 后同步跳转输入框宽度
+        updateJumpPageInputWidth(context, val) {
+          this.$nextTick(() => {
+            try {
+              const selector = context === 'history'
+                ? '.pagination-jump-page-input-history'
+                : '.pagination-jump-page-input-filemanager';
+              const el = document.querySelector(selector);
+              if (!el) return;
+              const px = this.measureNumericInputWidth(el, val != null ? val : el.value);
+              const widthStr = px + 'px';
+              if (context === 'history') {
+                this.historyJumpInputWidth = widthStr;
+              } else if (context === 'fileManager') {
+                this.fileManagerJumpInputWidth = widthStr;
+              }
+            } catch (e) {}
           });
         },
         
@@ -18603,7 +18602,6 @@
               this.$nextTick(() => {
                 // 强制Vue更新视图
                 this.$forceUpdate();
-                this.syncHistoryJumpInputWidth();
               });
             }
           }, { deep: true });
@@ -18641,8 +18639,8 @@
         }
         }, 500);
         this.$nextTick(function() {
-          this.syncHistoryJumpInputWidth();
-          this.syncFileManagerJumpInputWidth();
+          this.updateJumpPageInputWidth('history', this.gotoPage);
+          this.updateJumpPageInputWidth('fileManager', this.fileManager.gotoPage);
         });
       },
       beforeDestroy() {
