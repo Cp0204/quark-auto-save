@@ -11837,8 +11837,16 @@
                   // 检查文件列表是否为空
                   const shareDetail = response.data.data;
                   if (shareDetail.list && shareDetail.list.length > 0) {
+                    // 过滤仅含空文件夹的分享（API share.file_only_num 为 0，无实际文件）
+                    if (shareDetail.share_has_files === false) {
+                      resolve(null);
+                      return;
+                    }
                     const enriched = { ...link };
                     enriched.share_author_name = this.extractShareAuthorName(shareDetail);
+                    if (typeof shareDetail.share_total_size === 'number') {
+                      enriched.share_total_size = shareDetail.share_total_size;
+                    }
                     // 屏蔽分享者：匹配昵称的资源不进入结果列表
                     if (this.isBlockedSharerByName(enriched.share_author_name)) {
                       resolve(null);

@@ -4115,6 +4115,11 @@ def get_share_detail():
                     except (ValueError, TypeError):
                         file_item["include_items"] = 0
 
+    # 从 API 返回的 share 对象提取汇总信息（与分享页「共 N 个文件 / 大小」一致，无需递归统计）
+    share_summary = Quark.parse_share_summary(share_detail)
+    if share_summary:
+        share_detail.update(share_summary)
+
     # 如果是GET请求或者不需要预览正则，直接返回分享详情
     if request.method == "GET" or not request.json.get("regex"):
         return jsonify({"success": True, "data": share_detail})

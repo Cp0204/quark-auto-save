@@ -1748,6 +1748,7 @@ class Quark:
         list_merge = []
         page = 1
         retry_count = 0
+        share_info = None
         
         while True:
             url = f"{self.BASE_URL}/1/clouddrive/share/sharepage/detail"
@@ -1794,6 +1795,9 @@ class Quark:
 
             data = response.get("data") or {}
             metadata = response.get("metadata") or {}
+            # share 汇总信息仅在首页返回，翻页时保留首屏数据
+            if share_info is None and isinstance(data.get("share"), dict):
+                share_info = data.get("share")
 
             if data.get("list"):
                 list_merge += data["list"]
@@ -1810,7 +1814,37 @@ class Quark:
         data["list"] = list_merge
         if "paths" not in data:
             data["paths"] = []
+        if share_info is not None:
+            data["share"] = share_info
         return data
+
+    @staticmethod
+    def parse_share_summary(share_detail):
+        """
+        从分享详情中的 share 对象读取汇总信息（与夸克分享页「共 N 个文件 / 大小」一致）。
+        返回 dict 或 None（无法解析时）。
+        """
+        if not isinstance(share_detail, dict):
+            return None
+        share = share_detail.get("share")
+        if not isinstance(share, dict):
+            return None
+
+        file_only_num = share.get("file_only_num")
+        total_size = share.get("size")
+        all_file_num = share.get("all_file_num")
+
+        summary = {}
+        if file_only_num is not None:
+            summary["share_file_only_num"] = int(file_only_num)
+            summary["share_has_files"] = int(file_only_num) > 0
+        elif total_size is not None:
+            summary["share_has_files"] = int(total_size) > 0
+        if total_size is not None:
+            summary["share_total_size"] = int(total_size)
+        if all_file_num is not None:
+            summary["share_all_file_num"] = int(all_file_num)
+        return summary or None
 
     def get_fids(self, file_paths):
         fids = []
