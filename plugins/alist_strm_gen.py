@@ -48,6 +48,13 @@ class Alist_strm_gen:
         if missing_configs:
             return  # 不显示缺少参数的提示
 
+        # 标准化 URL，避免末尾斜杠导致路径拼接出现 //
+        if self.url:
+            self.url = self.url.strip()
+            if not self.url.startswith(("http://", "https://")):
+                self.url = f"http://{self.url}"
+            self.url = self.url.rstrip("/")
+
         if not self.url or not self.token or not self.storage_id:
             return  # 不显示配置不完整的提示
             
@@ -64,15 +71,15 @@ class Alist_strm_gen:
             self.is_active = True
             # 存储挂载路径, 夸克根文件夹
             self.storage_mount_path, self.quark_root_dir = result
-            # 替换strm文件内链接的主机地址
-            self.strm_replace_host = self.strm_replace_host.strip()
+            # 替换 strm 文件内链接的主机地址
+            self.strm_replace_host = (self.strm_replace_host or "").strip().rstrip("/")
             if self.strm_replace_host:
                 if self.strm_replace_host.startswith("http"):
                     self.strm_server = f"{self.strm_replace_host}/d"
                 else:
                     self.strm_server = f"http://{self.strm_replace_host}/d"
             else:
-                self.strm_server = f"{self.url.strip()}/d"
+                self.strm_server = f"{self.url}/d"
         else:
             pass
 

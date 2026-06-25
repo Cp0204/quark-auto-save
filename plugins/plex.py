@@ -29,6 +29,13 @@ class Plex:
                 # 单一配置转换为数组格式
                 self.quark_root_paths = [self.quark_root_path] if self.quark_root_path else []
 
+            # 标准化 URL，避免末尾斜杠导致路径拼接出现 //
+            if self.url:
+                self.url = self.url.strip()
+                if not self.url.startswith(("http://", "https://")):
+                    self.url = f"http://{self.url}"
+                self.url = self.url.rstrip("/")
+
             if self.url and self.token and self.quark_root_path:
                 if self.get_info():
                     self.is_active = True
