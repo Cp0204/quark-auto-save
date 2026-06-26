@@ -3549,6 +3549,8 @@
           selectedFiles: [], // 存储选中的文件ID
           lastSelectedFileIndex: -1, // 记录最后选择的文件索引
           canUndoRename: false,
+          renameScopeFileIds: null, // 文件整理预览：仅重命名选中的项目时为 fid 数组，否则为 null 表示全部
+          previewFolderId: null, // 文件整理命名预览当前浏览目录（独立于主页面 currentFolder）
           moveMode: false, // 是否为移动文件模式
           moveFileIds: [], // 要移动的文件ID列表
           shareAuthor: '' // 选择需转存的文件夹模态框左下角展示用
@@ -4856,6 +4858,8 @@
         $('#fileSelectModal').on('hidden.bs.modal', () => {
           this.fileSelect.selectedFiles = [];
           this.fileSelect.lastSelectedFileIndex = -1;
+          this.fileSelect.renameScopeFileIds = null;
+          this.fileSelect.previewFolderId = null;
           this.fileSelectTotalHover = false;
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
@@ -4969,6 +4973,8 @@
         $('#fileSelectModal').on('hidden.bs.modal', () => {
           this.fileSelect.selectedFiles = [];
           this.fileSelect.lastSelectedFileIndex = -1;
+          this.fileSelect.renameScopeFileIds = null;
+          this.fileSelect.previewFolderId = null;
           this.fileSelectTotalHover = false;
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
@@ -12607,8 +12613,7 @@
         navigateTo(fid, name) {
           // 新增：命名预览模式下（文件整理页面），切换目录时刷新预览
           if (this.fileSelect.previewRegex && this.fileSelect.index === -1) {
-            // 更新fileManager当前目录
-            this.fileManager.currentFolder = fid;
+            // 仅更新预览目录，不影响文件整理页当前目录
             // 更新面包屑路径
             if (fid == "0") {
               this.fileSelect.paths = [];
@@ -12620,6 +12625,8 @@
                 this.fileSelect.paths.push({ fid: fid, name: name });
               }
             }
+            // 进入子目录后处理该目录下的全部项目
+            this.fileSelect.renameScopeFileIds = null;
             // 直接刷新命名预览（不关闭模态框）
             this.showFileManagerNamingPreview(fid);
             return;
@@ -15818,7 +15825,7 @@
                   this.refreshCurrentFolderCache();
                   // 如果命名预览模态框是打开的，也要刷新它
                   if ($('#fileSelectModal').hasClass('show')) {
-                    this.showFileManagerNamingPreview(this.fileManager.currentFolder);
+                    this.showFileManagerNamingPreview(this.fileSelect.previewFolderId || this.fileManager.currentFolder);
                   }
                 } else {
                   alert(response.data.message || '重命名失败');
@@ -15848,7 +15855,18 @@
           this.fileSelect.sortBy = "file_name_re";
           this.fileSelect.sortOrder = "desc";
           // 展示当前文件夹的文件
-          const currentFolderId = folderId || this.fileManager.currentFolder;
+          const isInitialOpen = !folderId;
+          if (isInitialOpen) {
+            // 首次打开：从文件整理页当前目录开始
+            this.fileSelect.previewFolderId = this.fileManager.currentFolder;
+            this.fileSelect.renameScopeFileIds = this.fileManager.selectedFiles.length > 0
+              ? [...this.fileManager.selectedFiles]
+              : null;
+          } else {
+            this.fileSelect.previewFolderId = folderId;
+          }
+          const currentFolderId = this.fileSelect.previewFolderId;
+          const renameScopeFileIds = this.fileSelect.renameScopeFileIds;
           // 模拟一个任务，用于预览
           const previewTask = {
             pattern: this.fileManager.pattern,
@@ -15863,7 +15881,7 @@
           // 设置模态框标题类型
           document.getElementById('fileSelectModal').setAttribute('data-modal-type', 'preview-filemanager');
           // 显示模态框
-          if (!folderId) $('#fileSelectModal').modal('toggle'); // 仅首次打开时toggle
+          if (isInitialOpen) $('#fileSelectModal').modal('toggle'); // 仅首次打开时toggle
           // 获取文件列表并处理重命名预览
           this.modalLoading = true;
           // 获取重命名预览结果
@@ -15879,7 +15897,9 @@
               // 添加页面大小参数，获取所有文件
               page_size: 99999,
               // 添加账号索引参数，使用文件整理页面选中的账号
-              account_index: this.fileManager.selectedAccountIndex
+              account_index: this.fileManager.selectedAccountIndex,
+              // 仅处理选中的项目
+              ...(renameScopeFileIds ? { file_ids: renameScopeFileIds.join(',') } : {})
             }
           })
           .then(response => {
@@ -15907,8 +15927,14 @@
               .then(listResponse => {
                 if (listResponse.data.success) {
                   // 获取文件列表和路径
-                  const fileList = listResponse.data.data.list;
+                  let fileList = listResponse.data.data.list;
                   this.fileSelect.paths = listResponse.data.data.paths || [];
+
+                  // 若限定为选中项目，预览列表仅显示这些项目
+                  if (renameScopeFileIds) {
+                    const scopeIdSet = new Set(renameScopeFileIds);
+                    fileList = fileList.filter(file => scopeIdSet.has(file.fid));
+                  }
                   
                   // 将重命名结果添加到文件列表
                   fileList.forEach(file => {
@@ -15999,7 +16025,7 @@
                   this.refreshCurrentFolderCache();
                   // 如果命名预览模态框是打开的，也要刷新它
                   if ($('#fileSelectModal').hasClass('show')) {
-                    this.showFileManagerNamingPreview(this.fileManager.currentFolder);
+                    this.showFileManagerNamingPreview(this.fileSelect.previewFolderId || this.fileManager.currentFolder);
                   }
                 } else {
                   alert(response.data.message || '删除失败');
@@ -16261,7 +16287,7 @@
                 this.refreshCurrentFolderCache();
                 // 如果命名预览模态框是打开的，也要刷新它
                 if ($('#fileSelectModal').hasClass('show')) {
-                  this.showFileManagerNamingPreview(this.fileManager.currentFolder);
+                  this.showFileManagerNamingPreview(this.fileSelect.previewFolderId || this.fileManager.currentFolder);
                 }
               } else {
                 this.showToast(response.data.message || '重命名失败');
@@ -16612,7 +16638,7 @@
                   this.refreshCurrentFolderCache();
                   // 如果命名预览模态框是打开的，也要刷新它
                   if ($('#fileSelectModal').hasClass('show')) {
-                    this.showFileManagerNamingPreview(this.fileManager.currentFolder);
+                    this.showFileManagerNamingPreview(this.fileSelect.previewFolderId || this.fileManager.currentFolder);
                   }
                 }
               });
@@ -16664,7 +16690,7 @@
               new_name: f.file_name_re,
               old_name: f.file_name // 传递原文件名，便于撤销
             }));
-            const save_path = this.fileManager.currentFolder;
+            const save_path = this.fileSelect.previewFolderId || this.fileManager.currentFolder;
             const response = await axios.post('/batch_rename', {
               files,
               save_path,
@@ -16689,7 +16715,7 @@
           if (this.modalLoading) return;
           this.modalLoading = true;
           try {
-            const save_path = this.fileManager.currentFolder;
+            const save_path = this.fileSelect.previewFolderId || this.fileManager.currentFolder;
             const response = await axios.post('/undo_rename', {
               save_path,
               // 添加账号索引参数，使用文件整理页面选中的账号
@@ -18444,6 +18470,8 @@
         $('#fileSelectModal').on('hidden.bs.modal', () => {
           this.fileSelect.selectedFiles = [];
           this.fileSelect.lastSelectedFileIndex = -1;
+          this.fileSelect.renameScopeFileIds = null;
+          this.fileSelect.previewFolderId = null;
           this.fileSelectTotalHover = false;
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;
@@ -18538,6 +18566,8 @@
         $('#fileSelectModal').on('hidden.bs.modal', () => {
           this.fileSelect.selectedFiles = [];
           this.fileSelect.lastSelectedFileIndex = -1;
+          this.fileSelect.renameScopeFileIds = null;
+          this.fileSelect.previewFolderId = null;
           this.fileSelectTotalHover = false;
           // 重置移动模式相关参数
           this.fileSelect.moveMode = false;

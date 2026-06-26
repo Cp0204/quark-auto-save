@@ -5740,6 +5740,9 @@ def preview_rename():
     include_folders = request.args.get("include_folders", "false") == "true"
     filterwords = request.args.get("filterwords", "")
     account_index = int(request.args.get("account_index", 0))  # 新增账号索引参数
+    # 可选：仅处理指定文件（文件整理页选中项目时传入，逗号分隔的 fid）
+    file_ids_param = request.args.get("file_ids", "").strip()
+    selected_file_ids = {fid.strip() for fid in file_ids_param.split(",") if fid.strip()} if file_ids_param else None
 
     if not pattern:
         pattern = ".*"
@@ -5762,6 +5765,10 @@ def preview_rename():
         
         # 使用高级过滤函数过滤文件
         filtered_files = advanced_filter_files(files, filterwords)
+
+        # 若指定了选中项目，仅处理这些文件/文件夹
+        if selected_file_ids is not None:
+            filtered_files = [file for file in filtered_files if file.get("fid") in selected_file_ids]
         
         # 如果不包含文件夹，进一步过滤掉文件夹
         if not include_folders:
