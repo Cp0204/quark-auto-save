@@ -2034,16 +2034,16 @@
                       <td class="file-size-cell">
                         <span class="file-size-value">{{ file.dir ? (file.include_items + ' 项') : formatFileSize(file.size || file.file_size) }}</span>
                         <span v-if="showFileManagerActionBar(file)" class="file-manager-action-btns">
-                          <span v-if="showFileManagerRenameBtn(file)" class="rename-record-btn" @click.stop="startRenameFile(file)" title="重命名">
+                          <span v-if="showFileManagerRenameBtn(file)" class="rename-record-btn" @click.stop="startRenameFile(file)" :title="fileManager.selectedFiles.length > 1 ? '批量重命名' : '重命名'">
                             <i class="bi bi-pencil"></i>
                           </span>
-                          <span v-if="showFileManagerExtractBtn(file)" class="extract-record-btn" @click.stop="startExtractFile(file)" title="云解压">
+                          <span v-if="showFileManagerExtractBtn(file)" class="extract-record-btn" @click.stop="startExtractFile(file)" :title="fileManager.selectedFiles.length > 1 ? '批量云解压' : '云解压'">
                             <i class="bi bi-file-zip"></i>
                           </span>
-                          <span v-if="showFileManagerMoveBtn(file)" class="move-record-btn" @click.stop="startMoveFile(file)" title="移动">
+                          <span v-if="showFileManagerMoveBtn(file)" class="move-record-btn" @click.stop="startMoveFile(file)" :title="fileManager.selectedFiles.length > 1 ? '批量移动' : '移动'">
                             <i class="bi bi-arrow-up-right-circle"></i>
                           </span>
-                          <span v-if="showFileManagerDeleteBtn(file)" class="delete-record-btn" @click.stop="deleteSelectedFilesForManager(file.fid, file.file_name, file.dir)" title="删除">
+                          <span v-if="showFileManagerDeleteBtn(file)" class="delete-record-btn" @click.stop="deleteSelectedFilesForManager(file.fid, file.file_name, file.dir)" :title="fileManager.selectedFiles.length > 1 ? '批量删除' : '删除'">
                             <i class="bi bi-trash3"></i>
                           </span>
                         </span>
@@ -15408,16 +15408,13 @@
             return { fid, file_name: info.file_name, dir: info.dir };
           });
         },
-        // 多选/全选时：重命名仅支持单项，多选时隐藏
+        // 多选时在选中行显示重命名按钮；多选点击走批量命名预览，单选/未选仍为行内重命名
         showFileManagerRenameBtn(file) {
           if (this.isMobileDevice() && this.fileManager.selectedFiles.length === 0) {
             return false;
           }
           const count = this.fileManager.selectedFiles.length;
-          if (count > 1) {
-            return false;
-          }
-          if (count === 1) {
+          if (count > 0) {
             return this.fileManager.selectedFiles.includes(file.fid);
           }
           return true;
@@ -16039,6 +16036,11 @@
         },
         // 开始重命名文件
         startRenameFile(file) {
+          // 多选时打开命名预览，仅处理选中项目
+          if (this.fileManager.selectedFiles.length > 1 && this.fileManager.selectedFiles.includes(file.fid)) {
+            this.previewAndRename();
+            return;
+          }
           // 设置编辑状态
           this.$set(file, '_editing', true);
           this.$set(file, '_editingName', file.file_name);
