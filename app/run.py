@@ -58,6 +58,7 @@ from quark_auto_save import (
     build_episode_naming_filename,
     build_sequence_regex_pattern,
     is_standalone_sequence_pattern,
+    parse_sequence_start,
 )
 
 # 导入豆瓣服务
@@ -5734,6 +5735,7 @@ def preview_rename():
     folder_id = request.args.get("folder_id", "root")
     pattern = request.args.get("pattern", "")
     replace = request.args.get("replace", "")
+    sequence_start = request.args.get("sequence_start", "")
     naming_mode = request.args.get("naming_mode", "regex")  # regex, sequence, episode
     include_folders = request.args.get("include_folders", "false") == "true"
     filterwords = request.args.get("filterwords", "")
@@ -5772,11 +5774,13 @@ def preview_rename():
             # 顺序命名模式
             # 排序文件（按文件名或修改时间）
             filtered_files.sort(key=lambda x: sort_file_by_name(x["file_name"]))
-            
-            sequence = 1
+
+            start_num, pad_width = parse_sequence_start(sequence_start)
+            sequence = start_num - 1
             for file in filtered_files:
+                sequence += 1
                 new_name = build_sequence_naming_filename(
-                    pattern, sequence, file["file_name"]
+                    pattern, sequence, file["file_name"], pad_width
                 )
                 # 应用字幕命名规则
                 new_name = apply_subtitle_naming_rule(new_name, config_data["task_settings"])
@@ -5785,7 +5789,6 @@ def preview_rename():
                     "new_name": new_name,
                     "file_id": file["fid"]
                 })
-                sequence += 1
                 
         elif naming_mode == "episode":
             # 剧集命名模式

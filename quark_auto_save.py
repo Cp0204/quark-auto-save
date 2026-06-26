@@ -1385,10 +1385,25 @@ def is_standalone_sequence_pattern(pattern):
     return pattern_base == "{}" and not forced_ext
 
 
-def build_sequence_naming_filename(pattern, sequence_num, original_filename):
+def parse_sequence_start(start_str):
+    """解析文件整理页自定义起始序号，返回 (start_num, pad_width)。
+
+    留空表示从 1 开始、2 位补零；非空时补零位数由输入长度决定（如 001→3 位，0001→4 位）。
+    """
+    if start_str is None:
+        return 1, 2
+    s = str(start_str).strip()
+    if not s:
+        return 1, 2
+    if not s.isdigit():
+        return 1, 2
+    return int(s), len(s)
+
+
+def build_sequence_naming_filename(pattern, sequence_num, original_filename, pad_width=2):
     """根据顺序命名规则生成文件名；规则末尾可指定文件扩展名以替换原文件扩展名。"""
     pattern_base, forced_ext = parse_naming_pattern_extension(pattern)
-    seq_str = f"{sequence_num:02d}"
+    seq_str = f"{sequence_num:0{pad_width}d}"
 
     if pattern_base == "{}":
         name_part = seq_str

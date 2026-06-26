@@ -1911,7 +1911,10 @@
                     :placeholder="fileManager.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}' : (fileManager.use_episode_naming ? '输入带[]占位符的重命名格式，如：剧名 - S01E[]' : '匹配表达式')"
                     @input="detectFileManagerNamingMode"
                     :title="fileManager.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}、剧名.S03E{}等，{}将被替换为集序号（按文件名和修改日期智能排序）' : (fileManager.use_episode_naming ? '输入带[]占位符的重命名格式，如：剧名 - S01E[]、剧名.S03E[]等，[]将被替换为从文件名中提取的集编号' : '只重命名匹配到文件名的文件，留空不会进行重命名')">
-                  <input v-if="!fileManager.use_sequence_naming && !fileManager.use_episode_naming" type="text" class="form-control file-manager-input" v-model="fileManager.replace" placeholder="替换表达式" title="替换表达式">
+                  <input v-if="fileManager.use_sequence_naming" type="text" class="form-control file-manager-input" v-model="fileManager.sequence_start"
+                    placeholder="可选，输入起始序号，留空从 01 开始"
+                    title="自定义起始序号，留空默认从01开始；位数由输入决定，如001为3位补零，0001为4位补零">
+                  <input v-else-if="!fileManager.use_episode_naming" type="text" class="form-control file-manager-input" v-model="fileManager.replace" placeholder="替换表达式" title="替换表达式">
                   <input type="text" class="form-control file-manager-input" v-model="fileManager.filterwords" placeholder="可选，输入过滤词汇，用逗号分隔，如：纯享，txt，超前企划" title="名称包含过滤词汇的项目不会被重命名，多个词用逗号分隔，支持通过文件名和扩展名过滤文件和文件夹，支持使用保留词|过滤词的格式实现高级过滤，查阅Wiki了解详情">
                   <div class="input-group-append">
                     <div class="input-group-text" title="勾选后，重命名和过滤规则也将应用于文件夹">
@@ -1936,7 +1939,10 @@
                       :placeholder="fileManager.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}' : (fileManager.use_episode_naming ? '输入带[]占位符的重命名格式，如：剧名 - S01E[]' : '匹配表达式')"
                       @input="detectFileManagerNamingMode"
                       :title="fileManager.use_sequence_naming ? '输入带{}占位符的重命名格式，如：剧名 - S01E{}、剧名.S03E{}等，{}将被替换为集序号（按文件名和修改日期智能排序）' : (fileManager.use_episode_naming ? '输入带[]占位符的重命名格式，如：剧名 - S01E[]、剧名.S03E[]等，[]将被替换为从文件名中提取的集编号' : '只重命名匹配到文件名的文件，留空不会进行重命名')">
-                    <input v-if="!fileManager.use_sequence_naming && !fileManager.use_episode_naming" type="text" class="form-control" v-model="fileManager.replace" placeholder="替换表达式" title="替换表达式">
+                    <input v-if="fileManager.use_sequence_naming" type="text" class="form-control" v-model="fileManager.sequence_start"
+                      placeholder="可选，输入起始序号，留空从 01 开始"
+                      title="自定义起始序号，留空默认从01开始；位数由输入决定，如001为3位补零，0001为4位补零">
+                    <input v-else-if="!fileManager.use_episode_naming" type="text" class="form-control" v-model="fileManager.replace" placeholder="替换表达式" title="替换表达式">
                   </div>
                   <!-- 第二行：过滤规则+含文件夹+按钮，flex包裹，含文件夹有圆角，按钮有8px间距和圆角 -->
                   <div class="input-group d-flex align-items-center">
@@ -2723,8 +2729,11 @@
                 <!-- 文件管理器的命名预览 -->
                 <div v-else-if="fileSelect.index === -1 && document.getElementById('fileSelectModal').getAttribute('data-modal-type') === 'preview-filemanager'">
                   <div v-if="fileManager.use_sequence_naming">
-                    <div style="margin-bottom: 12px; padding-left: 12px; display: flex; align-items: center;">
+                    <div style="margin-bottom: 1px; padding-left: 12px; display: flex; align-items: center;">
                       <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">顺序命名表达式：</span><span class="badge badge-info" v-html="fileManager.pattern"></span>
+                    </div>
+                    <div style="padding-left: 12px; display: flex; align-items: center;">
+                      <span style="font-weight: 600; font-family: inherit; letter-spacing: normal;">起始序号：</span><span class="badge badge-info" v-html="fileManager.sequence_start || '01'"></span>
                     </div>
                   </div>
                   <div v-else-if="fileManager.use_episode_naming">
@@ -3631,6 +3640,8 @@
           // 正则表达式
           pattern: '',
           replace: '',
+          // 顺序命名起始序号（仅文件整理页）
+          sequence_start: '',
           // 过滤关键词
           filterwords: '',
           // 包含文件夹
@@ -15842,6 +15853,7 @@
           const previewTask = {
             pattern: this.fileManager.pattern,
             replace: this.fileManager.replace,
+            sequence_start: this.fileManager.sequence_start,
             use_sequence_naming: this.fileManager.use_sequence_naming,
             use_episode_naming: this.fileManager.use_episode_naming,
             filterwords: this.fileManager.filterwords
@@ -15860,6 +15872,7 @@
               folder_id: currentFolderId,
               pattern: this.fileManager.pattern,
               replace: this.fileManager.replace,
+              sequence_start: this.fileManager.sequence_start,
               naming_mode: this.fileManager.use_sequence_naming ? 'sequence' : (this.fileManager.use_episode_naming ? 'episode' : 'regex'),
               include_folders: this.fileManager.include_folders,
               filterwords: this.fileManager.filterwords,
