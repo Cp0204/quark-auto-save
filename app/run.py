@@ -58,6 +58,7 @@ from quark_auto_save import (
     build_episode_naming_filename,
     build_sequence_regex_pattern,
     is_standalone_sequence_pattern,
+    parse_sequence_start,
 )
 
 # 导入豆瓣服务
@@ -4115,6 +4116,11 @@ def get_share_detail():
                     except (ValueError, TypeError):
                         file_item["include_items"] = 0
 
+    # 从 API 返回的 share 对象提取汇总信息（与分享页「共 N 个文件 / 大小」一致，无需递归统计）
+    share_summary = Quark.parse_share_summary(share_detail)
+    if share_summary:
+        share_detail.update(share_summary)
+
     # 如果是GET请求或者不需要预览正则，直接返回分享详情
     if request.method == "GET" or not request.json.get("regex"):
         return jsonify({"success": True, "data": share_detail})
@@ -5729,10 +5735,14 @@ def preview_rename():
     folder_id = request.args.get("folder_id", "root")
     pattern = request.args.get("pattern", "")
     replace = request.args.get("replace", "")
+    sequence_start = request.args.get("sequence_start", "")
     naming_mode = request.args.get("naming_mode", "regex")  # regex, sequence, episode
     include_folders = request.args.get("include_folders", "false") == "true"
     filterwords = request.args.get("filterwords", "")
     account_index = int(request.args.get("account_index", 0))  # 新增账号索引参数
+    # 可选：仅处理指定文件（文件整理页选中项目时传入，逗号分隔的 fid）
+    file_ids_param = request.args.get("file_ids", "").strip()
+    selected_file_ids = {fid.strip() for fid in file_ids_param.split(",") if fid.strip()} if file_ids_param else None
 
     if not pattern:
         pattern = ".*"
@@ -5755,6 +5765,10 @@ def preview_rename():
         
         # 使用高级过滤函数过滤文件
         filtered_files = advanced_filter_files(files, filterwords)
+
+        # 若指定了选中项目，仅处理这些文件/文件夹
+        if selected_file_ids is not None:
+            filtered_files = [file for file in filtered_files if file.get("fid") in selected_file_ids]
         
         # 如果不包含文件夹，进一步过滤掉文件夹
         if not include_folders:
@@ -5767,11 +5781,13 @@ def preview_rename():
             # 顺序命名模式
             # 排序文件（按文件名或修改时间）
             filtered_files.sort(key=lambda x: sort_file_by_name(x["file_name"]))
-            
-            sequence = 1
+
+            start_num, pad_width = parse_sequence_start(sequence_start)
+            sequence = start_num - 1
             for file in filtered_files:
+                sequence += 1
                 new_name = build_sequence_naming_filename(
-                    pattern, sequence, file["file_name"]
+                    pattern, sequence, file["file_name"], pad_width
                 )
                 # 应用字幕命名规则
                 new_name = apply_subtitle_naming_rule(new_name, config_data["task_settings"])
@@ -5780,7 +5796,6 @@ def preview_rename():
                     "new_name": new_name,
                     "file_id": file["fid"]
                 })
-                sequence += 1
                 
         elif naming_mode == "episode":
             # 剧集命名模式

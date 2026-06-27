@@ -21,6 +21,13 @@ class Emby:
                     setattr(self, key, kwargs[key])
                 else:
                     print(f"{self.plugin_name} 模块缺少必要参数: {key}")
+            # 标准化 URL，避免末尾斜杠导致路径拼接出现 //
+            if self.url:
+                self.url = self.url.strip()
+                if not self.url.startswith(("http://", "https://")):
+                    self.url = f"http://{self.url}"
+                self.url = self.url.rstrip("/")
+
             if self.url and self.token:
                 if self.get_info():
                     self.is_active = True

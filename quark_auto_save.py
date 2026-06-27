@@ -1385,10 +1385,25 @@ def is_standalone_sequence_pattern(pattern):
     return pattern_base == "{}" and not forced_ext
 
 
-def build_sequence_naming_filename(pattern, sequence_num, original_filename):
+def parse_sequence_start(start_str):
+    """解析文件整理页自定义起始序号，返回 (start_num, pad_width)。
+
+    留空表示从 1 开始、2 位补零；非空时补零位数由输入长度决定（如 001→3 位，0001→4 位）。
+    """
+    if start_str is None:
+        return 1, 2
+    s = str(start_str).strip()
+    if not s:
+        return 1, 2
+    if not s.isdigit():
+        return 1, 2
+    return int(s), len(s)
+
+
+def build_sequence_naming_filename(pattern, sequence_num, original_filename, pad_width=2):
     """根据顺序命名规则生成文件名；规则末尾可指定文件扩展名以替换原文件扩展名。"""
     pattern_base, forced_ext = parse_naming_pattern_extension(pattern)
-    seq_str = f"{sequence_num:02d}"
+    seq_str = f"{sequence_num:0{pad_width}d}"
 
     if pattern_base == "{}":
         name_part = seq_str
@@ -1748,6 +1763,7 @@ class Quark:
         list_merge = []
         page = 1
         retry_count = 0
+        share_info = None
         
         while True:
             url = f"{self.BASE_URL}/1/clouddrive/share/sharepage/detail"
@@ -1794,6 +1810,9 @@ class Quark:
 
             data = response.get("data") or {}
             metadata = response.get("metadata") or {}
+            # share 汇总信息仅在首页返回，翻页时保留首屏数据
+            if share_info is None and isinstance(data.get("share"), dict):
+                share_info = data.get("share")
 
             if data.get("list"):
                 list_merge += data["list"]
@@ -1810,7 +1829,37 @@ class Quark:
         data["list"] = list_merge
         if "paths" not in data:
             data["paths"] = []
+        if share_info is not None:
+            data["share"] = share_info
         return data
+
+    @staticmethod
+    def parse_share_summary(share_detail):
+        """
+        从分享详情中的 share 对象读取汇总信息（与夸克分享页「共 N 个文件 / 大小」一致）。
+        返回 dict 或 None（无法解析时）。
+        """
+        if not isinstance(share_detail, dict):
+            return None
+        share = share_detail.get("share")
+        if not isinstance(share, dict):
+            return None
+
+        file_only_num = share.get("file_only_num")
+        total_size = share.get("size")
+        all_file_num = share.get("all_file_num")
+
+        summary = {}
+        if file_only_num is not None:
+            summary["share_file_only_num"] = int(file_only_num)
+            summary["share_has_files"] = int(file_only_num) > 0
+        elif total_size is not None:
+            summary["share_has_files"] = int(total_size) > 0
+        if total_size is not None:
+            summary["share_total_size"] = int(total_size)
+        if all_file_num is not None:
+            summary["share_all_file_num"] = int(all_file_num)
+        return summary or None
 
     def get_fids(self, file_paths):
         fids = []
@@ -3162,60 +3211,7 @@ class Quark:
 
         # 应用过滤词过滤
         if task.get("filterwords"):
-            # 记录过滤前的文件总数（包括文件夹）
-            original_total_count = len(share_file_list)
-
-            # 使用高级过滤函数处理保留词和过滤词
             share_file_list = advanced_filter_files(share_file_list, task["filterwords"])
-            
-            # 仅在分享侧顶层（subdir_path 为空）打印过滤统计，避免「更新目录」递归时每层重复刷屏
-            if not subdir_path:
-                # 打印过滤信息（格式保持不变）
-                # 计算剩余文件数
-                remaining_count = len(share_file_list)
-                
-                # 区分不同模式的显示逻辑：
-                # 顺序命名和剧集命名模式不处理文件夹，应该排除文件夹计数
-                # 正则命名模式会处理文件夹，但只处理符合正则表达式的文件夹
-                if task.get("use_sequence_naming") or task.get("use_episode_naming"):
-                    # 计算剩余的实际可用文件数（排除文件夹）
-                    remaining_usable_count = len([f for f in share_file_list if not f.get("dir", False)])
-                    print(f"📑 应用过滤词: {task['filterwords']}，剩余 {remaining_usable_count} 个项目")
-                else:
-                    # 正则模式下，需要先检查哪些文件/文件夹会被实际转存
-                    pattern, replace = "", ""
-                    # 检查是否是剧集命名模式
-                    if task.get("use_episode_naming") and task.get("regex_pattern"):
-                        # 使用预先准备好的正则表达式
-                        pattern = task["regex_pattern"]
-                    else:
-                        # 普通正则命名模式
-                        pattern, replace = self.magic_regex_func(
-                            task.get("pattern", ""), task.get("replace", ""), task["taskname"]
-                        )
-                    
-                    # 确保pattern不为空，避免正则表达式错误
-                    if not pattern:
-                        pattern = ".*"
-                    
-                    # 计算真正会被转存的项目数量，使用简化的逻辑
-                    try:
-                        # 简化的计算逻辑：只检查正则表达式匹配
-                        processable_items = []
-                        for share_file in share_file_list:
-                            # 检查是否符合正则表达式
-                            if not re.search(pattern, share_file["file_name"]):
-                                continue
-                            processable_items.append(share_file)
-                        
-                        remaining_count = len(processable_items)
-                    except Exception as e:
-                        # 出错时回退到简单计数方式
-                        print(f"⚠️ 计算可处理项目时出错: {str(e)}")
-                        remaining_count = len([f for f in share_file_list if re.search(pattern, f["file_name"])])
-                    
-                    print(f"📑 应用过滤词: {task['filterwords']}，剩余 {remaining_count} 个项目")
-                print()
 
         # 获取目标目录文件列表
         savepath = re.sub(r"/{2,}", "/", f"/{task['savepath']}{subdir_path}")
@@ -5532,6 +5528,8 @@ def do_save(account, tasklist=[], ignore_execution_rules=False):
                 print(f"正则匹配: {task['pattern']}")
             if task.get("replace") is not None:  # 显示替换规则，即使为空字符串
                 print(f"正则替换: {task['replace']}")
+        if task.get("filterwords"):
+            print(f"过滤规则: {task['filterwords']}")
         if task.get("update_subdir"):
             print(f"更新目录: {task['update_subdir']}")
         # 获取任务的执行周期模式，优先使用任务自身的execution_mode，否则使用系统配置的execution_mode
