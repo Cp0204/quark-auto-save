@@ -29,7 +29,7 @@ When user send message like `https://pan.quark.cn/s/***`, get detail, add a QAS 
 - `QAS_BASE_URL` -  User provided, e.g., http://192.168.1.x:5005
 - `QAS_TOKEN` - User provided
 
-**Actual configuration values are recorded in TOOLS.md, Do not modify SKILL.md**
+> Set in the skill's env config (e.g., `openclaw.json` → `skills.entries.quark-auto-save.env.QAS_BASE_URL`). Restart gateway after editing.
 
 ## First Configuration: Analyze User Habits
 
