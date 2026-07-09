@@ -261,17 +261,8 @@ def get_task_suggestions():
         return jsonify({"success": False, "message": "未登录"})
     query = request.args.get("q", "").lower()
     deep = request.args.get("d", "").lower()
-    net_data = config_data.get("source", {}).get("net", {})
     cs_data = config_data.get("source", {}).get("cloudsaver", {})
     ps_data = config_data.get("source", {}).get("pansou", {})
-
-    def net_search():
-        if str(net_data.get("enable", "true")).lower() != "false":
-            base_url = base64.b64decode("aHR0cHM6Ly9zLjkxNzc4OC54eXo=").decode()
-            url = f"{base_url}/task_suggestions?q={query}&d={deep}"
-            response = requests.get(url)
-            return response.json()
-        return []
 
     def cs_search():
         if (
@@ -304,9 +295,10 @@ def get_task_suggestions():
         search_results = []
         with ThreadPoolExecutor(max_workers=3) as executor:
             features = []
-            features.append(executor.submit(net_search))
-            features.append(executor.submit(cs_search))
-            features.append(executor.submit(ps_search))
+            if str(cs_data.get("enable", "true")).lower() == "true":
+                features.append(executor.submit(cs_search))
+            if str(ps_data.get("enable", "true")).lower() == "true":
+                features.append(executor.submit(ps_search))
             for future in as_completed(features):
                 result = future.result()
                 search_results.extend(result)
