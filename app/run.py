@@ -32,6 +32,7 @@ import re
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
 from quark_auto_save import Quark, Config, MagicRename
+from modules.douban.routes import douban_bp, _reload_douban_scheduler
 
 print(
     r"""
@@ -83,6 +84,9 @@ app.config["APP_VERSION"] = get_app_ver()
 app.secret_key = "ca943f6db6dd34823d36ab08d8d6f65d"
 app.config["SESSION_COOKIE_NAME"] = "QUARK_AUTO_SAVE_SESSION"
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=31)
+
+# 注册豆瓣追踪模块蓝图
+app.register_blueprint(douban_bp)
 app.json.ensure_ascii = False
 app.json.sort_keys = False
 app.jinja_env.variable_start_string = "[["
@@ -657,6 +661,11 @@ def init():
 if __name__ == "__main__":
     init()
     reload_tasks()
+    # 初始化豆瓣追踪调度
+    app.config["config_data"] = config_data
+    app.config["CONFIG_PATH"] = CONFIG_PATH
+    app.config["scheduler"] = scheduler
+    _reload_douban_scheduler()
     logging.info(">>> 启动Web服务")
     logging.info(f"运行在: http://{HOST}:{PORT}")
     app.run(

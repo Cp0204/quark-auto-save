@@ -42,6 +42,11 @@
                 <i class="bi bi-list-task"></i> 任务列表
               </a>
             </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" :class="{active: activeTab === 'douban'}" @click="changeTab('douban')">
+                <i class="bi bi-film"></i> 豆瓣追踪
+              </a>
+            </li>
             <h6 class="sidebar-heading px-3 mt-4 mb-1 text-muted">dashboard</h6>
             <li class="nav-item">
               <a class="nav-link" href="/logout">
@@ -469,6 +474,221 @@
             </div>
           </div>
 
+          <div v-if="activeTab === 'douban'">
+            <!-- 豆瓣追踪 Tab -->
+            <div class="row title">
+              <div class="col-8">
+                <h2><i class="bi bi-film"></i> 豆瓣榜单自动追踪</h2>
+              </div>
+              <div class="col-4 text-right">
+                <button type="button" class="btn btn-outline-primary btn-sm" @click="doubanRefreshSchedule()" title="刷新状态"><i class="bi bi-arrow-clockwise"></i></button>
+              </div>
+            </div>
+            <p class="text-muted">从豆瓣榜单获取热门影视，自动搜索夸克网盘资源并转存。复用本系统的三源搜索能力。</p>
+
+            <!-- 转存状态 -->
+            <div v-if="douban.transfer.running" class="alert alert-info">
+              <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm mr-2" role="status"></div>
+                <span>正在转存... {{ douban.transfer.stats.ok }}/{{ douban.transfer.stats.total }}</span>
+                <button type="button" class="btn btn-outline-danger btn-sm ml-auto" @click="doubanStopTransfer()">停止</button>
+              </div>
+              <div class="progress mt-2" style="height:6px;">
+                <div class="progress-bar" :style="{width: (douban.transfer.stats.total ? (douban.transfer.stats.ok + douban.transfer.stats.skipped + douban.transfer.stats.failed) / douban.transfer.stats.total * 100 : 0) + '%'}"></div>
+              </div>
+              <pre style="max-height:200px;overflow-y:auto;font-size:11px;margin-top:8px;" class="bg-light p-2 rounded">{{ douban.transfer.progress.join('\n') }}</pre>
+            </div>
+
+            <!-- 榜单选择 -->
+            <div class="card mt-3">
+              <div class="card-header" data-toggle="collapse" data-target="#doubanCategories">
+                <i class="bi bi-caret-right-fill"></i> 榜单选择
+              </div>
+              <div class="collapse show card-body" id="doubanCategories">
+                <div class="row">
+                  <div class="col-md-6" v-for="(cat, catKey) in douban.categories" :key="catKey">
+                    <h6>{{ cat.icon }} {{ cat.name }}</h6>
+                    <div v-for="(sub, subKey) in cat.subs" :key="subKey" class="form-group">
+                      <div class="d-flex align-items-center">
+                        <div class="custom-control custom-checkbox">
+                          <input type="checkbox" class="custom-control-input" :id="'douban_'+catKey+'_'+subKey" :value="sub.path + '|' + catKey" v-model="douban.selectedTasks">
+                          <label class="custom-control-label" :for="'douban_'+catKey+'_'+subKey">{{ subKey }}</label>
+                        </div>
+                        <select class="form-control form-control-sm ml-2" style="width:auto;" v-model="douban.selectedTypes[sub.path]">
+                          <option v-for="t in sub.types" :key="t" :value="t">{{ t }}</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-group row mt-2">
+                  <label class="col-sm-2 col-form-label">保存目录</label>
+                  <div class="col-sm-7">
+                    <input type="text" class="form-control" v-model="douban.savepath" placeholder="/豆瓣自动转存">
+                  </div>
+                  <div class="col-sm-3">
+                    <input type="number" class="form-control" v-model.number="douban.transferLimit" min="1" max="50" placeholder="转存上限">
+                  </div>
+                </div>
+                <div class="form-group row">
+                  <label class="col-sm-2 col-form-label">筛选</label>
+                  <div class="col-sm-3">
+                    <input type="number" class="form-control" v-model.number="douban.filters.min_rating" step="0.1" min="0" max="10" placeholder="最低评分">
+                  </div>
+                  <div class="col-sm-3">
+                    <select class="form-control" v-model="douban.filters.sort_by">
+                      <option value="rating">按评分</option>
+                      <option value="year">按年份</option>
+                    </select>
+                  </div>
+                  <div class="col-sm-2">
+                    <input type="number" class="form-control" v-model.number="douban.filters.year_from" placeholder="起始年" min="1900" max="2099">
+                  </div>
+                  <div class="col-sm-2">
+                    <input type="number" class="form-control" v-model.number="douban.filters.year_to" placeholder="截止年" min="1900" max="2099">
+                  </div>
+                </div>
+                <button type="button" class="btn btn-primary" @click="doubanStartTransfer()" :disabled="douban.transfer.running">
+                  <i class="bi bi-play-fill"></i> 开始转存
+                </button>
+              </div>
+            </div>
+
+            <!-- 搜索 -->
+            <div class="card mt-3">
+              <div class="card-header" data-toggle="collapse" data-target="#doubanSearch">
+                <i class="bi bi-caret-right-fill"></i> 手动搜索
+              </div>
+              <div class="collapse card-body" id="doubanSearch">
+                <div class="input-group">
+                  <input type="text" class="form-control" v-model="douban.searchKeyword" placeholder="输入影视名称搜索" @keyup.enter="doubanSearch()">
+                  <div class="input-group-append">
+                    <button type="button" class="btn btn-primary" @click="doubanSearch()" :disabled="douban.searching">
+                      <i v-if="douban.searching" class="spinner-border spinner-border-sm"></i>
+                      <i v-else class="bi bi-search"></i>
+                    </button>
+                  </div>
+                </div>
+                <div v-if="douban.searchResults.length" class="list-group mt-2">
+                  <div v-for="(item, idx) in douban.searchResults" :key="idx" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                    <div style="flex:1;min-width:0;">
+                      <div>{{ item.taskname }}</div>
+                      <small class="text-muted">
+                        <a :href="item.shareurl" target="_blank">{{ item.shareurl }}</a>
+                        <span v-if="item.source" class="badge badge-light">{{ item.source }}</span>
+                      </small>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" @click="doubanTransferOne(item)">转存</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 历史记录 -->
+            <div class="card mt-3">
+              <div class="card-header" data-toggle="collapse" data-target="#doubanHistory">
+                <i class="bi bi-caret-right-fill"></i> 转存历史 ({{ douban.historyTotal }})
+                <button type="button" class="btn btn-outline-danger btn-sm float-right" @click="doubanClearHistory()">清空</button>
+              </div>
+              <div class="collapse card-body" id="doubanHistory" style="max-height:400px;overflow-y:auto;">
+                <div v-if="Object.keys(douban.history).length === 0" class="text-muted text-center py-3">暂无记录</div>
+                <table v-else class="table table-sm table-hover">
+                  <thead>
+                    <tr><th>标题</th><th>日期</th><th>状态</th><th>分类</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(info, title) in douban.history" :key="title">
+                      <td>{{ title }}</td>
+                      <td>{{ info.date }}</td>
+                      <td>
+                        <span v-if="info.status === 'ok'" class="badge badge-success">成功</span>
+                        <span v-else-if="info.status === 'exists'" class="badge badge-info">已存在</span>
+                        <span v-else-if="info.status === 'manual'" class="badge badge-secondary">手动</span>
+                        <span v-else class="badge badge-danger">{{ info.status }}</span>
+                      </td>
+                      <td>{{ info.category }}</td>
+                      <td><a class="text-danger cursor-pointer" @click="doubanDeleteHistory(title)">删除</a></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- 执行历史 -->
+            <div class="card mt-3">
+              <div class="card-header" data-toggle="collapse" data-target="#doubanExecHistory">
+                <i class="bi bi-caret-right-fill"></i> 执行记录
+                <button type="button" class="btn btn-outline-danger btn-sm float-right" @click="doubanClearExecHistory()">清空</button>
+              </div>
+              <div class="collapse card-body" id="doubanExecHistory" style="max-height:300px;overflow-y:auto;">
+                <div v-if="douban.execHistory.length === 0" class="text-muted text-center py-3">暂无记录</div>
+                <table v-else class="table table-sm">
+                  <thead><tr><th>时间</th><th>详情</th><th>状态</th></tr></thead>
+                  <tbody>
+                    <tr v-for="item in douban.execHistory" :key="item.id">
+                      <td><small>{{ item.time }}</small></td>
+                      <td><small>{{ item.detail }}</small></td>
+                      <td>
+                        <span v-if="item.status === 'ok'" class="badge badge-success">成功</span>
+                        <span v-else-if="item.status === 'fail'" class="badge badge-danger">失败</span>
+                        <span v-else-if="item.status === 'running'" class="badge badge-warning">进行中</span>
+                        <span v-else class="badge badge-secondary">{{ item.status }}</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- 定时设置 -->
+            <div class="card mt-3">
+              <div class="card-header" data-toggle="collapse" data-target="#doubanSchedule">
+                <i class="bi bi-caret-right-fill"></i> 定时设置
+              </div>
+              <div class="collapse card-body" id="doubanSchedule">
+                <div class="form-group row">
+                  <label class="col-sm-3 col-form-label">自动转存</label>
+                  <div class="col-sm-3">
+                    <div class="custom-control custom-switch">
+                      <input type="checkbox" class="custom-control-input" id="doubanTransferEnabled" v-model="douban.schedule.transfer.enabled">
+                      <label class="custom-control-label" for="doubanTransferEnabled">{{ douban.schedule.transfer.enabled ? '已启用' : '未启用' }}</label>
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <input type="text" class="form-control" v-model="douban.schedule.transfer.crontab" placeholder="Cron 表达式，如 0 2 * * *">
+                  </div>
+                </div>
+                <div class="form-group row">
+                  <label class="col-sm-3 col-form-label">转存上限</label>
+                  <div class="col-sm-3">
+                    <input type="number" class="form-control" v-model.number="douban.schedule.transfer.limit" min="1" max="50">
+                  </div>
+                  <label class="col-sm-3 col-form-label">失效检测</label>
+                  <div class="col-sm-3">
+                    <div class="custom-control custom-switch">
+                      <input type="checkbox" class="custom-control-input" id="doubanExpiredEnabled" v-model="douban.schedule.expired_check.enabled">
+                      <label class="custom-control-label" for="doubanExpiredEnabled">{{ douban.schedule.expired_check.enabled ? '已启用' : '未启用' }}</label>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-group row" v-if="douban.schedule.expired_check.enabled">
+                  <label class="col-sm-3 col-form-label">检测 Cron</label>
+                  <div class="col-sm-6">
+                    <input type="text" class="form-control" v-model="douban.schedule.expired_check.crontab" placeholder="如 0 3 * * 1">
+                  </div>
+                </div>
+                <div class="row mt-2">
+                  <div class="col-sm-12">
+                    <button type="button" class="btn btn-success btn-sm" @click="doubanSaveSchedule()">保存定时</button>
+                    <button type="button" class="btn btn-outline-primary btn-sm ml-2" @click="doubanRunNow('transfer')" :disabled="douban.transfer.running">立即转存</button>
+                    <button type="button" class="btn btn-outline-warning btn-sm ml-2" @click="doubanRunNow('expired_check')">立即检测</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
           <div class="bottom-buttons">
             <button class="btn btn-success" data-toggle="tooltip" data-placement="top" title="保存 CTRL+S"><i class="bi bi-floppy2-fill"></i></button>
             <button type="button" class="btn btn-primary" data-toggle="tooltip" data-placement="top" title="运行 CTRL+R" @click="runScriptNow()"><i class="bi bi-play-fill"></i></button>
@@ -684,6 +904,26 @@
         },
         activeTab: 'tasklist',
         configModified: false,
+        douban: {
+          categories: {},
+          selectedTasks: [],
+          selectedTypes: {},
+          savepath: '/豆瓣自动转存',
+          transferLimit: 10,
+          filters: { min_rating: 0, sort_by: 'rating', year_from: 0, year_to: 0 },
+          transfer: { running: false, stats: {}, progress: [], start_time: null, summary: null },
+          searchKeyword: '',
+          searchResults: [],
+          searching: false,
+          history: {},
+          historyTotal: 0,
+          execHistory: [],
+          schedule: {
+            transfer: { enabled: false, crontab: '0 2 * * *', limit: 10, tasks: [] },
+            expired_check: { enabled: false, crontab: '0 3 * * 1' },
+          },
+          _pollTimer: null,
+        },
         fileSelect: {
           index: null,
           share: {},
@@ -742,6 +982,215 @@
           if (window.innerWidth <= 768) {
             $('#sidebarMenu').collapse('toggle')
           }
+          if (tab === 'douban') {
+            this.doubanInit();
+          } else {
+            this.doubanStopPolling();
+          }
+        },
+        doubanInit() {
+          this.doubanFetchCategories();
+          this.doubanFetchHistory();
+          this.doubanFetchExecHistory();
+          this.doubanFetchSchedule();
+          this.doubanPollStatus();
+        },
+        async doubanFetchCategories() {
+          try {
+            const res = await axios.get('/api/douban/categories');
+            if (res.data.success) {
+              this.douban.categories = res.data.data;
+              // 初始化默认选中类型
+              for (const catKey in res.data.data) {
+                const cat = res.data.data[catKey];
+                for (const subKey in cat.subs) {
+                  const sub = cat.subs[subKey];
+                  if (sub.types && sub.types.length > 0) {
+                    this.$set(this.douban.selectedTypes, sub.path, sub.types[0]);
+                  }
+                }
+              }
+            }
+          } catch (e) { console.error('douban categories error:', e); }
+        },
+        async doubanFetchHistory() {
+          try {
+            const res = await axios.get('/api/douban/history');
+            if (res.data.success) {
+              this.douban.history = res.data.items;
+              this.douban.historyTotal = res.data.total;
+            }
+          } catch (e) { console.error('douban history error:', e); }
+        },
+        async doubanFetchExecHistory() {
+          try {
+            const res = await axios.get('/api/douban/exec_history');
+            if (res.data.success) {
+              this.douban.execHistory = res.data.items;
+            }
+          } catch (e) { console.error('douban exec history error:', e); }
+        },
+        async doubanFetchSchedule() {
+          try {
+            const res = await axios.get('/api/douban/schedule');
+            if (res.data.success && res.data.data) {
+              const d = res.data.data;
+              if (d.transfer) this.douban.schedule.transfer = d.transfer;
+              if (d.expired_check) this.douban.schedule.expired_check = d.expired_check;
+            }
+          } catch (e) { console.error('douban schedule error:', e); }
+        },
+        async doubanRefreshSchedule() {
+          await this.doubanFetchSchedule();
+          await this.doubanFetchExecHistory();
+          this.showToast('已刷新', 'success');
+        },
+        doubanPollStatus() {
+          this.doubanStopPolling();
+          this.douban._pollTimer = setInterval(() => {
+            this.doubanCheckStatus();
+          }, 3000);
+          this.doubanCheckStatus();
+        },
+        doubanStopPolling() {
+          if (this.douban._pollTimer) {
+            clearInterval(this.douban._pollTimer);
+            this.douban._pollTimer = null;
+          }
+        },
+        async doubanCheckStatus() {
+          try {
+            const res = await axios.get('/api/douban/transfer/status');
+            if (res.data.success) {
+              this.douban.transfer.running = res.data.running;
+              this.douban.transfer.stats = res.data.stats || {};
+              this.douban.transfer.progress = res.data.progress || [];
+              this.douban.transfer.start_time = res.data.start_time;
+              this.douban.transfer.summary = res.data.summary;
+              if (!res.data.running && res.data.summary) {
+                this.doubanFetchHistory();
+                this.doubanFetchExecHistory();
+              }
+            }
+          } catch (e) { /* ignore */ }
+        },
+        async doubanStartTransfer() {
+          if (this.douban.selectedTasks.length === 0) {
+            this.showToast('请至少选择一个榜单', 'warning');
+            return;
+          }
+          if (!this.douban.savepath) {
+            this.showToast('请填写保存目录', 'warning');
+            return;
+          }
+          const tasks = this.douban.selectedTasks.map(item => {
+            const [path, catKey] = item.split('|');
+            return {
+              path: path,
+              type: this.douban.selectedTypes[path] || '全部',
+              savepath: this.douban.savepath,
+              category: catKey,
+            };
+          });
+          try {
+            const res = await axios.post('/api/douban/transfer', {
+              tasks: tasks,
+              limit: this.douban.transferLimit,
+              filters: this.douban.filters,
+            });
+            if (res.data.success) {
+              this.showToast(res.data.message, 'success');
+              this.doubanPollStatus();
+            } else {
+              this.showToast(res.data.message, 'error');
+            }
+          } catch (e) { this.showToast('请求失败', 'error'); }
+        },
+        async doubanStopTransfer() {
+          try {
+            await axios.post('/api/douban/transfer/stop');
+            this.showToast('正在停止...', 'info');
+          } catch (e) { /* ignore */ }
+        },
+        async doubanSearch() {
+          if (!this.douban.searchKeyword.trim()) return;
+          this.douban.searching = true;
+          try {
+            const res = await axios.get('/api/douban/search', { params: { q: this.douban.searchKeyword } });
+            if (res.data.success) {
+              this.douban.searchResults = res.data.data;
+              if (res.data.data.length === 0) this.showToast('未搜索到资源', 'info');
+            }
+          } catch (e) {
+            this.showToast('搜索失败', 'error');
+          } finally {
+            this.douban.searching = false;
+          }
+        },
+        async doubanTransferOne(item) {
+          try {
+            const res = await axios.post('/api/douban/transfer_one', {
+              title: item.taskname || item.title || '',
+              shareurl: item.shareurl,
+              savepath: this.douban.savepath,
+              category: 'movie',
+            });
+            if (res.data.success) {
+              this.showToast('已提交转存: ' + (item.taskname || ''), 'success');
+              this.doubanPollStatus();
+            } else {
+              this.showToast(res.data.message || '失败', 'error');
+            }
+          } catch (e) { this.showToast('请求失败', 'error'); }
+        },
+        async doubanDeleteHistory(title) {
+          if (!confirm('确认删除 ["' + title + '"] 的记录?')) return;
+          try {
+            await axios.post('/api/douban/history/manage', { action: 'delete', titles: [title] });
+            this.doubanFetchHistory();
+            this.showToast('已删除', 'success');
+          } catch (e) { /* ignore */ }
+        },
+        async doubanClearHistory() {
+          if (!confirm('确认清空所有转存历史?')) return;
+          try {
+            await axios.post('/api/douban/history/manage', { action: 'clear' });
+            this.doubanFetchHistory();
+            this.showToast('已清空', 'success');
+          } catch (e) { /* ignore */ }
+        },
+        async doubanClearExecHistory() {
+          if (!confirm('确认清空所有执行记录?')) return;
+          try {
+            await axios.post('/api/douban/exec_history/clear');
+            this.doubanFetchExecHistory();
+            this.showToast('已清空', 'success');
+          } catch (e) { /* ignore */ }
+        },
+        async doubanSaveSchedule() {
+          try {
+            const res = await axios.post('/api/douban/schedule', {
+              action: 'save',
+              transfer: this.douban.schedule.transfer,
+              expired_check: this.douban.schedule.expired_check,
+            });
+            if (res.data.success) {
+              this.showToast('定时设置已保存', 'success');
+            } else {
+              this.showToast(res.data.message || '保存失败', 'error');
+            }
+          } catch (e) { this.showToast('请求失败', 'error'); }
+        },
+        async doubanRunNow(section) {
+          try {
+            const res = await axios.post('/api/douban/schedule', { action: 'run_now', section: section });
+            if (res.data.success) {
+              this.showToast(res.data.message, 'success');
+              if (section === 'transfer') this.doubanPollStatus();
+            } else {
+              this.showToast(res.data.message || '操作失败', 'error');
+            }
+          } catch (e) { this.showToast('请求失败', 'error'); }
         },
         checkNewVersion() {
           this.versionTips = this.version;
