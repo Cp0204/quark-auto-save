@@ -392,7 +392,19 @@
                           <button class="btn btn-outline-secondary" type="button" @click="fileSelect.selectDir=true;fileSelect.switchShare=false;fileSelect.previewRegex=true;fileSelect.sortBy='file_name';fileSelect.sortOrder='asc';showShareSelect(index)" title="预览正则处理效果">正则处理</button>
                         </div>
                         <input type="text" name="pattern[]" class="form-control" v-model="task.pattern" placeholder="匹配表达式" list="magicRegex" @dblclick="inputRawMagicRegex(task)" title="双击可将魔法匹配释放为填入原始正则表达式">
-                        <input type="text" name="replace[]" class="form-control" v-model="task.replace" placeholder="替换表达式">
+                        <div class="input-group-prepend" title="剧集季数：仅在替换表达式留空时对 $TV 剧集规则生效，把季号固定为所选季">
+                          <span class="input-group-text px-2">季数</span>
+                        </div>
+                        <div class="dropdown season-dropdown" style="flex: 0 0 92px;" :title="isTvRegex(task.pattern) ? '仅在替换表达式留空时生效：将 $TV 的季号固定为所选季（如 S03E01.mp4）；填写了自定义替换表达式则以自定义为准' : '仅当上方使用 $TV 剧集正则时可选'">
+                          <button class="form-control dropdown-toggle text-left season-toggle" type="button" data-toggle="dropdown" :disabled="!isTvRegex(task.pattern)">
+                            {{ task.season ? 'S' + String(task.season).padStart(2, '0') : '原始' }}
+                          </button>
+                          <div class="dropdown-menu season-menu">
+                            <a class="dropdown-item" href="#" @click.prevent="selectSeason(task, '')" :class="{active: !task.season}">原始</a>
+                            <a class="dropdown-item" href="#" v-for="n in 30" :key="n" @click.prevent="selectSeason(task, String(n))" :class="{active: task.season === String(n)}">S{{ String(n).padStart(2, '0') }}</a>
+                          </div>
+                        </div>
+                        <input type="text" name="replace[]" class="form-control" v-model="task.replace" @input="onReplaceInput(task)" placeholder="替换表达式" title="选择季数后会自动填入带季号的替换式，可在此基础上继续修改">
                         <div class="input-group-append" title="保存时只比较文件名的部分，01.mp4 和 01.mkv 视同为同一文件，不重复转存">
                           <div class="input-group-text">
                             <input type="checkbox" v-model="task.ignore_extension">&nbsp;忽略后缀
@@ -548,6 +560,10 @@
                 <div><b>替换表达式：</b><span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].replace">{{ formData.tasklist[fileSelect.index].replace }}</span>
                   <span class="badge badge-info" v-else-if="formData.tasklist[fileSelect.index].pattern in formData.magic_regex">{{ formData.magic_regex[formData.tasklist[fileSelect.index].pattern].replace }}</span>
                 </div>
+                <div v-if="isTvRegex(formData.tasklist[fileSelect.index].pattern)">
+                  <b>剧集季数：</b><span class="badge badge-info" v-if="formData.tasklist[fileSelect.index].season">S{{ String(formData.tasklist[fileSelect.index].season).padStart(2, '0') }}</span>
+                  <span class="text-muted" v-else>沿用文件名中的季（若无则无季号）</span>
+                </div>
               </div>
               <!-- 面包屑导航 -->
               <nav aria-label="breadcrumb" v-if="fileSelect.selectDir">
@@ -659,6 +675,7 @@
           savepath: "/",
           pattern: "",
           replace: "",
+          season: "",
           enddate: "",
           addition: {},
           ignore_extension: false,
@@ -734,6 +751,50 @@
         window.removeEventListener('beforeunload', this.handleBeforeUnload);
       },
       methods: {
+        // 是否剧集正则：兼容内置魔法名 $TV、配置里自定义魔法名（如 $TV_REGEX）、
+        // 以及双击释放出的原始正则。与后端 MagicRename.TV_PATTERN 判定一致。
+        isTvRegex(pattern) {
+          const tvPattern = ".*?([Ss]\\d{1,2})?(?:[第EePpXx\\.\\-\\_\\( ]{1,2}|^)(\\d{1,3})(?!\\d).*?\\.(mp4|mkv)";
+          if (!pattern) return false;
+          if (pattern === '$TV') return true; // 内置魔法名不在用户配置里，需显式识别
+          const raw = this.formData.magic_regex[pattern] ? this.formData.magic_regex[pattern].pattern : pattern;
+          return raw === tvPattern;
+        },
+        // 取规则默认替换式，把其中季号固定为所选季，用于自动填入替换表达式框
+        buildSeasonReplace(pattern, season) {
+          const tvDefault = "\\1E\\2.\\3";
+          let base = tvDefault;
+          if (this.formData.magic_regex[pattern]) {
+            base = this.formData.magic_regex[pattern].replace || tvDefault;
+          }
+          const tag = 'S' + String(season).padStart(2, '0');
+          let r = base.replace(/\{SXX\}/g, tag)
+                      .replace(/\{S\}/g, String(Number(season)))
+                      .replace(/\\1/g, tag);
+          // 默认替换式里写死的季号（如 S01）也换成所选季
+          r = r.replace(/S\d{1,2}(?=E|\.|\b)/gi, tag);
+          return r;
+        },
+        // 选季数：若替换框为空或季数是刚刚自动填入的，就自动填入带季号的替换式，方便在此基础上改
+        selectSeason(task, season) {
+          task.season = season;
+          if (season) {
+            const filled = this.buildSeasonReplace(task.pattern, season);
+            if (!task.replace || task._seasonAutoFilled) {
+              task.replace = filled;
+              task._seasonAutoFilled = true;
+            }
+          } else if (task._seasonAutoFilled) {
+            // 选回"原始"且替换框是自动填的，则清空，恢复默认行为
+            task.replace = '';
+            task._seasonAutoFilled = false;
+          }
+          this.configModified = true;
+        },
+        // 用户手动编辑替换框后，解除自动填充标记，避免后续选季覆盖用户自定义
+        onReplaceInput(task) {
+          task._seasonAutoFilled = false;
+        },
         changeTab(tab) {
           this.activeTab = tab;
           if (window.innerWidth <= 768) {
@@ -765,6 +826,10 @@
               config_data.tasklist = config_data.tasklist.map(task => {
                 if (!task.hasOwnProperty('runweek')) {
                   task.runweek = [1, 2, 3, 4, 5, 6, 7];
+                }
+                // 老任务兼容：补齐季数字段，避免下拉框显示空白
+                if (!task.hasOwnProperty('season')) {
+                  this.$set(task, 'season', '');
                 }
                 return task;
               });
@@ -825,7 +890,16 @@
           }
         },
         saveConfig() {
-          axios.post('/update', this.formData)
+          // 剔除前端临时字段（如 _seasonAutoFilled），不写入配置
+          const payload = JSON.parse(JSON.stringify(this.formData));
+          if (payload.tasklist) {
+            payload.tasklist.forEach(task => {
+              Object.keys(task).forEach(key => {
+                if (key.startsWith('_')) delete task[key];
+              });
+            });
+          }
+          axios.post('/update', payload)
             .then(response => {
               if (response.data.success) {
                 this.configModified = false;
@@ -1352,6 +1426,7 @@
         copyTaskToClipboard(index) {
           const task = { ...this.formData.tasklist[index] };
           delete task.addition;
+          Object.keys(task).forEach(key => { if (key.startsWith('_')) delete task[key]; });
           const _this = this;
           this.copyText(JSON.stringify(task), function () {
             _this.showToast("任务参数已复制到剪贴板", "success");

@@ -376,7 +376,9 @@ def get_share_detail():
             dir_filename_list = []
 
         pattern, replace = mr.magic_regex_conv(
-            task.get("pattern", ""), task.get("replace", "")
+            task.get("pattern", ""),
+            task.get("replace", ""),
+            task.get("season", ""),
         )
         for share_file in data["list"]:
             search_pattern = (

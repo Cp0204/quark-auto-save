@@ -147,9 +147,15 @@ class Config:
 
 class MagicRename:
 
+    # $TV 识别基准：按展开后的匹配表达式内容判定，兼容内置 $TV、自定义魔法名、
+    # 以及双击释放成的原始正则，避免依赖具体的魔法名。
+    TV_PATTERN = (
+        r".*?([Ss]\d{1,2})?(?:[第EePpXx\.\-\_\( ]{1,2}|^)(\d{1,3})(?!\d).*?\.(mp4|mkv)"
+    )
+
     magic_regex = {
         "$TV": {
-            "pattern": r".*?([Ss]\d{1,2})?(?:[第EePpXx\.\-\_\( ]{1,2}|^)(\d{1,3})(?!\d).*?\.(mp4|mkv)",
+            "pattern": TV_PATTERN,
             "replace": r"\1E\2.\3",
         },
         "$BLACK_WORD": {
@@ -216,13 +222,44 @@ class MagicRename:
         """设置任务名称"""
         self.magic_variable["{TASKNAME}"] = taskname
 
-    def magic_regex_conv(self, pattern, replace):
-        """魔法正则匹配"""
+    TV_DEFAULT_REPLACE = r"\1E\2.\3"
+
+    def magic_regex_conv(self, pattern, replace, season=""):
+        """魔法正则匹配
+
+        season: 任务级季数（如 "3" 或 "03"）。仅当替换表达式框留空（即使用
+        默认替换式）时注入，用户填写自定义替换表达式时以其为准。
+        覆盖两类剧集替换式：
+          - $TV 默认式 \1E\2.\3：把季号捕获组 \1 固定为 Sxx
+          - 魔法变量式（如 {TASKNAME}.{SXX}E{E}.{EXT}）：把 {SXX}/{S} 固定为所选季
+        """
+        custom_replace = bool(replace)  # 用户是否填了自定义替换表达式
         keyword = pattern
         if keyword in self.magic_regex:
             pattern = self.magic_regex[keyword]["pattern"]
             if replace == "":
                 replace = self.magic_regex[keyword]["replace"]
+        # 季数无效（空、0、非数字）或用户用了自定义替换式时不注入
+        if season and not custom_replace:
+            try:
+                season_num = int(str(season).strip())
+            except (ValueError, TypeError):
+                season_num = 0
+            if season_num > 0:
+                season_tag = f"S{season_num:02d}"
+                # 1) $TV 默认替换式：固定季号捕获组 \1
+                if pattern == self.TV_PATTERN:
+                    if replace == self.TV_DEFAULT_REPLACE:
+                        replace = replace.replace(r"\1", season_tag, 1)
+                    elif replace == "":
+                        # 原始正则释放且替换式留空：按默认式注入
+                        replace = self.TV_DEFAULT_REPLACE.replace(r"\1", season_tag, 1)
+                # 2) 魔法变量替换式：固定季号变量（先长后短，避免 {S} 误匹配 {SXX}）
+                replace = replace.replace("{SXX}", season_tag)
+                replace = replace.replace("{S}", str(season_num))
+                # 3) 默认替换式里写死的季号（如 {TASKNAME}.S01E\2.\3 中的 S01）也要覆盖；
+                #    仅匹配 S 后紧跟 1-2 位数字且再跟 E/句点/结尾的片段，避免误伤普通文本
+                replace = re.sub(r"(?i)S\d{1,2}(?=E|\.|\b)", season_tag, replace)
         return pattern, replace
 
     def sub(self, pattern, replace, file_name):
@@ -917,7 +954,9 @@ class Quark:
 
         # 魔法正则转换
         pattern, replace = mr.magic_regex_conv(
-            task.get("pattern", ""), task.get("replace", "")
+            task.get("pattern", ""),
+            task.get("replace", ""),
+            task.get("season", ""),
         )
         # 需保存的文件清单
         need_save_list = []
@@ -1190,6 +1229,11 @@ def do_save(account, tasklist=[]):
             print(f"正则匹配: {task['pattern']}")
         if task.get("replace"):
             print(f"正则替换: {task['replace']}")
+        if task.get("season"):
+            try:
+                print(f"剧集季数: S{int(task['season']):02d}")
+            except (ValueError, TypeError):
+                print(f"剧集季数: {task['season']}")
         if task.get("update_subdir"):
             print(f"更子目录: {task['update_subdir']}")
         if task.get("runweek") or task.get("enddate"):

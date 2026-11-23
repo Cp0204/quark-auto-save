@@ -241,3 +241,46 @@ table.jsoneditor-tree>tbody>tr.jsoneditor-expandable:first-child {
     opacity: 1;
   }
 }
+/* 季数下拉：外观与相邻 form-control 输入框一致（直角、浅边框、无按钮底色），菜单限高带滚动条 */
+.season-dropdown {
+  display: flex;
+  margin-left: -1px; /* 与左侧「季数」标签边框合并，避免双线 */
+}
+
+.season-toggle {
+  /* 覆盖 .btn 的圆角/底色/边框，模拟 form-control */
+  border-radius: 0 !important;
+  border: 1px solid #ced4da !important;
+  background-color: #fff !important;
+  color: #495057;
+  padding: .375rem 1.4rem .375rem .5rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  white-space: nowrap;
+  height: calc(1.5em + .75rem + 2px);
+}
+
+.season-toggle:disabled {
+  background-color: #e9ecef !important;
+  color: #6c757d;
+}
+
+/* 下拉箭头贴图层，避免挤出宽度 */
+.season-toggle.dropdown-toggle::after {
+  position: absolute;
+  right: .5rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.season-menu {
+  max-height: 200px;
+  overflow-y: auto;
+  min-width: 92px;
+  padding: .25rem 0;
+}
+
+.season-menu .dropdown-item {
+  padding: .2rem .75rem;
+  font-size: .9rem;
+}
